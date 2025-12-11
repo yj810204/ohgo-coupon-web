@@ -4,13 +4,17 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDvcQMMs5-B9LJanDPLMOqTkwd3KMUg2u4",
-  authDomain: "ohgo-dev-bc602.firebaseapp.com",
-  projectId: "ohgo-dev-bc602",
-  storageBucket: "ohgo-dev-bc602.firebasestorage.app",
-  messagingSenderId: "50117397680",
-  appId: "1:50117397680:web:c15a4565cff2b4669dbf75"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
+
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+  throw new Error('Firebase 환경 변수가 설정되지 않았습니다.');
+}
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
