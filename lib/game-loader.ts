@@ -45,37 +45,38 @@ export class GameLoader {
       try {
         const { getGame } = await import('./game-service');
         const gameData = await getGame(gameId);
-        if (gameData?.asset_urls) {
+        const assetUrls = gameData?.asset_urls;
+        if (assetUrls) {
           // 게임 타입에 따라 이미지 경로 설정
           if (gameId === 'bubble_shooter' || gameId === 'match3') {
             // 블록 이미지 URL 설정
             const blockTypes = config.block_types || [];
             blockTypes.forEach((blockType: any, index: number) => {
               const assetName = `block_${index}`;
-              if (gameData.asset_urls[assetName]) {
-                blockType.image_path = gameData.asset_urls[assetName];
+              if (assetUrls[assetName]) {
+                blockType.image_path = assetUrls[assetName];
               }
             });
             config.block_types = blockTypes;
           } else if (gameId === 'flappy_bird') {
             // 플래피 버드 이미지 URL 설정
-            if (gameData.asset_urls['bird_0']) {
-              config.bird_image_path = gameData.asset_urls['bird_0'];
+            if (assetUrls['bird_0']) {
+              config.bird_image_path = assetUrls['bird_0'];
             }
-            if (gameData.asset_urls['coin_0']) {
-              config.coin_image_path = gameData.asset_urls['coin_0'];
+            if (assetUrls['coin_0']) {
+              config.coin_image_path = assetUrls['coin_0'];
             }
-            if (gameData.asset_urls['pipe_0']) {
-              config.pipe_image_path = gameData.asset_urls['pipe_0'];
+            if (assetUrls['pipe_0']) {
+              config.pipe_image_path = assetUrls['pipe_0'];
             }
-            if (gameData.asset_urls['pipe_top_0']) {
-              config.pipe_top_image_path = gameData.asset_urls['pipe_top_0'];
+            if (assetUrls['pipe_top_0']) {
+              config.pipe_top_image_path = assetUrls['pipe_top_0'];
             }
-            if (gameData.asset_urls['pipe_bottom_0']) {
-              config.pipe_bottom_image_path = gameData.asset_urls['pipe_bottom_0'];
+            if (assetUrls['pipe_bottom_0']) {
+              config.pipe_bottom_image_path = assetUrls['pipe_bottom_0'];
             }
-            if (gameData.asset_urls['background_0']) {
-              config.background_image_path = gameData.asset_urls['background_0'];
+            if (assetUrls['background_0']) {
+              config.background_image_path = assetUrls['background_0'];
             }
           }
         }

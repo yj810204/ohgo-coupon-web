@@ -155,8 +155,12 @@ function GamePlayContent() {
                   height: gameContainerRef.current?.offsetHeight,
                 });
                 
-                loaderInstance.startGame(containerId);
-                setGameStarted(true);
+                if (loaderInstance) {
+                  loaderInstance.startGame(containerId);
+                  setGameStarted(true);
+                } else {
+                  throw new Error('게임 로더가 초기화되지 않았습니다.');
+                }
               } catch (err: any) {
                 console.error('Auto start game error:', err);
                 setError(`게임 시작 중 오류가 발생했습니다: ${err.message}`);
@@ -230,7 +234,7 @@ function GamePlayContent() {
 
   const loadPhaser = (): Promise<void> => {
     return new Promise((resolve, reject) => {
-      if (window.Phaser) {
+      if ((window as any).Phaser) {
         resolve();
         return;
       }

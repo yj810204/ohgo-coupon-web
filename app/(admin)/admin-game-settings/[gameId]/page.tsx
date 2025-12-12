@@ -249,9 +249,10 @@ function GameEditContent() {
       setSaving(true);
 
       // 썸네일 업로드
-      let thumbnailPath = game.thumbnail_path;
+      let thumbnailPath: string | undefined = game.thumbnail_path;
       if (thumbnailFile) {
-        thumbnailPath = await uploadThumbnail();
+        const uploadedPath = await uploadThumbnail();
+        thumbnailPath = uploadedPath || undefined;
       }
 
       // 선택된 모든 에셋 이미지 업로드

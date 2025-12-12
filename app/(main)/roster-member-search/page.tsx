@@ -9,6 +9,7 @@ import { v5 as uuidv5 } from 'uuid';
 import { UUID_NAMESPACE } from '@/lib/firebase-auth';
 import { IoSearchOutline, IoAddOutline, IoArrowBackOutline } from 'react-icons/io5';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import PageHeader from '@/components/PageHeader';
 
 interface UserData {
   id: string;
