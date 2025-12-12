@@ -299,6 +299,23 @@ class Match3Game {
                 this.canvasWidth = screenWidth;
                 this.canvasHeight = screenHeight;
             }
+            
+            // match3 게임의 경우, 자동 리사이징 모드에서도 보드 크기는 설정에서 가져오기
+            if (gameConfig) {
+                if (screenWidth < 768) {
+                    if (gameConfig.mobile && gameConfig.mobile.board_size) {
+                        this.boardSize = parseInt(gameConfig.mobile.board_size) || this.boardSize;
+                    }
+                } else if (screenWidth < 1024) {
+                    if (gameConfig.tablet && gameConfig.tablet.board_size) {
+                        this.boardSize = parseInt(gameConfig.tablet.board_size) || this.boardSize;
+                    }
+                } else {
+                    if (gameConfig.desktop && gameConfig.desktop.board_size) {
+                        this.boardSize = parseInt(gameConfig.desktop.board_size) || this.boardSize;
+                    }
+                }
+            }
         }
 
         // 캔버스 크기 설정

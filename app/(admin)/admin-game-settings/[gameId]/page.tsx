@@ -337,27 +337,31 @@ function GameEditContent() {
         use_fixed_size: formData.use_fixed_size || false,
       };
 
-      // 고정 크기 사용 시에만 기기별 설정 추가
-      if (formData.use_fixed_size) {
+      // match3 게임의 경우, 자동 리사이징 모드에서도 보드 크기 설정 추가
+      if (gameId === 'match3') {
         gameConfigJson.mobile = {
-          canvas_width: parseInt(String(formData.mobile_canvas_width)) || 400,
-          canvas_height: parseInt(String(formData.mobile_canvas_height)) || 600,
+          board_size: parseInt(String(formData.mobile_board_size)) || 5,
         };
         gameConfigJson.tablet = {
-          canvas_width: parseInt(String(formData.tablet_canvas_width)) || 500,
-          canvas_height: parseInt(String(formData.tablet_canvas_height)) || 700,
+          board_size: parseInt(String(formData.tablet_board_size)) || 6,
         };
         gameConfigJson.desktop = {
-          canvas_width: parseInt(String(formData.desktop_canvas_width)) || 600,
-          canvas_height: parseInt(String(formData.desktop_canvas_height)) || 700,
+          board_size: parseInt(String(formData.desktop_board_size)) || 7,
         };
+      }
 
-        // 매치3의 경우 보드 크기도 추가
-        if (gameId === 'match3') {
-          gameConfigJson.mobile.board_size = parseInt(String(formData.mobile_board_size)) || 5;
-          gameConfigJson.tablet.board_size = parseInt(String(formData.tablet_board_size)) || 6;
-          gameConfigJson.desktop.board_size = parseInt(String(formData.desktop_board_size)) || 7;
-        }
+      // 고정 크기 사용 시에만 캔버스 크기 설정 추가
+      if (formData.use_fixed_size) {
+        if (!gameConfigJson.mobile) gameConfigJson.mobile = {};
+        if (!gameConfigJson.tablet) gameConfigJson.tablet = {};
+        if (!gameConfigJson.desktop) gameConfigJson.desktop = {};
+        
+        gameConfigJson.mobile.canvas_width = parseInt(String(formData.mobile_canvas_width)) || 400;
+        gameConfigJson.mobile.canvas_height = parseInt(String(formData.mobile_canvas_height)) || 600;
+        gameConfigJson.tablet.canvas_width = parseInt(String(formData.tablet_canvas_width)) || 500;
+        gameConfigJson.tablet.canvas_height = parseInt(String(formData.tablet_canvas_height)) || 700;
+        gameConfigJson.desktop.canvas_width = parseInt(String(formData.desktop_canvas_width)) || 600;
+        gameConfigJson.desktop.canvas_height = parseInt(String(formData.desktop_canvas_height)) || 700;
       }
 
       // 게임 정보 업데이트 (에셋 URL 및 game_config_json 포함)
@@ -496,6 +500,12 @@ function GameEditContent() {
               <div className="alert alert-info small mb-3">
                 <strong>기본값: 자동 리사이징</strong><br />
                 게임은 디바이스의 화면 크기에 맞게 자동으로 리사이징됩니다. 고정 크기를 사용하려면 아래 옵션을 활성화하세요.
+                {gameId === 'match3' && (
+                  <>
+                    <br /><br />
+                    <strong>참고:</strong> match3 게임의 경우, 캔버스 크기는 자동 리사이징되지만 가로 블럭 수(보드 크기)는 아래에서 지정할 수 있습니다.
+                  </>
+                )}
               </div>
               <div className="form-check mb-3">
                 <input
@@ -509,6 +519,79 @@ function GameEditContent() {
                   고정 크기 사용 (관리자 설정에서 지정한 크기 사용)
                 </label>
               </div>
+              
+              {/* match3 게임의 경우, 자동 리사이징 모드에서도 보드 크기 설정 표시 */}
+              {gameId === 'match3' && !formData.use_fixed_size && (
+                <div className="mb-4">
+                  <label className="form-label fw-bold">보드 크기 설정 (가로 블럭 수)</label>
+                  <p className="text-muted small mb-3">
+                    캔버스는 자동 리사이징되지만, 가로 블럭 수는 기기별로 지정할 수 있습니다.
+                  </p>
+                  
+                  {/* 모바일 보드 크기 */}
+                  <div className="card mb-3">
+                    <div className="card-header bg-light">
+                      <h6 className="mb-0">📱 스마트폰 (화면 너비 &lt; 768px)</h6>
+                    </div>
+                    <div className="card-body">
+                      <div className="mb-3">
+                        <label className="form-label small">보드 크기:</label>
+                        <input
+                          type="number"
+                          className="form-control form-control-sm"
+                          min="5"
+                          max="10"
+                          value={formData.mobile_board_size}
+                          onChange={(e) => setFormData({ ...formData, mobile_board_size: parseInt(e.target.value) || 5 })}
+                        />
+                        <small className="text-muted">게임 보드의 크기 (기본: 5x5)</small>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* 태블릿 보드 크기 */}
+                  <div className="card mb-3">
+                    <div className="card-header bg-light">
+                      <h6 className="mb-0">📱 태블릿 (화면 너비 768px - 1024px)</h6>
+                    </div>
+                    <div className="card-body">
+                      <div className="mb-3">
+                        <label className="form-label small">보드 크기:</label>
+                        <input
+                          type="number"
+                          className="form-control form-control-sm"
+                          min="5"
+                          max="10"
+                          value={formData.tablet_board_size}
+                          onChange={(e) => setFormData({ ...formData, tablet_board_size: parseInt(e.target.value) || 6 })}
+                        />
+                        <small className="text-muted">게임 보드의 크기 (기본: 6x6)</small>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* 데스크톱 보드 크기 */}
+                  <div className="card mb-3">
+                    <div className="card-header bg-light">
+                      <h6 className="mb-0">💻 PC (화면 너비 &gt; 1024px)</h6>
+                    </div>
+                    <div className="card-body">
+                      <div className="mb-3">
+                        <label className="form-label small">보드 크기:</label>
+                        <input
+                          type="number"
+                          className="form-control form-control-sm"
+                          min="5"
+                          max="10"
+                          value={formData.desktop_board_size}
+                          onChange={(e) => setFormData({ ...formData, desktop_board_size: parseInt(e.target.value) || 7 })}
+                        />
+                        <small className="text-muted">게임 보드의 크기 (기본: 7x7)</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               {formData.use_fixed_size && (
                 <div>
