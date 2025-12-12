@@ -9,21 +9,6 @@ import { db } from '@/lib/firebase';
 import { Html5Qrcode } from 'html5-qrcode';
 import PageHeader from '@/components/PageHeader';
 
-// 거리 계산 함수
-function getDistanceFromLatLngInKm(lat1: number, lng1: number, lat2: number, lng2: number) {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-    Math.cos((lat2 * Math.PI) / 180) *
-    Math.sin(dLng / 2) *
-    Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
 function QRScanPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -36,44 +21,11 @@ function QRScanPageContent() {
   const qrCodeRef = useRef<Html5Qrcode | null>(null);
   const scanAreaRef = useRef<HTMLDivElement>(null);
 
-  const fetchTargetLocation = async (): Promise<{ lat: number; lng: number; limit: number }> => {
-    const ref = doc(db, 'config', 'location');
-    const snap = await getDoc(ref);
-    if (!snap.exists()) throw new Error('기준 위치 정보가 존재하지 않습니다.');
-    const data = snap.data();
-
-    console.log('📍 기준 위치:', data.lat, data.lng, '제한 거리:', data.limitDistanceKm);
-    return {
-      lat: data.lat,
-      lng: data.lng,
-      limit: data.limitDistanceKm || 0.3,
-    };
-  };
-
   const handleQRInput = useCallback(async (qrData: string) => {
     if (scanning || !user?.uuid) return;
     setScanning(true);
 
     try {
-      // 위치 확인
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-        });
-      });
-
-      const { latitude, longitude } = position.coords;
-      const target = await fetchTargetLocation();
-      const distance = getDistanceFromLatLngInKm(latitude, longitude, target.lat, target.lng);
-
-      if (distance > target.limit) {
-        setMessage(`❌ 위치가 기준 위치에서 ${distance.toFixed(2)}km 떨어져 있습니다. (제한: ${target.limit}km)`);
-        setMessageColor('#f44336');
-        setScanning(false);
-        return;
-      }
-
       // QR 코드 검증 및 스탬프 적립
       const qrRef = doc(db, 'qrCodes', qrData);
       const qrSnap = await getDoc(qrRef);
@@ -294,7 +246,7 @@ function QRScanPageContent() {
                 다시 시도
               </button>
             </div>
-          </div>
+        </div>
         )}
       </div>
       

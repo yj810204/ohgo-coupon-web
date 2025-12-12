@@ -208,22 +208,22 @@ function CouponsPageContent() {
             <h5 className="mb-0 fw-semibold">사용 가능한 쿠폰</h5>
             <span className="badge bg-primary rounded-pill">{usableCoupons.length}개</span>
           </div>
-          {usableCoupons.length === 0 ? (
+            {usableCoupons.length === 0 ? (
             <div className="card border-0 shadow-sm" style={{ borderRadius: '12px' }}>
               <div className="card-body text-center py-5 d-flex flex-column align-items-center">
                 <IoGiftOutline size={48} className="text-muted mb-3 opacity-50" />
                 <p className="text-muted mb-0">사용 가능한 쿠폰이 없습니다.</p>
               </div>
             </div>
-          ) : (
+            ) : (
             <div className="d-flex flex-column gap-2">
-              {usableCoupons.map((coupon) => (
-                <button
-                  key={coupon.id}
-                  onClick={() => {
-                    setSelectedCoupon(coupon);
-                    setModalVisible(true);
-                  }}
+                {usableCoupons.map((coupon) => (
+                  <button
+                    key={coupon.id}
+                    onClick={() => {
+                      setSelectedCoupon(coupon);
+                      setModalVisible(true);
+                    }}
                   className="btn btn-light w-100 text-start p-3 border-0 shadow-sm"
                   style={{ 
                     borderRadius: '12px',
@@ -241,43 +241,43 @@ function CouponsPageContent() {
                   <div className="flex-grow-1">
                     <div className="fw-semibold mb-1">{coupon.reason || '쿠폰'}</div>
                     <div className="small text-muted">
-                      발급일: {coupon.issuedAt || '알 수 없음'}
+                          발급일: {coupon.issuedAt || '알 수 없음'}
                       {coupon.isHalf === 'Y' && <span className="ms-2 text-warning">(50% 할인)</span>}
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
         {/* 사용된 쿠폰 */}
-        {usedCoupons.length > 0 && (
-          <div>
+          {usedCoupons.length > 0 && (
+            <div>
             <div className="d-flex align-items-center justify-content-between mb-3">
               <h5 className="mb-0 fw-semibold">사용된 쿠폰</h5>
               <span className="badge bg-secondary rounded-pill">{usedCoupons.length}개</span>
             </div>
             <div className="d-flex flex-column gap-2">
-              {usedCoupons.map((coupon) => (
-                <div
-                  key={coupon.id}
+                {usedCoupons.map((coupon) => (
+                  <div
+                    key={coupon.id}
                   className="card border-0 shadow-sm opacity-60"
                   style={{ borderRadius: '12px' }}
-                >
+                  >
                   <div className="card-body p-3">
                     <div className="flex-grow-1">
                       <div className="fw-semibold text-decoration-line-through text-muted mb-1">{coupon.reason || '쿠폰'}</div>
                       <div className="small text-muted">
-                        발급일: {coupon.issuedAt || '알 수 없음'} (사용됨)
+                          발급일: {coupon.issuedAt || '알 수 없음'} (사용됨)
+                      </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
       </div>
 
       {/* Coupon Modal */}
@@ -305,32 +305,32 @@ function CouponsPageContent() {
                 <div className="mb-3">
                   <div className="small text-muted mb-1">발급일</div>
                   <div className="fw-semibold">{selectedCoupon.issuedAt || '알 수 없음'}</div>
-                </div>
-                {selectedCoupon.isHalf === 'Y' && (
+            </div>
+            {selectedCoupon.isHalf === 'Y' && (
                   <div className="mb-3">
                     <span className="badge bg-warning text-dark">50% 할인 쿠폰</span>
                   </div>
-                )}
-                {!selectedCoupon.used && (
+            )}
+            {!selectedCoupon.used && (
                   <div className="d-grid gap-2">
-                    <button
-                      onClick={handleUse}
+                <button
+                  onClick={handleUse}
                       className="btn btn-primary"
                       style={{ borderRadius: '12px', padding: '12px' }}
-                    >
-                      쿠폰 사용
-                    </button>
-                    {fromAdmin && (
-                      <button
-                        onClick={handleRevoke}
+                >
+                  쿠폰 사용
+                </button>
+                {fromAdmin && (
+                  <button
+                    onClick={handleRevoke}
                         className="btn btn-danger"
                         style={{ borderRadius: '12px', padding: '12px' }}
-                      >
-                        쿠폰 회수
-                      </button>
-                    )}
-                  </div>
+                  >
+                    쿠폰 회수
+                  </button>
                 )}
+              </div>
+            )}
               </div>
             </div>
           </div>
@@ -358,11 +358,11 @@ function CouponsPageContent() {
                 ></button>
               </div>
               <div className="modal-body p-4">
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="비밀번호를 입력하세요"
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="비밀번호를 입력하세요"
                   className="form-control mb-3"
                   style={{ borderRadius: '12px', padding: '12px' }}
                   onKeyPress={(e) => {
@@ -370,7 +370,7 @@ function CouponsPageContent() {
                       handlePasswordSubmit();
                     }
                   }}
-                />
+            />
                 <div className="d-grid gap-2">
                   <button
                     onClick={handlePasswordSubmit}
@@ -379,16 +379,16 @@ function CouponsPageContent() {
                   >
                     확인
                   </button>
-                  <button
-                    onClick={() => {
-                      setPasswordModalVisible(false);
-                      setPassword('');
-                    }}
+              <button
+                onClick={() => {
+                  setPasswordModalVisible(false);
+                  setPassword('');
+                }}
                     className="btn btn-secondary"
                     style={{ borderRadius: '12px', padding: '12px' }}
-                  >
-                    취소
-                  </button>
+              >
+                취소
+              </button>
                 </div>
               </div>
             </div>

@@ -73,7 +73,7 @@
     
     // 개발 환경이 아니거나 기존 값이 없을 때만 설정
     if (!window.__gameIntegrity || isDevelopment) {
-        window.__gameIntegrity = codeFingerprint;
+    window.__gameIntegrity = codeFingerprint;
     }
     
     function verifyIntegrity() {
@@ -100,14 +100,14 @@
         
         // 무결성 검증 (주기적 체크) - 개발 환경에서는 비활성화
         if (!isDevelopment) {
-            setInterval(verifyIntegrity, 5000);
+        setInterval(verifyIntegrity, 5000);
         }
         
     } catch (error) {
         console.error('Security initialization failed:', error);
         // 개발 환경에서는 에러를 throw하지 않음
         if (!isDevelopment) {
-            throw error;
+        throw error;
         }
     }
 })();
@@ -259,36 +259,36 @@ class Match3Game {
         if (gameConfig && gameConfig.use_fixed_size === true) {
             useAutoResize = false;
             // 고정 크기 사용
-            if (screenWidth < 768) {
+        if (screenWidth < 768) {
                 if (gameConfig.mobile) {
-                    deviceConfig = gameConfig.mobile;
-                } else {
-                    deviceConfig = { board_size: 5, canvas_width: 400, canvas_height: 600 };
-                }
-            } else if (screenWidth < 1024) {
-                if (gameConfig.tablet) {
-                    deviceConfig = gameConfig.tablet;
-                } else {
-                    deviceConfig = { board_size: 6, canvas_width: 500, canvas_height: 700 };
-                }
+                deviceConfig = gameConfig.mobile;
             } else {
-                if (gameConfig.desktop) {
-                    deviceConfig = gameConfig.desktop;
-                } else if (gameConfig.board_size) {
-                    deviceConfig = {
-                        board_size: parseInt(gameConfig.board_size) || 7,
-                        canvas_width: parseInt(gameConfig.canvas_width) || 600,
-                        canvas_height: parseInt(gameConfig.canvas_height) || 700
-                    };
-                } else {
-                    deviceConfig = { board_size: 7, canvas_width: 600, canvas_height: 700 };
-                }
+                deviceConfig = { board_size: 5, canvas_width: 400, canvas_height: 600 };
             }
-            
-            if (deviceConfig) {
-                this.boardSize = parseInt(deviceConfig.board_size) || this.boardSize;
-                this.canvasWidth = parseInt(deviceConfig.canvas_width) || this.canvasWidth;
-                this.canvasHeight = parseInt(deviceConfig.canvas_height) || this.canvasHeight;
+        } else if (screenWidth < 1024) {
+                if (gameConfig.tablet) {
+                deviceConfig = gameConfig.tablet;
+            } else {
+                deviceConfig = { board_size: 6, canvas_width: 500, canvas_height: 700 };
+            }
+        } else {
+                if (gameConfig.desktop) {
+                deviceConfig = gameConfig.desktop;
+                } else if (gameConfig.board_size) {
+                deviceConfig = {
+                    board_size: parseInt(gameConfig.board_size) || 7,
+                    canvas_width: parseInt(gameConfig.canvas_width) || 600,
+                    canvas_height: parseInt(gameConfig.canvas_height) || 700
+                };
+            } else {
+                deviceConfig = { board_size: 7, canvas_width: 600, canvas_height: 700 };
+            }
+        }
+        
+        if (deviceConfig) {
+            this.boardSize = parseInt(deviceConfig.board_size) || this.boardSize;
+            this.canvasWidth = parseInt(deviceConfig.canvas_width) || this.canvasWidth;
+            this.canvasHeight = parseInt(deviceConfig.canvas_height) || this.canvasHeight;
             }
         } else {
             // 자동 리사이징: 컨테이너의 실제 크기 사용

@@ -58,7 +58,7 @@ export default function NotificationHistoryPage() {
     >
       <PageHeader title="알림 내역" />
       <div className="container pb-4" style={{ paddingTop: '80px' }}>
-        {history.length > 0 && (
+          {history.length > 0 && (
           <div className="d-flex justify-content-end mb-3">
             <button 
               className="btn btn-outline-danger d-flex align-items-center justify-content-center gap-2"
@@ -75,7 +75,7 @@ export default function NotificationHistoryPage() {
               <span>기록 초기화</span>
             </button>
           </div>
-        )}
+          )}
 
         <div className="d-flex flex-column gap-3">
           {history.map((item, index) => (

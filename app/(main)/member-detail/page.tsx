@@ -271,30 +271,30 @@ function MemberDetailContent() {
               <div className="rounded-circle bg-white bg-opacity-20 d-flex align-items-center justify-content-center me-3" 
                    style={{ width: '60px', height: '60px', fontSize: '32px' }}>
                 👤
-              </div>
+            </div>
               <div className="flex-grow-1">
                 <h4 className="mb-1 fw-bold">{name}</h4>
-                <button
-                  onClick={handleNamePress}
+              <button
+                onClick={handleNamePress}
                   className="btn btn-link p-0 text-white text-decoration-underline opacity-75"
                   style={{ fontSize: '0.9rem' }}
-                >
+              >
                   명부 정보 보기
-                </button>
-              </div>
+              </button>
+            </div>
             </div>
             <div className="d-flex align-items-center justify-content-between">
               <div>
                 <div className="small opacity-75 mb-1">포인트</div>
-                <button
-                  onClick={resetPoints}
+              <button
+                onClick={resetPoints}
                   className="btn btn-link p-0 text-white fw-bold"
-                  disabled={isResettingPoints}
+                disabled={isResettingPoints}
                   style={{ fontSize: '1.5rem', textDecoration: 'none' }}
-                >
+              >
                   {points.toLocaleString()}<small className="opacity-75">P</small>
-                </button>
-              </div>
+              </button>
+            </div>
               <div className="text-end">
                 <div className="small opacity-75 mb-1">가입일</div>
                 <div className="fw-semibold">{createdAt}</div>
@@ -465,7 +465,7 @@ function MemberDetailContent() {
               )}
             </button>
           </div>
-        </div>
+          </div>
 
         {/* 메뉴 버튼 */}
         <div className="d-grid gap-2 mb-4">
@@ -485,65 +485,65 @@ function MemberDetailContent() {
             </div>
             <IoChevronForwardOutline size={20} className="text-muted" />
           </button>
-          <button
+            <button
             className="btn btn-light d-flex align-items-center justify-content-between shadow-sm"
             onClick={() => router.push(`/logs?uuid=${uuid}&name=${name}`)}
-            style={{
+              style={{ 
               padding: '14px 16px',
               borderRadius: '12px',
               border: 'none',
               textAlign: 'left'
-            }}
+              }}
           >
             <div className="d-flex align-items-center gap-2">
               <IoListOutline size={20} className="text-info" />
               <span className="fw-semibold">로그 보기</span>
             </div>
             <IoChevronForwardOutline size={20} className="text-muted" />
-          </button>
-          <button
+            </button>
+            <button
             className="btn btn-light d-flex align-items-center justify-content-between shadow-sm"
             onClick={() => router.push(`/stamp-history?uuid=${uuid}&name=${name}`)}
-            style={{
+              style={{ 
               padding: '14px 16px',
               borderRadius: '12px',
               border: 'none',
               textAlign: 'left'
-            }}
+              }}
           >
             <div className="d-flex align-items-center gap-2">
               <IoPricetagOutline size={20} className="text-success" />
               <span className="fw-semibold">스탬프 이력</span>
             </div>
             <IoChevronForwardOutline size={20} className="text-muted" />
-          </button>
-        </div>
+            </button>
+          </div>
 
         {/* 삭제 버튼 */}
-        <button
+          <button
           className="btn btn-outline-danger d-flex align-items-center justify-content-center gap-2 w-100"
-          onClick={handleDeleteUser}
-          disabled={isDeleting}
-          style={{
+            onClick={handleDeleteUser}
+            disabled={isDeleting}
+            style={{
             padding: '14px',
-            fontSize: '1rem',
+              fontSize: '1rem',
             fontWeight: '600',
             borderRadius: '12px',
             borderWidth: '2px'
-          }}
-        >
-          {isDeleting ? (
-            <>
+            }}
+          >
+            {isDeleting ? (
+              <>
               <span className="spinner-border spinner-border-sm"></span>
               <span>삭제 중...</span>
-            </>
-          ) : (
+              </>
+            ) : (
             <>
               <IoTrashOutline size={20} />
               <span>회원 삭제</span>
             </>
-          )}
-        </button>
+            )}
+          </button>
       </div>
 
       {/* 명부 정보 모달 */}

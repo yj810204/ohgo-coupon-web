@@ -133,12 +133,12 @@ function StampPageContent() {
       >
                   <div className="flex-grow-1">
                     <div className={`fw-semibold mb-1 ${isFifth ? 'text-warning' : 'text-dark'}`}>
-                      {date.replace(/-/g, '-')}, {time?.slice(0, 5)}
+              {date.replace(/-/g, '-')}, {time?.slice(0, 5)}
                     </div>
                     <div className={`small ${isFifth ? 'text-warning' : 'text-muted'}`}>
-                      {isFifth ? '⭐ 50% 쿠폰 발급 가능 ⭐' : `적립 방법: ${methodLabel}`}
-                    </div>
-                  </div>
+              {isFifth ? '⭐ 50% 쿠폰 발급 가능 ⭐' : `적립 방법: ${methodLabel}`}
+          </div>
+        </div>
       </button>
     );
   };
@@ -179,7 +179,7 @@ function StampPageContent() {
                 {fromAdmin && <span className="ms-2 text-primary">(관리자모드)</span>}
               </div>
             </div>
-          </div>
+        </div>
         </div>
 
         {/* 스탬프 리스트 */}
@@ -194,16 +194,16 @@ function StampPageContent() {
           <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: '12px' }}>
             <div className="card-body p-3">
               <div className="d-flex flex-column gap-2">
-                {stamps.map((stamp, index) => renderStampItem(stamp, index))}
+            {stamps.map((stamp, index) => renderStampItem(stamp, index))}
               </div>
             </div>
           </div>
         )}
 
         {/* 쿠폰 버튼 */}
-        {!fromAdmin && (
-          <button
-            onClick={() => router.push(`/coupons?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`)}
+          {!fromAdmin && (
+            <button
+              onClick={() => router.push(`/coupons?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`)}
             className="btn btn-primary w-100 d-flex align-items-center justify-content-center mt-4"
             style={{
               padding: '14px',
@@ -216,8 +216,8 @@ function StampPageContent() {
           >
             <IoGiftOutline size={20} />
             <span>보유 쿠폰: {couponCount}개</span>
-          </button>
-        )}
+            </button>
+          )}
       </div>
 
       {/* Stamp Modal */}
@@ -245,20 +245,20 @@ function StampPageContent() {
                 <div className="mb-3">
                   <div className="small text-muted mb-1">적립 방법</div>
                   <div className="fw-semibold">{selectedStampInfo?.method || '알 수 없음'}</div>
-                </div>
-                {fromAdmin && selectedStampInfo?.value && (
-                  <button
-                    onClick={async () => {
-                      await deleteStamp(user.uuid!, selectedStampInfo.value!, user.name!, user.dob!);
-                      await fetchStamps();
-                      setModalVisible(false);
-                    }}
+            </div>
+            {fromAdmin && selectedStampInfo?.value && (
+              <button
+                onClick={async () => {
+                  await deleteStamp(user.uuid!, selectedStampInfo.value!, user.name!, user.dob!);
+                  await fetchStamps();
+                  setModalVisible(false);
+                }}
                     className="btn btn-danger w-100"
                     style={{ borderRadius: '12px', padding: '12px' }}
-                  >
-                    스탬프 회수
-                  </button>
-                )}
+              >
+                스탬프 회수
+              </button>
+            )}
               </div>
             </div>
           </div>

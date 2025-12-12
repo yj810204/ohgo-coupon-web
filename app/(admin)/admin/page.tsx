@@ -522,8 +522,8 @@ export default function AdminPage() {
         WebkitOverflowScrolling: 'touch',
         position: 'relative',
         paddingBottom: '20px',
-      }}
-    >
+          }}
+        >
       <PageHeader title="회원 관리" />
       <div className="container pb-4" style={{ paddingTop: '80px' }}>
         <div className="card shadow-sm mb-3">

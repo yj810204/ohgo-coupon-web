@@ -102,7 +102,7 @@ export default function MiniGamesPage() {
             <button
               onClick={() => navigate('/mini-games/ranking')}
               className="btn btn-light w-100 d-flex align-items-center justify-content-center gap-2 shadow-sm"
-              style={{
+          style={{
                 padding: '14px',
                 borderRadius: '12px',
                 border: 'none',
@@ -177,8 +177,8 @@ export default function MiniGamesPage() {
                           }
                         }}
                       />
-                    </div>
-                  ) : (
+            </div>
+          ) : (
                     <div
                       className="mb-3 d-flex align-items-center justify-content-center"
                       style={{
@@ -200,8 +200,8 @@ export default function MiniGamesPage() {
                 </button>
               </div>
             ))}
-          </div>
-        )}
+        </div>
+      )}
 
         {/* 게임 공지사항 모달 */}
         {noticeModalVisible && (
@@ -213,7 +213,7 @@ export default function MiniGamesPage() {
                   padding: '20px'
                 }}>
                   <h5 className="modal-title text-white fw-bold mb-0">게임 공지사항</h5>
-                  <button 
+              <button
                     type="button" 
                     className="btn-close btn-close-white" 
                     onClick={() => setNoticeModalVisible(false)}
@@ -237,11 +237,11 @@ export default function MiniGamesPage() {
                     style={{ borderRadius: '12px', padding: '12px' }}
                   >
                     닫기
-                  </button>
+              </button>
                 </div>
               </div>
             </div>
-          </div>
+        </div>
         )}
       </div>
     </div>

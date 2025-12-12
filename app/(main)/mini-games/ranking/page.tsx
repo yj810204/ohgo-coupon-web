@@ -349,8 +349,8 @@ function RankingPageContent() {
         WebkitOverflowScrolling: 'touch',
         position: 'relative',
         paddingBottom: '20px',
-      }}
-    >
+          }}
+        >
       <PageHeader title="랭킹" />
       {loading ? (
         <div className="d-flex min-vh-100 align-items-center justify-content-center">
@@ -379,64 +379,64 @@ function RankingPageContent() {
           
           <div className="card shadow-sm mb-3 border-0">
             <div className="card-body p-0">
-              <div className="bg-secondary text-white">
-                <div className="row g-0 px-3 py-2">
-                  <div className="col-2"><span className="fw-semibold">순위</span></div>
-                  <div className="col-6"><span className="fw-semibold">이름</span></div>
-                  <div className="col-4 text-end"><span className="fw-semibold">포인트</span></div>
-                </div>
-              </div>
-              
+          <div className="bg-secondary text-white">
+            <div className="row g-0 px-3 py-2">
+              <div className="col-2"><span className="fw-semibold">순위</span></div>
+              <div className="col-6"><span className="fw-semibold">이름</span></div>
+              <div className="col-4 text-end"><span className="fw-semibold">포인트</span></div>
+            </div>
+          </div>
+          
               <div>
-                {users.map((item, index) => {
-                  const isCurrentUser = item.id === user.uuid;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleUserSelect(item)}
-                      className={`w-100 btn btn-link text-start text-decoration-none d-flex align-items-center px-3 py-3 border-bottom ${
-                        isCurrentUser ? 'bg-info bg-opacity-10' : 'bg-white'
-                      }`}
-                    >
-                      <div className="col-2">
-                        <MedalIcon rank={index + 1} medalCount={rankingMedalCount} />
-                      </div>
-                      
-                      <div className="col-6">
-                        <span className={`fw-medium ${
-                          isCurrentUser ? 'text-primary' : 'text-dark'
-                        }`}>
-                          {isCurrentUser || isAdmin ? item.name : maskName(item.name)}
-                          {isCurrentUser && ' (나)'}
-                        </span>
-                      </div>
-                      
-                      <div className="col-4 text-end">
-                        <span className={`fw-semibold ${
-                          isCurrentUser ? 'text-primary' : 'text-primary'
-                        }`}>
-                          {item.totalPoint.toLocaleString()}P
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-                
-                {myRank && (
-                  <div className="bg-white border-top px-3 py-3 text-center">
-                    <p className="text-dark fw-medium mb-0">
-                      내 순위: {myRank}위 / {users.length}명 중
-                    </p>
+            {users.map((item, index) => {
+              const isCurrentUser = item.id === user.uuid;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleUserSelect(item)}
+                  className={`w-100 btn btn-link text-start text-decoration-none d-flex align-items-center px-3 py-3 border-bottom ${
+                    isCurrentUser ? 'bg-info bg-opacity-10' : 'bg-white'
+                  }`}
+                >
+                  <div className="col-2">
+                    <MedalIcon rank={index + 1} medalCount={rankingMedalCount} />
+                  </div>
+                  
+                  <div className="col-6">
+                    <span className={`fw-medium ${
+                      isCurrentUser ? 'text-primary' : 'text-dark'
+                    }`}>
+                      {isCurrentUser || isAdmin ? item.name : maskName(item.name)}
+                      {isCurrentUser && ' (나)'}
+                    </span>
+                  </div>
+                  
+                  <div className="col-4 text-end">
+                    <span className={`fw-semibold ${
+                      isCurrentUser ? 'text-primary' : 'text-primary'
+                    }`}>
+                      {item.totalPoint.toLocaleString()}P
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          
+          {myRank && (
+            <div className="bg-white border-top px-3 py-3 text-center">
+              <p className="text-dark fw-medium mb-0">
+                내 순위: {myRank}위 / {users.length}명 중
+              </p>
                   </div>
                 )}
               </div>
             </div>
           </div>
-        </div>
-      )}
-      
-      {/* 물고기 잡은 기록 모달 */}
-      {modalVisible && selectedUser && (
+            </div>
+          )}
+          
+          {/* 물고기 잡은 기록 모달 */}
+          {modalVisible && selectedUser && (
             <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
               <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable">
                 <div className="modal-content">
@@ -497,9 +497,9 @@ function RankingPageContent() {
               </div>
             </div>
           )}
-      
-      {/* 대회 정보 모달 */}
-      {tournamentModalVisible && tournament && (
+          
+          {/* 대회 정보 모달 */}
+          {tournamentModalVisible && tournament && (
             <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
               <div className="modal-dialog modal-dialog-centered">
                 <div className="modal-content">
@@ -517,7 +517,7 @@ function RankingPageContent() {
                 </div>
               </div>
             </div>
-          )}
+      )}
     </div>
   );
 }
