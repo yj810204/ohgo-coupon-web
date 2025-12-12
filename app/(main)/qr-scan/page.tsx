@@ -13,7 +13,7 @@ function QRScanPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [user, setUser] = useState<{ uuid?: string; name?: string; dob?: string } | null>(null);
-  const [message, setMessage] = useState('스캔 버튼을 눌러주세요');
+  const [message, setMessage] = useState('');
   const [messageColor, setMessageColor] = useState('#000');
   const [scanning, setScanning] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
