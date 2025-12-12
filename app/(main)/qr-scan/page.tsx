@@ -20,14 +20,18 @@ function QRScanPageContent() {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [scanCompleted, setScanCompleted] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const qrCodeRef = useRef<Html5Qrcode | null>(null);
   const scanAreaRef = useRef<HTMLDivElement>(null);
 
   const handleQRInput = useCallback(async (qrData: string) => {
-    if (scanning || !user?.uuid) return;
+    if (scanning || !user?.uuid || scanCompleted) return;
     setScanning(true);
     setIsScanning(true);
+    setIsProcessing(true);
 
     // 스캔 성공 시 스캐너 완전히 중지
     const stopScanner = async () => {
@@ -57,6 +61,7 @@ function QRScanPageContent() {
           await stopScanner();
           setIsScanning(false);
           setScanning(false);
+          setIsProcessing(false);
 
           setTimeout(() => {
             router.push(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
@@ -64,10 +69,12 @@ function QRScanPageContent() {
           return;
         } catch (e: any) {
           console.error('❗ 오류:', e.message);
-          setMessage(`❗ 오류: ${e.message || '적립 실패'}`);
-          setMessageColor('#f44336');
+          // 이미 처리된 경우 팝업으로 표시
+          setErrorMessage(e.message || '적립 실패');
+          setShowErrorModal(true);
           setIsScanning(false);
           setScanning(false);
+          setIsProcessing(false);
           return;
         }
       }
@@ -81,6 +88,7 @@ function QRScanPageContent() {
         setMessageColor('#f44336');
         setIsScanning(false);
         setScanning(false);
+        setIsProcessing(false);
         return;
       }
 
@@ -92,17 +100,20 @@ function QRScanPageContent() {
       await stopScanner();
       setIsScanning(false);
       setScanning(false);
+      setIsProcessing(false);
 
       setTimeout(() => {
         router.push(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
       }, 1500);
     } catch (error: any) {
-      setMessage('❌ 오류: ' + error.message);
-      setMessageColor('#f44336');
+      // 이미 처리된 경우 팝업으로 표시
+      setErrorMessage(error.message || '오류가 발생했습니다.');
+      setShowErrorModal(true);
       setIsScanning(false);
       setScanning(false);
+      setIsProcessing(false);
     }
-  }, [scanning, user, router]);
+  }, [scanning, user, router, scanCompleted]);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -153,12 +164,15 @@ function QRScanPageContent() {
           console.warn('카메라 목록 가져오기 실패, 기본 카메라 사용');
         }
 
-        // 카메라만 시작 (스캔 콜백은 빈 함수로 설정하여 자동 스캔 방지)
+        // 카메라 준비 완료 후 자동으로 스캔 모드로 시작
         await qrCode.start(
           cameraId || { facingMode: 'environment' },
           config,
-          () => {
-            // 스캔 콜백을 비워서 자동 스캔 방지 (버튼 클릭 시에만 스캔)
+          (decodedText) => {
+            // 자동 스캔 활성화
+            if (!scanCompleted && !scanning) {
+              handleQRInput(decodedText);
+            }
           },
           (errorMessage) => {
             // 스캔 중 오류 (무시)
@@ -168,7 +182,8 @@ function QRScanPageContent() {
         setCameraReady(true);
         setPermissionDenied(false);
         setIsPreparing(false);
-        setMessage('스캔 버튼을 눌러주세요');
+        setIsScanning(true);
+        setMessage('QR 코드를 스캔해주세요');
       } catch (error: any) {
         console.error('카메라 초기화 실패:', error);
         setPermissionDenied(true);
@@ -198,7 +213,7 @@ function QRScanPageContent() {
       };
       cleanup();
     };
-  }, [user, router]);
+  }, [user, router, handleQRInput, scanCompleted, scanning]);
 
   // 스캔 시작 함수
   const handleStartScan = useCallback(async () => {
@@ -413,6 +428,14 @@ function QRScanPageContent() {
             </div>
           </div>
         )}
+        {isProcessing && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50" style={{ zIndex: 3 }}>
+            <div className="text-center text-white">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+              <p className="text-lg font-semibold">처리 중...</p>
+            </div>
+          </div>
+        )}
         {cameraReady && !permissionDenied && !isPreparing && (
           <>
             {/* 음영 처리 오버레이 */}
@@ -464,19 +487,6 @@ function QRScanPageContent() {
             {message}
           </p>
         )}
-        {cameraReady && !permissionDenied && !scanCompleted && (
-          <button
-            onClick={handleStartScan}
-            disabled={isScanning || isPreparing}
-            className={`w-full mb-2 py-3 rounded-lg font-semibold ${
-              isScanning || isPreparing
-                ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}
-          >
-            {isPreparing ? '준비 중...' : isScanning ? '스캔 중...' : '스캔'}
-          </button>
-        )}
         <button
           onClick={() => router.back()}
           className="w-full mt-2 bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700"
@@ -484,6 +494,27 @@ function QRScanPageContent() {
           뒤로 가기
         </button>
       </div>
+      
+      {/* 에러 모달 */}
+      {showErrorModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
+            <h3 className="text-lg font-bold mb-4 text-center">알림</h3>
+            <p className="text-gray-700 mb-6 text-center whitespace-pre-line">
+              {errorMessage}
+            </p>
+            <button
+              onClick={() => {
+                setShowErrorModal(false);
+                setErrorMessage('');
+              }}
+              className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
     </div>
     </>
   );
