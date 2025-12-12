@@ -27,6 +27,18 @@ function QRScanPageContent() {
     setScanning(true);
     setIsScanning(true);
 
+    // 스캔 성공 시 스캐너 중지
+    const stopScanner = async () => {
+      if (qrCodeRef.current) {
+        try {
+          await qrCodeRef.current.stop();
+          qrCodeRef.current.clear();
+        } catch (error) {
+          console.warn('스캐너 중지 중 오류:', error);
+        }
+      }
+    };
+
     try {
       // 특정 QR 코드 체크 (ohgo-coupon 참고)
       if (qrData === 'OHGO-STAMP-BOAT19033326262005') {
@@ -34,6 +46,9 @@ function QRScanPageContent() {
           await addStamp(user.uuid, 'QR');
           setMessage('✅ 스탬프가 적립되었습니다!');
           setMessageColor('#4caf50');
+          
+          // 스캐너 중지
+          await stopScanner();
           setIsScanning(false);
           setScanning(false);
 
@@ -66,6 +81,9 @@ function QRScanPageContent() {
       await addStamp(user.uuid, 'QR');
       setMessage('✅ 스탬프가 적립되었습니다!');
       setMessageColor('#4caf50');
+      
+      // 스캐너 중지
+      await stopScanner();
       setIsScanning(false);
       setScanning(false);
 
