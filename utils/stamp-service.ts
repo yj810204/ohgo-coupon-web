@@ -11,7 +11,8 @@ import {
   where,
   Timestamp,
   orderBy,
-  QueryConstraint
+  QueryConstraint,
+  runTransaction
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { sendPushToUser } from './send-push';
@@ -137,13 +138,17 @@ export async function addStamp(uuid: string, method: 'QR' | 'ADMIN' = 'QR'): Pro
   }
 
   // ✅ 1. 새 스탬프 적립
+  const stampTimestamp = Timestamp.now();
   const stampData = {
     date: getTodayDate(),
     method,
-    timestamp: new Date(),
+    timestamp: stampTimestamp,
   };
 
+  // 스탬프 추가 (먼저 실행하여 실패 시 lastStampTime이 업데이트되지 않도록)
   const stampDocRef = await addDoc(stampRef, stampData);
+  
+  // 히스토리 기록
   const historyRef = collection(db, `users/${uuid}/stampHistory`);
   await addDoc(historyRef, {
     action: 'add',
@@ -154,9 +159,9 @@ export async function addStamp(uuid: string, method: 'QR' | 'ADMIN' = 'QR'): Pro
     message: `${method} 방식으로 스탬프 적립`,
   });
 
-  // ✅ 2. 사용자 정보에 마지막 적립 시간 업데이트
+  // ✅ 2. 사용자 정보에 마지막 적립 시간 업데이트 (스탬프 추가 성공 후)
   await updateDoc(userRef, {
-    lastStampTime: stampData.timestamp,
+    lastStampTime: stampTimestamp,
   });
 
   await logAction(uuid, '스탬프 적립', `${method} 방식으로 1개 적립`);
