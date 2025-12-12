@@ -76,6 +76,12 @@ function QRScanPageContent() {
           fps: 10,
           qrbox: { width: 250, height: 250 },
           aspectRatio: 1.0,
+          videoConstraints: {
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          disableFlip: false,
         };
 
         // 후면 카메라 우선 시도
@@ -184,6 +190,12 @@ function QRScanPageContent() {
             fps: 10,
             qrbox: { width: 250, height: 250 },
             aspectRatio: 1.0,
+            videoConstraints: {
+              facingMode: 'environment',
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            },
+            disableFlip: false,
           };
 
           let cameraId: string | null = null;
@@ -223,9 +235,50 @@ function QRScanPageContent() {
   };
 
   return (
-    <div className="bg-black flex flex-col" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, width: '100vw', height: '100vh' }}>
-      <div className="flex-1 relative" ref={scanAreaRef} style={{ width: '100%', height: '100%' }}>
-        <div id="qr-reader" style={{ width: '100%', height: '100%' }}></div>
+    <>
+      <style jsx global>{`
+        #qr-reader {
+          width: 100% !important;
+          height: 100% !important;
+          position: relative !important;
+          overflow: hidden !important;
+        }
+        #qr-reader video {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: cover !important;
+          transform: none !important;
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
+          z-index: 1 !important;
+        }
+        #qr-reader video:not(:first-of-type) {
+          display: none !important;
+        }
+        #qr-reader canvas {
+          display: none !important;
+        }
+        #qr-reader__dashboard {
+          display: none !important;
+        }
+        #qr-reader__scan_region {
+          width: 100% !important;
+          height: 100% !important;
+          position: relative !important;
+        }
+        #qr-reader__scan_region video {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: cover !important;
+        }
+        #qr-reader__scan_region video:not(:first-of-type) {
+          display: none !important;
+        }
+      `}</style>
+      <div className="bg-black flex flex-col" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, width: '100vw', height: '100vh' }}>
+        <div className="flex-1 relative" ref={scanAreaRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+          <div id="qr-reader" style={{ width: '100%', height: '100%' }}></div>
         {cameraReady && !permissionDenied && (
           <div className="absolute inset-0 flex items-center justify-content-center pointer-events-none">
             <div className="border-4 border-white rounded-lg" style={{ width: '250px', height: '250px' }}></div>
@@ -264,6 +317,7 @@ function QRScanPageContent() {
         </button>
       </div>
     </div>
+    </>
   );
 }
 
