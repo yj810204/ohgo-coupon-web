@@ -9,7 +9,6 @@ import { sendPushToUser } from '@/utils/send-push';
 import { useCouponById as useCouponByIdFunc } from '@/utils/stamp-service';
 import { FiGift, FiX } from 'react-icons/fi';
 import { IoGiftOutline } from 'react-icons/io5';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/PageHeader';
 
 export async function checkPasswordFromFirestore(input: string): Promise<boolean> {
@@ -97,10 +96,6 @@ function CouponsPageContent() {
     setRefreshing(false);
   };
 
-  const { containerRef, isRefreshing: isPulling, pullProgress } = usePullToRefresh({
-    onRefresh: handleRefresh,
-    enabled: true,
-  });
 
   const handleRevoke = async () => {
     if (!user?.uuid || !selectedCoupon) return;
@@ -181,7 +176,6 @@ function CouponsPageContent() {
 
   return (
     <div 
-      ref={containerRef}
       className="min-h-screen bg-gray-50"
       style={{ 
         overflowY: 'auto',
@@ -190,26 +184,6 @@ function CouponsPageContent() {
       }}
     >
       <PageHeader title="쿠폰" />
-      {isPulling && (
-        <div 
-          className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
-          style={{
-            zIndex: 1000,
-            transform: 'translateX(-50%)',
-            minWidth: '120px',
-            height: `${Math.min(pullProgress * 50, 50)}px`,
-            opacity: pullProgress,
-          }}
-        >
-          {pullProgress >= 1 ? (
-            <div className="spinner-border spinner-border-sm" role="status">
-              <span className="visually-hidden">새로고침 중...</span>
-            </div>
-          ) : (
-            <span className="small">아래로 당겨서 새로고침</span>
-          )}
-        </div>
-      )}
       <div className="container pb-4" style={{ paddingTop: '80px' }}>
         {/* 회원 정보 카드 */}
         <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: '12px' }}>

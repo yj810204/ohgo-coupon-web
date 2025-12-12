@@ -7,7 +7,6 @@ import { db } from '@/lib/firebase';
 import { getUser } from '@/lib/storage';
 import { getUserByUUID } from '@/lib/firebase-auth';
 import { IoChevronDownOutline, IoChevronUpOutline, IoChatbubbleEllipsesOutline } from 'react-icons/io5';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/PageHeader';
 
 const STORAGE_KEY = 'collapsedSections';
@@ -483,10 +482,6 @@ export default function AdminPage() {
     setRefreshing(false);
   };
 
-  const { containerRef, isRefreshing: isPulling, pullProgress } = usePullToRefresh({
-    onRefresh: onRefresh,
-    enabled: true,
-  });
 
   const filterCounts = useMemo(() => {
     const today = new Date();
@@ -521,7 +516,6 @@ export default function AdminPage() {
 
   return (
     <div 
-      ref={containerRef}
       className="min-vh-100 bg-light"
       style={{ 
         overflowY: 'auto',
@@ -531,26 +525,6 @@ export default function AdminPage() {
       }}
     >
       <PageHeader title="회원 관리" />
-      {isPulling && (
-        <div 
-          className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
-          style={{
-            zIndex: 1000,
-            transform: 'translateX(-50%)',
-            minWidth: '120px',
-            height: `${Math.min(pullProgress * 50, 50)}px`,
-            opacity: pullProgress,
-          }}
-        >
-          {pullProgress >= 1 ? (
-            <div className="spinner-border spinner-border-sm" role="status">
-              <span className="visually-hidden">새로고침 중...</span>
-            </div>
-          ) : (
-            <span className="small">아래로 당겨서 새로고침</span>
-          )}
-        </div>
-      )}
       <div className="container pb-4" style={{ paddingTop: '80px' }}>
         <div className="card shadow-sm mb-3">
           <div className="card-body">

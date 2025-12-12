@@ -7,7 +7,6 @@ import { db } from '@/lib/firebase';
 import { getUser } from '@/lib/storage';
 import { FiX } from 'react-icons/fi';
 import { IoFishOutline, IoTrophyOutline } from 'react-icons/io5';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/PageHeader';
 
 // 메달 아이콘 컴포넌트
@@ -232,10 +231,6 @@ function RankingPageContent() {
     }
   };
 
-  const { containerRef, isRefreshing: isPulling, pullProgress } = usePullToRefresh({
-    onRefresh: handleRefresh,
-    enabled: true,
-  });
   
   // 사용자의 물고기 잡은 기록 가져오기
   const fetchUserFishCatches = async (userId: string) => {
@@ -348,7 +343,6 @@ function RankingPageContent() {
 
   return (
     <div 
-      ref={containerRef}
       className="min-vh-100 bg-light"
       style={{ 
         overflowY: 'auto',
@@ -358,26 +352,6 @@ function RankingPageContent() {
       }}
     >
       <PageHeader title="랭킹" />
-      {isPulling && (
-        <div 
-          className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
-          style={{
-            zIndex: 1000,
-            transform: 'translateX(-50%)',
-            minWidth: '120px',
-            height: `${Math.min(pullProgress * 50, 50)}px`,
-            opacity: pullProgress,
-          }}
-        >
-          {pullProgress >= 1 ? (
-            <div className="spinner-border spinner-border-sm" role="status">
-              <span className="visually-hidden">새로고침 중...</span>
-            </div>
-          ) : (
-            <span className="small">아래로 당겨서 새로고침</span>
-          )}
-        </div>
-      )}
       {loading ? (
         <div className="d-flex min-vh-100 align-items-center justify-content-center">
           <div className="text-center">

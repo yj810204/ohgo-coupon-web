@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { IoTrashOutline } from 'react-icons/io5';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/PageHeader';
 
 type NotificationLog = {
@@ -38,10 +37,6 @@ export default function NotificationHistoryPage() {
     loadHistory();
   };
 
-  const { containerRef, isRefreshing: isPulling, pullProgress } = usePullToRefresh({
-    onRefresh: onRefresh,
-    enabled: true,
-  });
 
   const clearHistory = async () => {
     if (!confirm('모든 알림 기록을 삭제하시겠습니까?')) return;
@@ -54,7 +49,6 @@ export default function NotificationHistoryPage() {
 
   return (
     <div 
-      ref={containerRef}
       className="min-vh-100 bg-light"
       style={{ 
         overflowY: 'auto',
@@ -63,26 +57,6 @@ export default function NotificationHistoryPage() {
       }}
     >
       <PageHeader title="알림 내역" />
-      {isPulling && (
-        <div 
-          className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
-          style={{
-            zIndex: 1000,
-            transform: 'translateX(-50%)',
-            minWidth: '120px',
-            height: `${Math.min(pullProgress * 50, 50)}px`,
-            opacity: pullProgress,
-          }}
-        >
-          {pullProgress >= 1 ? (
-            <div className="spinner-border spinner-border-sm" role="status">
-              <span className="visually-hidden">새로고침 중...</span>
-            </div>
-          ) : (
-            <span className="small">아래로 당겨서 새로고침</span>
-          )}
-        </div>
-      )}
       <div className="container pb-4" style={{ paddingTop: '80px' }}>
         {history.length > 0 && (
           <div className="d-flex justify-content-end mb-3">

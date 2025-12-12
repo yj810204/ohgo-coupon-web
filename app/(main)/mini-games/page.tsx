@@ -2,7 +2,6 @@
 
 import { useEffect, useCallback, useState } from 'react';
 import { getUser } from '@/lib/storage';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useNavigation } from '@/hooks/useNavigation';
 import PageHeader from '@/components/PageHeader';
 import { getActiveGames, Game, getGlobalGameSettings } from '@/lib/game-service';
@@ -51,14 +50,8 @@ export default function MiniGamesPage() {
     handleRefresh();
   }, [navigateReplace, handleRefresh]);
 
-  const { containerRef, isRefreshing: isPulling, pullProgress } = usePullToRefresh({
-    onRefresh: handleRefresh,
-    enabled: true,
-  });
-
   return (
     <div 
-      ref={containerRef}
       className="min-h-screen bg-gray-50"
       style={{ 
         overflowY: 'auto',
@@ -67,27 +60,6 @@ export default function MiniGamesPage() {
       }}
     >
       <PageHeader title="미니 게임" />
-      {isPulling && (
-        <div 
-          className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
-          style={{
-            zIndex: 1001,
-            transform: 'translateX(-50%)',
-            minWidth: '120px',
-            height: `${Math.min(pullProgress * 50, 50)}px`,
-            opacity: pullProgress,
-            marginTop: '60px'
-          }}
-        >
-          {pullProgress >= 1 ? (
-            <div className="spinner-border spinner-border-sm" role="status">
-              <span className="visually-hidden">새로고침 중...</span>
-            </div>
-          ) : (
-            <span className="small">아래로 당겨서 새로고침</span>
-          )}
-        </div>
-      )}
       <div className="container pb-4" style={{ paddingTop: '80px' }}>
         {/* 게임 공지사항 버튼 */}
         {gameNotice && (

@@ -4,7 +4,6 @@ import { useEffect, useCallback } from 'react';
 import { getUser } from '@/lib/storage';
 import { FiClipboard, FiGift } from 'react-icons/fi';
 import { IoGameControllerOutline, IoBoatOutline, IoPersonOutline } from 'react-icons/io5';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useNavigation } from '@/hooks/useNavigation';
 import PageHeader from '@/components/PageHeader';
 
@@ -23,11 +22,6 @@ export default function MainPage() {
     handleRefresh();
   }, [handleRefresh]);
 
-  const { containerRef, isRefreshing: isPulling, pullProgress } = usePullToRefresh({
-    onRefresh: handleRefresh,
-    enabled: true,
-  });
-
   const menuItems = [
     { icon: FiClipboard, label: '스탬프', path: '/stamp', color: '#FF9500' },
     { icon: FiGift, label: '쿠폰', path: '/coupons', color: '#FF2D55' },
@@ -38,7 +32,6 @@ export default function MainPage() {
 
   return (
     <div 
-      ref={containerRef}
       className="min-vh-100 bg-light"
       style={{ 
         overflowY: 'auto',
@@ -47,27 +40,6 @@ export default function MainPage() {
       }}
     >
       <PageHeader title="오고피씽" showBackButton={false} />
-      {isPulling && (
-        <div 
-          className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
-          style={{
-            zIndex: 1001,
-            transform: 'translateX(-50%)',
-            minWidth: '120px',
-            height: `${Math.min(pullProgress * 50, 50)}px`,
-            opacity: pullProgress,
-            marginTop: '60px'
-          }}
-        >
-          {pullProgress >= 1 ? (
-            <div className="spinner-border spinner-border-sm" role="status">
-              <span className="visually-hidden">새로고침 중...</span>
-            </div>
-          ) : (
-            <span className="small">아래로 당겨서 새로고침</span>
-          )}
-        </div>
-      )}
       <div className="container pb-4" style={{ paddingTop: '80px' }}>
 
         <div className="row g-4 mb-5">

@@ -6,7 +6,6 @@ import { format } from 'date-fns';
 import { collection, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getStampHistory } from '@/utils/stamp-service';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/PageHeader';
 
 type StampHistoryItem = {
@@ -63,10 +62,6 @@ function StampHistoryPageContent() {
     await fetchHistory();
   };
 
-  const { containerRef, isRefreshing: isPulling, pullProgress } = usePullToRefresh({
-    onRefresh: onRefresh,
-    enabled: true,
-  });
 
   const handleClearHistory = async () => {
     if (!confirm('정말로 이 회원의 모든 스탬프 이력을 삭제하시겠습니까?')) return;
@@ -90,7 +85,6 @@ function StampHistoryPageContent() {
 
   return (
     <div 
-      ref={containerRef}
       className="min-vh-100 bg-light"
       style={{ 
         overflowY: 'auto',
@@ -99,27 +93,6 @@ function StampHistoryPageContent() {
       }}
     >
       <PageHeader title="스탬프 이력" />
-      {isPulling && (
-        <div 
-          className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
-          style={{
-            zIndex: 1000,
-            transform: 'translateX(-50%)',
-            minWidth: '120px',
-            height: `${Math.min(pullProgress * 50, 50)}px`,
-            opacity: pullProgress,
-            marginTop: '60px'
-          }}
-        >
-          {pullProgress >= 1 ? (
-            <div className="spinner-border spinner-border-sm" role="status">
-              <span className="visually-hidden">새로고침 중...</span>
-            </div>
-          ) : (
-            <span className="small">아래로 당겨서 새로고침</span>
-          )}
-        </div>
-      )}
       <div className="container pb-4" style={{ paddingTop: '80px' }}>
         {history.length > 0 && (
           <div className="d-flex justify-content-end mb-3">

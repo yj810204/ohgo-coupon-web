@@ -4,7 +4,6 @@ import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { addMemo, getMemos, softDeleteMemo, updateMemo } from '@/utils/memo-service';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/PageHeader';
 
 function MemoPageContent() {
@@ -37,10 +36,6 @@ function MemoPageContent() {
     setRefreshing(false);
   };
 
-  const { containerRef, isRefreshing: isPulling, pullProgress } = usePullToRefresh({
-    onRefresh: onRefresh,
-    enabled: true,
-  });
 
   const handleAdd = async () => {
     if (!newMemo.trim()) return;
@@ -66,7 +61,6 @@ function MemoPageContent() {
 
   return (
     <div 
-      ref={containerRef}
       className="min-vh-100 bg-light"
       style={{ 
         overflowY: 'auto',
@@ -75,27 +69,6 @@ function MemoPageContent() {
       }}
     >
       <PageHeader title="관리자 메모" />
-      {isPulling && (
-        <div 
-          className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
-          style={{
-            zIndex: 1000,
-            transform: 'translateX(-50%)',
-            minWidth: '120px',
-            height: `${Math.min(pullProgress * 50, 50)}px`,
-            opacity: pullProgress,
-            marginTop: '60px'
-          }}
-        >
-          {pullProgress >= 1 ? (
-            <div className="spinner-border spinner-border-sm" role="status">
-              <span className="visually-hidden">새로고침 중...</span>
-            </div>
-          ) : (
-            <span className="small">아래로 당겨서 새로고침</span>
-          )}
-        </div>
-      )}
       <div className="container pb-4" style={{ paddingTop: '80px' }}>
 
         <div className="card shadow-sm mb-3">

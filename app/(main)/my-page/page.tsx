@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { deleteField, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { clearUser, getUser } from '@/lib/storage';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/PageHeader';
 import { IoPersonOutline, IoNotificationsOutline, IoLogOutOutline } from 'react-icons/io5';
 
@@ -31,10 +30,6 @@ export default function MyPage() {
     loadUser();
   }, [loadUser]);
 
-  const { containerRef, isRefreshing: isPulling, pullProgress } = usePullToRefresh({
-    onRefresh: loadUser,
-    enabled: true,
-  });
 
   const togglePush = async () => {
     if (!userInfo?.uuid) return;
@@ -137,7 +132,6 @@ export default function MyPage() {
 
   return (
     <div 
-      ref={containerRef}
       className="min-h-screen bg-gray-50"
       style={{ 
         overflowY: 'auto',
@@ -146,27 +140,6 @@ export default function MyPage() {
       }}
     >
       <PageHeader title="마이페이지" />
-      {isPulling && (
-        <div 
-          className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
-          style={{
-            zIndex: 1000,
-            transform: 'translateX(-50%)',
-            minWidth: '120px',
-            height: `${Math.min(pullProgress * 50, 50)}px`,
-            opacity: pullProgress,
-            marginTop: '60px'
-          }}
-        >
-          {pullProgress >= 1 ? (
-            <div className="spinner-border spinner-border-sm" role="status">
-              <span className="visually-hidden">새로고침 중...</span>
-            </div>
-          ) : (
-            <span className="small">아래로 당겨서 새로고침</span>
-          )}
-        </div>
-      )}
       <div className="container pb-4" style={{ paddingTop: '80px' }}>
         <div className="card shadow-sm mb-3">
           <div className="card-body">

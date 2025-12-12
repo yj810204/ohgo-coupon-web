@@ -7,7 +7,6 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getStamps, getCouponCount, addStamp, addStampBatch, deleteUser } from '@/utils/stamp-service';
 import { sendPushToUser } from '@/utils/send-push';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/PageHeader';
 import { 
   IoPersonCircleOutline, 
@@ -119,10 +118,6 @@ function MemberDetailContent() {
     setRefreshing(false);
   };
 
-  const { containerRef, isRefreshing: isPulling, pullProgress } = usePullToRefresh({
-    onRefresh: onRefresh,
-    enabled: true,
-  });
 
   const handleAddStamp = async () => {
     if (!confirm(`${name}님에게 스탬프 1개를 적립하시겠습니까?`)) return;
@@ -256,7 +251,6 @@ function MemberDetailContent() {
 
   return (
     <div 
-      ref={containerRef}
       className="min-vh-100 bg-light"
       style={{ 
         overflowY: 'auto',
@@ -265,26 +259,6 @@ function MemberDetailContent() {
       }}
     >
       <PageHeader title="회원 상세" />
-      {isPulling && (
-        <div 
-          className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
-          style={{
-            zIndex: 1000,
-            transform: 'translateX(-50%)',
-            minWidth: '120px',
-            height: `${Math.min(pullProgress * 50, 50)}px`,
-            opacity: pullProgress,
-          }}
-        >
-          {pullProgress >= 1 ? (
-            <div className="spinner-border spinner-border-sm" role="status">
-              <span className="visually-hidden">새로고침 중...</span>
-            </div>
-          ) : (
-            <span className="small">아래로 당겨서 새로고침</span>
-          )}
-        </div>
-      )}
       <div className="container pb-4" style={{ paddingTop: '80px' }}>
         {/* 프로필 헤더 */}
         <div className="card border-0 shadow-sm mb-4" style={{ 

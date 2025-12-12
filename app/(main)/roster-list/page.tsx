@@ -8,7 +8,6 @@ import { db } from '@/lib/firebase';
 import { getUser } from '@/lib/storage';
 import { findCaptains } from '@/utils/find-captains';
 import { IoChevronForwardOutline, IoAddOutline, IoArrowBackOutline } from 'react-icons/io5';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 type RosterItem = {
   id: string;
@@ -283,14 +282,9 @@ function RosterListContent() {
     await loadRosterData();
   };
 
-  const { containerRef, isRefreshing: isPulling, pullProgress } = usePullToRefresh({
-    onRefresh: onRefresh,
-    enabled: true,
-  });
 
   return (
     <div 
-      ref={containerRef}
       className="min-vh-100 bg-light"
       style={{ 
         overflowY: 'auto',
@@ -300,27 +294,6 @@ function RosterListContent() {
       }}
     >
       <PageHeader title="승선명부" />
-      {isPulling && (
-        <div 
-          className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
-          style={{
-            zIndex: 1000,
-            transform: 'translateX(-50%)',
-            minWidth: '120px',
-            height: `${Math.min(pullProgress * 50, 50)}px`,
-            opacity: pullProgress,
-          }}
-        >
-          {pullProgress >= 1 ? (
-            <div className="spinner-border spinner-border-sm" role="status">
-              <span className="visually-hidden">새로고침 중...</span>
-            </div>
-          ) : (
-            <span className="small">아래로 당겨서 새로고침</span>
-          )}
-        </div>
-      )}
-      
       <div className="container pb-4" style={{ paddingTop: '80px' }}>
         <div className="card shadow-sm mb-3">
           <div className="card-body text-center">
