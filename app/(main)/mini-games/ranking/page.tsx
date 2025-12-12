@@ -123,16 +123,25 @@ function RankingPageContent() {
   // 순위 메달 표시 개수 설정 가져오기
   const fetchRankingMedalCount = async () => {
     try {
-      const gameSettingsDoc = await getDoc(doc(db, 'gameSettings', 'fishing'));
+      // gameSettings/global에서 가져오기
+      const gameSettingsDoc = await getDoc(doc(db, 'gameSettings', 'global'));
       
       if (gameSettingsDoc.exists()) {
         const data = gameSettingsDoc.data();
-        if (data.rankingMedalCount !== undefined) {
-          setRankingMedalCount(data.rankingMedalCount);
+        if (data.ranking_medal_count !== undefined) {
+          setRankingMedalCount(data.ranking_medal_count);
+        } else {
+          // 기본값 3
+          setRankingMedalCount(3);
         }
+      } else {
+        // 문서가 없으면 기본값 3
+        setRankingMedalCount(3);
       }
     } catch (error) {
       console.error('Error fetching ranking medal count:', error);
+      // 오류 발생 시 기본값 3 유지
+      setRankingMedalCount(3);
     }
   };
   
@@ -528,7 +537,7 @@ function RankingPageContent() {
                   <div className="modal-body">
                     <p className="text-muted small mb-3">{formatTournamentPeriod()}</p>
                     {tournament.description && (
-                      <p className="text-dark">{tournament.description}</p>
+                      <p className="text-dark" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{tournament.description}</p>
                     )}
                   </div>
                 </div>

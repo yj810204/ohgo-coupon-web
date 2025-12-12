@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { loginOrRegisterUser } from '@/lib/firebase-auth';
 import { saveUser } from '@/lib/storage';
 import { notifyAllAdmins } from '@/utils/send-push';
+import { IoPersonOutline, IoCalendarOutline, IoCheckmarkCircleOutline, IoCloseOutline } from 'react-icons/io5';
 
 export default function LoginPage() {
   const [name, setName] = useState('');
@@ -208,80 +209,185 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div 
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      }}
+    >
       <div className="w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-8">
-          오~ Go 피싱에 오신것을 환영 합니다! 🫶<br />
-          즐기는 낚시 🎣 오고~오Go
-        </h1>
-
-        <div className="space-y-4">
-          <input
-            type="text"
-            placeholder="이름"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <input
-            type="text"
-            placeholder="생년월일 (예: 720610)"
-            value={dob}
-            onChange={(e) => setDob(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            maxLength={6}
-          />
-
-          <div className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              id="agree"
-              checked={agreed}
-              onChange={(e) => setAgreed(e.target.checked)}
-              className="w-5 h-5"
-            />
-            <label htmlFor="agree" className="text-sm">
-              <button
-                onClick={() => setShowPrivacyModal(true)}
-                className="text-blue-600 underline"
-              >
-                개인정보 처리방침
-              </button>
-              에 동의합니다.
-            </label>
+        {/* 로그인 카드 */}
+        <div 
+          className="bg-white rounded-2xl shadow-2xl p-8"
+          style={{
+            backdropFilter: 'blur(10px)',
+          }}
+        >
+          {/* 타이틀 */}
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold mb-2" style={{ 
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}>
+              오~ Go 피싱
+            </h1>
+            <p className="text-gray-600 text-lg">
+              오신것을 환영 합니다! 🫶
+            </p>
+            <p className="text-gray-500 text-sm mt-1">
+              즐기는 낚시 🎣 오고~오Go
+            </p>
           </div>
 
-          <button
-            onClick={handleLogin}
-            disabled={isLoading}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? '로그인 중...' : '로그인'}
-          </button>
+          {/* 입력 폼 */}
+          <div className="space-y-4">
+            {/* 이름 입력 */}
+            <div className="relative">
+              <IoPersonOutline 
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" 
+                size={20} 
+              />
+              <input
+                type="text"
+                placeholder="이름"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all"
+                style={{
+                  fontSize: '16px',
+                }}
+              />
+            </div>
 
-          <button
-            onClick={handleNaverBand}
-            className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 flex items-center justify-center space-x-2"
-          >
-            <span>네이버 밴드 바로가기</span>
-          </button>
+            {/* 생년월일 입력 */}
+            <div className="relative">
+              <IoCalendarOutline 
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" 
+                size={20} 
+              />
+              <input
+                type="text"
+                placeholder="생년월일 (예: 720610)"
+                value={dob}
+                onChange={(e) => setDob(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all"
+                maxLength={6}
+                style={{
+                  fontSize: '16px',
+                }}
+              />
+            </div>
+
+            {/* 개인정보 동의 */}
+            <div className="flex items-start space-x-3 pt-2">
+              <input
+                type="checkbox"
+                id="agree"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+                className="w-5 h-5 mt-0.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                style={{
+                  cursor: 'pointer',
+                }}
+              />
+              <label htmlFor="agree" className="text-sm text-gray-700 flex-1">
+                <button
+                  onClick={() => setShowPrivacyModal(true)}
+                  className="text-purple-600 hover:text-purple-700 underline font-medium"
+                >
+                  개인정보 처리방침
+                </button>
+                에 동의합니다.
+              </label>
+            </div>
+
+            {/* 로그인 버튼 */}
+            <button
+              onClick={handleLogin}
+              disabled={isLoading || !agreed}
+              className="w-full py-4 rounded-xl font-semibold text-white text-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg"
+              style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              }}
+            >
+              {isLoading ? (
+                <span className="flex items-center justify-center">
+                  <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                  로그인 중...
+                </span>
+              ) : (
+                '로그인'
+              )}
+            </button>
+
+            {/* 네이버 밴드 버튼 */}
+            <button
+              onClick={handleNaverBand}
+              className="w-full py-3 rounded-xl font-semibold text-white flex items-center justify-center space-x-2 transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-md"
+              style={{
+                background: 'linear-gradient(135deg, #06c755 0%, #05a844 100%)',
+              }}
+            >
+              <span>네이버 밴드 바로가기</span>
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* 개인정보 처리방침 모달 */}
       {showPrivacyModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h2 className="text-xl font-bold text-blue-600">개인정보 처리방침</h2>
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            backdropFilter: 'blur(4px)',
+          }}
+          onClick={() => setShowPrivacyModal(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 모달 헤더 */}
+            <div 
+              className="flex justify-between items-center p-6 border-b"
+              style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              }}
+            >
+              <h2 className="text-2xl font-bold text-white">개인정보 처리방침</h2>
               <button
                 onClick={() => setShowPrivacyModal(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
+                className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition-all"
               >
-                ×
+                <IoCloseOutline size={24} />
               </button>
             </div>
-            <div className="overflow-y-auto p-4">
-              <div dangerouslySetInnerHTML={{ __html: privacyHtml }} />
+            
+            {/* 모달 본문 */}
+            <div className="overflow-y-auto p-6" style={{ maxHeight: 'calc(85vh - 80px)' }}>
+              <div 
+                className="prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: privacyHtml }}
+                style={{
+                  fontSize: '14px',
+                  lineHeight: '1.6',
+                }}
+              />
+            </div>
+            
+            {/* 모달 푸터 */}
+            <div className="p-4 border-t bg-gray-50">
+              <button
+                onClick={() => setShowPrivacyModal(false)}
+                className="w-full py-3 rounded-xl font-semibold text-white transition-all"
+                style={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                }}
+              >
+                확인
+              </button>
             </div>
           </div>
         </div>

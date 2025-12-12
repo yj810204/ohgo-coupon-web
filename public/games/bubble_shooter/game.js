@@ -215,6 +215,11 @@ class BubbleShooterGame {
             }
         }
 
+        // config에서 직접 bubble_types 확인 (Firebase Storage URL이 설정된 경우, 우선순위 높음)
+        if (this.config.bubble_types && Array.isArray(this.config.bubble_types)) {
+            this.bubbleTypes = this.config.bubble_types;
+        }
+
         // 기본 버블 타입 설정 (색상만 사용)
         if (!this.bubbleTypes || this.bubbleTypes.length === 0) {
             this.bubbleTypes = [
@@ -228,11 +233,15 @@ class BubbleShooterGame {
         }
         
         // 버블 타입의 emoji 필드를 빈 문자열로 강제 설정 (색상만 사용)
+        // image_path는 Firebase Storage URL이 설정된 경우 유지
         if (this.bubbleTypes && Array.isArray(this.bubbleTypes)) {
             this.bubbleTypes.forEach(bubbleType => {
                 if (bubbleType) {
                     bubbleType.emoji = '';
-                    bubbleType.image_path = '';
+                    // image_path가 Firebase Storage URL인 경우 유지, 그 외에는 빈 문자열
+                    if (bubbleType.image_path && !bubbleType.image_path.startsWith('http')) {
+                        bubbleType.image_path = '';
+                    }
                 }
             });
         }
@@ -336,6 +345,12 @@ class BubbleShooterGame {
      * 리소스 로드
      */
     preload() {
+        // CORS 설정 (Firebase Storage 이미지 로드를 위해)
+        const scene = this.game.scene.scenes[0];
+        if (scene && scene.load) {
+            scene.load.crossOrigin = 'anonymous';
+        }
+        
         // 버블 이미지 로드 (있는 경우)
         this.bubbleTypes.forEach((bubbleType, index) => {
             let imagePath = null;

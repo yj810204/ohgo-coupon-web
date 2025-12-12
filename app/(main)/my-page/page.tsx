@@ -7,8 +7,9 @@ import { db } from '@/lib/firebase';
 import { clearUser, getUser } from '@/lib/storage';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/PageHeader';
+import { IoPersonOutline, IoNotificationsOutline, IoLogOutOutline } from 'react-icons/io5';
 
-export default function SettingsPage() {
+export default function MyPage() {
   const router = useRouter();
   const [isPushEnabled, setIsPushEnabled] = useState(true);
   const [userInfo, setUserInfo] = useState<{ name: string, dob: string, uuid: string } | null>(null);
@@ -80,14 +81,59 @@ export default function SettingsPage() {
 
   if (!userInfo) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="d-flex min-vh-100 align-items-center justify-content-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">로딩 중...</p>
+          <div className="spinner-border text-primary mb-3" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="text-muted">로딩 중...</p>
         </div>
       </div>
     );
   }
+
+  const menuItems = [
+    {
+      icon: IoNotificationsOutline,
+      label: '알림 설정',
+      onClick: () => {},
+      content: (
+        <div className="d-flex justify-content-between align-items-center w-100">
+          <div>
+            <div className="fw-semibold mb-1">푸시 알림 받기</div>
+            <small className="text-muted">쿠폰 발급, 스탬프 회수 등의 알림을 받을 수 있습니다.</small>
+          </div>
+          <label className="form-check form-switch mb-0 ms-3">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              checked={isPushEnabled}
+              onChange={togglePush}
+              style={{ cursor: 'pointer' }}
+            />
+          </label>
+        </div>
+      ),
+    },
+    {
+      icon: IoPersonOutline,
+      label: '회원 정보',
+      onClick: () => {},
+      content: (
+        <div className="w-100">
+          <div className="mb-2">
+            <span className="fw-semibold">이름:</span> {userInfo.name}
+          </div>
+          <div className="mb-2">
+            <span className="fw-semibold">생년월일:</span> {userInfo.dob}
+          </div>
+          <div>
+            <span className="fw-semibold">UUID:</span> <small className="text-muted">{userInfo.uuid}</small>
+          </div>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div 
@@ -99,7 +145,7 @@ export default function SettingsPage() {
         position: 'relative',
       }}
     >
-      <PageHeader title="설정" />
+      <PageHeader title="마이페이지" />
       {isPulling && (
         <div 
           className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
@@ -109,6 +155,7 @@ export default function SettingsPage() {
             minWidth: '120px',
             height: `${Math.min(pullProgress * 50, 50)}px`,
             opacity: pullProgress,
+            marginTop: '60px'
           }}
         >
           {pullProgress >= 1 ? (
@@ -121,49 +168,44 @@ export default function SettingsPage() {
         </div>
       )}
       <div className="container py-4">
-        <h1 className="text-2xl font-bold text-blue-600 mb-6">설정</h1>
-
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">알림 설정</h2>
-            <button
-              onClick={() => router.push('/notification-history')}
-              className="text-blue-600 hover:text-blue-700"
-            >
-              내역
-            </button>
+        <div className="card shadow-sm mb-3">
+          <div className="card-body">
+            {menuItems.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <div key={index} className={index > 0 ? 'border-top pt-3 mt-3' : ''}>
+                  <div className="d-flex align-items-start">
+                    <div
+                      className="rounded-circle d-flex align-items-center justify-content-center me-3"
+                      style={{ 
+                        width: '40px', 
+                        height: '40px',
+                        backgroundColor: '#f0f0f0',
+                        flexShrink: 0
+                      }}
+                    >
+                      <Icon size={20} className="text-primary" />
+                    </div>
+                    <div className="flex-grow-1">
+                      <h6 className="fw-semibold mb-2">{item.label}</h6>
+                      {item.content}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-
-          <div className="flex justify-between items-center py-3 border-b">
-            <span className="text-gray-700">푸시 알림 받기</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isPushEnabled}
-                onChange={togglePush}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-
-          <p className="text-sm text-gray-500 mt-4">
-            푸시 알림을 받으면 쿠폰 발급, 스탬프 회수 등의 알림을 받을 수 있습니다.
-          </p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-lg font-semibold mb-4">회원 정보</h2>
-          <div className="space-y-2">
-            <p className="text-gray-700">
-              <span className="font-semibold">이름:</span> {userInfo.name}
-            </p>
-            <p className="text-gray-700">
-              <span className="font-semibold">생년월일:</span> {userInfo.dob}
-            </p>
-            <p className="text-gray-700">
-              <span className="font-semibold">UUID:</span> {userInfo.uuid}
-            </p>
+        <div className="card shadow-sm mb-3">
+          <div className="card-body">
+            <button
+              onClick={() => router.push('/notification-history')}
+              className="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center"
+            >
+              <IoNotificationsOutline size={20} className="me-2" />
+              알림 내역
+            </button>
           </div>
         </div>
 
@@ -175,9 +217,9 @@ export default function SettingsPage() {
             fontSize: '1rem',
             fontWeight: '500',
             borderRadius: '8px',
-            transition: 'all 0.2s ease'
           }}
         >
+          <IoLogOutOutline size={20} className="me-2" />
           로그아웃
         </button>
       </div>

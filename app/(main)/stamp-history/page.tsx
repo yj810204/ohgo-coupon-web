@@ -7,6 +7,7 @@ import { collection, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getStampHistory } from '@/utils/stamp-service';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import PageHeader from '@/components/PageHeader';
 
 type StampHistoryItem = {
   id: string;
@@ -97,6 +98,7 @@ function StampHistoryPageContent() {
         position: 'relative',
       }}
     >
+      <PageHeader title="스탬프 이력" />
       {isPulling && (
         <div 
           className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
@@ -106,6 +108,7 @@ function StampHistoryPageContent() {
             minWidth: '120px',
             height: `${Math.min(pullProgress * 50, 50)}px`,
             opacity: pullProgress,
+            marginTop: '60px'
           }}
         >
           {pullProgress >= 1 ? (
@@ -118,9 +121,8 @@ function StampHistoryPageContent() {
         </div>
       )}
       <div className="container py-4">
-        <div className="d-flex justify-content-between align-items-center mb-4">
-          <h1 className="display-6 fw-bold text-primary mb-0">{name}님의 스탬프 이력</h1>
-          {history.length > 0 && (
+        {history.length > 0 && (
+          <div className="d-flex justify-content-end mb-3">
             <button 
               className="btn btn-outline-danger d-flex align-items-center justify-content-center"
               onClick={handleClearHistory}
@@ -134,8 +136,8 @@ function StampHistoryPageContent() {
             >
               전체 삭제
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* 필터 */}
         <div className="card shadow-sm mb-3">

@@ -151,11 +151,13 @@ export default function AdminPage() {
       return;
     }
     
+    // 통계 로딩은 백그라운드에서 조용히 진행 (UI 블로킹 없음)
     setIsLoadingStats(true);
     setStatsLoadingProgress({ loaded: 0, total: totalCount });
     
-    const BATCH_SIZE = 15;
-    const BATCH_DELAY = 100;
+    // 배치 크기 증가 및 지연 시간 감소로 성능 개선
+    const BATCH_SIZE = 25;
+    const BATCH_DELAY = 50;
     
     let loadedCount = 0;
     
@@ -171,6 +173,7 @@ export default function AdminPage() {
         
         return (async () => {
           try {
+            // 병렬 요청으로 성능 개선
             const [couponsRef, stampsRef, memoRef, boardingRef, userDoc] = await Promise.all([
               getDocs(collection(db, `users/${uuid}/coupons`)),
               getDocs(collection(db, `users/${uuid}/stamps`)),
@@ -193,7 +196,10 @@ export default function AdminPage() {
             statsLoadedRef.current.add(uuid);
             loadedCount++;
             
-            setStatsLoadingProgress({ loaded: loadedCount, total: totalCount });
+            // 진행률 업데이트는 배치 단위로만 (성능 개선)
+            if (loadedCount % BATCH_SIZE === 0 || loadedCount === totalCount) {
+              setStatsLoadingProgress({ loaded: loadedCount, total: totalCount });
+            }
             
             setAllMembers(prev => {
               return prev.map(member => {
@@ -216,13 +222,16 @@ export default function AdminPage() {
           } catch (error) {
             console.error(`❗ Error loading stats for ${uuid}:`, error);
             loadedCount++;
-            setStatsLoadingProgress({ loaded: loadedCount, total: totalCount });
+            if (loadedCount % BATCH_SIZE === 0 || loadedCount === totalCount) {
+              setStatsLoadingProgress({ loaded: loadedCount, total: totalCount });
+            }
           }
         })();
       });
       
       await Promise.all(batchPromises);
       
+      // 마지막 배치가 아니면 짧은 지연
       if (i + BATCH_SIZE < uniqueUuids.length) {
         await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
       }
@@ -260,6 +269,8 @@ export default function AdminPage() {
     
     setLoading(true);
     console.log('📥 Loading basic member info...');
+    
+    // 기본 회원 정보만 먼저 빠르게 로드
     const snapshot = await getDocs(collection(db, 'users'));
     const users: Member[] = snapshot.docs.map(doc => ({
       id: doc.id,
@@ -318,12 +329,17 @@ export default function AdminPage() {
     setAllMembers(users);
     setTodayMembers(joinedToday);
     setSections(fullSections);
+    
+    // 기본 정보 로드 완료 후 즉시 UI 표시 (로딩 상태 해제)
     setLoading(false);
     hasLoadedRef.current = true;
     lastLoadedAtRef.current = Date.now();
-    console.log('✅ Basic member info loaded, starting stats loading...');
+    console.log('✅ Basic member info loaded, starting stats loading in background...');
 
-    loadStatsInBackground(users.map(u => u.uuid));
+    // 통계는 백그라운드에서 비동기로 로드 (UI 블로킹 없음)
+    setTimeout(() => {
+      loadStatsInBackground(users.map(u => u.uuid));
+    }, 100);
   };
 
   useEffect(() => {
@@ -665,16 +681,12 @@ export default function AdminPage() {
                             )}
                           </div>
                           <div className="d-flex flex-wrap gap-2 mb-2">
-                            {member.stampCount !== undefined ? (
-                              member.stampCount > 0 && (
-                                <span className="badge bg-secondary">
-                                  스탬프 {member.stampCount}
-                                </span>
-                              )
-                            ) : (
-                              <span className="spinner-border spinner-border-sm" role="status"></span>
+                            {member.stampCount !== undefined && member.stampCount > 0 && (
+                              <span className="badge bg-secondary">
+                                스탬프 {member.stampCount}
+                              </span>
                             )}
-                            {member.halfCouponCount !== undefined && member.fullCouponCount !== undefined ? (
+                            {member.halfCouponCount !== undefined && member.fullCouponCount !== undefined && (
                               <>
                                 {member.halfCouponCount > 0 && (
                                   <span className="badge bg-warning text-dark">
@@ -687,19 +699,11 @@ export default function AdminPage() {
                                   </span>
                                 )}
                               </>
-                            ) : (
-                              member.stampCount === undefined && (
-                                <span className="spinner-border spinner-border-sm" role="status"></span>
-                              )
                             )}
-                            {member.tripCount !== undefined ? (
-                              member.tripCount > 0 && (
-                                <span className="badge bg-primary">
-                                  승선 {member.tripCount}
-                                </span>
-                              )
-                            ) : (
-                              <span className="spinner-border spinner-border-sm" role="status"></span>
+                            {member.tripCount !== undefined && member.tripCount > 0 && (
+                              <span className="badge bg-primary">
+                                승선 {member.tripCount}
+                              </span>
                             )}
                           </div>
                         </div>
@@ -710,12 +714,12 @@ export default function AdminPage() {
                                 ? `${member.dob.slice(2, 4)}-${member.dob.slice(4, 6)}-${member.dob.slice(6, 8)}` 
                                 : member.dob}
                             </small>
-                            {member.gender === undefined ? (
-                              <span className="spinner-border spinner-border-sm" role="status"></span>
-                            ) : member.gender ? (
-                              <span className="badge bg-secondary">{member.gender}</span>
-                            ) : (
-                              <span className="badge bg-warning">✕</span>
+                            {member.gender !== undefined && (
+                              member.gender ? (
+                                <span className="badge bg-secondary">{member.gender}</span>
+                              ) : (
+                                <span className="badge bg-warning">✕</span>
+                              )
                             )}
                           </div>
                           <small className="text-muted d-block">
@@ -743,18 +747,16 @@ export default function AdminPage() {
           </div>
         )}
 
-        {statsLoadingProgress && (
-          <div className="position-fixed bottom-0 start-0 end-0 bg-white border-top p-3 shadow">
-            <div className="progress mb-2" style={{ height: '6px' }}>
-              <div
-                className="progress-bar"
-                role="progressbar"
-                style={{ width: `${(statsLoadingProgress.loaded / statsLoadingProgress.total) * 100}%` }}
-              ></div>
+        {statsLoadingProgress && statsLoadingProgress.loaded < statsLoadingProgress.total && (
+          <div className="position-fixed bottom-0 start-0 end-0 bg-white border-top p-2 shadow-sm" style={{ zIndex: 100 }}>
+            <div className="d-flex align-items-center justify-content-center gap-2">
+              <div className="spinner-border spinner-border-sm text-primary" role="status" style={{ width: '16px', height: '16px' }}>
+                <span className="visually-hidden">Loading...</span>
+              </div>
+              <small className="text-muted">
+                통계 로딩 중... ({statsLoadingProgress.loaded}/{statsLoadingProgress.total})
+              </small>
             </div>
-            <small className="text-muted text-center d-block">
-              {statsLoadingProgress.loaded}명 로딩 중... ({statsLoadingProgress.total}명 중)
-            </small>
           </div>
         )}
       </div>

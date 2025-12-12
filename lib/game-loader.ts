@@ -46,10 +46,25 @@ export class GameLoader {
         const { getGame } = await import('./game-service');
         const gameData = await getGame(gameId);
         const assetUrls = gameData?.asset_urls;
+        
+        // config_data를 game_config_json으로 설정 (게임 코드에서 사용)
+        if (gameData?.config_data) {
+          config.game_config_json = gameData.config_data;
+        }
         if (assetUrls) {
           // 게임 타입에 따라 이미지 경로 설정
-          if (gameId === 'bubble_shooter' || gameId === 'match3') {
-            // 블록 이미지 URL 설정
+          if (gameId === 'bubble_shooter') {
+            // 버블 슈터: bubble_types 설정
+            const bubbleTypes = config.bubble_types || [];
+            bubbleTypes.forEach((bubbleType: any, index: number) => {
+              const assetName = `block_${index}`;
+              if (assetUrls[assetName]) {
+                bubbleType.image_path = assetUrls[assetName];
+              }
+            });
+            config.bubble_types = bubbleTypes;
+          } else if (gameId === 'match3') {
+            // 매치3: block_types 설정
             const blockTypes = config.block_types || [];
             blockTypes.forEach((blockType: any, index: number) => {
               const assetName = `block_${index}`;
@@ -335,6 +350,12 @@ export class GameLoader {
    */
   stopGame(): void {
     if (this.gameInstance) {
+      // 게임 시작 모달 제거 (게임 인스턴스가 있으면 모달도 있을 수 있음)
+      const gameStartModal = document.querySelector('.game-start-modal');
+      if (gameStartModal) {
+        gameStartModal.remove();
+      }
+      
       if (typeof this.gameInstance.destroy === 'function') {
         this.gameInstance.destroy();
       }
@@ -347,6 +368,18 @@ export class GameLoader {
    * 모든 게임 리소스 정리
    */
   cleanup(): void {
+    // 게임 시작 모달 제거
+    const gameStartModal = document.querySelector('.game-start-modal');
+    if (gameStartModal) {
+      gameStartModal.remove();
+    }
+    
+    // 게임 종료 모달도 제거
+    const gameEndModal = document.querySelector('.game-end-modal');
+    if (gameEndModal) {
+      gameEndModal.remove();
+    }
+    
     this.stopGame();
     // 로드된 스크립트 목록 초기화 (다음 게임 로드를 위해)
     // 하지만 실제 스크립트 태그는 유지 (재사용)

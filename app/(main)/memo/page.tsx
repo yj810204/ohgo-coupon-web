@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { addMemo, getMemos, softDeleteMemo, updateMemo } from '@/utils/memo-service';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import PageHeader from '@/components/PageHeader';
 
 function MemoPageContent() {
   const router = useRouter();
@@ -73,6 +74,7 @@ function MemoPageContent() {
         position: 'relative',
       }}
     >
+      <PageHeader title="관리자 메모" />
       {isPulling && (
         <div 
           className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
@@ -82,6 +84,7 @@ function MemoPageContent() {
             minWidth: '120px',
             height: `${Math.min(pullProgress * 50, 50)}px`,
             opacity: pullProgress,
+            marginTop: '60px'
           }}
         >
           {pullProgress >= 1 ? (
@@ -94,7 +97,6 @@ function MemoPageContent() {
         </div>
       )}
       <div className="container py-4">
-        <h1 className="display-6 fw-bold text-primary mb-4">{name}님의 관리자 메모</h1>
 
         <div className="card shadow-sm mb-3">
           <div className="card-body">

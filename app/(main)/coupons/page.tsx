@@ -8,6 +8,7 @@ import { getUser } from '@/lib/storage';
 import { sendPushToUser } from '@/utils/send-push';
 import { useCouponById as useCouponByIdFunc } from '@/utils/stamp-service';
 import { FiGift, FiX } from 'react-icons/fi';
+import { IoGiftOutline } from 'react-icons/io5';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/PageHeader';
 
@@ -210,131 +211,212 @@ function CouponsPageContent() {
         </div>
       )}
       <div className="container py-4">
-        <h1 className="text-2xl font-bold text-blue-600 mb-6">쿠폰</h1>
-
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold mb-3">사용 가능한 쿠폰 ({usableCoupons.length}개)</h2>
-            {usableCoupons.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">사용 가능한 쿠폰이 없습니다.</p>
-            ) : (
-              <div className="space-y-3">
-                {usableCoupons.map((coupon) => (
-                  <button
-                    key={coupon.id}
-                    onClick={() => {
-                      setSelectedCoupon(coupon);
-                      setModalVisible(true);
-                    }}
-                    className="w-full bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow text-left"
-                  >
-                    <div className="flex items-center">
-                      <FiGift size={24} className="text-red-500 mr-3" />
-                      <div>
-                        <p className="font-semibold">{coupon.reason || '쿠폰'}</p>
-                        <p className="text-sm text-gray-600">
-                          발급일: {coupon.issuedAt || '알 수 없음'}
-                          {coupon.isHalf === 'Y' && ' (50% 할인)'}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
+        {/* 회원 정보 카드 */}
+        <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: '12px' }}>
+          <div className="card-body p-3">
+            <div className="d-flex align-items-center mb-2">
+              <IoGiftOutline size={20} className="text-danger me-2" />
+              <span className="text-muted small">회원정보</span>
+            </div>
+            <div className="ps-4">
+              <div className="fw-semibold">{user.name}</div>
+              <div className="small text-muted">
+                {user.dob?.length === 8 ? `${user.dob.slice(2, 4)}-${user.dob.slice(4, 6)}-${user.dob.slice(6, 8)}` : user.dob}
+                {fromAdmin && <span className="ms-2 text-primary">(관리자모드)</span>}
               </div>
-            )}
+            </div>
           </div>
+        </div>
 
-          {usedCoupons.length > 0 && (
-            <div>
-              <h2 className="text-lg font-semibold mb-3">사용된 쿠폰 ({usedCoupons.length}개)</h2>
-              <div className="space-y-3">
-                {usedCoupons.map((coupon) => (
-                  <div
-                    key={coupon.id}
-                    className="w-full bg-gray-100 p-4 rounded-lg opacity-60"
-                  >
-                    <div className="flex items-center">
-                      <FiGift size={24} className="text-gray-400 mr-3" />
-                      <div>
-                        <p className="font-semibold line-through">{coupon.reason || '쿠폰'}</p>
-                        <p className="text-sm text-gray-500">
-                          발급일: {coupon.issuedAt || '알 수 없음'} (사용됨)
-                        </p>
-                      </div>
+        {/* 사용 가능한 쿠폰 */}
+        <div className="mb-4">
+          <div className="d-flex align-items-center justify-content-between mb-3">
+            <h5 className="mb-0 fw-semibold">사용 가능한 쿠폰</h5>
+            <span className="badge bg-primary rounded-pill">{usableCoupons.length}개</span>
+          </div>
+          {usableCoupons.length === 0 ? (
+            <div className="card border-0 shadow-sm" style={{ borderRadius: '12px' }}>
+              <div className="card-body text-center py-5 d-flex flex-column align-items-center">
+                <IoGiftOutline size={48} className="text-muted mb-3 opacity-50" />
+                <p className="text-muted mb-0">사용 가능한 쿠폰이 없습니다.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="d-flex flex-column gap-2">
+              {usableCoupons.map((coupon) => (
+                <button
+                  key={coupon.id}
+                  onClick={() => {
+                    setSelectedCoupon(coupon);
+                    setModalVisible(true);
+                  }}
+                  className="btn btn-light w-100 text-start p-3 border-0 shadow-sm"
+                  style={{ 
+                    borderRadius: '12px',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                  }}
+                >
+                  <div className="flex-grow-1">
+                    <div className="fw-semibold mb-1">{coupon.reason || '쿠폰'}</div>
+                    <div className="small text-muted">
+                      발급일: {coupon.issuedAt || '알 수 없음'}
+                      {coupon.isHalf === 'Y' && <span className="ms-2 text-warning">(50% 할인)</span>}
                     </div>
                   </div>
-                ))}
-              </div>
+                </button>
+              ))}
             </div>
           )}
         </div>
+
+        {/* 사용된 쿠폰 */}
+        {usedCoupons.length > 0 && (
+          <div>
+            <div className="d-flex align-items-center justify-content-between mb-3">
+              <h5 className="mb-0 fw-semibold">사용된 쿠폰</h5>
+              <span className="badge bg-secondary rounded-pill">{usedCoupons.length}개</span>
+            </div>
+            <div className="d-flex flex-column gap-2">
+              {usedCoupons.map((coupon) => (
+                <div
+                  key={coupon.id}
+                  className="card border-0 shadow-sm opacity-60"
+                  style={{ borderRadius: '12px' }}
+                >
+                  <div className="card-body p-3">
+                    <div className="flex-grow-1">
+                      <div className="fw-semibold text-decoration-line-through text-muted mb-1">{coupon.reason || '쿠폰'}</div>
+                      <div className="small text-muted">
+                        발급일: {coupon.issuedAt || '알 수 없음'} (사용됨)
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Coupon Modal */}
       {modalVisible && selectedCoupon && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">쿠폰 정보</h2>
-              <button onClick={() => setModalVisible(false)}>
-                <FiX size={24} className="text-gray-500" />
-              </button>
-            </div>
-            <p className="text-gray-700 mb-2">쿠폰: {selectedCoupon.reason || '쿠폰'}</p>
-            <p className="text-gray-700 mb-2">발급일: {selectedCoupon.issuedAt || '알 수 없음'}</p>
-            {selectedCoupon.isHalf === 'Y' && (
-              <p className="text-yellow-600 font-semibold mb-4">50% 할인 쿠폰</p>
-            )}
-            {!selectedCoupon.used && (
-              <div className="space-y-2">
-                <button
-                  onClick={handleUse}
-                  className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700"
-                >
-                  쿠폰 사용
-                </button>
-                {fromAdmin && (
-                  <button
-                    onClick={handleRevoke}
-                    className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700"
-                  >
-                    쿠폰 회수
-                  </button>
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
+              <div className="modal-header border-0" style={{ 
+                background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                padding: '20px'
+              }}>
+                <h5 className="modal-title text-white fw-bold mb-0">쿠폰 정보</h5>
+                <button 
+                  type="button" 
+                  className="btn-close btn-close-white" 
+                  onClick={() => setModalVisible(false)}
+                  style={{ opacity: 0.8 }}
+                ></button>
+              </div>
+              <div className="modal-body p-4">
+                <div className="mb-3">
+                  <div className="small text-muted mb-1">쿠폰</div>
+                  <div className="fw-semibold">{selectedCoupon.reason || '쿠폰'}</div>
+                </div>
+                <div className="mb-3">
+                  <div className="small text-muted mb-1">발급일</div>
+                  <div className="fw-semibold">{selectedCoupon.issuedAt || '알 수 없음'}</div>
+                </div>
+                {selectedCoupon.isHalf === 'Y' && (
+                  <div className="mb-3">
+                    <span className="badge bg-warning text-dark">50% 할인 쿠폰</span>
+                  </div>
+                )}
+                {!selectedCoupon.used && (
+                  <div className="d-grid gap-2">
+                    <button
+                      onClick={handleUse}
+                      className="btn btn-primary"
+                      style={{ borderRadius: '12px', padding: '12px' }}
+                    >
+                      쿠폰 사용
+                    </button>
+                    {fromAdmin && (
+                      <button
+                        onClick={handleRevoke}
+                        className="btn btn-danger"
+                        style={{ borderRadius: '12px', padding: '12px' }}
+                      >
+                        쿠폰 회수
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}
 
       {/* Password Modal */}
       {passwordModalVisible && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h2 className="text-xl font-bold mb-4">비밀번호 입력</h2>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="비밀번호를 입력하세요"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <div className="flex space-x-3">
-              <button
-                onClick={() => {
-                  setPasswordModalVisible(false);
-                  setPassword('');
-                }}
-                className="flex-1 bg-gray-300 text-gray-800 py-3 rounded-lg font-semibold hover:bg-gray-400"
-              >
-                취소
-              </button>
-              <button
-                onClick={handlePasswordSubmit}
-                className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700"
-              >
-                확인
-              </button>
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
+              <div className="modal-header border-0" style={{ 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                padding: '20px'
+              }}>
+                <h5 className="modal-title text-white fw-bold mb-0">비밀번호 입력</h5>
+                <button 
+                  type="button" 
+                  className="btn-close btn-close-white" 
+                  onClick={() => {
+                    setPasswordModalVisible(false);
+                    setPassword('');
+                  }}
+                  style={{ opacity: 0.8 }}
+                ></button>
+              </div>
+              <div className="modal-body p-4">
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="비밀번호를 입력하세요"
+                  className="form-control mb-3"
+                  style={{ borderRadius: '12px', padding: '12px' }}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handlePasswordSubmit();
+                    }
+                  }}
+                />
+                <div className="d-grid gap-2">
+                  <button
+                    onClick={handlePasswordSubmit}
+                    className="btn btn-primary"
+                    style={{ borderRadius: '12px', padding: '12px' }}
+                  >
+                    확인
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPasswordModalVisible(false);
+                      setPassword('');
+                    }}
+                    className="btn btn-secondary"
+                    style={{ borderRadius: '12px', padding: '12px' }}
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

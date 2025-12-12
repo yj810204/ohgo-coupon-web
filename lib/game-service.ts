@@ -8,6 +8,7 @@ export interface Game {
   game_description?: string;
   game_path: string;
   thumbnail_path?: string;
+  thumbnail_url?: string; // Firebase Storage URL (우선순위 높음)
   is_active: boolean;
   display_order: number;
   config_data?: string;
@@ -221,6 +222,49 @@ export async function saveGameScore(
     };
   } catch (error) {
     console.error('Error saving game score:', error);
+    throw error;
+  }
+}
+
+export interface GlobalGameSettings {
+  tournament_enabled?: boolean;
+  tournament_start_date?: string;
+  tournament_end_date?: string;
+  daily_play_limit?: number;
+  show_medals?: boolean;
+  ranking_medal_count?: number; // 1, 2, 3 중 선택 (기본값 3)
+  game_notice?: string;
+}
+
+/**
+ * 통합 게임 설정 조회
+ */
+export async function getGlobalGameSettings(): Promise<GlobalGameSettings | null> {
+  try {
+    const settingsRef = doc(db, 'gameSettings', 'global');
+    const settingsSnap = await getDoc(settingsRef);
+    if (settingsSnap.exists()) {
+      return settingsSnap.data() as GlobalGameSettings;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching global game settings:', error);
+    return null;
+  }
+}
+
+/**
+ * 통합 게임 설정 업데이트
+ */
+export async function updateGlobalGameSettings(settings: Partial<GlobalGameSettings>): Promise<void> {
+  try {
+    const settingsRef = doc(db, 'gameSettings', 'global');
+    await setDoc(settingsRef, {
+      ...settings,
+      updatedAt: new Date(),
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error updating global game settings:', error);
     throw error;
   }
 }

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getStamps, getCouponCount, issue50PercentCoupon, deleteStamp } from '@/utils/stamp-service';
 import { getUser } from '@/lib/storage';
 import { FiTag, FiX } from 'react-icons/fi';
-import { IoQrCodeOutline } from 'react-icons/io5';
+import { IoQrCodeOutline, IoPricetagOutline, IoGiftOutline } from 'react-icons/io5';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/PageHeader';
 
@@ -120,26 +120,30 @@ function StampPageContent() {
             setModalVisible(true);
           }
         }}
-        className={`w-full p-4 mb-3 rounded-lg border-2 ${
-          isFifth 
-            ? 'bg-yellow-50 border-yellow-400 border-l-4' 
-            : 'bg-white border-gray-200'
-        } hover:shadow-md transition-shadow`}
+        className={`btn btn-light w-100 text-start p-3 border-0 shadow-sm ${
+          isFifth ? 'bg-warning bg-opacity-10' : ''
+        }`}
+        style={{ 
+          borderRadius: '12px',
+          transition: 'all 0.2s ease'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'translateY(-2px)';
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'translateY(0)';
+          e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+        }}
       >
-        <div className="flex items-center">
-          <FiTag 
-            size={24} 
-            className={isFifth ? 'text-yellow-600 mr-3' : 'text-green-600 mr-3'} 
-          />
-          <div>
-            <p className={`font-medium ${isFifth ? 'text-yellow-800' : 'text-gray-800'}`}>
-              {date.replace(/-/g, '-')}, {time?.slice(0, 5)}
-            </p>
-            <p className={`text-sm ${isFifth ? 'text-yellow-700' : 'text-gray-600'}`}>
-              {isFifth ? '⭐ 50% 쿠폰 발급 가능 ⭐' : `적립 방법: ${methodLabel}`}
-            </p>
-          </div>
-        </div>
+                  <div className="flex-grow-1">
+                    <div className={`fw-semibold mb-1 ${isFifth ? 'text-warning' : 'text-dark'}`}>
+                      {date.replace(/-/g, '-')}, {time?.slice(0, 5)}
+                    </div>
+                    <div className={`small ${isFifth ? 'text-warning' : 'text-muted'}`}>
+                      {isFifth ? '⭐ 50% 쿠폰 발급 가능 ⭐' : `적립 방법: ${methodLabel}`}
+                    </div>
+                  </div>
       </button>
     );
   };
@@ -187,61 +191,102 @@ function StampPageContent() {
         </div>
       )}
       <div className="container py-4">
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-          <h1 className="text-2xl font-bold text-blue-600 mb-2">
-            스탬프 현황 {fromAdmin && <span className="text-sm text-gray-500">(관리자모드)</span>}
-          </h1>
-          <p className="text-sm text-gray-600">
-            회원정보 : {user.name} / {user.dob?.length === 8 ? `${user.dob.slice(2, 4)}-${user.dob.slice(4, 6)}-${user.dob.slice(6, 8)}` : user.dob}
-          </p>
+        {/* 회원 정보 카드 */}
+        <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: '12px' }}>
+          <div className="card-body p-3">
+            <div className="d-flex align-items-center mb-2">
+              <IoPricetagOutline size={20} className="text-primary me-2" />
+              <span className="text-muted small">회원정보</span>
+            </div>
+            <div className="ps-4">
+              <div className="fw-semibold">{user.name}</div>
+              <div className="small text-muted">
+                {user.dob?.length === 8 ? `${user.dob.slice(2, 4)}-${user.dob.slice(4, 6)}-${user.dob.slice(6, 8)}` : user.dob}
+                {fromAdmin && <span className="ms-2 text-primary">(관리자모드)</span>}
+              </div>
+            </div>
+          </div>
         </div>
 
+        {/* 스탬프 리스트 */}
         {stamps.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-8 text-center">
-            <p className="text-gray-600">스탬프가 아직 없어요!</p>
+          <div className="card border-0 shadow-sm" style={{ borderRadius: '12px' }}>
+            <div className="card-body text-center py-5 d-flex flex-column align-items-center">
+              <IoPricetagOutline size={48} className="text-muted mb-3 opacity-50" />
+              <p className="text-muted mb-0">스탬프가 아직 없어요!</p>
+            </div>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-            {stamps.map((stamp, index) => renderStampItem(stamp, index))}
+          <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: '12px' }}>
+            <div className="card-body p-3">
+              <div className="d-flex flex-column gap-2">
+                {stamps.map((stamp, index) => renderStampItem(stamp, index))}
+              </div>
+            </div>
           </div>
         )}
 
-        <div className="space-y-3">
-          {!fromAdmin && (
-            <button
-              onClick={() => router.push(`/coupons?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`)}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700"
-            >
-              보유 쿠폰: {couponCount}개
-            </button>
-          )}
-        </div>
+        {/* 쿠폰 버튼 */}
+        {!fromAdmin && (
+          <button
+            onClick={() => router.push(`/coupons?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`)}
+            className="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2"
+            style={{
+              padding: '14px',
+              fontSize: '1rem',
+              fontWeight: '600',
+              borderRadius: '12px',
+              border: 'none',
+              boxShadow: '0 2px 8px rgba(13, 110, 253, 0.3)'
+            }}
+          >
+            <IoGiftOutline size={20} />
+            <span>보유 쿠폰: {couponCount}개</span>
+          </button>
+        )}
       </div>
 
       {/* Stamp Modal */}
       {modalVisible && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">스탬프 정보</h2>
-              <button onClick={() => setModalVisible(false)}>
-                <FiX size={24} className="text-gray-500" />
-              </button>
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
+              <div className="modal-header border-0" style={{ 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                padding: '20px'
+              }}>
+                <h5 className="modal-title text-white fw-bold mb-0">스탬프 정보</h5>
+                <button 
+                  type="button" 
+                  className="btn-close btn-close-white" 
+                  onClick={() => setModalVisible(false)}
+                  style={{ opacity: 0.8 }}
+                ></button>
+              </div>
+              <div className="modal-body p-4">
+                <div className="mb-3">
+                  <div className="small text-muted mb-1">적립일</div>
+                  <div className="fw-semibold">{selectedStampInfo?.date}</div>
+                </div>
+                <div className="mb-3">
+                  <div className="small text-muted mb-1">적립 방법</div>
+                  <div className="fw-semibold">{selectedStampInfo?.method || '알 수 없음'}</div>
+                </div>
+                {fromAdmin && selectedStampInfo?.value && (
+                  <button
+                    onClick={async () => {
+                      await deleteStamp(user.uuid!, selectedStampInfo.value!, user.name!, user.dob!);
+                      await fetchStamps();
+                      setModalVisible(false);
+                    }}
+                    className="btn btn-danger w-100"
+                    style={{ borderRadius: '12px', padding: '12px' }}
+                  >
+                    스탬프 회수
+                  </button>
+                )}
+              </div>
             </div>
-            <p className="text-gray-700 mb-2">적립일: {selectedStampInfo?.date}</p>
-            <p className="text-gray-700 mb-4">적립 방법: {selectedStampInfo?.method || '알 수 없음'}</p>
-            {fromAdmin && selectedStampInfo?.value && (
-              <button
-                onClick={async () => {
-                  await deleteStamp(user.uuid!, selectedStampInfo.value!, user.name!, user.dob!);
-                  await fetchStamps();
-                  setModalVisible(false);
-                }}
-                className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700"
-              >
-                스탬프 회수
-              </button>
-            )}
           </div>
         </div>
       )}
@@ -249,9 +294,26 @@ function StampPageContent() {
       {!fromAdmin && (
         <button
           onClick={() => router.push(`/qr-scan?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`)}
-          className="fixed bottom-8 right-8 w-20 h-20 bg-pink-600 rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-shadow"
+          className="btn btn-primary position-fixed rounded-circle d-flex align-items-center justify-content-center shadow-lg"
+          style={{
+            width: '64px',
+            height: '64px',
+            bottom: '24px',
+            right: '24px',
+            zIndex: 1000,
+            border: 'none',
+            transition: 'transform 0.2s, box-shadow 0.2s'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.1)';
+            e.currentTarget.style.boxShadow = '0 8px 16px rgba(13, 110, 253, 0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+          }}
         >
-          <IoQrCodeOutline size={40} className="text-white" />
+          <IoQrCodeOutline size={32} className="text-white" />
         </button>
       )}
     </div>

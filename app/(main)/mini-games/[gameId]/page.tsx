@@ -213,22 +213,39 @@ function GamePlayContent() {
     }
 
     return () => {
-      // 정리
-      if (loaderInstance) {
-        loaderInstance.cleanup();
-      }
-      // 전역 변수 정리
-      if (window.gameLoader) {
-        delete (window as any).gameLoader;
-      }
-      if (scoreListenerRef.current) {
-        window.removeEventListener('message', scoreListenerRef.current);
-      }
-      // 상태 초기화
+      // 상태를 먼저 초기화하여 로딩 화면이 사라지도록 함
       setLoading(false);
       setGameStarted(false);
       setError(null);
       gameStartAttemptedRef.current = false;
+      
+      // 게임 로더 cleanup (모든 게임 리소스 정리)
+      if (loaderInstance) {
+        try {
+          loaderInstance.cleanup();
+        } catch (e) {
+          console.error('Cleanup error:', e);
+        }
+      }
+      
+      // 전역 변수 정리
+      if (window.gameLoader) {
+        try {
+          (window.gameLoader as any).cleanup();
+          delete (window as any).gameLoader;
+        } catch (e) {
+          console.error('Global cleanup error:', e);
+        }
+      }
+      
+      // 이벤트 리스너 제거
+      if (scoreListenerRef.current) {
+        try {
+          window.removeEventListener('message', scoreListenerRef.current);
+        } catch (e) {
+          console.error('Remove listener error:', e);
+        }
+      }
     };
   }, [gameId, router, saveScore]);
 
@@ -342,7 +359,7 @@ function GamePlayContent() {
           visibility: gameStarted ? 'visible' : 'hidden',
         }}
       />
-      {loading && !gameStarted && (
+      {loading && !gameStarted && !error && (
         <div style={{
           position: 'fixed',
           top: '50%',

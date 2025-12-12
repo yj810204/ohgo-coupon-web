@@ -4,8 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getUser } from '@/lib/storage';
 import { getUserByUUID } from '@/lib/firebase-auth';
-import { FiUsers, FiSettings, FiSend } from 'react-icons/fi';
-import { IoPeopleOutline, IoCalendarOutline, IoNotificationsOutline, IoGameControllerOutline, IoFishOutline, IoBoatOutline, IoSettingsOutline } from 'react-icons/io5';
+import { FiUsers, FiSend } from 'react-icons/fi';
+import { IoPeopleOutline, IoCalendarOutline, IoNotificationsOutline, IoGameControllerOutline, IoBoatOutline, IoSettingsOutline } from 'react-icons/io5';
 import PageHeader from '@/components/PageHeader';
 
 export default function AdminMainPage() {
@@ -49,8 +49,6 @@ export default function AdminMainPage() {
     { icon: IoCalendarOutline, label: '승선 명부', path: '/today-roster', color: '#FF5722' },
     { icon: IoNotificationsOutline, label: '전체 알림', path: '/admin-push', color: '#FF9500' },
     { icon: IoGameControllerOutline, label: '미니 게임', path: '/mini-games', color: '#FF3B30' },
-    { icon: IoFishOutline, label: '물고기 도감', path: '/admin-fish', color: '#9C27B0' },
-    { icon: FiSettings, label: '설정', path: '/settings', color: '#34C759' },
     { icon: IoSettingsOutline, label: '게임 설정', path: '/admin-game-settings', color: '#4CAF50' },
     { icon: IoBoatOutline, label: '명부 작성', path: '/boarding-form', color: '#007AFF' },
   ];

@@ -37,14 +37,23 @@ async function registerGame(config: any, gameId: string, gamePath: string): Prom
 async function updateGame(config: any, gameId: string, gamePath: string): Promise<void> {
   const gameRef = doc(db, 'games', gameId);
   
+  // 기존 데이터 가져오기
+  const gameSnap = await getDoc(gameRef);
+  const existingData = gameSnap.data();
+  
   const updateData: Partial<Game> = {
     game_name: config.game_name || gameId,
     game_type: config.game_type || 'puzzle',
     game_description: config.game_description || config.description || '',
     game_path: gamePath,
-    thumbnail_path: config.thumbnail_path || `${gamePath}/thumbnail.png`,
-    config_data: JSON.stringify(config),
-    point_rate: config.point_rate ?? 100,
+    // 썸네일은 기존 것이 있으면 유지, 없으면 기본값 사용
+    thumbnail_path: existingData?.thumbnail_path || config.thumbnail_path || `${gamePath}/thumbnail.png`,
+    // config_data는 기존 것이 있으면 유지, 없으면 새로 설정
+    config_data: existingData?.config_data || JSON.stringify(config),
+    // point_rate는 기존 것이 있으면 유지, 없으면 기본값 사용
+    point_rate: existingData?.point_rate ?? config.point_rate ?? 100,
+    // asset_urls는 기존 것이 있으면 유지
+    asset_urls: existingData?.asset_urls || undefined,
     last_update: new Date(),
   };
 

@@ -202,6 +202,11 @@ class Match3Game {
             }
         }
 
+        // config에서 직접 block_types 확인 (Firebase Storage URL이 설정된 경우, 우선순위 높음)
+        if (this.config.block_types && Array.isArray(this.config.block_types)) {
+            this.blockTypes = this.config.block_types;
+        }
+
         // 기본 블록 타입 설정
         if (!this.blockTypes || this.blockTypes.length === 0) {
             this.blockTypes = [
@@ -2373,6 +2378,10 @@ class Match3Game {
         }
         if (this.comboResetTimer) {
             this.scene.time.removeEvent(this.comboResetTimer);
+        }
+        if (this.gameStartModal) {
+            this.gameStartModal.remove();
+            this.gameStartModal = null;
         }
         if (this.gameEndModal) {
             this.gameEndModal.remove();

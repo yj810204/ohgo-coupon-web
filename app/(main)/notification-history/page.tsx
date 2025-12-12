@@ -84,9 +84,8 @@ export default function NotificationHistoryPage() {
         </div>
       )}
       <div className="container py-4">
-        <div className="d-flex justify-content-between align-items-center mb-4">
-          <h1 className="display-6 fw-bold text-primary mb-0">알림 내역</h1>
-          {history.length > 0 && (
+        {history.length > 0 && (
+          <div className="d-flex justify-content-end mb-3">
             <button 
               className="btn btn-outline-danger d-flex align-items-center justify-content-center gap-2"
               onClick={clearHistory}
@@ -101,16 +100,16 @@ export default function NotificationHistoryPage() {
               <IoTrashOutline size={18} />
               <span>기록 초기화</span>
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="d-flex flex-column gap-3">
           {history.map((item, index) => (
-            <div key={index} className="card shadow-sm">
-              <div className="card-body">
-                <h6 className="card-title text-primary">{item.title}</h6>
-                <p className="card-text mb-2">{item.body}</p>
-                <small className="text-muted">
+            <div key={index} className="card shadow-sm border-0">
+              <div className="card-body p-3">
+                <h6 className="card-title mb-2 fw-semibold" style={{ fontSize: '1rem' }}>{item.title}</h6>
+                <p className="card-text mb-2 text-muted" style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>{item.body}</p>
+                <small className="text-muted" style={{ fontSize: '0.8rem' }}>
                   {new Date(item.time).toLocaleString('ko-KR', {
                     year: 'numeric',
                     month: '2-digit',
@@ -126,8 +125,10 @@ export default function NotificationHistoryPage() {
 
         {history.length === 0 && (
           <div className="text-center py-5">
-            <p className="text-muted">
-              🔔 저장된 알림이 없습니다.<br />
+            <p className="text-muted mb-0" style={{ fontSize: '0.95rem' }}>
+              🔔 저장된 알림이 없습니다.
+            </p>
+            <p className="text-muted mt-2 mb-0" style={{ fontSize: '0.85rem' }}>
               (로그아웃 시 알림 내역은 자동으로 삭제됩니다.)
             </p>
           </div>

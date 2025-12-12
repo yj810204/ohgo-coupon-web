@@ -3,8 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useCallback } from 'react';
 import { getUser } from '@/lib/storage';
-import { FiClipboard, FiGift, FiSettings } from 'react-icons/fi';
-import { IoGameControllerOutline, IoBoatOutline } from 'react-icons/io5';
+import { FiClipboard, FiGift } from 'react-icons/fi';
+import { IoGameControllerOutline, IoBoatOutline, IoPersonOutline } from 'react-icons/io5';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import PageHeader from '@/components/PageHeader';
 
@@ -33,7 +33,7 @@ export default function MainPage() {
     { icon: FiGift, label: '쿠폰', path: '/coupons', color: '#FF2D55' },
     { icon: IoGameControllerOutline, label: '미니 게임', path: '/mini-games', color: '#FF3B30' },
     { icon: IoBoatOutline, label: '명부 작성', path: '/boarding-form', color: '#007AFF' },
-    { icon: FiSettings, label: '설정', path: '/settings', color: '#34C759' },
+    { icon: IoPersonOutline, label: '마이페이지', path: '/my-page', color: '#9C27B0' },
   ];
 
   return (

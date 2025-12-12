@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { collection, getDocs, query, orderBy, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import PageHeader from '@/components/PageHeader';
 
 function LogsPageContent() {
   const router = useRouter();
@@ -72,6 +73,7 @@ function LogsPageContent() {
         position: 'relative',
       }}
     >
+      <PageHeader title="로그 보기" />
       {isPulling && (
         <div 
           className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
@@ -81,6 +83,7 @@ function LogsPageContent() {
             minWidth: '120px',
             height: `${Math.min(pullProgress * 50, 50)}px`,
             opacity: pullProgress,
+            marginTop: '60px'
           }}
         >
           {pullProgress >= 1 ? (
@@ -93,9 +96,8 @@ function LogsPageContent() {
         </div>
       )}
       <div className="container py-4">
-        <div className="d-flex justify-content-between align-items-center mb-4">
-          <h1 className="display-6 fw-bold text-primary mb-0">{name}님의 활동 로그</h1>
-          {logs.length > 0 && (
+        {logs.length > 0 && (
+          <div className="d-flex justify-content-end mb-3">
             <button 
               className="btn btn-outline-danger d-flex align-items-center justify-content-center"
               onClick={clearLogs}
@@ -109,8 +111,8 @@ function LogsPageContent() {
             >
               삭제
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="d-flex flex-column gap-3">
           {logs.map((item, index) => {

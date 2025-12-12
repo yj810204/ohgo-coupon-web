@@ -271,7 +271,7 @@ function LocationTimeSelectionContent() {
       <table style={{ borderLeft: '1px solid #000', borderRight: '1px solid #000', width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ backgroundColor: '#f0f0f0', borderBottom: '2px solid #000', borderTop: '1px solid #000', height: '40px' }}>
-            <th style={{ width: '4%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>
+            <th style={{ width: '4%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold임' }}>
               <div style={{ position: 'relative', top: '-7px' }}> </div>
             </th>
             <th style={{ width: '10%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>

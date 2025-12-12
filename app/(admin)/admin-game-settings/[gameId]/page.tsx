@@ -24,6 +24,17 @@ function GameEditContent() {
     game_name: '',
     game_description: '',
     point_rate: 100,
+    // 기기별 캔버스 크기 설정
+    mobile_canvas_width: 400,
+    mobile_canvas_height: 600,
+    tablet_canvas_width: 500,
+    tablet_canvas_height: 700,
+    desktop_canvas_width: 600,
+    desktop_canvas_height: 700,
+    // 매치3 전용: 보드 크기
+    mobile_board_size: 5,
+    tablet_board_size: 6,
+    desktop_board_size: 7,
   });
   
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
@@ -64,15 +75,46 @@ function GameEditContent() {
       }
 
       setGame(gameData);
+      
+      // game_config_json 파싱하여 기기별 설정 로드
+      let gameConfig: any = {};
+      if (gameData.config_data) {
+        try {
+          gameConfig = typeof gameData.config_data === 'string' 
+            ? JSON.parse(gameData.config_data) 
+            : gameData.config_data;
+        } catch (e) {
+          console.warn('Failed to parse game_config_json:', e);
+        }
+      }
+      
       setFormData({
         game_name: gameData.game_name,
         game_description: gameData.game_description || '',
         point_rate: gameData.point_rate ?? 100,
+        // 기기별 캔버스 크기 (기존 설정이 있으면 사용, 없으면 기본값)
+        mobile_canvas_width: gameConfig.mobile?.canvas_width || 400,
+        mobile_canvas_height: gameConfig.mobile?.canvas_height || 600,
+        tablet_canvas_width: gameConfig.tablet?.canvas_width || 500,
+        tablet_canvas_height: gameConfig.tablet?.canvas_height || 700,
+        desktop_canvas_width: gameConfig.desktop?.canvas_width || 600,
+        desktop_canvas_height: gameConfig.desktop?.canvas_height || 700,
+        // 매치3 전용: 보드 크기
+        mobile_board_size: gameConfig.mobile?.board_size || 5,
+        tablet_board_size: gameConfig.tablet?.board_size || 6,
+        desktop_board_size: gameConfig.desktop?.board_size || 7,
       });
 
-      // 썸네일 미리보기 설정
-      if (gameData.thumbnail_path) {
-        setThumbnailPreview(`/${gameData.thumbnail_path}`);
+      // 썸네일 미리보기 설정 (Firebase Storage URL 우선, 없으면 로컬 경로)
+      if (gameData.thumbnail_url) {
+        setThumbnailPreview(gameData.thumbnail_url);
+      } else if (gameData.thumbnail_path) {
+        // Firebase Storage URL인지 확인
+        if (gameData.thumbnail_path.startsWith('http://') || gameData.thumbnail_path.startsWith('https://')) {
+          setThumbnailPreview(gameData.thumbnail_path);
+        } else {
+          setThumbnailPreview(`/${gameData.thumbnail_path}`);
+        }
       }
       
       // 게임별 에셋 이미지 로드
@@ -219,16 +261,19 @@ function GameEditContent() {
         throw new Error(result.message || '썸네일 업로드 실패');
       }
 
-      // Firebase Storage에도 업로드 (백업용)
+      // Firebase Storage에 업로드하고 URL 가져오기
       try {
         const thumbnailRef = ref(storage, `games/${gameId}/thumbnail.png`);
         await uploadBytes(thumbnailRef, thumbnailFile);
+        const downloadURL = await getDownloadURL(thumbnailRef);
+        
+        // Firebase Storage URL을 반환 (우선순위 높음)
+        return downloadURL;
       } catch (storageError) {
-        console.warn('Firebase Storage 업로드 실패 (무시):', storageError);
-        // Firebase Storage 업로드 실패는 무시 (public 폴더에 저장되었으므로)
+        console.warn('Firebase Storage 업로드 실패:', storageError);
+        // Firebase Storage 업로드 실패 시 public 폴더 경로 반환
+        return result.thumbnail_path;
       }
-
-      return result.thumbnail_path;
     } catch (error) {
       console.error('Thumbnail upload error:', error);
       throw error;
@@ -283,15 +328,51 @@ function GameEditContent() {
       const gameSnap = await getDoc(gameRef);
       const existingAssetUrls = gameSnap.data()?.asset_urls || {};
 
-      // 게임 정보 업데이트 (에셋 URL 포함)
-      await updateDoc(gameRef, {
+      // game_config_json 구성 (기기별 캔버스 크기 및 보드 크기)
+      const gameConfigJson: any = {
+        mobile: {
+          canvas_width: parseInt(String(formData.mobile_canvas_width)) || 400,
+          canvas_height: parseInt(String(formData.mobile_canvas_height)) || 600,
+        },
+        tablet: {
+          canvas_width: parseInt(String(formData.tablet_canvas_width)) || 500,
+          canvas_height: parseInt(String(formData.tablet_canvas_height)) || 700,
+        },
+        desktop: {
+          canvas_width: parseInt(String(formData.desktop_canvas_width)) || 600,
+          canvas_height: parseInt(String(formData.desktop_canvas_height)) || 700,
+        },
+      };
+
+      // 매치3의 경우 보드 크기도 추가
+      if (gameId === 'match3') {
+        gameConfigJson.mobile.board_size = parseInt(String(formData.mobile_board_size)) || 5;
+        gameConfigJson.tablet.board_size = parseInt(String(formData.tablet_board_size)) || 6;
+        gameConfigJson.desktop.board_size = parseInt(String(formData.desktop_board_size)) || 7;
+      }
+
+      // 게임 정보 업데이트 (에셋 URL 및 game_config_json 포함)
+      const updateData: any = {
         game_name: formData.game_name,
         game_description: formData.game_description,
         point_rate: formData.point_rate,
-        thumbnail_path: thumbnailPath,
         asset_urls: { ...existingAssetUrls, ...assetUrls },
+        config_data: JSON.stringify(gameConfigJson), // game_config_json 저장
         last_update: new Date(),
-      });
+      };
+      
+      // 썸네일이 Firebase Storage URL인 경우 thumbnail_url로 저장
+      if (thumbnailPath && (thumbnailPath.startsWith('http://') || thumbnailPath.startsWith('https://'))) {
+        updateData.thumbnail_url = thumbnailPath;
+        // 기존 thumbnail_path는 유지 (호환성)
+        if (!game?.thumbnail_path || game.thumbnail_path.startsWith('http')) {
+          updateData.thumbnail_path = thumbnailPath;
+        }
+      } else if (thumbnailPath) {
+        updateData.thumbnail_path = thumbnailPath;
+      }
+      
+      await updateDoc(gameRef, updateData);
 
       alert('게임 정보가 저장되었습니다.');
       router.back();
@@ -398,6 +479,163 @@ function GameEditContent() {
                 onChange={(e) => setFormData({ ...formData, point_rate: parseInt(e.target.value) || 100 })}
               />
               <small className="text-muted">예: 10 = 10%, 100 = 점수 그대로</small>
+            </div>
+
+            {/* 기기별 캔버스 크기 설정 */}
+            <div className="mb-4">
+              <label className="form-label fw-bold">기기별 캔버스 크기 설정</label>
+              <p className="text-muted small mb-3">
+                {gameId === 'match3' 
+                  ? '스마트폰, 태블릿, PC 각각에 대해 보드 크기와 캔버스 크기를 개별 설정할 수 있습니다.'
+                  : '스마트폰, 태블릿, PC 각각에 대해 캔버스 크기를 개별 설정할 수 있습니다.'}
+              </p>
+
+              {/* 모바일 설정 */}
+              <div className="card mb-3">
+                <div className="card-header bg-light">
+                  <h6 className="mb-0">📱 스마트폰 (화면 너비 &lt; 768px)</h6>
+                </div>
+                <div className="card-body">
+                  {gameId === 'match3' && (
+                    <div className="mb-3">
+                      <label className="form-label small">보드 크기:</label>
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        min="5"
+                        max="10"
+                        value={formData.mobile_board_size}
+                        onChange={(e) => setFormData({ ...formData, mobile_board_size: parseInt(e.target.value) || 5 })}
+                      />
+                      <small className="text-muted">게임 보드의 크기 (기본: 5x5)</small>
+                    </div>
+                  )}
+                  <div className="row g-2">
+                    <div className="col-6">
+                      <label className="form-label small">캔버스 너비 (px):</label>
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        min="300"
+                        max="800"
+                        value={formData.mobile_canvas_width}
+                        onChange={(e) => setFormData({ ...formData, mobile_canvas_width: parseInt(e.target.value) || 400 })}
+                      />
+                      <small className="text-muted">기본: 400px</small>
+                    </div>
+                    <div className="col-6">
+                      <label className="form-label small">캔버스 높이 (px):</label>
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        min="400"
+                        max="1000"
+                        value={formData.mobile_canvas_height}
+                        onChange={(e) => setFormData({ ...formData, mobile_canvas_height: parseInt(e.target.value) || 600 })}
+                      />
+                      <small className="text-muted">기본: 600px</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 태블릿 설정 */}
+              <div className="card mb-3">
+                <div className="card-header bg-light">
+                  <h6 className="mb-0">📱 태블릿 (화면 너비 768px - 1024px)</h6>
+                </div>
+                <div className="card-body">
+                  {gameId === 'match3' && (
+                    <div className="mb-3">
+                      <label className="form-label small">보드 크기:</label>
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        min="5"
+                        max="10"
+                        value={formData.tablet_board_size}
+                        onChange={(e) => setFormData({ ...formData, tablet_board_size: parseInt(e.target.value) || 6 })}
+                      />
+                      <small className="text-muted">게임 보드의 크기 (기본: 6x6)</small>
+                    </div>
+                  )}
+                  <div className="row g-2">
+                    <div className="col-6">
+                      <label className="form-label small">캔버스 너비 (px):</label>
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        min="400"
+                        max="1000"
+                        value={formData.tablet_canvas_width}
+                        onChange={(e) => setFormData({ ...formData, tablet_canvas_width: parseInt(e.target.value) || 500 })}
+                      />
+                      <small className="text-muted">기본: 500px</small>
+                    </div>
+                    <div className="col-6">
+                      <label className="form-label small">캔버스 높이 (px):</label>
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        min="500"
+                        max="1100"
+                        value={formData.tablet_canvas_height}
+                        onChange={(e) => setFormData({ ...formData, tablet_canvas_height: parseInt(e.target.value) || 700 })}
+                      />
+                      <small className="text-muted">기본: 700px</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 데스크톱 설정 */}
+              <div className="card mb-3">
+                <div className="card-header bg-light">
+                  <h6 className="mb-0">💻 PC (화면 너비 &gt; 1024px)</h6>
+                </div>
+                <div className="card-body">
+                  {gameId === 'match3' && (
+                    <div className="mb-3">
+                      <label className="form-label small">보드 크기:</label>
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        min="5"
+                        max="10"
+                        value={formData.desktop_board_size}
+                        onChange={(e) => setFormData({ ...formData, desktop_board_size: parseInt(e.target.value) || 7 })}
+                      />
+                      <small className="text-muted">게임 보드의 크기 (기본: 7x7)</small>
+                    </div>
+                  )}
+                  <div className="row g-2">
+                    <div className="col-6">
+                      <label className="form-label small">캔버스 너비 (px):</label>
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        min="400"
+                        max="1200"
+                        value={formData.desktop_canvas_width}
+                        onChange={(e) => setFormData({ ...formData, desktop_canvas_width: parseInt(e.target.value) || 600 })}
+                      />
+                      <small className="text-muted">기본: 600px</small>
+                    </div>
+                    <div className="col-6">
+                      <label className="form-label small">캔버스 높이 (px):</label>
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        min="500"
+                        max="1200"
+                        value={formData.desktop_canvas_height}
+                        onChange={(e) => setFormData({ ...formData, desktop_canvas_height: parseInt(e.target.value) || 700 })}
+                      />
+                      <small className="text-muted">기본: 700px</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* 게임별 에셋 이미지 업로드 */}

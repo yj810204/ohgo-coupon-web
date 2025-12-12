@@ -1,15 +1,16 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { IoChevronBackOutline } from 'react-icons/io5';
+import { IoChevronBackOutline, IoPersonOutline } from 'react-icons/io5';
 
 interface PageHeaderProps {
   title: string;
   showBackButton?: boolean;
   onBack?: () => void;
+  showMyPage?: boolean;
 }
 
-export default function PageHeader({ title, showBackButton = true, onBack }: PageHeaderProps) {
+export default function PageHeader({ title, showBackButton = true, onBack, showMyPage = true }: PageHeaderProps) {
   const router = useRouter();
 
   const handleBack = () => {
@@ -44,6 +45,23 @@ export default function PageHeader({ title, showBackButton = true, onBack }: Pag
             </button>
           )}
           <h5 className="mb-0 fw-bold flex-grow-1">{title}</h5>
+          {showMyPage && (
+            <button
+              type="button"
+              className="btn btn-link p-0"
+              onClick={() => router.push('/my-page')}
+              style={{ 
+                border: 'none', 
+                background: 'none',
+                color: '#333',
+                fontSize: '1.5rem',
+                lineHeight: 1
+              }}
+              title="마이페이지"
+            >
+              <IoPersonOutline size={24} />
+            </button>
+          )}
         </div>
       </div>
     </div>
