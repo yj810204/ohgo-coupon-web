@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Script from "next/script";
+import { LoadingProvider } from "@/contexts/LoadingContext";
+import PageLoader from "@/components/PageLoader";
 
 export const metadata: Metadata = {
   title: "오고피씽",
@@ -15,14 +17,17 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className="antialiased">
-        <div className="container-fluid p-0">
-          {children}
-        </div>
-        <Script
-          src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
-          strategy="afterInteractive"
-          crossOrigin="anonymous"
-        />
+        <LoadingProvider>
+          <div className="container-fluid p-0">
+            {children}
+          </div>
+          <PageLoader />
+          <Script
+            src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+            strategy="afterInteractive"
+            crossOrigin="anonymous"
+          />
+        </LoadingProvider>
       </body>
     </html>
   );

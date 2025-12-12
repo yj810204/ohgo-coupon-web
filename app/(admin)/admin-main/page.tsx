@@ -1,35 +1,35 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getUser } from '@/lib/storage';
 import { getUserByUUID } from '@/lib/firebase-auth';
 import { FiUsers, FiSend } from 'react-icons/fi';
 import { IoPeopleOutline, IoCalendarOutline, IoNotificationsOutline, IoGameControllerOutline, IoBoatOutline, IoSettingsOutline } from 'react-icons/io5';
+import { useNavigation } from '@/hooks/useNavigation';
 import PageHeader from '@/components/PageHeader';
 
 export default function AdminMainPage() {
-  const router = useRouter();
+  const { navigateReplace, navigate } = useNavigation();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const checkAuth = async () => {
       const user = await getUser();
       if (!user?.uuid) {
-        router.replace('/login');
+        navigateReplace('/login');
         return;
       }
 
       const remoteUser = await getUserByUUID(user.uuid);
       if (!remoteUser?.isAdmin) {
-        router.replace('/main');
+        navigateReplace('/main');
         return;
       }
 
       setLoading(false);
     };
     checkAuth();
-  }, [router]);
+  }, [navigateReplace]);
 
   if (loading) {
     return (
@@ -64,7 +64,7 @@ export default function AdminMainPage() {
             return (
               <div key={index} className="col-6 col-md-4 col-lg-3">
                 <button
-                  onClick={() => router.push(item.path)}
+                  onClick={() => navigate(item.path)}
                   className="btn btn-light w-100 h-100 p-4 d-flex flex-column align-items-center shadow-sm"
                   style={{ minHeight: '150px' }}
                 >

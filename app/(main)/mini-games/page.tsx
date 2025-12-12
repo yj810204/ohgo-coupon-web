@@ -1,15 +1,15 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useEffect, useCallback, useState } from 'react';
 import { getUser } from '@/lib/storage';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { useNavigation } from '@/hooks/useNavigation';
 import PageHeader from '@/components/PageHeader';
 import { getActiveGames, Game, getGlobalGameSettings } from '@/lib/game-service';
 import { IoGameControllerOutline, IoNotificationsOutline, IoTrophyOutline } from 'react-icons/io5';
 
 export default function MiniGamesPage() {
-  const router = useRouter();
+  const { navigateReplace, navigate } = useNavigation();
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [noticeModalVisible, setNoticeModalVisible] = useState(false);
@@ -18,11 +18,11 @@ export default function MiniGamesPage() {
   const handleRefresh = useCallback(async () => {
     const user = await getUser();
     if (!user?.uuid) {
-      router.replace('/login');
+      navigateReplace('/login');
       return;
     }
     await loadGames();
-  }, [router]);
+  }, [navigateReplace]);
 
   const loadGames = async () => {
     try {
@@ -49,7 +49,7 @@ export default function MiniGamesPage() {
 
   useEffect(() => {
     handleRefresh();
-  }, [handleRefresh]);
+  }, [navigateReplace, handleRefresh]);
 
   const { containerRef, isRefreshing: isPulling, pullProgress } = usePullToRefresh({
     onRefresh: handleRefresh,
@@ -128,7 +128,7 @@ export default function MiniGamesPage() {
         <div className="row g-2 mb-4">
           <div className="col-12">
             <button
-              onClick={() => router.push('/mini-games/ranking')}
+              onClick={() => navigate('/mini-games/ranking')}
               className="btn btn-light w-100 d-flex align-items-center justify-content-center gap-2 shadow-sm"
               style={{
                 padding: '14px',
@@ -169,7 +169,7 @@ export default function MiniGamesPage() {
             {games.map((game) => (
               <div key={game.game_id} className="col-12 col-md-4 col-lg-3">
                 <button
-                  onClick={() => router.push(`/mini-games/${game.game_id}`)}
+                  onClick={() => navigate(`/mini-games/${game.game_id}`)}
                   className="btn btn-light w-100 h-100 p-3 d-flex flex-column align-items-center justify-content-center shadow-sm"
                   style={{ minHeight: '280px' }}
                 >

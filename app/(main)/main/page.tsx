@@ -1,23 +1,23 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useEffect, useCallback } from 'react';
 import { getUser } from '@/lib/storage';
 import { FiClipboard, FiGift } from 'react-icons/fi';
 import { IoGameControllerOutline, IoBoatOutline, IoPersonOutline } from 'react-icons/io5';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { useNavigation } from '@/hooks/useNavigation';
 import PageHeader from '@/components/PageHeader';
 
 export default function MainPage() {
-  const router = useRouter();
+  const { navigate, navigateReplace } = useNavigation();
 
   const handleRefresh = useCallback(async () => {
     // 메인 페이지는 단순히 인증 확인만
     const user = await getUser();
     if (!user?.uuid) {
-      router.replace('/login');
+      navigateReplace('/login');
     }
-  }, [router]);
+  }, [navigateReplace]);
 
   useEffect(() => {
     handleRefresh();
@@ -76,7 +76,7 @@ export default function MainPage() {
             return (
               <div key={index} className="col-6 col-md-4 col-lg-3">
                 <button
-                  onClick={() => router.push(item.path)}
+                  onClick={() => navigate(item.path)}
                   className="btn btn-light w-100 h-100 p-4 d-flex flex-column align-items-center shadow-sm"
                   style={{ minHeight: '150px' }}
                 >

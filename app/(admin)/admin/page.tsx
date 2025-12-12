@@ -49,7 +49,7 @@ function toKSTDateStr(utcString: string): string {
 
 export default function AdminPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // 초기 로딩 표시 제거 - 비동기로 조용히 로드
   const [allMembers, setAllMembers] = useState<Member[]>([]);
   const [todayMembers, setTodayMembers] = useState<Member[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
@@ -255,7 +255,7 @@ export default function AdminPage() {
             setSections(cachedSections);
             hasLoadedRef.current = true;
             lastLoadedAtRef.current = timestamp ?? Date.now();
-            setLoading(false);
+            // setLoading(false); // 로딩 표시 제거
             if (members.some((m: Member) => m.couponCount === undefined)) {
               loadStatsInBackground(members.map((m: Member) => m.uuid));
             }
@@ -267,7 +267,7 @@ export default function AdminPage() {
       }
     }
     
-    setLoading(true);
+    // setLoading(true); // 로딩 표시 제거 - 비동기로 조용히 로드
     console.log('📥 Loading basic member info...');
     
     // 기본 회원 정보만 먼저 빠르게 로드
@@ -330,8 +330,7 @@ export default function AdminPage() {
     setTodayMembers(joinedToday);
     setSections(fullSections);
     
-    // 기본 정보 로드 완료 후 즉시 UI 표시 (로딩 상태 해제)
-    setLoading(false);
+    // 기본 정보 로드 완료 후 즉시 UI 표시 (로딩 상태 해제하지 않음 - 비동기 로딩)
     hasLoadedRef.current = true;
     lastLoadedAtRef.current = Date.now();
     console.log('✅ Basic member info loaded, starting stats loading in background...');
@@ -504,18 +503,19 @@ export default function AdminPage() {
     };
   }, [allMembers, inactivePeriod]);
 
-  if (loading) {
-    return (
-      <div className="d-flex min-vh-100 align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
-      </div>
-    );
-  }
+  // 로딩 표시 제거 - 비동기로 조용히 로드
+  // if (loading) {
+  //   return (
+  //     <div className="d-flex min-vh-100 align-items-center justify-content-center">
+  //       <div className="text-center">
+  //         <div className="spinner-border text-primary mb-3" role="status">
+  //           <span className="visually-hidden">Loading...</span>
+  //         </div>
+  //         <p className="text-muted">로딩 중...</p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   const totalCount = sections.reduce((acc, sec) => acc + sec.data.length, 0);
 

@@ -1,7 +1,7 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { IoChevronBackOutline, IoPersonOutline } from 'react-icons/io5';
+import { useNavigation } from '@/hooks/useNavigation';
 
 interface PageHeaderProps {
   title: string;
@@ -11,13 +11,13 @@ interface PageHeaderProps {
 }
 
 export default function PageHeader({ title, showBackButton = true, onBack, showMyPage = true }: PageHeaderProps) {
-  const router = useRouter();
+  const { navigateBack, navigate } = useNavigation();
 
   const handleBack = () => {
     if (onBack) {
       onBack();
     } else {
-      router.back();
+      navigateBack();
     }
   };
 
@@ -56,7 +56,7 @@ export default function PageHeader({ title, showBackButton = true, onBack, showM
             <button
               type="button"
               className="btn btn-link p-0"
-              onClick={() => router.push('/my-page')}
+              onClick={() => navigate('/my-page')}
               style={{ 
                 border: 'none', 
                 background: 'none',
