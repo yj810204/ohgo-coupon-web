@@ -6,6 +6,7 @@ import { getUser } from '@/lib/storage';
 import { FiClipboard, FiGift, FiSettings } from 'react-icons/fi';
 import { IoGameControllerOutline, IoBoatOutline } from 'react-icons/io5';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import PageHeader from '@/components/PageHeader';
 
 export default function MainPage() {
   const router = useRouter();
@@ -45,15 +46,17 @@ export default function MainPage() {
         position: 'relative',
       }}
     >
+      <PageHeader title="오고피씽" showBackButton={false} />
       {isPulling && (
         <div 
           className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
           style={{
-            zIndex: 1000,
+            zIndex: 1001,
             transform: 'translateX(-50%)',
             minWidth: '120px',
             height: `${Math.min(pullProgress * 50, 50)}px`,
             opacity: pullProgress,
+            marginTop: '60px'
           }}
         >
           {pullProgress >= 1 ? (
@@ -65,9 +68,8 @@ export default function MainPage() {
           )}
         </div>
       )}
-      <div className="container py-5">
+      <div className="container py-4">
         <div className="text-center mb-5">
-          <h1 className="display-4 fw-bold text-primary mb-2">오고피씽</h1>
           <p className="lead text-muted">환영합니다!</p>
         </div>
 

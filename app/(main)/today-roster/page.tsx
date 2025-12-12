@@ -8,6 +8,7 @@ import { getUser } from '@/lib/storage';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, getDay, eachDayOfInterval } from 'date-fns';
 import { IoChevronBackOutline, IoChevronForwardOutline, IoCalendarOutline, IoStatsChartOutline } from 'react-icons/io5';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import PageHeader from '@/components/PageHeader';
 
 type CachedMonth = {
   datesWithRoster: string[];
@@ -309,6 +310,7 @@ export default function TodayRosterPage() {
         height: '100vh',
       }}
     >
+      <PageHeader title="명부 관리" />
       {isPulling && (
         <div 
           className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"

@@ -7,6 +7,7 @@ import { getUser } from '@/lib/storage';
 import { FiTag, FiX } from 'react-icons/fi';
 import { IoQrCodeOutline } from 'react-icons/io5';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import PageHeader from '@/components/PageHeader';
 
 function StampPageContent() {
   const router = useRouter();
@@ -164,6 +165,7 @@ function StampPageContent() {
         position: 'relative',
       }}
     >
+      <PageHeader title="스탬프" />
       {isPulling && (
         <div 
           className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
@@ -184,7 +186,7 @@ function StampPageContent() {
           )}
         </div>
       )}
-      <div className="container mx-auto px-4 py-6">
+      <div className="container py-4">
         <div className="bg-white rounded-lg shadow-md p-4 mb-6">
           <h1 className="text-2xl font-bold text-blue-600 mb-2">
             스탬프 현황 {fromAdmin && <span className="text-sm text-gray-500">(관리자모드)</span>}

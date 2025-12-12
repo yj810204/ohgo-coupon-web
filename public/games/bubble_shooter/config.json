@@ -1,0 +1,53 @@
+{
+    "game_id": "bubble_shooter",
+    "game_name": "버블 슈터",
+    "game_type": "puzzle",
+    "game_description": "버블을 쏘아 올려 같은 색깔 3개 이상을 매치하여 제거하는 퍼즐 게임입니다.",
+    "thumbnail_path": "games/bubble_shooter/assets/thumbnail.png",
+    "game_path": "games/bubble_shooter",
+    "version": "1.0.0",
+    "grid_rows": 10,
+    "grid_cols": 8,
+    "time_limit": 120,
+    "row_add_interval": 5,
+    "bubbles_per_interval": 3,
+    "bubble_types": [
+        {
+            "id": 0,
+            "emoji": "🔴",
+            "color": "#FF4444",
+            "image_path": ""
+        },
+        {
+            "id": 1,
+            "emoji": "🔵",
+            "color": "#4444FF",
+            "image_path": ""
+        },
+        {
+            "id": 2,
+            "emoji": "🟢",
+            "color": "#44FF44",
+            "image_path": ""
+        },
+        {
+            "id": 3,
+            "emoji": "🟡",
+            "color": "#FFFF44",
+            "image_path": ""
+        },
+        {
+            "id": 4,
+            "emoji": "🟣",
+            "color": "#FF44FF",
+            "image_path": ""
+        },
+        {
+            "id": 5,
+            "emoji": "🟠",
+            "color": "#FF8844",
+            "image_path": ""
+        }
+    ]
+}
+

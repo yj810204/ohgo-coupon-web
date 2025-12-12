@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { sendPushToAllUsers } from '@/utils/send-push';
+import PageHeader from '@/components/PageHeader';
 
 export default function AdminPushPage() {
   const router = useRouter();
@@ -35,8 +36,8 @@ export default function AdminPushPage() {
 
   return (
     <div className="min-vh-100 bg-light">
-      <div className="container py-5">
-        <h1 className="display-5 fw-bold text-primary mb-4">전체 알림 발송</h1>
+      <PageHeader title="전체 알림 발송" />
+      <div className="container py-4">
         
         <div className="card shadow-sm">
           <div className="card-body p-4">

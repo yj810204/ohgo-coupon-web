@@ -8,6 +8,7 @@ import { getUser } from '@/lib/storage';
 import { FiX } from 'react-icons/fi';
 import { IoFishOutline, IoTrophyOutline } from 'react-icons/io5';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import PageHeader from '@/components/PageHeader';
 
 // 메달 아이콘 컴포넌트
 const MedalIcon = ({ rank, medalCount }: { rank: number; medalCount: number }) => {
@@ -344,9 +345,10 @@ function RankingPageContent() {
         overflowY: 'auto',
         WebkitOverflowScrolling: 'touch',
         position: 'relative',
-        height: '100vh',
+        paddingBottom: '20px',
       }}
     >
+      <PageHeader title="랭킹" />
       {isPulling && (
         <div 
           className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
@@ -377,75 +379,81 @@ function RankingPageContent() {
           </div>
         </div>
       ) : (
-        <>
+        <div className="container py-4">
           {tournament ? (
             <button
               onClick={() => setTournamentModalVisible(true)}
-              className="w-100 btn btn-primary d-flex align-items-center justify-content-center rounded-0"
+              className="w-100 btn btn-primary d-flex align-items-center justify-content-center rounded-0 mb-3"
             >
               <IoTrophyOutline className="me-2" size={20} />
               <span className="fw-semibold">{tournament.title}</span>
             </button>
           ) : (
-            <div className="w-100 bg-secondary text-white py-3 px-4 text-center">
+            <div className="w-100 bg-secondary text-white py-3 px-4 text-center mb-3 rounded">
               <span className="fw-semibold">현재 진행 중인 대회가 없습니다</span>
             </div>
           )}
           
-          <div className="bg-secondary text-white">
-            <div className="row g-0 px-3 py-2">
-              <div className="col-2"><span className="fw-semibold">순위</span></div>
-              <div className="col-6"><span className="fw-semibold">이름</span></div>
-              <div className="col-4 text-end"><span className="fw-semibold">포인트</span></div>
+          <div className="card shadow-sm mb-3">
+            <div className="card-body p-0">
+              <div className="bg-secondary text-white">
+                <div className="row g-0 px-3 py-2">
+                  <div className="col-2"><span className="fw-semibold">순위</span></div>
+                  <div className="col-6"><span className="fw-semibold">이름</span></div>
+                  <div className="col-4 text-end"><span className="fw-semibold">포인트</span></div>
+                </div>
+              </div>
+              
+              <div>
+                {users.map((item, index) => {
+                  const isCurrentUser = item.id === user.uuid;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleUserSelect(item)}
+                      className={`w-100 btn btn-link text-start text-decoration-none d-flex align-items-center px-3 py-3 border-bottom ${
+                        isCurrentUser ? 'bg-info bg-opacity-10' : 'bg-white'
+                      }`}
+                    >
+                      <div className="col-2">
+                        <MedalIcon rank={index + 1} medalCount={rankingMedalCount} />
+                      </div>
+                      
+                      <div className="col-6">
+                        <span className={`fw-medium ${
+                          isCurrentUser ? 'text-primary' : 'text-dark'
+                        }`}>
+                          {isCurrentUser || isAdmin ? item.name : maskName(item.name)}
+                          {isCurrentUser && ' (나)'}
+                        </span>
+                      </div>
+                      
+                      <div className="col-4 text-end">
+                        <span className={`fw-semibold ${
+                          isCurrentUser ? 'text-primary' : 'text-primary'
+                        }`}>
+                          {item.totalPoint.toLocaleString()}P
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+                
+                {myRank && (
+                  <div className="bg-white border-top px-3 py-3 text-center">
+                    <p className="text-dark fw-medium mb-0">
+                      내 순위: {myRank}위 / {users.length}명 중
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-          
-          <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
-            {users.map((item, index) => {
-              const isCurrentUser = item.id === user.uuid;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => handleUserSelect(item)}
-                  className={`w-100 btn btn-link text-start text-decoration-none d-flex align-items-center px-3 py-3 border-bottom ${
-                    isCurrentUser ? 'bg-info bg-opacity-10' : 'bg-white'
-                  }`}
-                >
-                  <div className="col-2">
-                    <MedalIcon rank={index + 1} medalCount={rankingMedalCount} />
-                  </div>
-                  
-                  <div className="col-6">
-                    <span className={`fw-medium ${
-                      isCurrentUser ? 'text-primary' : 'text-dark'
-                    }`}>
-                      {isCurrentUser || isAdmin ? item.name : maskName(item.name)}
-                      {isCurrentUser && ' (나)'}
-                    </span>
-                  </div>
-                  
-                  <div className="col-4 text-end">
-                    <span className={`fw-semibold ${
-                      isCurrentUser ? 'text-primary' : 'text-primary'
-                    }`}>
-                      {item.totalPoint.toLocaleString()}P
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          
-          {myRank && (
-            <div className="bg-white border-top px-3 py-3 text-center">
-              <p className="text-dark fw-medium mb-0">
-                내 순위: {myRank}위 / {users.length}명 중
-              </p>
-            </div>
-          )}
-          
-          {/* 물고기 잡은 기록 모달 */}
-          {modalVisible && selectedUser && (
+        </div>
+      )}
+      
+      {/* 물고기 잡은 기록 모달 */}
+      {modalVisible && selectedUser && (
             <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
               <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable">
                 <div className="modal-content">
@@ -506,9 +514,9 @@ function RankingPageContent() {
               </div>
             </div>
           )}
-          
-          {/* 대회 정보 모달 */}
-          {tournamentModalVisible && tournament && (
+      
+      {/* 대회 정보 모달 */}
+      {tournamentModalVisible && tournament && (
             <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
               <div className="modal-dialog modal-dialog-centered">
                 <div className="modal-content">
@@ -527,8 +535,6 @@ function RankingPageContent() {
               </div>
             </div>
           )}
-        </>
-      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { getUser } from '@/lib/storage';
 import { getUserByUUID } from '@/lib/firebase-auth';
 import { IoChevronDownOutline, IoChevronUpOutline, IoChatbubbleEllipsesOutline } from 'react-icons/io5';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import PageHeader from '@/components/PageHeader';
 
 const STORAGE_KEY = 'collapsedSections';
 const MEMBERS_CACHE_KEY = 'cachedMembers';
@@ -510,9 +511,10 @@ export default function AdminPage() {
         overflowY: 'auto',
         WebkitOverflowScrolling: 'touch',
         position: 'relative',
-        height: '100vh',
+        paddingBottom: '20px',
       }}
     >
+      <PageHeader title="회원 관리" />
       {isPulling && (
         <div 
           className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
@@ -533,7 +535,7 @@ export default function AdminPage() {
           )}
         </div>
       )}
-      <div className="container-fluid py-3">
+      <div className="container py-4">
         <div className="card shadow-sm mb-3">
           <div className="card-body">
             <button
@@ -611,7 +613,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div className="list-group" style={{ maxHeight: 'calc(100vh - 300px)', overflowY: 'auto' }}>
+        <div className="list-group">
           {sections.map((section) => {
             const isCollapsed = collapsedSections[section.title] ?? false;
             const isTodaySection = section.title === '오늘 가입한 회원';

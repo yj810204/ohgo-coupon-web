@@ -1,0 +1,145 @@
+<load target="game.css" />
+<div class="cj_game game-play">
+    <div class="game-header">
+        <a href="{getUrl('', 'module', 'cj_game', 'act', 'dispCj_gameGameList')}" class="back-btn">← 목록으로</a>
+        <h2>{$game->game_name}</h2>
+    </div>
+
+    <div id="game-container">
+        <div id="game-canvas"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+    <script>
+        // 게임 로더 인라인 (게임별 템플릿에서 사용)
+        (function() {
+            if (!window.gameLoader) {
+                class GameLoader {
+                    constructor() {
+                        this.currentGame = null;
+                        this.gameInstance = null;
+                    }
+
+                    async loadGame(gameId, gamePath) {
+                        try {
+                            const configResponse = await fetch(`${gamePath}/config.json`);
+                            if (!configResponse.ok) {
+                                throw new Error('게임 설정 파일을 찾을 수 없습니다.');
+                            }
+                            const config = await configResponse.json();
+                            config.game_id = gameId;
+
+                            const link = document.createElement('link');
+                            link.rel = 'stylesheet';
+                            link.href = `${gamePath}/game.css`;
+                            document.head.appendChild(link);
+
+                            await new Promise((resolve, reject) => {
+                                const script = document.createElement('script');
+                                script.src = `${gamePath}/game.js`;
+                                script.onload = () => {
+                                    // 스크립트 로드 후 팩토리 등록을 기다림
+                                    let attempts = 0;
+                                    const maxAttempts = 50; // 최대 5초 대기
+                                    const checkFactory = () => {
+                                        if (window.GameFactory && window.GameFactory[gameId]) {
+                                            resolve();
+                                        } else if (attempts < maxAttempts) {
+                                            attempts++;
+                                            setTimeout(checkFactory, 100);
+                                        } else {
+                                            reject(new Error(`Game factory not found for ${gameId} after loading script`));
+                                        }
+                                    };
+                                    checkFactory();
+                                };
+                                script.onerror = () => {
+                                    reject(new Error(`Failed to load game script: ${gamePath}/game.js`));
+                                };
+                                document.head.appendChild(script);
+                            });
+
+                            if (window.GameFactory && window.GameFactory[gameId]) {
+                                this.gameInstance = new window.GameFactory[gameId](config);
+                                this.currentGame = gameId;
+                                return config; // config 반환
+                            } else {
+                                throw new Error(`Game factory not found for ${gameId}`);
+                            }
+                        } catch (error) {
+                            console.error('게임 로드 실패:', error);
+                            throw error;
+                        }
+                    }
+
+                    startGame(containerId) {
+                        if (this.gameInstance) {
+                            // config 업데이트
+                            if (this.pendingConfig) {
+                                Object.assign(this.gameInstance.config, this.pendingConfig);
+                                this.pendingConfig = null;
+                            }
+                            this.gameInstance.start(containerId);
+                        }
+                    }
+
+                    stopGame() {
+                        if (this.gameInstance) {
+                            this.gameInstance.destroy();
+                            this.gameInstance = null;
+                        }
+                    }
+                }
+                window.gameLoader = new GameLoader();
+            }
+        })();
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                const gameId = '{$game->game_id}';
+                const gamePath = '{$game->game_path}';
+                // 게임 설정을 안전하게 전달 (base64 인코딩된 JSON)
+                let gameConfigJsonString = null;
+                <!--@if($game->game_config_json_b64 && $game->game_config_json_b64 != '')-->
+                try {
+                    // base64 디코딩
+                    gameConfigJsonString = atob('{$game->game_config_json_b64}');
+                } catch (e) {
+                    console.warn('게임 설정 디코딩 실패:', e);
+                }
+                <!--@end-->
+                
+                if (!window.gameLoader) {
+                    throw new Error('게임 로더가 로드되지 않았습니다.');
+                }
+                
+                await window.gameLoader.loadGame(gameId, gamePath);
+                
+                // 게임 설정 전달
+                if (window.gameLoader.gameInstance) {
+                    if (gameConfigJsonString) {
+                        window.gameLoader.gameInstance.config.game_config_json = gameConfigJsonString;
+                    }
+                    // game_path 설정 (이미지 경로 처리에 필요)
+                    window.gameLoader.gameInstance.config.game_path = gamePath;
+                    window.gameLoader.gameInstance.config.game_list_url = '{getUrl("", "module", "cj_game", "act", "dispCj_gameGameList")}';
+                    // 로그인 여부 전달
+                    <!--@if(Context::get('is_logged'))-->
+                    window.gameLoader.gameInstance.config.is_logged = true;
+                    <!--@else-->
+                    window.gameLoader.gameInstance.config.is_logged = false;
+                    <!--@end-->
+                }
+                
+                window.gameLoader.startGame('game-canvas');
+            } catch (error) {
+                console.error('게임 로드 실패:', error);
+                const container = document.getElementById('game-container');
+                if (container) {
+                    container.innerHTML = '<p style="text-align:center;padding:40px;color:#f44336;">게임을 로드할 수 없습니다: ' + error.message + '</p>';
+                }
+            }
+        });
+    </script>
+</div>

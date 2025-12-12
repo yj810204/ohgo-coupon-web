@@ -278,6 +278,7 @@ function RosterMemberSearchContent() {
         paddingBottom: showNewMemberForm ? '20px' : '80px',
       }}
     >
+      <PageHeader title="회원 검색" />
       {isPulling && (
         <div 
           className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"

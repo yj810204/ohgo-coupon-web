@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import PageHeader from '@/components/PageHeader';
 import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getUser } from '@/lib/storage';
@@ -298,6 +299,7 @@ function RosterListContent() {
         paddingBottom: '80px',
       }}
     >
+      <PageHeader title="승선명부" />
       {isPulling && (
         <div 
           className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
@@ -422,7 +424,7 @@ function RosterListContent() {
             <div className="col-4">
               <button 
                 className="btn btn-primary w-100 d-flex align-items-center justify-content-center"
-                onClick={async () => {
+                onClick={() => {
                   if (!date || !tripNumber) {
                     alert('날짜 또는 항차 정보가 없습니다.');
                     return;
@@ -433,39 +435,15 @@ function RosterListContent() {
                     return;
                   }
 
-                  if (!confirm(`${dateDisplay} ${tripNum}항차를 출항 확정하시겠습니까?`)) {
-                    return;
-                  }
+                  // Extract year, month, and day from dateDisplay
+                  const dateYear = dateDisplay?.toString().split('년')[0] || '';
+                  const dateMonth = dateDisplay?.toString().split('년')[1]?.split('월')[0]?.trim() || '';
+                  const dateDay = dateDisplay?.toString().split('월')[1]?.split('일')[0]?.trim() || '';
 
-                  try {
-                    const tripsDocRef = doc(db, 'trips', String(date));
-                    const tripsDocSnap = await getDoc(tripsDocRef);
-                    const tripKey = `trip${tripNum}`;
-
-                    if (tripsDocSnap.exists()) {
-                      const existingData = tripsDocSnap.data();
-                      await updateDoc(tripsDocRef, {
-                        [tripKey]: {
-                          ...existingData[tripKey],
-                          confirmed: true,
-                          confirmedAt: new Date().toISOString()
-                        }
-                      });
-                    } else {
-                      await setDoc(tripsDocRef, {
-                        [tripKey]: {
-                          confirmed: true,
-                          confirmedAt: new Date().toISOString()
-                        }
-                      });
-                    }
-
-                    alert('출항이 확정되었습니다.');
-                    router.push(`/today-roster`);
-                  } catch (error) {
-                    console.error('Error confirming trip:', error);
-                    alert('출항 확정 중 오류가 발생했습니다.');
-                  }
+                  // Stringify the roster items to pass as a parameter
+                  const rosterItemsJson = JSON.stringify(rosterItems);
+                  
+                  router.push(`/location-time-selection?date=${date}&dateDisplay=${encodeURIComponent(dateDisplay || '')}&dateYear=${dateYear}&dateMonth=${dateMonth}&dateDay=${dateDay}&tripNumber=${tripNum}&rosterItems=${encodeURIComponent(rosterItemsJson)}`);
                 }}
                 style={{
                   padding: '12px',
@@ -475,7 +453,7 @@ function RosterListContent() {
                   transition: 'all 0.2s ease'
                 }}
               >
-                출항 확정
+                다음
               </button>
             </div>
           </div>

@@ -1,0 +1,22 @@
+{
+  "name": "cj-game-flappy-bird",
+  "version": "1.0.0",
+  "description": "Flappy Bird 게임 - 난독화 빌드",
+  "scripts": {
+    "build": "javascript-obfuscator game.source.js --output game.js --config obfuscator-config.json",
+    "build:watch": "javascript-obfuscator game.source.js --output game.js --config obfuscator-config.json --watch",
+    "dev": "cp game.source.js game.js",
+    "dev:watch": "nodemon --watch game.source.js --exec \"npm run dev\""
+  },
+  "devDependencies": {
+    "javascript-obfuscator": "^4.1.0"
+  },
+  "keywords": [
+    "flappy-bird",
+    "game",
+    "phaser"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "private": true
+}

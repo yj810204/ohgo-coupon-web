@@ -9,6 +9,7 @@ import { sendPushToUser } from '@/utils/send-push';
 import { useCouponById as useCouponByIdFunc } from '@/utils/stamp-service';
 import { FiGift, FiX } from 'react-icons/fi';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import PageHeader from '@/components/PageHeader';
 
 export async function checkPasswordFromFirestore(input: string): Promise<boolean> {
   const { doc, getDoc } = await import('firebase/firestore');
@@ -187,6 +188,7 @@ function CouponsPageContent() {
         position: 'relative',
       }}
     >
+      <PageHeader title="쿠폰" />
       {isPulling && (
         <div 
           className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
@@ -207,7 +209,7 @@ function CouponsPageContent() {
           )}
         </div>
       )}
-      <div className="container mx-auto px-4 py-6">
+      <div className="container py-4">
         <h1 className="text-2xl font-bold text-blue-600 mb-6">쿠폰</h1>
 
         <div className="space-y-6">

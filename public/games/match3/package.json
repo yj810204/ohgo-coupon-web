@@ -1,0 +1,21 @@
+{
+  "name": "cj-game-match3",
+  "version": "1.0.0",
+  "description": "Match3 게임 - 난독화 빌드",
+  "scripts": {
+    "build": "javascript-obfuscator game.source.js --output game.js --config obfuscator-config.json",
+    "build:watch": "javascript-obfuscator game.source.js --output game.js --config obfuscator-config.json --watch"
+  },
+  "devDependencies": {
+    "javascript-obfuscator": "^4.1.0"
+  },
+  "keywords": [
+    "match3",
+    "game",
+    "phaser"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "private": true
+}
+

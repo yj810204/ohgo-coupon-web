@@ -1,0 +1,21 @@
+{
+  "name": "cj-game-bubble-shooter",
+  "version": "1.0.0",
+  "description": "Bubble Shooter 게임 - 난독화 빌드",
+  "scripts": {
+    "build": "javascript-obfuscator game.source.js --output game.js --config obfuscator-config.json",
+    "build:watch": "javascript-obfuscator game.source.js --output game.js --config obfuscator-config.json --watch"
+  },
+  "devDependencies": {
+    "javascript-obfuscator": "^4.1.0"
+  },
+  "keywords": [
+    "bubble-shooter",
+    "game",
+    "phaser"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "private": true
+}
+

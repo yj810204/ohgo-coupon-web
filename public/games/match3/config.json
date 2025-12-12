@@ -1,0 +1,50 @@
+{
+    "game_id": "match3",
+    "game_name": "3-Match 게임",
+    "game_type": "puzzle",
+    "game_description": "3개 이상의 같은 색깔을 매치하여 점수를 획득하는 퍼즐 게임입니다.",
+    "thumbnail_path": "games/match3/assets/thumbnail.png",
+    "game_path": "games/match3",
+    "version": "1.0.0",
+    "board_size": 7,
+    "time_limit": 60,
+    "block_types": [
+        {
+            "id": 0,
+            "emoji": "🍊",
+            "color": "#FF8C00",
+            "image_path": ""
+        },
+        {
+            "id": 1,
+            "emoji": "🍉",
+            "color": "#FF69B4",
+            "image_path": ""
+        },
+        {
+            "id": 2,
+            "emoji": "🍑",
+            "color": "#FFB6C1",
+            "image_path": ""
+        },
+        {
+            "id": 3,
+            "emoji": "🍇",
+            "color": "#DDA0DD",
+            "image_path": ""
+        },
+        {
+            "id": 4,
+            "emoji": "🍒",
+            "color": "#DC143C",
+            "image_path": ""
+        },
+        {
+            "id": 5,
+            "emoji": "🥝",
+            "color": "#96CEB4",
+            "image_path": ""
+        }
+    ]
+}
+

@@ -8,6 +8,7 @@ import { db } from '@/lib/firebase';
 import { getStamps, getCouponCount, addStamp, addStampBatch, deleteUser } from '@/utils/stamp-service';
 import { sendPushToUser } from '@/utils/send-push';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import PageHeader from '@/components/PageHeader';
 
 function MemberDetailContent() {
   const router = useRouter();
@@ -250,6 +251,7 @@ function MemberDetailContent() {
         position: 'relative',
       }}
     >
+      <PageHeader title="회원 상세" />
       {isPulling && (
         <div 
           className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"

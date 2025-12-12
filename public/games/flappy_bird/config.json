@@ -1,0 +1,16 @@
+{
+    "game_id": "flappy_bird",
+    "game_name": "플래피 버드",
+    "game_type": "arcade",
+    "game_description": "새를 조종하여 파이프 사이를 통과하는 액션 게임입니다.",
+    "thumbnail_path": "games/flappy_bird/assets/thumbnail.png",
+    "game_path": "games/flappy_bird",
+    "version": "1.0.0",
+    "gravity": 800,
+    "jump_velocity": -400,
+    "pipe_spacing": 300,
+    "pipe_speed": 120,
+    "pipe_gap": 230,
+    "pipe_width": 60,
+    "bird_size": 60
+}

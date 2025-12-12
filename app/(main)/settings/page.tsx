@@ -6,6 +6,7 @@ import { deleteField, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { clearUser, getUser } from '@/lib/storage';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import PageHeader from '@/components/PageHeader';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -98,6 +99,7 @@ export default function SettingsPage() {
         position: 'relative',
       }}
     >
+      <PageHeader title="설정" />
       {isPulling && (
         <div 
           className="position-fixed top-0 start-50 translate-middle-x d-flex align-items-center justify-content-center bg-primary text-white rounded-bottom p-2"
@@ -118,7 +120,7 @@ export default function SettingsPage() {
           )}
         </div>
       )}
-      <div className="container mx-auto px-4 py-6">
+      <div className="container py-4">
         <h1 className="text-2xl font-bold text-blue-600 mb-6">설정</h1>
 
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">

@@ -6,6 +6,7 @@ import { getUser } from '@/lib/storage';
 import { getUserByUUID } from '@/lib/firebase-auth';
 import { FiUsers, FiSettings, FiSend } from 'react-icons/fi';
 import { IoPeopleOutline, IoCalendarOutline, IoNotificationsOutline, IoGameControllerOutline, IoFishOutline, IoBoatOutline, IoSettingsOutline } from 'react-icons/io5';
+import PageHeader from '@/components/PageHeader';
 
 export default function AdminMainPage() {
   const router = useRouter();
@@ -56,9 +57,9 @@ export default function AdminMainPage() {
 
   return (
     <div className="min-vh-100 bg-light">
-      <div className="container py-5">
+      <PageHeader title="관리자" showBackButton={false} />
+      <div className="container py-4">
         <div className="text-center mb-5">
-          <h1 className="display-4 fw-bold text-primary mb-2">오고피씽</h1>
           <p className="lead text-muted">관리자 페이지</p>
         </div>
         

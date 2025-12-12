@@ -43,7 +43,7 @@ export default function AdminFishPage() {
 
   return (
     <div className="min-vh-100 bg-light">
-      <div className="container py-5">
+      <div className="container py-4">
         <h1 className="display-5 fw-bold text-primary mb-4">물고기 도감</h1>
         <div className="card shadow-sm">
           <div className="card-body">

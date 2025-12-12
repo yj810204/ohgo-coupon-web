@@ -6,6 +6,7 @@ import { getUser } from '@/lib/storage';
 import { addStamp } from '@/utils/stamp-service';
 import { doc, getDoc, updateDoc, increment, collection, setDoc, arrayUnion, Timestamp, runTransaction } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import PageHeader from '@/components/PageHeader';
 
 // 거리 계산 함수
 function getDistanceFromLatLngInKm(lat1: number, lng1: number, lat2: number, lng2: number) {
@@ -145,6 +146,7 @@ function QRScanPageContent() {
 
   return (
     <div className="min-h-screen bg-black flex flex-col">
+      <PageHeader title="QR 스캔" />
       <div className="flex-1 relative">
         <video
           ref={videoRef}
