@@ -25,15 +25,40 @@ function QRScanPageContent() {
   const handleQRInput = useCallback(async (qrData: string) => {
     if (scanning || !user?.uuid) return;
     setScanning(true);
+    setIsScanning(true);
 
     try {
-      // QR 코드 검증 및 스탬프 적립
+      // 특정 QR 코드 체크 (ohgo-coupon 참고)
+      if (qrData === 'OHGO-STAMP-BOAT19033326262005') {
+        try {
+          await addStamp(user.uuid, 'QR');
+          setMessage('✅ 스탬프가 적립되었습니다!');
+          setMessageColor('#4caf50');
+          setIsScanning(false);
+          setScanning(false);
+
+          setTimeout(() => {
+            router.push(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
+          }, 1500);
+          return;
+        } catch (e: any) {
+          console.error('❗ 오류:', e.message);
+          setMessage(`❗ 오류: ${e.message || '적립 실패'}`);
+          setMessageColor('#f44336');
+          setIsScanning(false);
+          setScanning(false);
+          return;
+        }
+      }
+
+      // Firestore의 qrCodes 컬렉션에서 QR 코드 검증
       const qrRef = doc(db, 'qrCodes', qrData);
       const qrSnap = await getDoc(qrRef);
 
       if (!qrSnap.exists()) {
         setMessage('❌ 유효하지 않은 QR 코드입니다.');
         setMessageColor('#f44336');
+        setIsScanning(false);
         setScanning(false);
         return;
       }
@@ -41,6 +66,8 @@ function QRScanPageContent() {
       await addStamp(user.uuid, 'QR');
       setMessage('✅ 스탬프가 적립되었습니다!');
       setMessageColor('#4caf50');
+      setIsScanning(false);
+      setScanning(false);
 
       setTimeout(() => {
         router.push(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
@@ -48,6 +75,7 @@ function QRScanPageContent() {
     } catch (error: any) {
       setMessage('❌ 오류: ' + error.message);
       setMessageColor('#f44336');
+      setIsScanning(false);
       setScanning(false);
     }
   }, [scanning, user, router]);
@@ -387,12 +415,17 @@ function QRScanPageContent() {
             {message}
           </p>
         )}
-        {cameraReady && !permissionDenied && !isScanning && (
+        {cameraReady && !permissionDenied && (
           <button
             onClick={handleStartScan}
-            className="w-full mb-2 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700"
+            disabled={isScanning}
+            className={`w-full mb-2 py-3 rounded-lg font-semibold ${
+              isScanning 
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
           >
-            스캔
+            {isScanning ? '스캔 중...' : '스캔'}
           </button>
         )}
         <button
