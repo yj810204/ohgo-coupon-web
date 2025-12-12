@@ -13,11 +13,12 @@ function QRScanPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [user, setUser] = useState<{ uuid?: string; name?: string; dob?: string } | null>(null);
-  const [message, setMessage] = useState('QR 코드를 스캔해주세요');
+  const [message, setMessage] = useState('스캔 버튼을 눌러주세요');
   const [messageColor, setMessageColor] = useState('#000');
   const [scanning, setScanning] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   const qrCodeRef = useRef<Html5Qrcode | null>(null);
   const scanAreaRef = useRef<HTMLDivElement>(null);
 
@@ -66,8 +67,8 @@ function QRScanPageContent() {
   useEffect(() => {
     if (!user) return;
 
-    // QR 코드 스캐너 초기화
-    const initQRScanner = async () => {
+    // 카메라만 준비 (스캔은 시작하지 않음)
+    const initCamera = async () => {
       try {
         const qrCode = new Html5Qrcode('qr-reader');
         qrCodeRef.current = qrCode;
@@ -99,12 +100,12 @@ function QRScanPageContent() {
           console.warn('카메라 목록 가져오기 실패, 기본 카메라 사용');
         }
 
+        // 카메라만 시작 (스캔 콜백은 빈 함수로 설정하여 자동 스캔 방지)
         await qrCode.start(
           cameraId || { facingMode: 'environment' },
           config,
-          (decodedText) => {
-            // QR 코드 스캔 성공
-            handleQRInput(decodedText);
+          () => {
+            // 스캔 콜백을 비워서 자동 스캔 방지 (버튼 클릭 시에만 스캔)
           },
           (errorMessage) => {
             // 스캔 중 오류 (무시)
@@ -113,32 +114,28 @@ function QRScanPageContent() {
 
         setCameraReady(true);
         setPermissionDenied(false);
+        setMessage('스캔 버튼을 눌러주세요');
       } catch (error: any) {
-        console.error('QR 스캐너 초기화 실패:', error);
+        console.error('카메라 초기화 실패:', error);
         setPermissionDenied(true);
         setMessage('❌ 카메라 접근 권한이 필요합니다.');
         setMessageColor('#f44336');
       }
     };
 
-    initQRScanner();
+    initCamera();
 
     return () => {
       const cleanup = async () => {
         if (qrCodeRef.current) {
           try {
-            // 먼저 스캔 중지
             await qrCodeRef.current.stop();
-            // stop이 완료된 후에만 clear 호출
             qrCodeRef.current.clear();
           } catch (error) {
-            // stop 실패 시 (이미 정지되었거나 오류 발생)
             try {
-              // clear만 시도
               qrCodeRef.current.clear();
             } catch (clearError) {
-              // clear도 실패하면 무시 (이미 정리된 경우)
-              console.warn('QR 스캐너 정리 중 오류:', clearError);
+              console.warn('카메라 정리 중 오류:', clearError);
             }
           }
           qrCodeRef.current = null;
@@ -146,7 +143,67 @@ function QRScanPageContent() {
       };
       cleanup();
     };
-  }, [user, router, handleQRInput]);
+  }, [user, router]);
+
+  // 스캔 시작 함수
+  const handleStartScan = useCallback(async () => {
+    if (!qrCodeRef.current || isScanning || !cameraReady) return;
+    
+    setIsScanning(true);
+    setMessage('QR 코드를 스캔 중...');
+    setMessageColor('#000');
+
+    try {
+      // 기존 스캐너 중지
+      await qrCodeRef.current.stop();
+      qrCodeRef.current.clear();
+
+      // 스캔 모드로 재시작
+      const qrCode = new Html5Qrcode('qr-reader');
+      qrCodeRef.current = qrCode;
+
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+        videoConstraints: {
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        disableFlip: false,
+      };
+
+      let cameraId: string | null = null;
+      try {
+        const devices = await Html5Qrcode.getCameras();
+        const backCamera = devices.find(device => 
+          device.label.toLowerCase().includes('back') || 
+          device.label.toLowerCase().includes('rear') ||
+          device.label.toLowerCase().includes('environment')
+        );
+        cameraId = backCamera?.id || devices[0]?.id || null;
+      } catch (err) {
+        console.warn('카메라 목록 가져오기 실패');
+      }
+
+      await qrCode.start(
+        cameraId || { facingMode: 'environment' },
+        config,
+        (decodedText) => {
+          handleQRInput(decodedText);
+        },
+        (errorMessage) => {
+          // 스캔 중 오류 (무시)
+        }
+      );
+    } catch (error: any) {
+      console.error('스캔 시작 실패:', error);
+      setIsScanning(false);
+      setMessage('❌ 스캔을 시작할 수 없습니다.');
+      setMessageColor('#f44336');
+    }
+  }, [isScanning, cameraReady, handleQRInput]);
 
   if (!user) {
     return (
@@ -280,9 +337,30 @@ function QRScanPageContent() {
         <div className="flex-1 relative" ref={scanAreaRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
           <div id="qr-reader" style={{ width: '100%', height: '100%' }}></div>
         {cameraReady && !permissionDenied && (
-          <div className="absolute inset-0 flex items-center justify-content-center pointer-events-none">
-            <div className="border-4 border-white rounded-lg" style={{ width: '250px', height: '250px' }}></div>
-          </div>
+          <>
+            {/* 음영 처리 오버레이 */}
+            <div 
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                zIndex: 2,
+              }}
+            >
+              {/* 중앙 사각형 영역 (투명) */}
+              <div 
+                className="absolute"
+                style={{
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: '250px',
+                  height: '250px',
+                  border: '4px solid white',
+                  borderRadius: '8px',
+                  boxShadow: '0 0 0 99999px rgba(0, 0, 0, 0.6)',
+                }}
+              ></div>
+            </div>
+          </>
         )}
         {permissionDenied && (
           <div className="absolute inset-0 flex items-center justify-content-center bg-black bg-opacity-75">
@@ -308,6 +386,14 @@ function QRScanPageContent() {
           <p className="text-center font-semibold mb-3" style={{ color: messageColor }}>
             {message}
           </p>
+        )}
+        {cameraReady && !permissionDenied && !isScanning && (
+          <button
+            onClick={handleStartScan}
+            className="w-full mb-2 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700"
+          >
+            스캔
+          </button>
         )}
         <button
           onClick={() => router.back()}
