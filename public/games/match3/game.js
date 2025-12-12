@@ -11,28 +11,6 @@
 (function() {
     'use strict';
     
-    // 1. 도메인 체크
-    const allowedDomains = [
-        'localhost',
-        '127.0.0.1',
-        // 운영 도메인을 여기에 추가하세요
-        'codejaka01.cafe24.com',
-        // 'www.yourdomain.com'
-    ];
-    
-    function checkDomain() {
-        const currentDomain = window.location.hostname;
-        const isAllowed = allowedDomains.some(domain => {
-            return currentDomain === domain || currentDomain.endsWith('.' + domain);
-        });
-        
-        if (!isAllowed) {
-            console.error('Unauthorized domain');
-            document.body.innerHTML = '<div style="padding: 50px; text-align: center;"><h1>접근이 제한되었습니다</h1><p>이 게임은 인증된 도메인에서만 실행할 수 있습니다.</p></div>';
-            throw new Error('Domain verification failed');
-        }
-    }
-    
     // 2. 안티 디버깅 (개발자 도구 감지)
     let devtoolsOpen = false;
     const threshold = 160;
@@ -113,8 +91,6 @@
     
     // 초기화
     try {
-        checkDomain();
-        
         // 개발자 도구 감지 (주기적 체크)
         setInterval(detectDevTools, 1000);
         
