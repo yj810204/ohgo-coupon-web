@@ -331,7 +331,7 @@ export default function TodayRosterPage() {
           )}
         </div>
       )}
-      <div className="container py-4">
+      <div className="container pb-4" style={{ paddingTop: '80px' }}>
         <div className="card shadow-sm mb-3">
           <div className="card-body position-relative">
             {loading && (

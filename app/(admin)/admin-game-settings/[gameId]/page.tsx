@@ -404,7 +404,7 @@ function GameEditContent() {
   return (
     <div className="min-vh-100 bg-light">
       <PageHeader title="게임 정보 수정" />
-      <div className="container py-4">
+      <div className="container pb-4" style={{ paddingTop: '80px' }}>
         <div className="card shadow-sm">
           <div className="card-body">
             <div className="mb-4">

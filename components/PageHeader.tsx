@@ -23,8 +23,15 @@ export default function PageHeader({ title, showBackButton = true, onBack, showM
 
   return (
     <div 
-      className="bg-white border-bottom shadow-sm position-sticky"
-      style={{ zIndex: 1000, top: 0 }}
+      className="bg-white border-bottom shadow-sm page-header"
+      style={{ 
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1000,
+        width: '100%',
+      }}
     >
       <div className="container">
         <div className="d-flex align-items-center py-3">

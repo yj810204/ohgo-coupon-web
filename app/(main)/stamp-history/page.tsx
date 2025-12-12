@@ -120,7 +120,7 @@ function StampHistoryPageContent() {
           )}
         </div>
       )}
-      <div className="container py-4">
+      <div className="container pb-4" style={{ paddingTop: '80px' }}>
         {history.length > 0 && (
           <div className="d-flex justify-content-end mb-3">
             <button 

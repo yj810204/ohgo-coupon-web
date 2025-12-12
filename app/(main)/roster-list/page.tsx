@@ -321,7 +321,7 @@ function RosterListContent() {
         </div>
       )}
       
-      <div className="container py-4">
+      <div className="container pb-4" style={{ paddingTop: '80px' }}>
         <div className="card shadow-sm mb-3">
           <div className="card-body text-center">
             <h5 className="text-primary mb-0">{dateDisplay} {tripNum}항차</h5>

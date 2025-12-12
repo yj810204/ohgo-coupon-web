@@ -56,10 +56,7 @@ export default function AdminMainPage() {
   return (
     <div className="min-vh-100 bg-light">
       <PageHeader title="관리자" showBackButton={false} />
-      <div className="container py-4">
-        <div className="text-center mb-5">
-          <p className="lead text-muted">관리자 페이지</p>
-        </div>
+      <div className="container pb-4" style={{ paddingTop: '80px' }}>
         
         <div className="row g-4">
           {menuItems.map((item, index) => {

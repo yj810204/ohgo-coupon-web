@@ -282,7 +282,7 @@ function GamePlayContent() {
     return (
       <div className="min-vh-100 bg-light">
         <PageHeader title={game?.game_name || '게임'} />
-        <div className="container py-4">
+        <div className="container pb-4" style={{ paddingTop: '80px' }}>
           <div className="card shadow-sm">
             <div className="card-body text-center py-5">
               <p className="text-danger">{error}</p>

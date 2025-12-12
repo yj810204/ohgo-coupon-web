@@ -68,7 +68,7 @@ export default function MainPage() {
           )}
         </div>
       )}
-      <div className="container py-4">
+      <div className="container pb-4" style={{ paddingTop: '80px' }}>
 
         <div className="row g-4 mb-5">
           {menuItems.map((item, index) => {

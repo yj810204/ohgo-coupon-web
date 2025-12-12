@@ -388,7 +388,7 @@ function RankingPageContent() {
           </div>
         </div>
       ) : (
-        <div className="container py-4">
+        <div className="container pb-4" style={{ paddingTop: '80px' }}>
           {tournament ? (
             <button
               onClick={() => setTournamentModalVisible(true)}

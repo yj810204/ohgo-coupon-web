@@ -285,7 +285,7 @@ function MemberDetailContent() {
           )}
         </div>
       )}
-      <div className="container py-4">
+      <div className="container pb-4" style={{ paddingTop: '80px' }}>
         {/* 프로필 헤더 */}
         <div className="card border-0 shadow-sm mb-4" style={{ 
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',

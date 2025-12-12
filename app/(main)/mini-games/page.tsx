@@ -88,7 +88,7 @@ export default function MiniGamesPage() {
           )}
         </div>
       )}
-      <div className="container py-4">
+      <div className="container pb-4" style={{ paddingTop: '80px' }}>
         {/* 게임 공지사항 버튼 */}
         {gameNotice && (
           <button

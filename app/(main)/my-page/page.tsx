@@ -167,7 +167,7 @@ export default function MyPage() {
           )}
         </div>
       )}
-      <div className="container py-4">
+      <div className="container pb-4" style={{ paddingTop: '80px' }}>
         <div className="card shadow-sm mb-3">
           <div className="card-body">
             {menuItems.map((item, index) => {

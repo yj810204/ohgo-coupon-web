@@ -190,7 +190,7 @@ function StampPageContent() {
           )}
         </div>
       )}
-      <div className="container py-4">
+      <div className="container pb-4" style={{ paddingTop: '80px' }}>
         {/* 회원 정보 카드 */}
         <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: '12px' }}>
           <div className="card-body p-3">
