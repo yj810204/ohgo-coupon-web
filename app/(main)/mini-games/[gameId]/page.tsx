@@ -303,14 +303,13 @@ function GamePlayContent() {
   // 게임이 시작되면 전체화면으로 표시
   if (gameStarted) {
     return (
-      <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, backgroundColor: '#000', overflow: 'hidden' }}>
+      <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, overflow: 'hidden' }}>
         <div
           id="game-container"
           ref={gameContainerRef}
           style={{
             width: '100%',
             height: '100%',
-            backgroundColor: '#000',
             display: 'block',
           }}
         />
@@ -344,14 +343,13 @@ function GamePlayContent() {
   }
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, backgroundColor: '#000', overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, overflow: 'hidden' }}>
       <div
         id="game-container"
         ref={gameContainerRef}
         style={{
           width: '100vw',
           height: '100vh',
-          backgroundColor: '#000',
           display: gameStarted ? 'block' : 'none',
           position: 'absolute',
           top: 0,

@@ -584,12 +584,37 @@ class BubbleShooterGame {
             }
         }
         
+        // 어드민 설정한 캔버스 사이즈 확인 (Phaser 게임 생성 후 실제 캔버스 높이 사용)
+        if (this.game && this.game.canvas) {
+            const actualCanvasWidth = this.game.canvas.width;
+            const actualCanvasHeight = this.game.canvas.height;
+            if (actualCanvasWidth && actualCanvasWidth > 0) {
+                this.canvasWidth = actualCanvasWidth;
+            }
+            if (actualCanvasHeight && actualCanvasHeight > 0) {
+                this.canvasHeight = actualCanvasHeight;
+            }
+        }
+        
         // 육각형 그리드에서 버블 간 간격 계산 (적절한 여백 포함)
         // 버블 간 여백을 두어 시각적으로 더 넓게 표시
         const hexWidth = this.bubbleRadius * 2.0; // 가로 간격 (원래 1.9, 적당한 간격으로 조정)
         const hexHeight = Math.sqrt(3) * this.bubbleRadius * 0.95; // 세로 간격 (원래 0.9, 적당한 간격으로 조정)
         const startY = this.uiPanelBottom + 30;
         this.gridStartY = startY; // 클래스 변수로 저장 (경계 체크용)
+        
+        // 발사대 위치 계산 (createShooter에서 설정되지만, 여기서도 미리 계산)
+        const shooterY = this.canvasHeight - 80;
+        
+        // 캔버스 높이에 맞게 그리드 행 수 자동 계산
+        // 사용 가능한 높이 = 발사대 위쪽까지의 공간 (여백 포함)
+        const availableHeight = shooterY - startY - 50; // 발사대 위 50px 여백
+        const calculatedRows = Math.floor(availableHeight / hexHeight);
+        
+        // 계산된 행 수가 최소값(기존 설정값)보다 크면 사용, 작으면 최소값 사용
+        if (calculatedRows >= this.gridRows) {
+            this.gridRows = calculatedRows;
+        }
         
         // 캔버스 100%에 맞게 그리드 자동 생성 및 사이즈 조절
         // 좌우 여백 완전 제거: 첫 번째 셀 왼쪽 경계 = 0, 마지막 셀 오른쪽 경계 = canvasWidth
