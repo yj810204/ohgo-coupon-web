@@ -219,9 +219,14 @@ class Match3Game {
             ];
         }
 
-        // 화면 크기 감지 및 기기별 설정 적용
-        let deviceConfig = null;
+        // 화면 크기 감지 및 자동 리사이징 설정
+        const container = document.getElementById(containerId);
         const screenWidth = window.innerWidth;
+        const screenHeight = window.innerHeight;
+        
+        // 컨테이너의 실제 크기 사용 (자동 리사이징)
+        let useAutoResize = true;
+        let deviceConfig = null;
         
         // 게임 설정에서 기기별 설정 가져오기
         let gameConfig = null;
@@ -250,45 +255,50 @@ class Match3Game {
             }
         }
         
-        // 화면 크기에 따라 기기 타입 결정 및 설정 적용
-        if (screenWidth < 768) {
-            // 모바일
-            if (gameConfig && gameConfig.mobile) {
-                deviceConfig = gameConfig.mobile;
+        // 관리자 설정에서 고정 크기를 사용할지 확인
+        if (gameConfig && gameConfig.use_fixed_size === true) {
+            useAutoResize = false;
+            // 고정 크기 사용
+            if (screenWidth < 768) {
+                if (gameConfig.mobile) {
+                    deviceConfig = gameConfig.mobile;
+                } else {
+                    deviceConfig = { board_size: 5, canvas_width: 400, canvas_height: 600 };
+                }
+            } else if (screenWidth < 1024) {
+                if (gameConfig.tablet) {
+                    deviceConfig = gameConfig.tablet;
+                } else {
+                    deviceConfig = { board_size: 6, canvas_width: 500, canvas_height: 700 };
+                }
             } else {
-                // 기본값
-                deviceConfig = { board_size: 5, canvas_width: 400, canvas_height: 600 };
+                if (gameConfig.desktop) {
+                    deviceConfig = gameConfig.desktop;
+                } else if (gameConfig.board_size) {
+                    deviceConfig = {
+                        board_size: parseInt(gameConfig.board_size) || 7,
+                        canvas_width: parseInt(gameConfig.canvas_width) || 600,
+                        canvas_height: parseInt(gameConfig.canvas_height) || 700
+                    };
+                } else {
+                    deviceConfig = { board_size: 7, canvas_width: 600, canvas_height: 700 };
+                }
             }
-        } else if (screenWidth < 1024) {
-            // 태블릿
-            if (gameConfig && gameConfig.tablet) {
-                deviceConfig = gameConfig.tablet;
-            } else {
-                // 기본값
-                deviceConfig = { board_size: 6, canvas_width: 500, canvas_height: 700 };
+            
+            if (deviceConfig) {
+                this.boardSize = parseInt(deviceConfig.board_size) || this.boardSize;
+                this.canvasWidth = parseInt(deviceConfig.canvas_width) || this.canvasWidth;
+                this.canvasHeight = parseInt(deviceConfig.canvas_height) || this.canvasHeight;
             }
         } else {
-            // PC
-            if (gameConfig && gameConfig.desktop) {
-                deviceConfig = gameConfig.desktop;
-            } else if (gameConfig && gameConfig.board_size) {
-                // 기존 단일 설정 사용 (호환성)
-                deviceConfig = {
-                    board_size: parseInt(gameConfig.board_size) || 7,
-                    canvas_width: parseInt(gameConfig.canvas_width) || 600,
-                    canvas_height: parseInt(gameConfig.canvas_height) || 700
-                };
+            // 자동 리사이징: 컨테이너의 실제 크기 사용
+            if (container) {
+                this.canvasWidth = container.offsetWidth || screenWidth;
+                this.canvasHeight = container.offsetHeight || screenHeight;
             } else {
-                // 기본값
-                deviceConfig = { board_size: 7, canvas_width: 600, canvas_height: 700 };
+                this.canvasWidth = screenWidth;
+                this.canvasHeight = screenHeight;
             }
-        }
-        
-        // 기기별 설정 적용
-        if (deviceConfig) {
-            this.boardSize = parseInt(deviceConfig.board_size) || this.boardSize;
-            this.canvasWidth = parseInt(deviceConfig.canvas_width) || this.canvasWidth;
-            this.canvasHeight = parseInt(deviceConfig.canvas_height) || this.canvasHeight;
         }
 
         // 캔버스 크기 설정
@@ -319,10 +329,11 @@ class Match3Game {
                 maxTextures: 16
             },
             scale: {
-                mode: Phaser.Scale.NONE,
+                mode: useAutoResize ? Phaser.Scale.RESIZE : Phaser.Scale.NONE,
                 autoCenter: Phaser.Scale.CENTER_BOTH,
                 width: canvasWidth,
-                height: canvasHeight
+                height: canvasHeight,
+                resizeInterval: useAutoResize ? 500 : undefined
             }
         };
 

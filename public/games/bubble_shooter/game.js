@@ -246,9 +246,14 @@ class BubbleShooterGame {
             });
         }
 
-        // 화면 크기 감지 및 기기별 설정 적용
-        let deviceConfig = null;
+        // 화면 크기 감지 및 자동 리사이징 설정
+        const container = document.getElementById(containerId);
         const screenWidth = window.innerWidth;
+        const screenHeight = window.innerHeight;
+        
+        // 컨테이너의 실제 크기 사용 (자동 리사이징)
+        let useAutoResize = true;
+        let deviceConfig = null;
         
         let gameConfig = null;
         if (this.config.game_config_json) {
@@ -276,34 +281,48 @@ class BubbleShooterGame {
             }
         }
         
-        if (screenWidth < 768) {
-            if (gameConfig && gameConfig.mobile) {
-                deviceConfig = gameConfig.mobile;
+        // 관리자 설정에서 고정 크기를 사용할지 확인
+        if (gameConfig && gameConfig.use_fixed_size === true) {
+            useAutoResize = false;
+            // 고정 크기 사용
+            if (screenWidth < 768) {
+                if (gameConfig.mobile) {
+                    deviceConfig = gameConfig.mobile;
+                } else {
+                    deviceConfig = { canvas_width: 400, canvas_height: 600 };
+                }
+            } else if (screenWidth < 1024) {
+                if (gameConfig.tablet) {
+                    deviceConfig = gameConfig.tablet;
+                } else {
+                    deviceConfig = { canvas_width: 500, canvas_height: 700 };
+                }
             } else {
-                deviceConfig = { canvas_width: 400, canvas_height: 600 };
+                if (gameConfig.desktop) {
+                    deviceConfig = gameConfig.desktop;
+                } else if (gameConfig.canvas_width) {
+                    deviceConfig = {
+                        canvas_width: parseInt(gameConfig.canvas_width) || 600,
+                        canvas_height: parseInt(gameConfig.canvas_height) || 700
+                    };
+                } else {
+                    deviceConfig = { canvas_width: 600, canvas_height: 700 };
+                }
             }
-        } else if (screenWidth < 1024) {
-            if (gameConfig && gameConfig.tablet) {
-                deviceConfig = gameConfig.tablet;
-            } else {
-                deviceConfig = { canvas_width: 500, canvas_height: 700 };
+            
+            if (deviceConfig) {
+                this.canvasWidth = parseInt(deviceConfig.canvas_width) || this.canvasWidth;
+                this.canvasHeight = parseInt(deviceConfig.canvas_height) || this.canvasHeight;
             }
         } else {
-            if (gameConfig && gameConfig.desktop) {
-                deviceConfig = gameConfig.desktop;
-            } else if (gameConfig && gameConfig.canvas_width) {
-                deviceConfig = {
-                    canvas_width: parseInt(gameConfig.canvas_width) || 600,
-                    canvas_height: parseInt(gameConfig.canvas_height) || 700
-                };
+            // 자동 리사이징: 컨테이너의 실제 크기 사용
+            if (container) {
+                this.canvasWidth = container.offsetWidth || screenWidth;
+                this.canvasHeight = container.offsetHeight || screenHeight;
             } else {
-                deviceConfig = { canvas_width: 600, canvas_height: 700 };
+                this.canvasWidth = screenWidth;
+                this.canvasHeight = screenHeight;
             }
-        }
-        
-        if (deviceConfig) {
-            this.canvasWidth = parseInt(deviceConfig.canvas_width) || this.canvasWidth;
-            this.canvasHeight = parseInt(deviceConfig.canvas_height) || this.canvasHeight;
         }
 
         const phaserConfig = {
@@ -331,10 +350,11 @@ class BubbleShooterGame {
                 roundPixels: false
             },
             scale: {
-                mode: Phaser.Scale.NONE,
+                mode: useAutoResize ? Phaser.Scale.RESIZE : Phaser.Scale.NONE,
                 autoCenter: Phaser.Scale.CENTER_BOTH,
                 width: this.canvasWidth,
-                height: this.canvasHeight
+                height: this.canvasHeight,
+                resizeInterval: useAutoResize ? 500 : undefined
             }
         };
 

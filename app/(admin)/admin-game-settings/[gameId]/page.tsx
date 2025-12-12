@@ -24,7 +24,9 @@ function GameEditContent() {
     game_name: '',
     game_description: '',
     point_rate: 100,
-    // 기기별 캔버스 크기 설정
+    // 자동 리사이징 사용 여부 (기본값: false = 자동 리사이징)
+    use_fixed_size: false,
+    // 기기별 캔버스 크기 설정 (고정 크기 사용 시에만 적용)
     mobile_canvas_width: 400,
     mobile_canvas_height: 600,
     tablet_canvas_width: 500,
@@ -92,7 +94,9 @@ function GameEditContent() {
         game_name: gameData.game_name,
         game_description: gameData.game_description || '',
         point_rate: gameData.point_rate ?? 100,
-        // 기기별 캔버스 크기 (기존 설정이 있으면 사용, 없으면 기본값)
+        // 자동 리사이징 사용 여부 (기본값: false = 자동 리사이징)
+        use_fixed_size: gameConfig.use_fixed_size === true,
+        // 기기별 캔버스 크기 (고정 크기 사용 시에만 적용)
         mobile_canvas_width: gameConfig.mobile?.canvas_width || 400,
         mobile_canvas_height: gameConfig.mobile?.canvas_height || 600,
         tablet_canvas_width: gameConfig.tablet?.canvas_width || 500,
@@ -328,27 +332,32 @@ function GameEditContent() {
       const gameSnap = await getDoc(gameRef);
       const existingAssetUrls = gameSnap.data()?.asset_urls || {};
 
-      // game_config_json 구성 (기기별 캔버스 크기 및 보드 크기)
+      // game_config_json 구성 (자동 리사이징 또는 고정 크기)
       const gameConfigJson: any = {
-        mobile: {
-          canvas_width: parseInt(String(formData.mobile_canvas_width)) || 400,
-          canvas_height: parseInt(String(formData.mobile_canvas_height)) || 600,
-        },
-        tablet: {
-          canvas_width: parseInt(String(formData.tablet_canvas_width)) || 500,
-          canvas_height: parseInt(String(formData.tablet_canvas_height)) || 700,
-        },
-        desktop: {
-          canvas_width: parseInt(String(formData.desktop_canvas_width)) || 600,
-          canvas_height: parseInt(String(formData.desktop_canvas_height)) || 700,
-        },
+        use_fixed_size: formData.use_fixed_size || false,
       };
 
-      // 매치3의 경우 보드 크기도 추가
-      if (gameId === 'match3') {
-        gameConfigJson.mobile.board_size = parseInt(String(formData.mobile_board_size)) || 5;
-        gameConfigJson.tablet.board_size = parseInt(String(formData.tablet_board_size)) || 6;
-        gameConfigJson.desktop.board_size = parseInt(String(formData.desktop_board_size)) || 7;
+      // 고정 크기 사용 시에만 기기별 설정 추가
+      if (formData.use_fixed_size) {
+        gameConfigJson.mobile = {
+          canvas_width: parseInt(String(formData.mobile_canvas_width)) || 400,
+          canvas_height: parseInt(String(formData.mobile_canvas_height)) || 600,
+        };
+        gameConfigJson.tablet = {
+          canvas_width: parseInt(String(formData.tablet_canvas_width)) || 500,
+          canvas_height: parseInt(String(formData.tablet_canvas_height)) || 700,
+        };
+        gameConfigJson.desktop = {
+          canvas_width: parseInt(String(formData.desktop_canvas_width)) || 600,
+          canvas_height: parseInt(String(formData.desktop_canvas_height)) || 700,
+        };
+
+        // 매치3의 경우 보드 크기도 추가
+        if (gameId === 'match3') {
+          gameConfigJson.mobile.board_size = parseInt(String(formData.mobile_board_size)) || 5;
+          gameConfigJson.tablet.board_size = parseInt(String(formData.tablet_board_size)) || 6;
+          gameConfigJson.desktop.board_size = parseInt(String(formData.desktop_board_size)) || 7;
+        }
       }
 
       // 게임 정보 업데이트 (에셋 URL 및 game_config_json 포함)
@@ -481,14 +490,33 @@ function GameEditContent() {
               <small className="text-muted">예: 10 = 10%, 100 = 점수 그대로</small>
             </div>
 
-            {/* 기기별 캔버스 크기 설정 */}
+            {/* 기기별 캔버스 크기 설정 - 자동 리사이징 사용 (기본값) */}
             <div className="mb-4">
-              <label className="form-label fw-bold">기기별 캔버스 크기 설정</label>
-              <p className="text-muted small mb-3">
-                {gameId === 'match3' 
-                  ? '스마트폰, 태블릿, PC 각각에 대해 보드 크기와 캔버스 크기를 개별 설정할 수 있습니다.'
-                  : '스마트폰, 태블릿, PC 각각에 대해 캔버스 크기를 개별 설정할 수 있습니다.'}
-              </p>
+              <label className="form-label fw-bold">캔버스 크기 설정</label>
+              <div className="alert alert-info small mb-3">
+                <strong>기본값: 자동 리사이징</strong><br />
+                게임은 디바이스의 화면 크기에 맞게 자동으로 리사이징됩니다. 고정 크기를 사용하려면 아래 옵션을 활성화하세요.
+              </div>
+              <div className="form-check mb-3">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="useFixedSize"
+                  checked={formData.use_fixed_size || false}
+                  onChange={(e) => setFormData({ ...formData, use_fixed_size: e.target.checked })}
+                />
+                <label className="form-check-label" htmlFor="useFixedSize">
+                  고정 크기 사용 (관리자 설정에서 지정한 크기 사용)
+                </label>
+              </div>
+              
+              {formData.use_fixed_size && (
+                <div>
+                  <p className="text-muted small mb-3">
+                    {gameId === 'match3' 
+                      ? '스마트폰, 태블릿, PC 각각에 대해 보드 크기와 캔버스 크기를 개별 설정할 수 있습니다.'
+                      : '스마트폰, 태블릿, PC 각각에 대해 캔버스 크기를 개별 설정할 수 있습니다.'}
+                  </p>
 
               {/* 모바일 설정 */}
               <div className="card mb-3">
@@ -636,6 +664,8 @@ function GameEditContent() {
                   </div>
                 </div>
               </div>
+                </div>
+              )}
             </div>
 
             {/* 게임별 에셋 이미지 업로드 */}
