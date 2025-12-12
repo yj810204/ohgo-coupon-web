@@ -69,9 +69,6 @@ export default function MainPage() {
         </div>
       )}
       <div className="container py-4">
-        <div className="text-center mb-5">
-          <p className="lead text-muted">환영합니다!</p>
-        </div>
 
         <div className="row g-4 mb-5">
           {menuItems.map((item, index) => {
@@ -98,10 +95,6 @@ export default function MainPage() {
               </div>
             );
           })}
-        </div>
-
-        <div className="text-center">
-          <p className="text-muted small">오고피씽과 함께 즐거운 시간 되세요!</p>
         </div>
       </div>
     </div>

@@ -239,10 +239,10 @@ function RosterPreviewContent() {
       {/* Header */}
       <div className="position-absolute top-0 start-0 end-0 d-flex justify-content-between align-items-center p-3" style={{ zIndex: 10, backgroundColor: 'rgba(0,0,0,0.5)' }}>
         <div className="d-flex align-items-center">
-          <button
+      <button
             type="button"
             className="btn btn-link p-0 me-3"
-            onClick={() => router.back()}
+        onClick={() => router.back()}
             style={{ 
               border: 'none', 
               background: 'none',
@@ -250,9 +250,9 @@ function RosterPreviewContent() {
               fontSize: '1.5rem',
               lineHeight: 1
             }}
-          >
-            <IoCloseOutline size={24} />
-          </button>
+      >
+        <IoCloseOutline size={24} />
+      </button>
           <h5 className="text-white mb-0">명부 이미지 미리보기</h5>
         </div>
         <div className="d-flex gap-2">
@@ -321,8 +321,8 @@ function RosterPreviewContent() {
         {imageUri && !imageError && (
           <img
             ref={imageRef}
-            src={imageUri}
-            alt={`${date} ${tripNumber}항차 명부`}
+          src={imageUri}
+          alt={`${date} ${tripNumber}항차 명부`}
             onLoad={handleImageLoad}
             onError={handleImageError}
             style={{
@@ -337,7 +337,7 @@ function RosterPreviewContent() {
               userSelect: 'none',
               pointerEvents: 'none'
             }}
-          />
+        />
         )}
       </div>
 
@@ -374,9 +374,9 @@ function RosterPreviewContent() {
                       <span>출항 확정</span>
                     </>
                   )}
-                </button>
-              </div>
-            )}
+          </button>
+        </div>
+      )}
             {isConfirmed && (
               <div className="col-12">
                 <div className="alert alert-success mb-0 text-center py-2">

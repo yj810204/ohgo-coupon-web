@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { loginOrRegisterUser } from '@/lib/firebase-auth';
-import { saveUser } from '@/lib/storage';
+import { loginOrRegisterUser, getUserByUUID } from '@/lib/firebase-auth';
+import { saveUser, getUser } from '@/lib/storage';
 import { notifyAllAdmins } from '@/utils/send-push';
-import { IoPersonOutline, IoCalendarOutline, IoCheckmarkCircleOutline, IoCloseOutline } from 'react-icons/io5';
+import { IoPersonOutline, IoCalendarOutline, IoDocumentTextOutline, IoCloseOutline } from 'react-icons/io5';
 
 export default function LoginPage() {
   const [name, setName] = useState('');
@@ -13,7 +13,32 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const router = useRouter();
+
+  // 로그인 상태 확인 - 이미 로그인되어 있으면 리다이렉트
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const localUser = await getUser();
+        if (localUser?.uuid) {
+          // Firestore에서 사용자 정보 확인
+          const remoteUser = await getUserByUUID(localUser.uuid);
+          if (remoteUser) {
+            // 이미 로그인되어 있으면 적절한 페이지로 리다이렉트
+            const targetPath = remoteUser.isAdmin ? '/admin-main' : '/main';
+            router.replace(targetPath);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
+      } finally {
+        setCheckingAuth(false);
+      }
+    };
+    checkAuth();
+  }, [router]);
 
   const privacyHtml = `
     <!DOCTYPE html>
@@ -204,17 +229,21 @@ export default function LoginPage() {
     }
   };
   
-  const handleNaverBand = () => {
-    window.open('https://www.band.us/band/88348442', '_blank');
-  };
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="spinner-border text-primary mb-3" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="text-muted">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div 
-      className="min-h-screen flex items-center justify-center p-4"
-      style={{
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      }}
-    >
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
       <div className="w-full max-w-md">
         {/* 로그인 카드 */}
         <div 
@@ -230,14 +259,8 @@ export default function LoginPage() {
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
             }}>
-              오~ Go 피싱
+              오고피씽
             </h1>
-            <p className="text-gray-600 text-lg">
-              오신것을 환영 합니다! 🫶
-            </p>
-            <p className="text-gray-500 text-sm mt-1">
-              즐기는 낚시 🎣 오고~오Go
-            </p>
           </div>
 
           {/* 입력 폼 */}
@@ -280,26 +303,30 @@ export default function LoginPage() {
             </div>
 
             {/* 개인정보 동의 */}
-            <div className="flex items-start space-x-3 pt-2">
-              <input
-                type="checkbox"
-                id="agree"
-                checked={agreed}
-                onChange={(e) => setAgreed(e.target.checked)}
-                className="w-5 h-5 mt-0.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                style={{
-                  cursor: 'pointer',
-                }}
-              />
-              <label htmlFor="agree" className="text-sm text-gray-700 flex-1">
-                <button
-                  onClick={() => setShowPrivacyModal(true)}
-                  className="text-purple-600 hover:text-purple-700 underline font-medium"
-                >
-                  개인정보 처리방침
-                </button>
-                에 동의합니다.
-              </label>
+            <div className="flex items-center justify-between space-x-3 pt-2">
+              <div className="flex items-center space-x-2 flex-1">
+                <input
+                  type="checkbox"
+                  id="agree"
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                  className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                  style={{
+                    cursor: 'pointer',
+                  }}
+                />
+                <label htmlFor="agree" className="text-sm text-gray-700 pl-1">
+                  개인정보 처리방침에 동의합니다.
+                </label>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPrivacyModal(true)}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium text-purple-600 border border-purple-200 hover:bg-purple-50 transition-all flex items-center gap-1.5 whitespace-nowrap"
+              >
+                <IoDocumentTextOutline size={16} />
+                <span>보기</span>
+              </button>
             </div>
 
             {/* 로그인 버튼 */}
@@ -319,17 +346,6 @@ export default function LoginPage() {
               ) : (
                 '로그인'
               )}
-            </button>
-
-            {/* 네이버 밴드 버튼 */}
-            <button
-              onClick={handleNaverBand}
-              className="w-full py-3 rounded-xl font-semibold text-white flex items-center justify-center space-x-2 transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-md"
-              style={{
-                background: 'linear-gradient(135deg, #06c755 0%, #05a844 100%)',
-              }}
-            >
-              <span>네이버 밴드 바로가기</span>
             </button>
           </div>
         </div>

@@ -403,7 +403,7 @@ function RankingPageContent() {
             </div>
           )}
           
-          <div className="card shadow-sm mb-3">
+          <div className="card shadow-sm mb-3 border-0">
             <div className="card-body p-0">
               <div className="bg-secondary text-white">
                 <div className="row g-0 px-3 py-2">

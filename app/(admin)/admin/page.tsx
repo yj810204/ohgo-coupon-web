@@ -198,7 +198,7 @@ export default function AdminPage() {
             
             // 진행률 업데이트는 배치 단위로만 (성능 개선)
             if (loadedCount % BATCH_SIZE === 0 || loadedCount === totalCount) {
-              setStatsLoadingProgress({ loaded: loadedCount, total: totalCount });
+            setStatsLoadingProgress({ loaded: loadedCount, total: totalCount });
             }
             
             setAllMembers(prev => {
@@ -223,7 +223,7 @@ export default function AdminPage() {
             console.error(`❗ Error loading stats for ${uuid}:`, error);
             loadedCount++;
             if (loadedCount % BATCH_SIZE === 0 || loadedCount === totalCount) {
-              setStatsLoadingProgress({ loaded: loadedCount, total: totalCount });
+            setStatsLoadingProgress({ loaded: loadedCount, total: totalCount });
             }
           }
         })();
@@ -338,7 +338,7 @@ export default function AdminPage() {
 
     // 통계는 백그라운드에서 비동기로 로드 (UI 블로킹 없음)
     setTimeout(() => {
-      loadStatsInBackground(users.map(u => u.uuid));
+    loadStatsInBackground(users.map(u => u.uuid));
     }, 100);
   };
 
@@ -682,9 +682,9 @@ export default function AdminPage() {
                           </div>
                           <div className="d-flex flex-wrap gap-2 mb-2">
                             {member.stampCount !== undefined && member.stampCount > 0 && (
-                              <span className="badge bg-secondary">
-                                스탬프 {member.stampCount}
-                              </span>
+                                <span className="badge bg-secondary">
+                                  스탬프 {member.stampCount}
+                                </span>
                             )}
                             {member.halfCouponCount !== undefined && member.fullCouponCount !== undefined && (
                               <>
@@ -701,9 +701,9 @@ export default function AdminPage() {
                               </>
                             )}
                             {member.tripCount !== undefined && member.tripCount > 0 && (
-                              <span className="badge bg-primary">
-                                승선 {member.tripCount}
-                              </span>
+                                <span className="badge bg-primary">
+                                  승선 {member.tripCount}
+                                </span>
                             )}
                           </div>
                         </div>
@@ -716,9 +716,9 @@ export default function AdminPage() {
                             </small>
                             {member.gender !== undefined && (
                               member.gender ? (
-                                <span className="badge bg-secondary">{member.gender}</span>
-                              ) : (
-                                <span className="badge bg-warning">✕</span>
+                              <span className="badge bg-secondary">{member.gender}</span>
+                            ) : (
+                              <span className="badge bg-warning">✕</span>
                               )
                             )}
                           </div>

@@ -230,7 +230,7 @@ function StampPageContent() {
         {!fromAdmin && (
           <button
             onClick={() => router.push(`/coupons?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`)}
-            className="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2"
+            className="btn btn-primary w-100 d-flex align-items-center justify-content-center mt-4"
             style={{
               padding: '14px',
               fontSize: '1rem',
