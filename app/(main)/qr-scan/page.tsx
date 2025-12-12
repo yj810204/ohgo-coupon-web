@@ -19,6 +19,8 @@ function QRScanPageContent() {
   const [cameraReady, setCameraReady] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [scanCompleted, setScanCompleted] = useState(false);
   const qrCodeRef = useRef<Html5Qrcode | null>(null);
   const scanAreaRef = useRef<HTMLDivElement>(null);
 
@@ -27,14 +29,18 @@ function QRScanPageContent() {
     setScanning(true);
     setIsScanning(true);
 
-    // 스캔 성공 시 스캐너 중지
+    // 스캔 성공 시 스캐너 완전히 중지
     const stopScanner = async () => {
       if (qrCodeRef.current) {
         try {
           await qrCodeRef.current.stop();
           qrCodeRef.current.clear();
+          qrCodeRef.current = null;
+          setScanCompleted(true);
         } catch (error) {
           console.warn('스캐너 중지 중 오류:', error);
+          qrCodeRef.current = null;
+          setScanCompleted(true);
         }
       }
     };
@@ -115,6 +121,7 @@ function QRScanPageContent() {
 
     // 카메라만 준비 (스캔은 시작하지 않음)
     const initCamera = async () => {
+      setIsPreparing(true);
       try {
         const qrCode = new Html5Qrcode('qr-reader');
         qrCodeRef.current = qrCode;
@@ -131,7 +138,7 @@ function QRScanPageContent() {
           disableFlip: false,
         };
 
-        // 후면 카메라 우선 시도
+        // 후면 카메라 우선 시도 (병렬 처리로 속도 개선)
         let cameraId: string | null = null;
         try {
           const devices = await Html5Qrcode.getCameras();
@@ -160,10 +167,12 @@ function QRScanPageContent() {
 
         setCameraReady(true);
         setPermissionDenied(false);
+        setIsPreparing(false);
         setMessage('스캔 버튼을 눌러주세요');
       } catch (error: any) {
         console.error('카메라 초기화 실패:', error);
         setPermissionDenied(true);
+        setIsPreparing(false);
         setMessage('❌ 카메라 접근 권한이 필요합니다.');
         setMessageColor('#f44336');
       }
@@ -193,16 +202,23 @@ function QRScanPageContent() {
 
   // 스캔 시작 함수
   const handleStartScan = useCallback(async () => {
-    if (!qrCodeRef.current || isScanning || !cameraReady) return;
+    if (isScanning || !cameraReady || scanCompleted) return;
     
     setIsScanning(true);
-    setMessage('QR 코드를 스캔 중...');
+    setIsPreparing(true);
+    setMessage('스캔 준비 중...');
     setMessageColor('#000');
 
     try {
       // 기존 스캐너 중지
-      await qrCodeRef.current.stop();
-      qrCodeRef.current.clear();
+      if (qrCodeRef.current) {
+        try {
+          await qrCodeRef.current.stop();
+          qrCodeRef.current.clear();
+        } catch (e) {
+          // 이미 중지된 경우 무시
+        }
+      }
 
       // 스캔 모드로 재시작
       const qrCode = new Html5Qrcode('qr-reader');
@@ -237,19 +253,26 @@ function QRScanPageContent() {
         cameraId || { facingMode: 'environment' },
         config,
         (decodedText) => {
-          handleQRInput(decodedText);
+          // 스캔 성공 시 한 번만 처리
+          if (!scanCompleted) {
+            handleQRInput(decodedText);
+          }
         },
         (errorMessage) => {
           // 스캔 중 오류 (무시)
         }
       );
+
+      setIsPreparing(false);
+      setMessage('QR 코드를 스캔 중...');
     } catch (error: any) {
       console.error('스캔 시작 실패:', error);
       setIsScanning(false);
+      setIsPreparing(false);
       setMessage('❌ 스캔을 시작할 수 없습니다.');
       setMessageColor('#f44336');
     }
-  }, [isScanning, cameraReady, handleQRInput]);
+  }, [isScanning, cameraReady, scanCompleted, handleQRInput]);
 
   if (!user) {
     return (
@@ -382,7 +405,15 @@ function QRScanPageContent() {
       <div className="bg-black flex flex-col" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, width: '100vw', height: '100vh' }}>
         <div className="flex-1 relative" ref={scanAreaRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
           <div id="qr-reader" style={{ width: '100%', height: '100%' }}></div>
-        {cameraReady && !permissionDenied && (
+        {isPreparing && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50" style={{ zIndex: 3 }}>
+            <div className="text-center text-white">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+              <p className="text-lg font-semibold">준비 중...</p>
+            </div>
+          </div>
+        )}
+        {cameraReady && !permissionDenied && !isPreparing && (
           <>
             {/* 음영 처리 오버레이 */}
             <div 
@@ -433,17 +464,17 @@ function QRScanPageContent() {
             {message}
           </p>
         )}
-        {cameraReady && !permissionDenied && (
+        {cameraReady && !permissionDenied && !scanCompleted && (
           <button
             onClick={handleStartScan}
-            disabled={isScanning}
+            disabled={isScanning || isPreparing}
             className={`w-full mb-2 py-3 rounded-lg font-semibold ${
-              isScanning 
+              isScanning || isPreparing
                 ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
                 : 'bg-blue-600 text-white hover:bg-blue-700'
             }`}
           >
-            {isScanning ? '스캔 중...' : '스캔'}
+            {isPreparing ? '준비 중...' : isScanning ? '스캔 중...' : '스캔'}
           </button>
         )}
         <button
