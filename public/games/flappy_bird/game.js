@@ -162,8 +162,6 @@ class FlappyBirdGame {
         this.uiPanelBottom = 0;
         this.levelText = null; // 레벨업 애니메이션용 텍스트
         this.pipeCount = 0; // 파이프 생성 카운터 (코인 생성용)
-        this.lastJumpTime = 0; // 마지막 점프 시간 (터치 유지 시 연속 점프용)
-        this.jumpInterval = 100; // 터치 유지 시 점프 간격 (밀리초)
         this.isMobileDevice = false; // 모바일 장치 여부
     }
 
@@ -1419,18 +1417,6 @@ class FlappyBirdGame {
         // 게임이 시작되면 중력 활성화
         if (this.bird && this.bird.body && this.bird.body.gravity.y === 0) {
             this.bird.body.setGravityY(this.gravity);
-        }
-        
-        // 모바일 터치 유지 시 계속 올라가도록 처리 (데스크탑 제외)
-        if (!this.isPaused && !this.isGameOver && !this.isFalling && this.scene && this.scene.input && this.isMobileDevice) {
-            const currentTime = this.scene.time.now;
-            const pointer = this.scene.input.activePointer;
-            
-            // 터치가 눌려있고, 일정 간격이 지났으면 점프
-            if (pointer.isDown && (currentTime - this.lastJumpTime >= this.jumpInterval)) {
-                this.jump();
-                this.lastJumpTime = currentTime;
-            }
         }
         
         // 파이프 업데이트 (게임 오버 시 중지)
