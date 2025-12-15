@@ -189,7 +189,7 @@ function CouponsPageContent() {
         <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: '12px' }}>
           <div className="card-body p-3">
             <div className="d-flex align-items-center mb-2">
-              <IoGiftOutline size={20} className="text-danger me-2" />
+              <IoGiftOutline size={20} className="text-danger me-2 flex-shrink-0" />
               <span className="text-muted small">회원정보</span>
             </div>
             <div className="ps-4">
@@ -286,7 +286,7 @@ function CouponsPageContent() {
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
               <div className="modal-header border-0" style={{ 
-                background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 padding: '20px'
               }}>
                 <h5 className="modal-title text-white fw-bold mb-0">쿠폰 정보</h5>

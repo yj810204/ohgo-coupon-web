@@ -169,7 +169,7 @@ function StampPageContent() {
         <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: '12px' }}>
           <div className="card-body p-3">
             <div className="d-flex align-items-center mb-2">
-              <IoPricetagOutline size={20} className="text-primary me-2" />
+              <IoPricetagOutline size={20} className="text-primary me-2 flex-shrink-0" />
               <span className="text-muted small">회원정보</span>
             </div>
             <div className="ps-4">

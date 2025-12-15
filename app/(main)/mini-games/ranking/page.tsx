@@ -437,16 +437,19 @@ function RankingPageContent() {
           
           {/* 물고기 잡은 기록 모달 */}
           {modalVisible && selectedUser && (
-            <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
+            <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
               <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-                <div className="modal-content">
-                  <div className="modal-header bg-light">
-                    <h5 className="modal-title">
+                <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
+                  <div className="modal-header border-0" style={{ 
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    padding: '20px'
+                  }}>
+                    <h5 className="modal-title text-white fw-bold mb-0">
                       {selectedUser.id === user.uuid || isAdmin 
                         ? selectedUser.name 
                         : maskName(selectedUser.name)}님의 기록 요약
                     </h5>
-                    <button type="button" className="btn-close" onClick={() => setModalVisible(false)}></button>
+                    <button type="button" className="btn-close btn-close-white" onClick={() => setModalVisible(false)} style={{ opacity: 0.8 }}></button>
                   </div>
                   
                   <div className="modal-body">
@@ -500,12 +503,15 @@ function RankingPageContent() {
           
           {/* 대회 정보 모달 */}
           {tournamentModalVisible && tournament && (
-            <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
+            <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
               <div className="modal-dialog modal-dialog-centered">
-                <div className="modal-content">
-                  <div className="modal-header bg-light">
-                    <h5 className="modal-title">{tournament.title}</h5>
-                    <button type="button" className="btn-close" onClick={() => setTournamentModalVisible(false)}></button>
+                <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
+                  <div className="modal-header border-0" style={{ 
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    padding: '20px'
+                  }}>
+                    <h5 className="modal-title text-white fw-bold mb-0">{tournament.title}</h5>
+                    <button type="button" className="btn-close btn-close-white" onClick={() => setTournamentModalVisible(false)} style={{ opacity: 0.8 }}></button>
                   </div>
                   
                   <div className="modal-body">

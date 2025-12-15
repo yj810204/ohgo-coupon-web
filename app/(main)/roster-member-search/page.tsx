@@ -308,7 +308,7 @@ function RosterMemberSearchContent() {
                 transition: 'all 0.2s ease'
               }}
             >
-              <IoAddOutline size={20} />
+              <IoAddOutline size={20} className="flex-shrink-0" />
               <span>{showNewMemberForm ? '새 회원 등록 취소' : '새 회원 등록'}</span>
             </button>
           </div>
@@ -404,7 +404,7 @@ function RosterMemberSearchContent() {
                   </>
                 ) : (
                   <>
-                    <IoAddOutline size={20} />
+                    <IoAddOutline size={20} className="flex-shrink-0" />
                     <span>등록 및 명부 추가</span>
                   </>
                 )}
@@ -447,7 +447,7 @@ function RosterMemberSearchContent() {
                         fontWeight: '500'
                       }}
                     >
-                      <IoAddOutline size={16} />
+                      <IoAddOutline size={16} className="flex-shrink-0" />
                       <span>추가</span>
                     </button>
                   </div>

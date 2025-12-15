@@ -5,13 +5,16 @@ import { useRouter } from 'next/navigation';
 import { deleteField, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { clearUser, getUser } from '@/lib/storage';
+import { getCommunityPoints } from '@/utils/community-point-service';
 import PageHeader from '@/components/PageHeader';
-import { IoPersonOutline, IoNotificationsOutline, IoLogOutOutline } from 'react-icons/io5';
+import { IoPersonOutline, IoNotificationsOutline, IoLogOutOutline, IoGameControllerOutline, IoChatbubblesOutline } from 'react-icons/io5';
 
 export default function MyPage() {
   const router = useRouter();
   const [isPushEnabled, setIsPushEnabled] = useState(true);
   const [userInfo, setUserInfo] = useState<{ name: string, dob: string, uuid: string } | null>(null);
+  const [gamePoints, setGamePoints] = useState(0);
+  const [communityPoints, setCommunityPoints] = useState(0);
 
   const loadUser = useCallback(async () => {
     const user = await getUser();
@@ -24,6 +27,21 @@ export default function MyPage() {
     // 웹에서는 푸시 토큰을 localStorage에서 확인
     const token = localStorage.getItem('expoPushToken');
     setIsPushEnabled(!!token);
+    
+    // 포인트 정보 로드
+    try {
+      const userRef = doc(db, 'users', user.uuid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+        setGamePoints(data.totalPoint || 0);
+      }
+      
+      const communityPointsTotal = await getCommunityPoints(user.uuid);
+      setCommunityPoints(communityPointsTotal);
+    } catch (error) {
+      console.error('Error loading points:', error);
+    }
   }, [router]);
 
   useEffect(() => {
@@ -141,6 +159,33 @@ export default function MyPage() {
     >
       <PageHeader title="마이페이지" />
       <div className="container pb-4" style={{ paddingTop: '80px' }}>
+        {/* 포인트 정보 */}
+        <div className="card shadow-sm mb-3">
+          <div className="card-body">
+            <h6 className="fw-semibold mb-3">포인트</h6>
+            <div className="row g-3">
+              <div className="col-6">
+                <div className="d-flex align-items-center p-3 rounded" style={{ backgroundColor: '#f8f9fa' }}>
+                  <IoGameControllerOutline size={24} className="text-primary me-2" />
+                  <div>
+                    <div className="text-muted small">게임 포인트</div>
+                    <div className="fw-bold fs-5">{gamePoints.toLocaleString()}P</div>
+                  </div>
+                </div>
+              </div>
+              <div className="col-6">
+                <div className="d-flex align-items-center p-3 rounded" style={{ backgroundColor: '#f8f9fa' }}>
+                  <IoChatbubblesOutline size={24} className="text-info me-2" />
+                  <div>
+                    <div className="text-muted small">커뮤니티 포인트</div>
+                    <div className="fw-bold fs-5">{communityPoints.toLocaleString()}P</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="card shadow-sm mb-3">
           <div className="card-body">
             {menuItems.map((item, index) => {

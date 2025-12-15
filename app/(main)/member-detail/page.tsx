@@ -431,7 +431,7 @@ function MemberDetailContent() {
                 </>
               ) : (
                 <>
-                  <IoAddCircleOutline size={20} />
+                  <IoAddCircleOutline size={20} className="flex-shrink-0" />
                   <span>스탬프 +1</span>
                 </>
               )}
@@ -459,7 +459,7 @@ function MemberDetailContent() {
                 </>
               ) : (
                 <>
-                  <IoAddCircleOutline size={20} />
+                  <IoAddCircleOutline size={20} className="flex-shrink-0" />
                   <span>스탬프 +5</span>
                 </>
               )}
@@ -512,10 +512,10 @@ function MemberDetailContent() {
               }}
           >
             <div className="d-flex align-items-center gap-2">
-              <IoPricetagOutline size={20} className="text-success" />
+              <IoPricetagOutline size={20} className="text-success flex-shrink-0" />
               <span className="fw-semibold">스탬프 이력</span>
             </div>
-            <IoChevronForwardOutline size={20} className="text-muted" />
+            <IoChevronForwardOutline size={20} className="text-muted flex-shrink-0" />
             </button>
           </div>
 
@@ -539,7 +539,7 @@ function MemberDetailContent() {
               </>
             ) : (
             <>
-              <IoTrashOutline size={20} />
+              <IoTrashOutline size={20} className="flex-shrink-0" />
               <span>회원 삭제</span>
             </>
             )}

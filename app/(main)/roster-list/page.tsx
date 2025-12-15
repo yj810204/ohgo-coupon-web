@@ -390,7 +390,7 @@ function RosterListContent() {
                   transition: 'all 0.2s ease'
                 }}
               >
-                <IoAddOutline size={20} />
+                <IoAddOutline size={20} className="flex-shrink-0" />
                 <span>추가</span>
               </button>
             </div>
@@ -435,12 +435,15 @@ function RosterListContent() {
 
       {/* 명부 정보 모달 */}
       {modalVisible && selectedRoster && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
           <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">{selectedRoster.name}님의 명부 정보</h5>
-                <button type="button" className="btn-close" onClick={() => setModalVisible(false)}></button>
+            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
+              <div className="modal-header border-0" style={{ 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                padding: '20px'
+              }}>
+                <h5 className="modal-title text-white fw-bold mb-0">{selectedRoster.name}님의 명부 정보</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setModalVisible(false)} style={{ opacity: 0.8 }}></button>
               </div>
               <div className="modal-body">
                 <div className="mb-3">
@@ -518,12 +521,15 @@ function RosterListContent() {
 
       {/* 명부 정보 없음 모달 */}
       {noRosterModalVisible && selectedRoster && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
           <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">명부 정보 없음</h5>
-                <button type="button" className="btn-close" onClick={() => setNoRosterModalVisible(false)}></button>
+            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
+              <div className="modal-header border-0" style={{ 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                padding: '20px'
+              }}>
+                <h5 className="modal-title text-white fw-bold mb-0">명부 정보 없음</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setNoRosterModalVisible(false)} style={{ opacity: 0.8 }}></button>
               </div>
               <div className="modal-body">
                 <p>{selectedRoster.name}님의 명부 정보가 없습니다.</p>

@@ -467,17 +467,21 @@ function BoardingFormContent() {
       {showPrivacyModal && (
         <div
           className="modal show d-block"
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
           onClick={() => setShowPrivacyModal(false)}
         >
           <div className="modal-dialog modal-lg modal-dialog-scrollable" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title text-primary">개인정보 수집 및 이용 동의</h5>
+            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
+              <div className="modal-header border-0" style={{ 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                padding: '20px'
+              }}>
+                <h5 className="modal-title text-white fw-bold mb-0">개인정보 수집 및 이용 동의</h5>
                 <button
                   type="button"
-                  className="btn-close"
+                  className="btn-close btn-close-white"
                   onClick={() => setShowPrivacyModal(false)}
+                  style={{ opacity: 0.8 }}
                 ></button>
               </div>
               <div className="modal-body">
@@ -505,17 +509,21 @@ function BoardingFormContent() {
       {showThirdPartyModal && (
         <div
           className="modal show d-block"
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
           onClick={() => setShowThirdPartyModal(false)}
         >
           <div className="modal-dialog modal-lg modal-dialog-scrollable" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title text-primary">제3자 개인정보 제공 동의</h5>
+            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
+              <div className="modal-header border-0" style={{ 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                padding: '20px'
+              }}>
+                <h5 className="modal-title text-white fw-bold mb-0">제3자 개인정보 제공 동의</h5>
                 <button
                   type="button"
-                  className="btn-close"
+                  className="btn-close btn-close-white"
                   onClick={() => setShowThirdPartyModal(false)}
+                  style={{ opacity: 0.8 }}
                 ></button>
               </div>
               <div className="modal-body">

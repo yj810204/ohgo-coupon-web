@@ -504,12 +504,15 @@ export default function TodayRosterPage() {
 
       {/* 항차 선택 모달 */}
       {modalVisible && tempSelectedDate && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
           <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">{format(tempSelectedDate, 'yyyy년 MM월 dd일')}</h5>
-                <button type="button" className="btn-close" onClick={() => setModalVisible(false)}></button>
+            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
+              <div className="modal-header border-0" style={{ 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                padding: '20px'
+              }}>
+                <h5 className="modal-title text-white fw-bold mb-0">{format(tempSelectedDate, 'yyyy년 MM월 dd일')}</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setModalVisible(false)} style={{ opacity: 0.8 }}></button>
               </div>
               <div className="modal-body">
                 {(() => {

@@ -71,7 +71,7 @@ export default function NotificationHistoryPage() {
                 transition: 'all 0.2s ease'
               }}
             >
-              <IoTrashOutline size={18} />
+              <IoTrashOutline size={18} className="flex-shrink-0" />
               <span>기록 초기화</span>
             </button>
           </div>

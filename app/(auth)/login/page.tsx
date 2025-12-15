@@ -354,56 +354,65 @@ export default function LoginPage() {
       {/* 개인정보 처리방침 모달 */}
       {showPrivacyModal && (
         <div 
-          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          className="modal show d-block"
           style={{
             backgroundColor: 'rgba(0, 0, 0, 0.6)',
             backdropFilter: 'blur(4px)',
           }}
           onClick={() => setShowPrivacyModal(false)}
+          tabIndex={-1}
         >
           <div 
-            className="bg-white rounded-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl"
+            className="modal-dialog modal-dialog-centered modal-dialog-scrollable"
+            style={{ maxWidth: '768px' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 모달 헤더 */}
-            <div 
-              className="flex justify-between items-center p-6 border-b"
-              style={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              }}
-            >
-              <h2 className="text-2xl font-bold text-white">개인정보 처리방침</h2>
-              <button
-                onClick={() => setShowPrivacyModal(false)}
-                className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition-all"
-              >
-                <IoCloseOutline size={24} />
-              </button>
-            </div>
-            
-            {/* 모달 본문 */}
-            <div className="overflow-y-auto p-6" style={{ maxHeight: 'calc(85vh - 80px)' }}>
+            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden', maxHeight: '85vh' }}>
+              {/* 모달 헤더 */}
               <div 
-                className="prose prose-sm max-w-none"
-                dangerouslySetInnerHTML={{ __html: privacyHtml }}
-                style={{
-                  fontSize: '14px',
-                  lineHeight: '1.6',
-                }}
-              />
-            </div>
-            
-            {/* 모달 푸터 */}
-            <div className="p-4 border-t bg-gray-50">
-              <button
-                onClick={() => setShowPrivacyModal(false)}
-                className="w-full py-3 rounded-xl font-semibold text-white transition-all"
+                className="modal-header border-0"
                 style={{
                   background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  padding: '20px',
                 }}
               >
-                확인
-              </button>
+                <h5 className="modal-title text-white fw-bold mb-0">개인정보 처리방침</h5>
+                <button
+                  type="button"
+                  className="btn-close btn-close-white"
+                  onClick={() => setShowPrivacyModal(false)}
+                  style={{ opacity: 0.8 }}
+                ></button>
+              </div>
+              
+              {/* 모달 본문 */}
+              <div className="modal-body p-4" style={{ maxHeight: 'calc(85vh - 160px)', overflowY: 'auto' }}>
+                <div 
+                  className="prose prose-sm max-w-none"
+                  dangerouslySetInnerHTML={{ __html: privacyHtml }}
+                  style={{
+                    fontSize: '14px',
+                    lineHeight: '1.6',
+                  }}
+                />
+              </div>
+              
+              {/* 모달 푸터 */}
+              <div className="modal-footer border-0 pt-0">
+                <button
+                  type="button"
+                  className="btn btn-primary w-100"
+                  onClick={() => setShowPrivacyModal(false)}
+                  style={{
+                    borderRadius: '12px',
+                    padding: '12px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    border: 'none',
+                  }}
+                >
+                  확인
+                </button>
+              </div>
             </div>
           </div>
         </div>

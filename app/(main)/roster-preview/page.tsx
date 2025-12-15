@@ -300,11 +300,11 @@ function RosterPreviewContent() {
         onMouseLeave={handleMouseUp}
       >
         {loading && (
-          <div className="position-absolute top-50 start-50 translate-middle text-white">
+          <div className="position-absolute top-50 start-50 translate-middle d-flex flex-column align-items-center justify-content-center text-white">
             <div className="spinner-border mb-2" role="status">
               <span className="visually-hidden">Loading...</span>
             </div>
-            <p className="small">이미지를 불러오는 중...</p>
+            <p className="small text-center mb-0">이미지를 불러오는 중...</p>
           </div>
         )}
 
@@ -370,7 +370,7 @@ function RosterPreviewContent() {
                     </>
                   ) : (
                     <>
-                      <IoCheckmarkCircleOutline size={20} />
+                      <IoCheckmarkCircleOutline size={20} className="flex-shrink-0" />
                       <span>출항 확정</span>
                     </>
                   )}
@@ -379,9 +379,24 @@ function RosterPreviewContent() {
       )}
             {isConfirmed && (
               <div className="col-12">
-                <div className="alert alert-success mb-0 text-center py-2">
-                  <IoCheckmarkCircleOutline size={20} className="me-2" />
-                  출항이 확정되었습니다
+                <div 
+                  className="d-flex align-items-center justify-content-center gap-2 mb-0 py-3 rounded"
+                  style={{
+                    backgroundColor: '#d1e7dd',
+                    color: '#0f5132',
+                    minHeight: '60px',
+                  }}
+                >
+                  <IoCheckmarkCircleOutline 
+                    size={24} 
+                    className="flex-shrink-0"
+                    style={{ 
+                      color: '#198754',
+                    }} 
+                  />
+                  <span className="fw-semibold" style={{ fontSize: '16px', lineHeight: '1.5' }}>
+                    출항이 확정되었습니다
+                  </span>
                 </div>
               </div>
             )}
