@@ -17,7 +17,8 @@ import { db, storage } from '@/lib/firebase';
 
 export interface CommunityPhoto {
   photoId: string;
-  imageUrl: string;
+  imageUrl: string; // 단일 이미지 (하위 호환성)
+  imageUrls?: string[]; // 여러 이미지 배열
   uploadedBy: string;
   uploadedByName: string;
   uploadedAt: Timestamp | Date;
@@ -59,6 +60,7 @@ export async function getPhotos(limitCount?: number): Promise<CommunityPhoto[]> 
       return {
         photoId: doc.id,
         ...data,
+        imageUrls: data.imageUrls || (data.imageUrl ? [data.imageUrl] : undefined),
         uploadedAt: data.uploadedAt?.toDate?.() || data.uploadedAt,
         photoDate: data.photoDate?.toDate?.() || data.photoDate,
         templateFieldValues: data.templateFieldValues || undefined,
@@ -86,6 +88,7 @@ export async function getPhoto(photoId: string): Promise<CommunityPhoto | null> 
     const result = {
       photoId: photoSnap.id,
       ...data,
+      imageUrls: data.imageUrls || (data.imageUrl ? [data.imageUrl] : undefined),
       uploadedAt: data.uploadedAt?.toDate?.() || data.uploadedAt,
       photoDate: data.photoDate?.toDate?.() || data.photoDate,
       templateFieldValues: data.templateFieldValues || undefined,
@@ -100,10 +103,10 @@ export async function getPhoto(photoId: string): Promise<CommunityPhoto | null> 
 }
 
 /**
- * 사진 업로드
+ * 사진 업로드 (단일 또는 여러 이미지)
  */
 export async function uploadPhoto(
-  imageFile: File,
+  imageFile: File | File[],
   uploadedBy: string,
   uploadedByName: string,
   title?: string,
@@ -114,21 +117,34 @@ export async function uploadPhoto(
   templateFieldValues?: Record<string, string | string[]>
 ): Promise<string> {
   try {
-    // Firebase Storage에 이미지 업로드
+    const imageFiles = Array.isArray(imageFile) ? imageFile : [imageFile];
+    if (imageFiles.length === 0) {
+      throw new Error('이미지 파일이 필요합니다.');
+    }
+
+    // Firebase Storage에 모든 이미지 업로드
     const photoId = `photo_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const imagePath = `community/photos/${photoId}.jpg`;
-    const storageRef = ref(storage, imagePath);
-    
-    const bytes = await imageFile.arrayBuffer();
-    const blob = new Blob([bytes], { type: imageFile.type });
-    
-    await uploadBytes(storageRef, blob);
-    const imageUrl = await getDownloadURL(storageRef);
+    const imageUrls: string[] = [];
+
+    for (let i = 0; i < imageFiles.length; i++) {
+      const file = imageFiles[i];
+      const fileExtension = file.name.split('.').pop() || 'jpg';
+      const imagePath = `community/photos/${photoId}_${i}.${fileExtension}`;
+      
+      const storageRef = ref(storage, imagePath);
+      const bytes = await file.arrayBuffer();
+      const blob = new Blob([bytes], { type: file.type });
+      
+      await uploadBytes(storageRef, blob);
+      const imageUrl = await getDownloadURL(storageRef);
+      imageUrls.push(imageUrl);
+    }
     
     // Firestore에 메타데이터 저장
     const photosRef = collection(db, 'communityPhotos');
     const photoData: any = {
-      imageUrl,
+      imageUrl: imageUrls[0], // 하위 호환성을 위해 첫 번째 이미지
+      imageUrls: imageUrls.length > 1 ? imageUrls : undefined, // 여러 이미지가 있을 때만 저장
       uploadedBy,
       uploadedByName,
       uploadedAt: Timestamp.now(),
@@ -174,7 +190,8 @@ export async function updatePhoto(
     photoDate?: Date;
     templateId?: string;
     templateFieldValues?: Record<string, string | string[]>;
-    imageFile?: File;
+    imageFile?: File | File[];
+    imageUrls?: string[]; // 기존 이미지 URL 배열
   }
 ): Promise<void> {
   try {
@@ -205,17 +222,42 @@ export async function updatePhoto(
       updateData.templateFieldValues = updates.templateFieldValues;
     }
     
-    // 이미지 파일이 있으면 업로드
+    // 이미지 처리: 기존 이미지 URL + 새로 추가한 이미지 파일
+    const allImageUrls: string[] = [];
+    
+    // 기존 이미지 URL 추가
+    if (updates.imageUrls && updates.imageUrls.length > 0) {
+      allImageUrls.push(...updates.imageUrls);
+    }
+    
+    // 새로 추가한 이미지 파일 업로드
     if (updates.imageFile) {
-      const imagePath = `community/photos/${photoId}.jpg`;
-      const storageRef = ref(storage, imagePath);
+      const imageFiles = Array.isArray(updates.imageFile) ? updates.imageFile : [updates.imageFile];
       
-      const bytes = await updates.imageFile.arrayBuffer();
-      const blob = new Blob([bytes], { type: updates.imageFile.type });
-      
-      await uploadBytes(storageRef, blob);
-      const imageUrl = await getDownloadURL(storageRef);
-      updateData.imageUrl = imageUrl;
+      for (let i = 0; i < imageFiles.length; i++) {
+        const file = imageFiles[i];
+        const fileExtension = file.name.split('.').pop() || 'jpg';
+        const imagePath = `community/photos/${photoId}_${Date.now()}_${i}.${fileExtension}`;
+        const storageRef = ref(storage, imagePath);
+        
+        const bytes = await file.arrayBuffer();
+        const blob = new Blob([bytes], { type: file.type });
+        
+        await uploadBytes(storageRef, blob);
+        const imageUrl = await getDownloadURL(storageRef);
+        allImageUrls.push(imageUrl);
+      }
+    }
+    
+    // 이미지 URL 업데이트
+    if (allImageUrls.length > 0) {
+      updateData.imageUrl = allImageUrls[0]; // 하위 호환성
+      if (allImageUrls.length > 1) {
+        updateData.imageUrls = allImageUrls; // 여러 이미지
+      } else {
+        // 단일 이미지인 경우 imageUrls 제거
+        updateData.imageUrls = null;
+      }
     }
     
     updateData.updatedAt = Timestamp.now();
