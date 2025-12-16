@@ -264,7 +264,7 @@ function PhotoDetailContent() {
       }}
     >
       <PageHeader title="상세" />
-      <div className="container pb-4 px-3" style={{ paddingTop: '80px', maxWidth: '100%' }}>
+      <div className="container pb-4" style={{ paddingTop: '80px' }}>
         {/* 사진 */}
         <div className="card shadow-sm mb-3">
           {photo.imageUrls && photo.imageUrls.length > 1 ? (
@@ -473,10 +473,12 @@ function PhotoDetailContent() {
                                 await loadComments();
                                 
                                 // 포인트 정보 업데이트
-                                const newRemaining = await getRemainingPoints(user.uuid);
-                                setRemainingPoints(newRemaining);
-                                const newCommunityPoints = await getCommunityPoints(user.uuid);
-                                setCommunityPoints(newCommunityPoints);
+                                if (user?.uuid) {
+                                  const newRemaining = await getRemainingPoints(user.uuid);
+                                  setRemainingPoints(newRemaining);
+                                  const newCommunityPoints = await getCommunityPoints(user.uuid);
+                                  setCommunityPoints(newCommunityPoints);
+                                }
                                 
                                 if (deleteResult && deleteResult.pointAwarded > 0) {
                                   alert(`댓글이 삭제되었습니다.\n${deleteResult.pointAwarded}포인트가 회수되었습니다.`);

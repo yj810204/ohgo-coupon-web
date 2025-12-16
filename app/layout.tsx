@@ -3,6 +3,7 @@ import "./globals.css";
 import Script from "next/script";
 import { LoadingProvider } from "@/contexts/LoadingContext";
 import PageLoader from "@/components/PageLoader";
+import SiteTitle from "@/components/SiteTitle";
 
 export const metadata: Metadata = {
   title: "오고피씽",
@@ -17,6 +18,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className="antialiased">
+        <SiteTitle />
         <LoadingProvider>
           <div className="container-fluid p-0">
             {children}

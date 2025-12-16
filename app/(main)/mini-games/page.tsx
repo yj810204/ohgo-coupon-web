@@ -101,24 +101,26 @@ export default function MiniGamesPage() {
           <div className="col-12">
             <button
               onClick={() => navigate('/mini-games/ranking')}
-              className="btn btn-light w-100 d-flex align-items-center justify-content-center gap-2 shadow-sm"
-          style={{
-                padding: '14px',
+              className="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2"
+              style={{
+                padding: '16px 20px',
                 borderRadius: '12px',
-                border: 'none',
-                transition: 'all 0.2s ease'
+                fontSize: '1rem',
+                fontWeight: '600',
+                boxShadow: '0 2px 8px rgba(0, 123, 255, 0.3)',
+                transition: 'all 0.2s ease',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 123, 255, 0.4)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 123, 255, 0.3)';
               }}
             >
-              <IoTrophyOutline size={20} className="text-warning" />
-              <span className="fw-semibold">랭킹</span>
+              <IoTrophyOutline size={24} />
+              <span>랭킹</span>
             </button>
           </div>
         </div>

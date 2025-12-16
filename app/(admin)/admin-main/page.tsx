@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { getUser } from '@/lib/storage';
 import { getUserByUUID } from '@/lib/firebase-auth';
 import { FiUsers, FiSend } from 'react-icons/fi';
-import { IoPeopleOutline, IoCalendarOutline, IoNotificationsOutline, IoGameControllerOutline, IoBoatOutline, IoSettingsOutline, IoChatbubblesOutline } from 'react-icons/io5';
+import { IoPeopleOutline, IoCalendarOutline, IoNotificationsOutline, IoGameControllerOutline, IoBoatOutline, IoSettingsOutline, IoChatbubblesOutline, IoImageOutline, IoConstructOutline } from 'react-icons/io5';
 import { useNavigation } from '@/hooks/useNavigation';
 import PageHeader from '@/components/PageHeader';
 
@@ -51,7 +51,9 @@ export default function AdminMainPage() {
     { icon: IoGameControllerOutline, label: '미니 게임', path: '/mini-games', color: '#FF3B30' },
     { icon: IoSettingsOutline, label: '게임 설정', path: '/admin-game-settings', color: '#4CAF50' },
     { icon: IoBoatOutline, label: '명부 작성', path: '/boarding-form', color: '#007AFF' },
+    { icon: IoImageOutline, label: '조황사진 관리', path: '/admin-photos', color: '#9C27B0' },
     { icon: IoChatbubblesOutline, label: '커뮤니티 관리', path: '/admin-community', color: '#00BCD4' },
+    { icon: IoConstructOutline, label: '사이트 설정', path: '/admin-site-settings', color: '#795548' },
   ];
 
   return (

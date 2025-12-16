@@ -366,10 +366,26 @@ function RankingPageContent() {
           {tournament ? (
             <button
               onClick={() => setTournamentModalVisible(true)}
-              className="w-100 btn btn-primary d-flex align-items-center justify-content-center rounded-0 mb-3"
+              className="w-100 btn btn-primary d-flex align-items-center justify-content-center gap-2 mb-3"
+              style={{
+                padding: '16px 20px',
+                borderRadius: '12px',
+                fontSize: '1rem',
+                fontWeight: '600',
+                boxShadow: '0 2px 8px rgba(0, 123, 255, 0.3)',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 123, 255, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 123, 255, 0.3)';
+              }}
             >
-              <IoTrophyOutline className="me-2" size={20} />
-              <span className="fw-semibold">{tournament.title}</span>
+              <IoTrophyOutline size={24} />
+              <span>{tournament.title}</span>
             </button>
           ) : (
             <div className="w-100 bg-secondary text-white py-3 px-4 text-center mb-3 rounded">
