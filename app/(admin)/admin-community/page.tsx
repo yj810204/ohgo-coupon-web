@@ -26,9 +26,16 @@ import {
   EmojiPack,
   Emoji
 } from '@/utils/emoji-pack-service';
-import { IoTrashOutline, IoAddOutline, IoSettingsOutline, IoCreateOutline, IoChevronUpOutline, IoChevronDownOutline, IoHappyOutline } from 'react-icons/io5';
+import { IoTrashOutline, IoAddOutline, IoSettingsOutline, IoCreateOutline, IoChevronUpOutline, IoChevronDownOutline, IoHappyOutline, IoPencilOutline } from 'react-icons/io5';
 import PageHeader from '@/components/PageHeader';
 import { useNavigation } from '@/hooks/useNavigation';
+import {
+  getPhotos,
+  updatePhoto,
+  deletePhoto,
+  uploadPhoto,
+  CommunityPhoto
+} from '@/utils/community-service';
 
 function AdminCommunityContent() {
   const router = useRouter();
@@ -54,6 +61,34 @@ function AdminCommunityContent() {
   const [savingEmojiPack, setSavingEmojiPack] = useState(false);
   const [uploadingEmojiImage, setUploadingEmojiImage] = useState(false);
   const [editingEmojiIndex, setEditingEmojiIndex] = useState<number | null>(null);
+  
+  // 사진 관리 관련 state
+  const [photos, setPhotos] = useState<CommunityPhoto[]>([]);
+  const [editingPhoto, setEditingPhoto] = useState<CommunityPhoto | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
+  const [editSelectedFiles, setEditSelectedFiles] = useState<File[]>([]);
+  const [editPreviewUrls, setEditPreviewUrls] = useState<string[]>([]);
+  const [editEditedImages, setEditEditedImages] = useState<Record<number, File>>({});
+  const [editEditingImageIndex, setEditEditingImageIndex] = useState<number | null>(null);
+  const [editTemplateFieldValues, setEditTemplateFieldValues] = useState<Record<string, string | string[]>>({});
+  const [showEditTemplateFields, setShowEditTemplateFields] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [content, setContent] = useState('');
+  const [templateFieldValues, setTemplateFieldValues] = useState<Record<string, string | string[]>>({});
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [editedImages, setEditedImages] = useState<Record<number, File>>({});
+  const [editingImageIndex, setEditingImageIndex] = useState<number | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [updatingPhoto, setUpdatingPhoto] = useState(false);
+  const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -485,7 +520,16 @@ function AdminCommunityContent() {
               initialValues[field.label] = [];
             } else if (fieldType === 'date' && latestPhoto.photoDate) {
               // 날짜 필드이고 사진 날짜가 있으면 설정
-              const date = latestPhoto.photoDate instanceof Date ? latestPhoto.photoDate : (latestPhoto.photoDate as any).toDate?.() || new Date(latestPhoto.photoDate);
+              let date: Date;
+              if (latestPhoto.photoDate instanceof Date) {
+                date = latestPhoto.photoDate;
+              } else if (latestPhoto.photoDate && typeof (latestPhoto.photoDate as any).toDate === 'function') {
+                // Firebase Timestamp인 경우
+                date = (latestPhoto.photoDate as any).toDate();
+              } else {
+                // 기타 경우 (문자열, 숫자 등)
+                date = new Date(latestPhoto.photoDate as any);
+              }
               initialValues[field.label] = date.toISOString().split('T')[0];
             } else {
               initialValues[field.label] = '';

@@ -323,7 +323,17 @@ function AdminPhotosContent() {
             if (fieldType === 'checkbox') {
               initialValues[field.label] = [];
             } else if (fieldType === 'date' && latestPhoto.photoDate) {
-              const date = latestPhoto.photoDate instanceof Date ? latestPhoto.photoDate : (latestPhoto.photoDate as any).toDate?.() || new Date(latestPhoto.photoDate);
+              // 날짜 필드이고 사진 날짜가 있으면 설정
+              let date: Date;
+              if (latestPhoto.photoDate instanceof Date) {
+                date = latestPhoto.photoDate;
+              } else if (latestPhoto.photoDate && typeof (latestPhoto.photoDate as any).toDate === 'function') {
+                // Firebase Timestamp인 경우
+                date = (latestPhoto.photoDate as any).toDate();
+              } else {
+                // 기타 경우 (문자열, 숫자 등)
+                date = new Date(latestPhoto.photoDate as any);
+              }
               initialValues[field.label] = date.toISOString().split('T')[0];
             } else {
               initialValues[field.label] = '';
