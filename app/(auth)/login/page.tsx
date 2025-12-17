@@ -231,7 +231,14 @@ export default function LoginPage() {
   
   if (checkingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div 
+        className="min-h-screen bg-gray-50 d-flex align-items-center justify-content-center"
+        style={{ 
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          position: 'relative',
+        }}
+      >
         <div className="text-center">
           <div className="spinner-border text-primary mb-3" role="status">
             <span className="visually-hidden">Loading...</span>
@@ -243,110 +250,174 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
-      <div className="w-full max-w-md">
-        {/* 로그인 카드 */}
-        <div 
-          className="bg-white rounded-2xl shadow-2xl p-8"
-          style={{
-            backdropFilter: 'blur(10px)',
-          }}
-        >
-          {/* 타이틀 */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold mb-2" style={{ 
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}>
-              오고피씽
-            </h1>
-          </div>
-
-          {/* 입력 폼 */}
-          <div className="space-y-4">
-            {/* 이름 입력 */}
-            <div className="relative">
-              <IoPersonOutline 
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" 
-                size={20} 
-              />
-              <input
-                type="text"
-                placeholder="이름"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all"
-                style={{
-                  fontSize: '16px',
-                }}
-              />
-            </div>
-
-            {/* 생년월일 입력 */}
-            <div className="relative">
-              <IoCalendarOutline 
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" 
-                size={20} 
-              />
-              <input
-                type="text"
-                placeholder="생년월일 (예: 720610)"
-                value={dob}
-                onChange={(e) => setDob(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all"
-                maxLength={6}
-                style={{
-                  fontSize: '16px',
-                }}
-              />
-            </div>
-
-            {/* 개인정보 동의 */}
-            <div className="flex items-center justify-between space-x-3 pt-2">
-              <div className="flex items-center space-x-2 flex-1">
-                <input
-                  type="checkbox"
-                  id="agree"
-                  checked={agreed}
-                  onChange={(e) => setAgreed(e.target.checked)}
-                  className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                  style={{
-                    cursor: 'pointer',
-                  }}
-                />
-                <label htmlFor="agree" className="text-sm text-gray-700 pl-1">
-                  개인정보 처리방침에 동의합니다.
-                </label>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPrivacyModal(true)}
-                className="px-3 py-1.5 rounded-lg text-sm font-medium text-purple-600 border border-purple-200 hover:bg-purple-50 transition-all flex items-center gap-1.5 whitespace-nowrap"
-              >
-                <IoDocumentTextOutline size={16} />
-                <span>보기</span>
-              </button>
-            </div>
-
-            {/* 로그인 버튼 */}
-            <button
-              onClick={handleLogin}
-              disabled={isLoading || !agreed}
-              className="w-full py-4 rounded-xl font-semibold text-white text-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg"
+    <div 
+      className="min-h-screen bg-gray-50 d-flex align-items-center justify-content-center"
+      style={{ 
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        position: 'relative',
+        padding: '2rem 1rem',
+      }}
+    >
+      <div className="container">
+        <div className="d-flex align-items-center justify-content-center" style={{ width: '100%' }}>
+          <div className="w-100" style={{ maxWidth: '420px' }}>
+            {/* 로그인 카드 */}
+            <div 
+              className="bg-white rounded-3xl shadow-lg p-4 p-md-5"
               style={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                border: 'none',
               }}
             >
-              {isLoading ? (
-                <span className="flex items-center justify-center">
-                  <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                  로그인 중...
-                </span>
-              ) : (
-                '로그인'
-              )}
-            </button>
+              {/* 타이틀 */}
+              <div className="text-center mb-4 mb-md-5">
+                <h1 className="mb-0 fw-bold" style={{ 
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  fontSize: '2rem',
+                }}>
+                  오고피씽
+                </h1>
+              </div>
+
+              {/* 입력 폼 */}
+              <div>
+                {/* 이름 입력 */}
+                <div className="position-relative mb-3">
+                  <IoPersonOutline 
+                    className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" 
+                    size={20} 
+                    style={{ zIndex: 10, pointerEvents: 'none' }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="이름"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="form-control ps-5 py-3"
+                    style={{
+                      fontSize: '16px',
+                      borderRadius: '12px',
+                      border: '2px solid #dee2e6',
+                      transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = '#667eea';
+                      e.target.style.boxShadow = '0 0 0 0.2rem rgba(102, 126, 234, 0.25)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = '#dee2e6';
+                      e.target.style.boxShadow = 'none';
+                    }}
+                  />
+                </div>
+
+                {/* 생년월일 입력 */}
+                <div className="position-relative mb-3">
+                  <IoCalendarOutline 
+                    className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" 
+                    size={20} 
+                    style={{ zIndex: 10, pointerEvents: 'none' }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="생년월일 (예: 720610)"
+                    value={dob}
+                    onChange={(e) => setDob(e.target.value)}
+                    className="form-control ps-5 py-3"
+                    maxLength={6}
+                    style={{
+                      fontSize: '16px',
+                      borderRadius: '12px',
+                      border: '2px solid #dee2e6',
+                      transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = '#667eea';
+                      e.target.style.boxShadow = '0 0 0 0.2rem rgba(102, 126, 234, 0.25)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = '#dee2e6';
+                      e.target.style.boxShadow = 'none';
+                    }}
+                  />
+                </div>
+
+                {/* 개인정보 동의 */}
+                <div className="d-flex align-items-center justify-content-between gap-2 mb-4">
+                  <div className="d-flex align-items-center flex-grow-1">
+                    <input
+                      type="checkbox"
+                      id="agree"
+                      checked={agreed}
+                      onChange={(e) => setAgreed(e.target.checked)}
+                      className="form-check-input me-2"
+                      style={{
+                        cursor: 'pointer',
+                        width: '20px',
+                        height: '20px',
+                        marginTop: 0,
+                      }}
+                    />
+                    <label htmlFor="agree" className="form-check-label text-muted small mb-0" style={{ cursor: 'pointer' }}>
+                      개인정보 처리방침에 동의합니다.
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPrivacyModal(true)}
+                    className="btn btn-sm btn-outline-primary d-flex align-items-center gap-1"
+                    style={{
+                      borderRadius: '8px',
+                      whiteSpace: 'nowrap',
+                      borderColor: '#667eea',
+                      color: '#667eea',
+                    }}
+                  >
+                    <IoDocumentTextOutline size={16} />
+                    <span>보기</span>
+                  </button>
+                </div>
+
+                {/* 로그인 버튼 */}
+                <button
+                  onClick={handleLogin}
+                  disabled={isLoading || !agreed}
+                  className="btn w-100 py-3 fw-semibold text-white"
+                  style={{
+                    borderRadius: '12px',
+                    fontSize: '16px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    border: 'none',
+                    opacity: (isLoading || !agreed) ? 0.6 : 1,
+                    cursor: (isLoading || !agreed) ? 'not-allowed' : 'pointer',
+                    transition: 'opacity 0.2s ease, transform 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isLoading && agreed) {
+                      e.currentTarget.style.opacity = '0.9';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isLoading && agreed) {
+                      e.currentTarget.style.opacity = '1';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }
+                  }}
+                >
+                  {isLoading ? (
+                    <span className="d-flex align-items-center justify-content-center">
+                      <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                      로그인 중...
+                    </span>
+                  ) : (
+                    '로그인'
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -401,7 +472,7 @@ export default function LoginPage() {
               <div className="modal-footer border-0 pt-0">
                 <button
                   type="button"
-                  className="btn btn-primary w-100"
+                  className="btn w-100 text-white fw-semibold"
                   onClick={() => setShowPrivacyModal(false)}
                   style={{
                     borderRadius: '12px',

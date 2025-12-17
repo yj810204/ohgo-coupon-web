@@ -36,7 +36,7 @@ body[data-has-page-header="true"] {
 /* 하단 탭 바가 있을 때 페이지 하단에 padding 추가 */
 /* 하단 탭 바는 fixed이므로 콘텐츠가 가려지지 않도록 padding 추가 */
 body[data-has-bottom-tab="true"] {
-  padding-bottom: 80px;
+  padding-bottom: 77px;
 }
 
 /* 로그인 페이지에서는 padding 제거 */

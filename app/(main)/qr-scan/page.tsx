@@ -183,7 +183,7 @@ function QRScanPageContent() {
         setPermissionDenied(false);
         setIsPreparing(false);
         setIsScanning(true);
-        setMessage('QR 코드를 스캔해주세요');
+        setMessage('QR 코드를 카메라 중앙에 맞춰주세요');
       } catch (error: any) {
         console.error('카메라 초기화 실패:', error);
         setPermissionDenied(true);
@@ -279,7 +279,7 @@ function QRScanPageContent() {
       );
 
       setIsPreparing(false);
-      setMessage('QR 코드를 스캔 중...');
+      setMessage('QR 코드를 카메라 중앙에 맞춰주세요');
     } catch (error: any) {
       console.error('스캔 시작 실패:', error);
       setIsScanning(false);
@@ -363,7 +363,7 @@ function QRScanPageContent() {
 
           setCameraReady(true);
           setPermissionDenied(false);
-          setMessage('QR 코드를 스캔해주세요');
+          setMessage('QR 코드를 카메라 중앙에 맞춰주세요');
           setMessageColor('#000');
         } catch (error: any) {
           setPermissionDenied(true);
@@ -459,20 +459,45 @@ function QRScanPageContent() {
                   boxShadow: '0 0 0 99999px rgba(0, 0, 0, 0.6)',
                 }}
               ></div>
+              {/* 안내 문구 */}
+              <div 
+                className="absolute text-white text-center"
+                style={{
+                  top: 'calc(50% - 180px)',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: '90%',
+                  maxWidth: '300px',
+                }}
+              >
+                <p className="fw-semibold mb-2" style={{ fontSize: '1rem' }}>
+                  QR 코드를 스캔하세요
+                </p>
+                <p className="small text-gray-300" style={{ fontSize: '0.85rem', lineHeight: '1.5' }}>
+                  휴대폰 카메라로 QR 코드를<br />
+                  중앙 사각형 안에 맞춰주세요
+                </p>
+              </div>
             </div>
           </>
         )}
         {permissionDenied && (
-          <div className="absolute inset-0 flex items-center justify-content-center bg-black bg-opacity-75">
-            <div className="text-center text-white p-4">
-              <p className="mb-4">카메라 권한이 필요합니다</p>
-              <p className="text-sm mb-4 text-gray-300">
-                브라우저 주소창 옆의 자물쇠 아이콘을 클릭하여<br />
-                카메라 권한을 허용해주세요.
+          <div className="absolute inset-0 d-flex align-items-center justify-content-center bg-black bg-opacity-75">
+            <div className="text-center text-white p-4" style={{ maxWidth: '90%' }}>
+              <p className="mb-4 fw-bold" style={{ fontSize: '1.1rem' }}>카메라 권한이 필요합니다</p>
+              <p className="text-sm mb-4 text-gray-300" style={{ lineHeight: '1.6' }}>
+                QR 코드를 스캔하기 위해 휴대폰 카메라 접근 권한이 필요합니다.
               </p>
               <button
                 onClick={handleRetryCamera}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700"
+                className="btn btn-primary"
+                style={{
+                  borderRadius: '12px',
+                  padding: '12px 24px',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  border: 'none',
+                }}
               >
                 다시 시도
               </button>
@@ -481,15 +506,22 @@ function QRScanPageContent() {
         )}
       </div>
       
-      <div className="bg-white p-4">
+      <div className="bg-white p-4" style={{ borderTop: '1px solid #dee2e6' }}>
         {message && (
-          <p className="text-center font-semibold mb-3" style={{ color: messageColor }}>
+          <p className="text-center fw-semibold mb-3" style={{ color: messageColor, fontSize: '1rem' }}>
             {message}
           </p>
         )}
         <button
           onClick={() => router.back()}
-          className="w-full mt-2 bg-gray-600 text-white py-3 rounded-lg font-semibold hover:bg-gray-700"
+          className="btn btn-secondary w-100"
+          style={{
+            borderRadius: '12px',
+            padding: '14px',
+            fontSize: '1rem',
+            fontWeight: '600',
+            border: 'none',
+          }}
         >
           뒤로 가기
         </button>
@@ -497,27 +529,53 @@ function QRScanPageContent() {
       
       {/* 에러 모달 */}
       {showErrorModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
-            <h3 className="text-lg font-bold mb-4 text-center">알림</h3>
-            <p className="text-gray-700 mb-6 text-center whitespace-pre-line">
-              {errorMessage}
-            </p>
-            <button
-              onClick={() => {
-                setShowErrorModal(false);
-                setErrorMessage('');
-                // 스탬프 화면으로 이동
-                if (user?.uuid) {
-                  router.push(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
-                } else {
-                  router.back();
-                }
-              }}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700"
-            >
-              확인
-            </button>
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
+              <div className="modal-header border-0" style={{ 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                padding: '20px'
+              }}>
+                <h5 className="modal-title text-white fw-bold mb-0">알림</h5>
+                <button 
+                  type="button" 
+                  className="btn-close btn-close-white" 
+                  onClick={() => {
+                    setShowErrorModal(false);
+                    setErrorMessage('');
+                  }}
+                  style={{ opacity: 0.8 }}
+                ></button>
+              </div>
+              <div className="modal-body p-4">
+                <p className="text-center mb-0" style={{ lineHeight: '1.6', whiteSpace: 'pre-line' }}>
+                  {errorMessage}
+                </p>
+              </div>
+              <div className="modal-footer border-0 pt-0">
+                <button
+                  onClick={() => {
+                    setShowErrorModal(false);
+                    setErrorMessage('');
+                    // 스탬프 화면으로 이동
+                    if (user?.uuid) {
+                      router.push(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
+                    } else {
+                      router.back();
+                    }
+                  }}
+                  className="btn btn-primary w-100 text-white fw-semibold"
+                  style={{
+                    borderRadius: '12px',
+                    padding: '12px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    border: 'none',
+                  }}
+                >
+                  확인
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

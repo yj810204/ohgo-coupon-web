@@ -272,22 +272,30 @@ function StampPageContent() {
           style={{
             width: '64px',
             height: '64px',
-            bottom: '24px',
-            right: '24px',
-            zIndex: 1000,
+            bottom: '96px',
+            right: '20px',
+            zIndex: 1001,
             border: 'none',
-            transition: 'transform 0.2s, box-shadow 0.2s'
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+            boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.1)';
-            e.currentTarget.style.boxShadow = '0 8px 16px rgba(13, 110, 253, 0.4)';
+            e.currentTarget.style.transform = 'scale(1.1) translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 8px 20px rgba(102, 126, 234, 0.5)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+            e.currentTarget.style.transform = 'scale(1) translateY(0)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+          }}
+          onMouseDown={(e) => {
+            e.currentTarget.style.transform = 'scale(0.95) translateY(0)';
+          }}
+          onMouseUp={(e) => {
+            e.currentTarget.style.transform = 'scale(1.1) translateY(-2px)';
           }}
         >
-          <IoQrCodeOutline size={32} className="text-white" />
+          <IoQrCodeOutline size={28} className="text-white" />
         </button>
       )}
     </div>
