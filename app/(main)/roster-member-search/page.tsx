@@ -274,7 +274,7 @@ function RosterMemberSearchContent() {
       }}
     >
       <PageHeader title="회원 검색" />
-      <div className="container pb-4" style={{ paddingTop: '80px' }}>
+      <div className="container">
         <div className="card shadow-sm mb-3">
           <div className="card-body">
             <h5 className="text-primary mb-3">{dateDisplay} {tripNumber}항차 - 회원 추가</h5>

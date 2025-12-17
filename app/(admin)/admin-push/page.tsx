@@ -37,7 +37,7 @@ export default function AdminPushPage() {
   return (
     <div className="min-vh-100 bg-light">
       <PageHeader title="전체 알림 발송" />
-      <div className="container pb-4" style={{ paddingTop: '80px' }}>
+      <div className="container">
         
         <div className="card shadow-sm">
           <div className="card-body p-4">

@@ -281,7 +281,7 @@ function BoardingFormContent() {
   return (
     <div className="min-vh-100 bg-light" style={{ paddingBottom: '80px' }}>
       <PageHeader title="명부 작성" />
-      <div className="container pb-4" style={{ paddingTop: '80px' }}>
+      <div className="container">
         <div className="card shadow-sm">
           <div className="card-body">
 

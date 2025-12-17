@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { IoChevronBackOutline, IoPersonOutline } from 'react-icons/io5';
 import { useNavigation } from '@/hooks/useNavigation';
 
@@ -12,6 +13,15 @@ interface PageHeaderProps {
 
 export default function PageHeader({ title, showBackButton = true, onBack, showMyPage = true }: PageHeaderProps) {
   const { navigateBack, navigate } = useNavigation();
+
+  useEffect(() => {
+    // PageHeader가 있을 때 body에 data 속성 추가 (CSS에서 padding-top 적용용)
+    document.body.setAttribute('data-has-page-header', 'true');
+    
+    return () => {
+      document.body.removeAttribute('data-has-page-header');
+    };
+  }, []);
 
   const handleBack = () => {
     if (onBack) {

@@ -57,7 +57,7 @@ export default function NotificationHistoryPage() {
       }}
     >
       <PageHeader title="알림 내역" />
-      <div className="container pb-4" style={{ paddingTop: '80px' }}>
+      <div className="container">
           {history.length > 0 && (
           <div className="d-flex justify-content-end mb-3">
             <button 

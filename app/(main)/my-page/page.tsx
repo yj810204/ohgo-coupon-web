@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase';
 import { clearUser, getUser } from '@/lib/storage';
 import { getCommunityPoints } from '@/utils/community-point-service';
 import PageHeader from '@/components/PageHeader';
-import { IoPersonOutline, IoNotificationsOutline, IoLogOutOutline, IoGameControllerOutline, IoChatbubblesOutline } from 'react-icons/io5';
+import { IoPersonOutline, IoNotificationsOutline, IoLogOutOutline, IoGameControllerOutline, IoChatbubblesOutline, IoBoatOutline } from 'react-icons/io5';
 
 export default function MyPage() {
   const router = useRouter();
@@ -158,7 +158,7 @@ export default function MyPage() {
       }}
     >
       <PageHeader title="마이페이지" />
-      <div className="container pb-4" style={{ paddingTop: '80px' }}>
+      <div className="container">
         {/* 포인트 정보 */}
         <div className="card shadow-sm mb-3">
           <div className="card-body">
@@ -217,6 +217,13 @@ export default function MyPage() {
 
         <div className="card shadow-sm mb-3">
           <div className="card-body">
+            <button
+              onClick={() => router.push('/boarding-form')}
+              className="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center mb-2"
+            >
+              <IoBoatOutline size={20} className="me-2" />
+              승선명부 작성
+            </button>
             <button
               onClick={() => router.push('/notification-history')}
               className="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center"

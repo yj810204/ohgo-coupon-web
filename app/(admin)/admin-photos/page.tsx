@@ -525,7 +525,7 @@ function AdminPhotosContent() {
     return (
       <div className="min-vh-100 bg-light">
         <PageHeader title="조황사진 관리" />
-        <div className="container pb-4" style={{ paddingTop: '80px' }}>
+        <div className="container">
           <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '50vh' }}>
             <div className="text-center">
               <div className="spinner-border text-primary mb-3" role="status">
@@ -549,7 +549,7 @@ function AdminPhotosContent() {
       }}
     >
       <PageHeader title="조황사진 관리" />
-      <div className="container pb-4" style={{ paddingTop: '80px' }}>
+      <div className="container">
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h5 className="mb-0">조황사진 목록</h5>
           <div className="d-flex gap-2">

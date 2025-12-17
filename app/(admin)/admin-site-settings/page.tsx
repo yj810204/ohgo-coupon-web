@@ -22,6 +22,7 @@ function AdminSiteSettingsContent() {
   const [menuItemIconName, setMenuItemIconName] = useState('');
   const [menuItemColor, setMenuItemColor] = useState('#007AFF');
   const [availableIcons, setAvailableIcons] = useState<Array<{ name: string; component: React.ComponentType<any> }>>([]);
+  const [bottomTabMenuIds, setBottomTabMenuIds] = useState<string[]>([]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -53,6 +54,7 @@ function AdminSiteSettingsContent() {
       const settings = await getSiteSettings();
       setSiteName(settings.siteName);
       setMenuItems(settings.userMenuItems.sort((a, b) => a.order - b.order));
+      setBottomTabMenuIds(settings.bottomTabMenuIds || []);
     } catch (error) {
       console.error('Error loading settings:', error);
       alert('설정을 불러오는 중 오류가 발생했습니다.');
@@ -219,7 +221,7 @@ function AdminSiteSettingsContent() {
     return (
       <div className="min-vh-100 bg-light">
         <PageHeader title="사이트 설정" />
-        <div className="container pb-4" style={{ paddingTop: '80px' }}>
+        <div className="container">
           <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '50vh' }}>
             <div className="text-center">
               <div className="spinner-border text-primary mb-3" role="status">
@@ -236,7 +238,7 @@ function AdminSiteSettingsContent() {
   return (
     <div className="min-vh-100 bg-light">
       <PageHeader title="사이트 설정" />
-      <div className="container pb-4" style={{ paddingTop: '80px' }}>
+      <div className="container">
         {/* 사이트 이름 설정 */}
         <div className="card shadow-sm mb-4">
           <div className="card-header d-flex align-items-center">
@@ -296,91 +298,417 @@ function AdminSiteSettingsContent() {
                 <p className="text-muted mb-0">등록된 메뉴가 없습니다.</p>
               </div>
             ) : (
-              <div className="list-group">
+              <div className="d-flex flex-column gap-3">
                 {menuItems.map((item, index) => {
                   const IconComponent = getIconComponent(item.iconName);
                   return (
                     <div
                       key={item.id}
-                      className="list-group-item d-flex align-items-center justify-content-between"
+                      className="card border shadow-sm"
+                      style={{
+                        opacity: item.isActive ? 1 : 0.7,
+                        transition: 'all 0.2s ease',
+                      }}
                     >
-                      <div className="d-flex align-items-center gap-3 flex-grow-1">
-                        <div className="d-flex flex-column gap-1">
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-secondary"
-                            onClick={() => handleMoveMenuItem(index, 'up')}
-                            disabled={saving || index === 0}
-                            title="위로 이동"
+                      <div className="card-body p-3">
+                        <div className="d-flex align-items-center gap-3">
+                          {/* 재정렬 버튼 */}
+                          <div className="d-flex flex-column gap-1">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center"
+                              onClick={() => handleMoveMenuItem(index, 'up')}
+                              disabled={saving || index === 0}
+                              title="위로 이동"
+                              style={{ width: '32px', height: '32px', padding: '0' }}
+                            >
+                              <IoChevronUpOutline size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center"
+                              onClick={() => handleMoveMenuItem(index, 'down')}
+                              disabled={saving || index === menuItems.length - 1}
+                              title="아래로 이동"
+                              style={{ width: '32px', height: '32px', padding: '0' }}
+                            >
+                              <IoChevronDownOutline size={14} />
+                            </button>
+                          </div>
+                          
+                          {/* 아이콘 */}
+                          <div
+                            className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                            style={{
+                              width: '56px',
+                              height: '56px',
+                              backgroundColor: `${item.color}15`,
+                              border: `2px solid ${item.color}40`,
+                            }}
                           >
-                            <IoChevronUpOutline size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-secondary"
-                            onClick={() => handleMoveMenuItem(index, 'down')}
-                            disabled={saving || index === menuItems.length - 1}
-                            title="아래로 이동"
-                          >
-                            <IoChevronDownOutline size={14} />
-                          </button>
-                        </div>
-                        <div
-                          className="rounded-circle d-flex align-items-center justify-content-center"
-                          style={{
-                            width: '48px',
-                            height: '48px',
-                            backgroundColor: `${item.color}20`,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {IconComponent ? (
-                            <IconComponent size={24} style={{ color: item.color }} />
-                          ) : (
-                            <IoSettingsOutline size={24} style={{ color: item.color }} />
-                          )}
-                        </div>
-                        <div className="flex-grow-1">
-                          <div className="d-flex align-items-center gap-2">
-                            <strong>{item.label}</strong>
-                            {!item.isActive && (
-                              <span className="badge bg-secondary">비활성</span>
+                            {IconComponent ? (
+                              <IconComponent size={28} style={{ color: item.color }} />
+                            ) : (
+                              <IoSettingsOutline size={28} style={{ color: item.color }} />
                             )}
                           </div>
-                          <small className="text-muted d-block">{item.path}</small>
-                          <small className="text-muted d-block">아이콘: {item.iconName}</small>
+                          
+                          {/* 메뉴 정보 */}
+                          <div className="flex-grow-1">
+                            <div className="d-flex align-items-center gap-2 mb-1">
+                              <h6 className="mb-0 fw-semibold">{item.label}</h6>
+                              {!item.isActive && (
+                                <span className="badge bg-secondary" style={{ fontSize: '0.7rem' }}>비활성</span>
+                              )}
+                            </div>
+                            <div className="d-flex flex-column gap-1">
+                              <div className="d-flex align-items-center gap-2">
+                                <span className="text-muted small" style={{ minWidth: '50px' }}>경로:</span>
+                                <code className="small bg-light px-2 py-1 rounded" style={{ fontSize: '0.75rem' }}>{item.path}</code>
+                              </div>
+                              <div className="d-flex align-items-center gap-2">
+                                <span className="text-muted small" style={{ minWidth: '50px' }}>아이콘:</span>
+                                <code className="small bg-light px-2 py-1 rounded" style={{ fontSize: '0.75rem' }}>{item.iconName}</code>
+                              </div>
+                              {/* 액션 버튼 */}
+                              <div className="d-flex gap-2 mt-2">
+                                <button
+                                  className={`btn btn-sm ${item.isActive ? 'btn-outline-warning' : 'btn-outline-success'}`}
+                                  onClick={() => handleToggleMenuItemActive(item)}
+                                  disabled={saving}
+                                  title={item.isActive ? '비활성화' : '활성화'}
+                                  style={{ minWidth: '60px' }}
+                                >
+                                  {item.isActive ? '숨김' : '표시'}
+                                </button>
+                                <button
+                                  className="btn btn-sm btn-outline-primary d-flex align-items-center justify-content-center"
+                                  onClick={() => handleEditMenuItem(item)}
+                                  disabled={saving}
+                                  title="수정"
+                                  style={{ width: '40px', padding: '0' }}
+                                >
+                                  <IoPencilOutline size={16} />
+                                </button>
+                                <button
+                                  className="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center"
+                                  onClick={() => handleDeleteMenuItem(item.id)}
+                                  disabled={saving}
+                                  title="삭제"
+                                  style={{ width: '40px', padding: '0' }}
+                                >
+                                  <IoTrashOutline size={16} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div className="d-flex gap-2">
-                        <button
-                          className="btn btn-sm btn-outline-secondary"
-                          onClick={() => handleToggleMenuItemActive(item)}
-                          disabled={saving}
-                          title={item.isActive ? '비활성화' : '활성화'}
-                        >
-                          {item.isActive ? '숨김' : '표시'}
-                        </button>
-                        <button
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => handleEditMenuItem(item)}
-                          disabled={saving}
-                          title="수정"
-                        >
-                          <IoPencilOutline size={16} />
-                        </button>
-                        <button
-                          className="btn btn-sm btn-outline-danger"
-                          onClick={() => handleDeleteMenuItem(item.id)}
-                          disabled={saving}
-                          title="삭제"
-                        >
-                          <IoTrashOutline size={16} />
-                        </button>
                       </div>
                     </div>
                   );
                 })}
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* 하단 탭 메뉴 설정 */}
+        <div className="card shadow-sm mb-4">
+          <div className="card-header d-flex align-items-center">
+            <IoSettingsOutline size={20} className="me-2 flex-shrink-0" />
+            <h6 className="mb-0">하단 탭 메뉴 설정</h6>
+          </div>
+          <div className="card-body">
+            <p className="text-muted small mb-3">
+              메인 메뉴 항목 중 최대 5개를 선택하여 하단 고정 탭으로 표시할 수 있습니다.
+            </p>
+            {menuItems.filter(item => item.isActive).length === 0 ? (
+              <div className="alert alert-info mb-0">
+                활성화된 메뉴 항목이 없습니다. 먼저 메뉴를 추가하고 활성화해주세요.
+              </div>
+            ) : (
+              <>
+                <div className="d-flex flex-column gap-2 mb-3">
+                  {/* 홈 메뉴 항목 (하단 탭 메뉴 설정에서만 표시) */}
+                  {(() => {
+                    const homeItem: MenuItem = {
+                      id: 'home',
+                      label: '홈',
+                      path: '/main',
+                      iconName: 'IoHomeOutline',
+                      color: '#1E88E5',
+                      order: -1,
+                      isActive: true,
+                    };
+                    const IconComponent = getIconComponent(homeItem.iconName);
+                    const isSelected = bottomTabMenuIds.includes(homeItem.id);
+                    const canSelect = isSelected || bottomTabMenuIds.length < 5;
+                    
+                    return (
+                      <div
+                        key={homeItem.id}
+                        className={`card border ${isSelected ? 'border-primary' : ''}`}
+                        style={{
+                          opacity: canSelect ? 1 : 0.5,
+                          backgroundColor: isSelected ? '#f0f8ff' : '#fff',
+                          transition: 'all 0.2s ease',
+                          cursor: canSelect ? 'pointer' : 'not-allowed',
+                        }}
+                        onClick={() => {
+                          if (canSelect && !isSelected && bottomTabMenuIds.length < 5) {
+                            setBottomTabMenuIds([...bottomTabMenuIds, homeItem.id]);
+                          } else if (isSelected) {
+                            setBottomTabMenuIds(bottomTabMenuIds.filter(id => id !== homeItem.id));
+                          }
+                        }}
+                      >
+                        <div className="card-body p-3">
+                          <div className="form-check d-flex align-items-center gap-3 mb-0">
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              id={`bottom-tab-${homeItem.id}`}
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  if (bottomTabMenuIds.length < 5) {
+                                    setBottomTabMenuIds([...bottomTabMenuIds, homeItem.id]);
+                                  }
+                                } else {
+                                  setBottomTabMenuIds(bottomTabMenuIds.filter(id => id !== homeItem.id));
+                                }
+                              }}
+                              disabled={!canSelect && !isSelected}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            {IconComponent && (
+                              <div
+                                className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                                style={{
+                                  width: '40px',
+                                  height: '40px',
+                                  backgroundColor: `${homeItem.color}15`,
+                                }}
+                              >
+                                <IconComponent size={20} style={{ color: homeItem.color }} />
+                              </div>
+                            )}
+                            <label
+                              className="form-check-label flex-grow-1 mb-0 d-flex align-items-center justify-content-between"
+                              htmlFor={`bottom-tab-${homeItem.id}`}
+                              style={{ cursor: canSelect ? 'pointer' : 'not-allowed' }}
+                            >
+                              <span className="fw-semibold">{homeItem.label}</span>
+                              <div className="d-flex gap-2">
+                                {isSelected && (
+                                  <span className="badge bg-primary">선택됨</span>
+                                )}
+                                {!canSelect && !isSelected && (
+                                  <span className="badge bg-secondary">최대 5개</span>
+                                )}
+                              </div>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  
+                  {/* 사용자 메뉴 항목들 */}
+                  {menuItems
+                    .filter(item => item.isActive)
+                    .sort((a, b) => a.order - b.order)
+                    .map((item) => {
+                      const IconComponent = getIconComponent(item.iconName);
+                      const isSelected = bottomTabMenuIds.includes(item.id);
+                      const canSelect = isSelected || bottomTabMenuIds.length < 5;
+                      
+                      return (
+                        <div
+                          key={item.id}
+                          className={`card border ${isSelected ? 'border-primary' : ''}`}
+                          style={{
+                            opacity: canSelect ? 1 : 0.5,
+                            backgroundColor: isSelected ? '#f0f8ff' : '#fff',
+                            transition: 'all 0.2s ease',
+                            cursor: canSelect ? 'pointer' : 'not-allowed',
+                          }}
+                          onClick={() => {
+                            if (canSelect && !isSelected && bottomTabMenuIds.length < 5) {
+                              setBottomTabMenuIds([...bottomTabMenuIds, item.id]);
+                            } else if (isSelected) {
+                              setBottomTabMenuIds(bottomTabMenuIds.filter(id => id !== item.id));
+                            }
+                          }}
+                        >
+                          <div className="card-body p-3">
+                            <div className="form-check d-flex align-items-center gap-3 mb-0">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id={`bottom-tab-${item.id}`}
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    if (bottomTabMenuIds.length < 5) {
+                                      setBottomTabMenuIds([...bottomTabMenuIds, item.id]);
+                                    }
+                                  } else {
+                                    setBottomTabMenuIds(bottomTabMenuIds.filter(id => id !== item.id));
+                                  }
+                                }}
+                                disabled={!canSelect && !isSelected}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              {IconComponent && (
+                                <div
+                                  className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                                  style={{
+                                    width: '40px',
+                                    height: '40px',
+                                    backgroundColor: `${item.color}15`,
+                                  }}
+                                >
+                                  <IconComponent size={20} style={{ color: item.color }} />
+                                </div>
+                              )}
+                              <label
+                                className="form-check-label flex-grow-1 mb-0 d-flex align-items-center justify-content-between"
+                                htmlFor={`bottom-tab-${item.id}`}
+                                style={{ cursor: canSelect ? 'pointer' : 'not-allowed' }}
+                              >
+                                <span className="fw-semibold">{item.label}</span>
+                                <div className="d-flex gap-2">
+                                  {isSelected && (
+                                    <span className="badge bg-primary">선택됨</span>
+                                  )}
+                                  {!canSelect && !isSelected && (
+                                    <span className="badge bg-secondary">최대 5개</span>
+                                  )}
+                                </div>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+                {bottomTabMenuIds.length > 0 && (
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold mb-2">하단 탭 순서</label>
+                    <div className="d-flex flex-column gap-2">
+                      {bottomTabMenuIds.map((menuId, index) => {
+                        // 홈 메뉴 항목 처리
+                        let item: MenuItem | undefined;
+                        if (menuId === 'home') {
+                          item = {
+                            id: 'home',
+                            label: '홈',
+                            path: '/main',
+                            iconName: 'IoHomeOutline',
+                            color: '#1E88E5',
+                            order: -1,
+                            isActive: true,
+                          };
+                        } else {
+                          item = menuItems.find(m => m.id === menuId);
+                        }
+                        if (!item) return null;
+                        const IconComponent = getIconComponent(item.iconName);
+                        
+                        return (
+                          <div
+                            key={menuId}
+                            className="card border shadow-sm"
+                          >
+                            <div className="card-body p-3">
+                              <div className="d-flex align-items-center gap-3">
+                                <div className="d-flex flex-column gap-1">
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center"
+                                    onClick={() => {
+                                      if (index > 0) {
+                                        const newIds = [...bottomTabMenuIds];
+                                        [newIds[index], newIds[index - 1]] = [newIds[index - 1], newIds[index]];
+                                        setBottomTabMenuIds(newIds);
+                                      }
+                                    }}
+                                    disabled={index === 0}
+                                    title="위로 이동"
+                                    style={{ width: '32px', height: '32px', padding: '0' }}
+                                  >
+                                    <IoChevronUpOutline size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center"
+                                    onClick={() => {
+                                      if (index < bottomTabMenuIds.length - 1) {
+                                        const newIds = [...bottomTabMenuIds];
+                                        [newIds[index], newIds[index + 1]] = [newIds[index + 1], newIds[index]];
+                                        setBottomTabMenuIds(newIds);
+                                      }
+                                    }}
+                                    disabled={index === bottomTabMenuIds.length - 1}
+                                    title="아래로 이동"
+                                    style={{ width: '32px', height: '32px', padding: '0' }}
+                                  >
+                                    <IoChevronDownOutline size={14} />
+                                  </button>
+                                </div>
+                                {IconComponent && (
+                                  <div
+                                    className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                                    style={{
+                                      width: '48px',
+                                      height: '48px',
+                                      backgroundColor: `${item.color}15`,
+                                      border: `2px solid ${item.color}40`,
+                                    }}
+                                  >
+                                    <IconComponent size={24} style={{ color: item.color }} />
+                                  </div>
+                                )}
+                                <div className="flex-grow-1">
+                                  <h6 className="mb-0 fw-semibold">{item.label}</h6>
+                                  <small className="text-muted">{item.path}</small>
+                                </div>
+                                <span className="badge bg-primary" style={{ fontSize: '0.9rem', minWidth: '30px' }}>{index + 1}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <button
+                  className="btn btn-primary"
+                  onClick={async () => {
+                    try {
+                      setSaving(true);
+                      await saveSiteSettings({ bottomTabMenuIds });
+                      alert('하단 탭 메뉴 설정이 저장되었습니다.');
+                    } catch (error: any) {
+                      console.error('Error saving bottom tab menu:', error);
+                      alert(error.message || '하단 탭 메뉴 저장 중 오류가 발생했습니다.');
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  disabled={saving || bottomTabMenuIds.length === 0}
+                >
+                  {saving ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status" />
+                      저장 중...
+                    </>
+                  ) : (
+                    '하단 탭 메뉴 저장'
+                  )}
+                </button>
+              </>
             )}
           </div>
         </div>

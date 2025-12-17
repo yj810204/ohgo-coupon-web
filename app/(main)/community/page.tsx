@@ -61,7 +61,7 @@ function CommunityPageContent() {
     return (
       <div className="min-vh-100 bg-light">
         <PageHeader title="커뮤니티" />
-        <div className="container pb-4" style={{ paddingTop: '80px' }}>
+        <div className="container">
           <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '50vh' }}>
             <div className="text-center">
               <div className="spinner-border text-primary mb-3" role="status">
@@ -85,7 +85,7 @@ function CommunityPageContent() {
       }}
     >
       <PageHeader title="커뮤니티" />
-      <div className="container pb-4" style={{ paddingTop: '80px' }}>
+      <div className="container">
         {photos.length === 0 ? (
           <div className="d-flex flex-column align-items-center justify-content-center py-5" style={{ minHeight: '50vh' }}>
             <IoImageOutline size={64} className="text-muted mb-3" />

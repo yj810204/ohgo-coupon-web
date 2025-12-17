@@ -69,7 +69,7 @@ function MemoPageContent() {
       }}
     >
       <PageHeader title="관리자 메모" />
-      <div className="container pb-4" style={{ paddingTop: '80px' }}>
+      <div className="container">
 
         <div className="card shadow-sm mb-3">
           <div className="card-body">

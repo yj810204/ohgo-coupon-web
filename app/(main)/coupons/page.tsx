@@ -184,7 +184,7 @@ function CouponsPageContent() {
       }}
     >
       <PageHeader title="쿠폰" />
-      <div className="container pb-4" style={{ paddingTop: '80px' }}>
+      <div className="container">
         {/* 회원 정보 카드 */}
         <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: '12px' }}>
           <div className="card-body p-3">

@@ -289,7 +289,7 @@ export default function AdminGameSettingsPage() {
   return (
     <div className="min-vh-100 bg-light">
       <PageHeader title="게임 설정" />
-      <div className="container pb-4" style={{ paddingTop: '80px' }}>
+      <div className="container">
         {/* 통합 설정 */}
         <div className="card shadow-sm mb-4">
           <div className="card-header bg-primary text-white">

@@ -22,6 +22,7 @@ import {
   IoCheckmarkCircleOutline,
   IoArrowBackOutline,
   IoConstructOutline,
+  IoHomeOutline,
 } from 'react-icons/io5';
 
 // 아이콘 이름과 실제 컴포넌트 매핑
@@ -50,6 +51,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   IoCheckmarkCircleOutline,
   IoArrowBackOutline,
   IoConstructOutline,
+  IoHomeOutline,
 };
 
 /**

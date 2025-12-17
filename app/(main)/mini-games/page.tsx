@@ -60,7 +60,7 @@ export default function MiniGamesPage() {
       }}
     >
       <PageHeader title="미니 게임" />
-      <div className="container pb-4" style={{ paddingTop: '80px' }}>
+      <div className="container">
         {/* 게임 공지사항 버튼 */}
         {gameNotice && (
           <button

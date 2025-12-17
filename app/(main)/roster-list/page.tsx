@@ -294,7 +294,7 @@ function RosterListContent() {
       }}
     >
       <PageHeader title="승선명부" />
-      <div className="container pb-4" style={{ paddingTop: '80px' }}>
+      <div className="container">
         <div className="card shadow-sm mb-3">
           <div className="card-body text-center">
             <h5 className="text-primary mb-0">{dateDisplay} {tripNum}항차</h5>

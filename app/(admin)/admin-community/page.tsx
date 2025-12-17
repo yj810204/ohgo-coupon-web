@@ -918,7 +918,7 @@ function AdminCommunityContent() {
     return (
       <div className="min-vh-100 bg-light">
         <PageHeader title="커뮤니티 관리" />
-        <div className="container pb-4" style={{ paddingTop: '80px' }}>
+        <div className="container">
           <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '50vh' }}>
             <div className="text-center">
               <div className="spinner-border text-primary mb-3" role="status">
@@ -942,7 +942,7 @@ function AdminCommunityContent() {
       }}
     >
       <PageHeader title="커뮤니티 관리" />
-      <div className="container pb-4" style={{ paddingTop: '80px' }}>
+      <div className="container">
         {/* 템플릿 관리 */}
         <div className="card shadow-sm mb-4">
           <div className="card-header d-flex align-items-center justify-content-between">

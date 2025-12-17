@@ -236,7 +236,7 @@ function PhotoDetailContent() {
     return (
       <div className="min-vh-100 bg-light">
         <PageHeader title="상세" />
-        <div className="container pb-4" style={{ paddingTop: '80px' }}>
+        <div className="container">
           <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '50vh' }}>
             <div className="text-center">
               <div className="spinner-border text-primary mb-3" role="status">
@@ -264,7 +264,7 @@ function PhotoDetailContent() {
       }}
     >
       <PageHeader title="상세" />
-      <div className="container pb-4" style={{ paddingTop: '80px' }}>
+      <div className="container">
         {/* 사진 */}
         <div className="card shadow-sm mb-3">
           {photo.imageUrls && photo.imageUrls.length > 1 ? (

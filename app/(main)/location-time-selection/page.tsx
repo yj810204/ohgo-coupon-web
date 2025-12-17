@@ -416,7 +416,7 @@ function LocationTimeSelectionContent() {
       <PageHeader title="위치 및 시간 선택" />
       {renderA4Roster()}
       
-      <div className="container pb-4" style={{ paddingTop: '80px' }}>
+      <div className="container">
         <div className="card shadow-sm mb-3">
           <div className="card-body">
             <h5 className="text-primary mb-0 text-center">위치 및 입항시간 선택</h5>
