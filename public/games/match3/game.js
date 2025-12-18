@@ -149,7 +149,7 @@ class Match3Game {
         this.comboResetTimer = null; // 콤보 리셋 타이머
         
         // 게임 설정 기본값
-        this.matchPoints = 1; // 블럭 매치당 기본 점수
+        this.matchPoints = 10; // 블럭 매치당 기본 점수
         this.comboMultipliers = {}; // 콤보 배수 설정 (예: {2: 1.5, 3: 2.0})
         this.comboResetTime = 3000; // 콤보 유효 시간 (밀리초)
     }
@@ -191,7 +191,10 @@ class Match3Game {
                     if (gameConfig.block_types && Array.isArray(gameConfig.block_types)) {
                         this.blockTypes = gameConfig.block_types;
                     }
-                    if (gameConfig.base_score_per_match) this.matchPoints = parseInt(gameConfig.base_score_per_match);
+                    if (gameConfig.base_score_per_match !== undefined) {
+                        const parsed = parseInt(gameConfig.base_score_per_match);
+                        if (!isNaN(parsed)) this.matchPoints = parsed;
+                    }
                     if (gameConfig.combo_multipliers && typeof gameConfig.combo_multipliers === 'object') {
                         this.comboMultipliers = gameConfig.combo_multipliers;
                     }
@@ -536,7 +539,10 @@ class Match3Game {
                     if (gameConfig.block_types && Array.isArray(gameConfig.block_types)) {
                         this.blockTypes = gameConfig.block_types;
                     }
-                    if (gameConfig.base_score_per_match) this.matchPoints = parseInt(gameConfig.base_score_per_match);
+                    if (gameConfig.base_score_per_match !== undefined) {
+                        const parsed = parseInt(gameConfig.base_score_per_match);
+                        if (!isNaN(parsed)) this.matchPoints = parsed;
+                    }
                     if (gameConfig.combo_multipliers && typeof gameConfig.combo_multipliers === 'object') {
                         this.comboMultipliers = gameConfig.combo_multipliers;
                     }

@@ -208,7 +208,11 @@ class BubbleShooterGame {
                     if (gameConfig.bubble_types && Array.isArray(gameConfig.bubble_types)) {
                         this.bubbleTypes = gameConfig.bubble_types;
                     }
-                    if (gameConfig.base_score_per_match) this.matchPoints = parseInt(gameConfig.base_score_per_match);
+                    if (gameConfig.score_per_match !== undefined) this.matchPoints = parseInt(gameConfig.score_per_match) || 10;
+                    // 하위 호환성을 위해 base_score_per_match도 지원
+                    if (gameConfig.base_score_per_match !== undefined && gameConfig.score_per_match === undefined) {
+                        this.matchPoints = parseInt(gameConfig.base_score_per_match) || 10;
+                    }
                     if (gameConfig.bubbles_per_interval) {
                         this.bubblesPerInterval = parseInt(gameConfig.bubbles_per_interval);
                     }

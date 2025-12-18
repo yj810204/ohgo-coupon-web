@@ -134,6 +134,9 @@ class FlappyBirdGame {
         this.coinImagePath = null; // 코인 이미지 경로
         this.coinSize = 60; // 코인 크기 (2배 크기, 기본: 60)
         
+        // 파이프 통과당 점수 설정
+        this.scorePerPipe = 10; // 파이프 통과당 기본 점수
+        
         // 버드 이미지 설정
         this.birdImagePath = null; // 버드 이미지 경로
         
@@ -543,6 +546,7 @@ class FlappyBirdGame {
                     if (gameConfig.pipe_spacing !== undefined) this.pipeSpacing = parseInt(gameConfig.pipe_spacing) || this.pipeSpacing;
                     if (gameConfig.pipe_gap !== undefined) this.pipeGap = parseInt(gameConfig.pipe_gap) || this.pipeGap;
                     if (gameConfig.coin_bonus_score !== undefined) this.coinBonusScore = parseInt(gameConfig.coin_bonus_score) || this.coinBonusScore;
+                    if (gameConfig.score_per_pipe !== undefined) this.scorePerPipe = parseInt(gameConfig.score_per_pipe) || 10;
                     // 이미지 경로는 start()에서 이미 설정됨 (preload 전에 필요)
                 }
             } catch (e) {
@@ -559,7 +563,7 @@ class FlappyBirdGame {
         const hasBackgroundImage = this.backgroundImagePath && this.scene && this.scene.textures && this.scene.textures.exists('background');
         
         if (this.backgroundImagePath && hasBackgroundImage) {
-            // 배경 이미지를 세로 길이 기준으로 화면에 가득 차게 조정
+            // 배경 이미지를 전체가 보이도록 비율 유지하면서 조정
             try {
                 const texture = this.scene.textures.get('background');
                 if (texture && texture.source && texture.source[0]) {
@@ -567,23 +571,47 @@ class FlappyBirdGame {
                     const originalWidth = sourceImage.width || texture.width || this.canvasWidth;
                     const originalHeight = sourceImage.height || texture.height || this.canvasHeight;
                     
-                    // 세로 길이 기준으로 스케일 계산 (화면에 가득 차게)
-                    const scaleY = this.canvasHeight / originalHeight;
-                    
-                    // TileSprite 생성 (가로 반복, 세로는 게임 높이에 맞춤)
-                    const bgTile = this.scene.add.tileSprite(0, 0, this.canvasWidth, this.canvasHeight, 'background');
-                    bgTile.setOrigin(0, 0);
-                    bgTile.setDepth(0);
-                    
-                    // 타일 스케일 설정 (세로는 scaleY, 가로는 반복을 위해 동일한 스케일 사용)
-                    bgTile.setTileScale(scaleY, scaleY);
-                    
-                    this.backgroundSprite = bgTile;
-                    console.log('배경 이미지 생성 완료 (세로 기준 가득 차게):', {
-                        originalSize: { width: originalWidth, height: originalHeight },
-                        gameSize: { width: this.canvasWidth, height: this.canvasHeight },
-                        scaleY: scaleY
-                    });
+                    if (originalWidth > 0 && originalHeight > 0) {
+                        // 이미지 비율 계산
+                        const imageAspectRatio = originalWidth / originalHeight;
+                        const canvasAspectRatio = this.canvasWidth / this.canvasHeight;
+                        
+                        // contain 방식: 이미지 전체가 보이도록 작은 스케일 선택
+                        let scaleX, scaleY;
+                        if (imageAspectRatio > canvasAspectRatio) {
+                            // 이미지가 더 넓음: 가로 기준으로 스케일
+                            scaleX = this.canvasWidth / originalWidth;
+                            scaleY = scaleX;
+                        } else {
+                            // 이미지가 더 높음: 세로 기준으로 스케일
+                            scaleY = this.canvasHeight / originalHeight;
+                            scaleX = scaleY;
+                        }
+                        
+                        // TileSprite 생성 (화면 전체 크기)
+                        const bgTile = this.scene.add.tileSprite(0, 0, this.canvasWidth, this.canvasHeight, 'background');
+                        bgTile.setOrigin(0, 0);
+                        bgTile.setDepth(0);
+                        
+                        // 타일 스케일 설정 (비율 유지)
+                        bgTile.setTileScale(scaleX, scaleY);
+                        
+                        this.backgroundSprite = bgTile;
+                        console.log('배경 이미지 생성 완료 (전체 보이도록):', {
+                            originalSize: { width: originalWidth, height: originalHeight },
+                            gameSize: { width: this.canvasWidth, height: this.canvasHeight },
+                            scaleX: scaleX,
+                            scaleY: scaleY
+                        });
+                    } else {
+                        // 텍스처 정보를 가져올 수 없으면 기본 TileSprite 사용
+                        const bg = this.scene.add.tileSprite(0, 0, this.canvasWidth, this.canvasHeight, 'background');
+                        bg.setOrigin(0, 0);
+                        bg.setDepth(0);
+                        bg.setTileScale(1, 1);
+                        this.backgroundSprite = bg;
+                        console.log('배경 이미지 TileSprite 생성 완료 (기본)');
+                    }
                 } else {
                     // 텍스처 정보를 가져올 수 없으면 기본 TileSprite 사용
                     const bg = this.scene.add.tileSprite(0, 0, this.canvasWidth, this.canvasHeight, 'background');
@@ -1027,7 +1055,7 @@ class FlappyBirdGame {
             }
         }
         
-        // 상단/하단 이미지 높이 확인
+        // 상단/하단 이미지 높이 확인 (전체 이미지가 보이도록 비율 유지)
         if (hasPipeTopImage) {
             try {
                 const pipeTopTexture = this.scene.textures.get('pipe_top');
@@ -1035,8 +1063,11 @@ class FlappyBirdGame {
                     const sourceImage = pipeTopTexture.source[0];
                     const originalWidth = sourceImage.width || pipeTopTexture.width || this.pipeWidth;
                     const originalHeight = sourceImage.height || pipeTopTexture.height || 0;
-                    const scaleX = this.pipeWidth / originalWidth;
-                    pipeTopImageHeight = originalHeight * scaleX;
+                    if (originalWidth > 0 && originalHeight > 0) {
+                        // 이미지 비율 유지하면서 pipeWidth에 맞춤
+                        const scaleX = this.pipeWidth / originalWidth;
+                        pipeTopImageHeight = originalHeight * scaleX;
+                    }
                 }
             } catch (e) {
                 pipeTopImageHeight = 0;
@@ -1050,8 +1081,11 @@ class FlappyBirdGame {
                     const sourceImage = pipeBottomTexture.source[0];
                     const originalWidth = sourceImage.width || pipeBottomTexture.width || this.pipeWidth;
                     const originalHeight = sourceImage.height || pipeBottomTexture.height || 0;
-                    const scaleX = this.pipeWidth / originalWidth;
-                    pipeBottomImageHeight = originalHeight * scaleX;
+                    if (originalWidth > 0 && originalHeight > 0) {
+                        // 이미지 비율 유지하면서 pipeWidth에 맞춤
+                        const scaleX = this.pipeWidth / originalWidth;
+                        pipeBottomImageHeight = originalHeight * scaleX;
+                    }
                 }
             } catch (e) {
                 pipeBottomImageHeight = 0;
@@ -1306,7 +1340,7 @@ class FlappyBirdGame {
             if (!pipe.passed && pipe.x + this.pipeWidth / 2 < this.bird.x - this.birdSize / 2) {
                 pipe.passed = true;
                 this.pipesPassed++;
-                this.score++;
+                this.score += this.scorePerPipe;
                 this.scoreText.setText(this.score.toString());
                 
                 // 레벨업 체크 (5개 통과할 때마다 레벨 +1)

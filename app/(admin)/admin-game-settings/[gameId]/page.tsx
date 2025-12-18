@@ -37,6 +37,11 @@ function GameEditContent() {
     mobile_board_size: 5,
     tablet_board_size: 6,
     desktop_board_size: 7,
+    // 게임별 기본 점수 설정
+    base_score_per_match: 10, // match3: 블럭 매칭당 점수
+    score_per_pipe: 10, // flappy_bird: 파이프 통과당 점수
+    coin_bonus_score: 5, // flappy_bird: 코인 획득당 점수
+    score_per_match: 10, // bubble_shooter: 버블 매치당 점수
   });
   
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
@@ -107,6 +112,11 @@ function GameEditContent() {
         mobile_board_size: gameConfig.mobile?.board_size || 5,
         tablet_board_size: gameConfig.tablet?.board_size || 6,
         desktop_board_size: gameConfig.desktop?.board_size || 7,
+        // 게임별 기본 점수 설정
+        base_score_per_match: gameConfig.base_score_per_match || 10,
+        score_per_pipe: gameConfig.score_per_pipe || 10,
+        coin_bonus_score: gameConfig.coin_bonus_score || 5,
+        score_per_match: gameConfig.score_per_match || 10,
       });
 
       // 썸네일 미리보기 설정 (Firebase Storage URL 우선, 없으면 로컬 경로)
@@ -337,6 +347,16 @@ function GameEditContent() {
         use_fixed_size: formData.use_fixed_size || false,
       };
 
+      // 게임별 기본 점수 설정 추가
+      if (gameId === 'match3') {
+        gameConfigJson.base_score_per_match = parseInt(String(formData.base_score_per_match)) || 10;
+      } else if (gameId === 'flappy_bird') {
+        gameConfigJson.score_per_pipe = parseInt(String(formData.score_per_pipe)) || 10;
+        gameConfigJson.coin_bonus_score = parseInt(String(formData.coin_bonus_score)) || 5;
+      } else if (gameId === 'bubble_shooter') {
+        gameConfigJson.score_per_match = parseInt(String(formData.score_per_match)) || 10;
+      }
+
       // match3 게임의 경우, 자동 리사이징 모드에서도 보드 크기 설정 추가
       if (gameId === 'match3') {
         gameConfigJson.mobile = {
@@ -493,6 +513,62 @@ function GameEditContent() {
               />
               <small className="text-muted">예: 10 = 10%, 100 = 점수 그대로</small>
             </div>
+
+            {/* 게임별 기본 점수 설정 */}
+            {gameId === 'match3' && (
+              <div className="mb-4">
+                <label className="form-label fw-bold">블럭 매칭당 기본 점수</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  min="1"
+                  value={formData.base_score_per_match}
+                  onChange={(e) => setFormData({ ...formData, base_score_per_match: parseInt(e.target.value) || 10 })}
+                />
+                <small className="text-muted">블럭을 매칭할 때마다 부여되는 기본 점수입니다. (기본값: 10점)</small>
+              </div>
+            )}
+
+            {gameId === 'flappy_bird' && (
+              <>
+                <div className="mb-4">
+                  <label className="form-label fw-bold">파이프 통과당 기본 점수</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    min="1"
+                    value={formData.score_per_pipe}
+                    onChange={(e) => setFormData({ ...formData, score_per_pipe: parseInt(e.target.value) || 10 })}
+                  />
+                  <small className="text-muted">파이프를 통과할 때마다 부여되는 기본 점수입니다. (기본값: 10점)</small>
+                </div>
+                <div className="mb-4">
+                  <label className="form-label fw-bold">코인 획득당 기본 점수</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    min="1"
+                    value={formData.coin_bonus_score}
+                    onChange={(e) => setFormData({ ...formData, coin_bonus_score: parseInt(e.target.value) || 5 })}
+                  />
+                  <small className="text-muted">코인을 획득할 때마다 부여되는 기본 점수입니다. (기본값: 5점)</small>
+                </div>
+              </>
+            )}
+
+            {gameId === 'bubble_shooter' && (
+              <div className="mb-4">
+                <label className="form-label fw-bold">버블 매치당 기본 점수</label>
+                <input
+                  type="number"
+                  className="form-control"
+                  min="1"
+                  value={formData.score_per_match}
+                  onChange={(e) => setFormData({ ...formData, score_per_match: parseInt(e.target.value) || 10 })}
+                />
+                <small className="text-muted">버블을 매치할 때마다 부여되는 기본 점수입니다. (기본값: 10점)</small>
+              </div>
+            )}
 
             {/* 기기별 캔버스 크기 설정 - 자동 리사이징 사용 (기본값) */}
             <div className="mb-4">
