@@ -49,47 +49,34 @@ export default function BottomTabBar() {
 
   console.log('[BottomTabBar] Rendering - loading:', loading, 'items:', menuItems.length);
 
-  // 로딩 중일 때는 로딩 표시
+  const FIXED_STYLE: React.CSSProperties = {
+    position: 'fixed',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    width: '100%',
+    height: 70,
+    backgroundColor: '#FFFFFF',
+    boxShadow: '0 -1px 0 #EFEFEF, 0 -4px 16px rgba(0,0,0,0.06)',
+  };
+  const INNER_STYLE: React.CSSProperties = { maxWidth: 480, margin: '0 auto', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+
   if (loading) {
     return (
-      <div
-        className="bg-white border-top shadow-lg"
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 1000,
-          width: '100%',
-          height: '70px',
-          borderTop: '1px solid #dee2e6',
-        }}
-      >
-        <div className="container d-flex align-items-center justify-content-center h-100">
+      <div style={FIXED_STYLE}>
+        <div style={INNER_STYLE}>
           <small className="text-muted">로딩 중...</small>
         </div>
       </div>
     );
   }
 
-  // 메뉴 항목이 없으면 안내 메시지 표시
   if (menuItems.length === 0) {
     console.log('[BottomTabBar] No menu items found. Please configure bottom tab menu in admin settings.');
     return (
-      <div
-        className="bg-white border-top shadow-lg"
-        style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 1000,
-          width: '100%',
-          height: '70px',
-          borderTop: '1px solid #dee2e6',
-        }}
-      >
-        <div className="container d-flex align-items-center justify-content-center h-100">
+      <div style={FIXED_STYLE}>
+        <div style={INNER_STYLE}>
           <small className="text-muted">하단 탭 메뉴를 설정해주세요 (관리자 → 사이트 설정)</small>
         </div>
       </div>
@@ -104,7 +91,6 @@ export default function BottomTabBar() {
 
   return (
     <div
-      className="bg-white border-top shadow-lg"
       style={{
         position: 'fixed',
         bottom: 0,
@@ -112,9 +98,12 @@ export default function BottomTabBar() {
         right: 0,
         zIndex: 1000,
         width: '100%',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        backgroundColor: '#FFFFFF',
+        boxShadow: '0 -1px 0 #EFEFEF, 0 -4px 16px rgba(0,0,0,0.06)',
       }}
     >
-      <div className="container">
+      <div style={{ maxWidth: 480, margin: '0 auto' }}>
         <div className="d-flex justify-content-around align-items-center py-2">
           {menuItems.map((item) => {
             const IconComponent = getIconComponent(item.iconName);
@@ -134,7 +123,7 @@ export default function BottomTabBar() {
                   minWidth: '60px',
                   minHeight: '60px',
                   textDecoration: 'none',
-                  color: isActive ? item.color : '#6c757d',
+                  color: isActive ? '#1B6FF5' : '#6F767E',
                   border: 'none',
                   background: 'none',
                   transition: 'all 0.2s',
@@ -147,7 +136,7 @@ export default function BottomTabBar() {
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive) {
-                    e.currentTarget.style.color = '#6c757d';
+                    e.currentTarget.style.color = '#6F767E';
                   }
                 }}
               >
@@ -155,7 +144,7 @@ export default function BottomTabBar() {
                   <IconComponent
                     size={24}
                     style={{
-                      color: isActive ? item.color : '#6c757d',
+                      color: isActive ? '#1B6FF5' : '#6F767E',
                       marginBottom: '4px',
                     }}
                   />
@@ -164,7 +153,7 @@ export default function BottomTabBar() {
                     style={{
                       width: '24px',
                       height: '24px',
-                      backgroundColor: isActive ? item.color : '#6c757d',
+                      backgroundColor: isActive ? '#1B6FF5' : '#6F767E',
                       borderRadius: '4px',
                       marginBottom: '4px',
                     }}
@@ -175,7 +164,7 @@ export default function BottomTabBar() {
                   style={{
                     fontSize: '11px',
                     fontWeight: isActive ? '600' : '400',
-                    color: isActive ? item.color : '#6c757d',
+                    color: isActive ? '#1B6FF5' : '#6F767E',
                   }}
                 >
                   {item.label}
@@ -189,7 +178,7 @@ export default function BottomTabBar() {
                       transform: 'translateX(-50%)',
                       width: '30px',
                       height: '3px',
-                      backgroundColor: item.color,
+                      backgroundColor: '#1B6FF5',
                       borderRadius: '3px 3px 0 0',
                     }}
                   />

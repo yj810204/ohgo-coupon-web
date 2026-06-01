@@ -50,200 +50,101 @@ export default function MiniGamesPage() {
     handleRefresh();
   }, [navigateReplace, handleRefresh]);
 
+  const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+  const CARD: React.CSSProperties = { backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: 'none' };
+
   return (
-    <div 
-      className="min-h-screen bg-gray-50"
-      style={{ 
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        position: 'relative',
-      }}
-    >
+    <div className="min-vh-100 pb-4" style={{ backgroundColor: '#F7F8FA', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <PageHeader title="미니 게임" />
-      <div className="container">
-        {/* 게임 공지사항 버튼 */}
+      <div className="container py-3" style={{ maxWidth: 480 }}>
+
+        {/* 게임 공지 배너 */}
         {gameNotice && (
           <button
+            type="button"
             onClick={() => setNoticeModalVisible(true)}
-            className="w-100 btn btn-primary d-flex align-items-center justify-content-center rounded-0 mb-3"
+            className="btn w-100 d-flex align-items-center gap-3 mb-4 p-3 text-start"
+            style={{ backgroundColor: '#EBF1FE', borderRadius: 14, border: 'none' }}
           >
-            <svg 
-              stroke="currentColor" 
-              fill="currentColor" 
-              strokeWidth="0" 
-              viewBox="0 0 512 512" 
-              className="me-2" 
-              height="20" 
-              width="20" 
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path 
-                fill="none" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth="32" 
-                d="M176 464h160m-80 0V336m128-112c0-50.64-.08-134.63-.12-160a16 16 0 0 0-16-16l-223.79.26a16 16 0 0 0-16 15.95c0 30.58-.13 129.17-.13 159.79 0 64.28 83 112 128 112S384 288.28 384 224z"
-              ></path>
-              <path 
-                fill="none" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth="32" 
-                d="M128 96H48v16c0 55.22 33.55 112 80 112M384 96h80v16c0 55.22-33.55 112-80 112"
-              ></path>
-            </svg>
-            <span className="fw-semibold">{gameNotice.split('\n')[0]}</span>
+            <IoNotificationsOutline size={20} color="#1B6FF5" className="flex-shrink-0" />
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#1B6FF5', fontFamily: FONT, flexGrow: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {gameNotice.split('\n')[0]}
+            </span>
+            <span style={{ fontSize: 12, color: '#1B6FF5', flexShrink: 0 }}>자세히 →</span>
           </button>
         )}
 
-        {/* 랭킹 메뉴 */}
-        <div className="row g-2 mb-4">
-          <div className="col-12">
-            <button
-              onClick={() => navigate('/mini-games/ranking')}
-              className="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2"
-              style={{
-                padding: '16px 20px',
-                borderRadius: '12px',
-                fontSize: '1rem',
-                fontWeight: '600',
-                boxShadow: '0 2px 8px rgba(0, 123, 255, 0.3)',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 123, 255, 0.4)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 123, 255, 0.3)';
-              }}
-            >
-              <IoTrophyOutline size={24} />
-              <span>랭킹</span>
-            </button>
-          </div>
-        </div>
+        {/* 랭킹 버튼 */}
+        <button
+          type="button"
+          onClick={() => navigate('/mini-games/ranking')}
+          className="btn w-100 d-flex align-items-center justify-content-center gap-2 mb-4"
+          style={{ backgroundColor: '#1B6FF5', color: '#fff', borderRadius: 14, padding: '14px', border: 'none', fontFamily: FONT, fontWeight: 700, fontSize: 15, boxShadow: '0 4px 12px rgba(27,111,245,0.3)' }}
+        >
+          <IoTrophyOutline size={22} />
+          랭킹 보기
+        </button>
 
+        {/* 게임 목록 */}
         {loading ? (
-          <div className="text-center py-5">
-            <div className="spinner-border text-primary mb-3" role="status">
-              <span className="visually-hidden">Loading...</span>
-            </div>
-            <p className="text-muted">게임 목록을 불러오는 중...</p>
-          </div>
+          <div className="py-5 text-center"><div className="spinner-border text-primary" role="status" /></div>
         ) : games.length === 0 ? (
-          <div className="text-center py-5 d-flex flex-column align-items-center">
-            <IoGameControllerOutline size={64} className="text-muted mb-3" />
-            <p className="text-muted mb-2">등록된 게임이 없습니다.</p>
-            <p className="text-muted small">관리자 페이지에서 게임 스캔을 실행해주세요.</p>
+          <div className="py-5 text-center" style={CARD}>
+            <IoGameControllerOutline size={52} color="#EFEFEF" />
+            <p className="mt-3 mb-1" style={{ color: '#6F767E', fontFamily: FONT, fontWeight: 600 }}>등록된 게임이 없습니다.</p>
+            <p style={{ color: '#ABABAB', fontFamily: FONT, fontSize: 13 }}>관리자 페이지에서 게임 스캔을 실행해주세요.</p>
           </div>
         ) : (
-          <div className="row g-4">
-            {games.map((game) => (
-              <div key={game.game_id} className="col-12 col-md-4 col-lg-3">
-                <button
-                  onClick={() => navigate(`/mini-games/${game.game_id}`)}
-                  className="btn btn-light w-100 h-100 p-3 d-flex flex-column align-items-center justify-content-center shadow-sm"
-                  style={{ minHeight: '280px' }}
-                >
-                  {(game.thumbnail_url || game.thumbnail_path) ? (
-                    <div className="mb-3 w-100 d-flex justify-content-center">
-                      <img
-                        src={
-                          game.thumbnail_url || 
-                          (game.thumbnail_path?.startsWith('http') 
-                            ? game.thumbnail_path 
-                            : `/${game.thumbnail_path}`)
-                        }
-                        alt={game.game_name}
-                        style={{
-                          width: '100%',
-                          height: '180px',
-                          objectFit: 'cover',
-                          borderRadius: '8px',
-                        }}
-                        onError={(e) => {
-                          // 썸네일 로드 실패 시 아이콘 표시
-                          (e.target as HTMLImageElement).style.display = 'none';
-                          const parent = (e.target as HTMLImageElement).parentElement;
-                          if (parent) {
-                            const icon = document.createElement('div');
-                            icon.className = 'd-flex align-items-center justify-content-center';
-                            icon.style.width = '100%';
-                            icon.style.height = '180px';
-                            icon.style.backgroundColor = '#f0f0f0';
-                            icon.style.borderRadius = '8px';
-                            icon.innerHTML = '<span style="font-size: 3rem;">🎮</span>';
-                            parent.appendChild(icon);
-                          }
-                        }}
-                      />
-            </div>
-          ) : (
-                    <div
-                      className="mb-3 d-flex align-items-center justify-content-center"
-                      style={{
-                        width: '100%',
-                        height: '180px',
-                        backgroundColor: '#f0f0f0',
-                        borderRadius: '8px',
-                      }}
-                    >
-                      <IoGameControllerOutline size={60} className="text-muted" />
-                    </div>
-                  )}
-                  <span className="fw-medium text-dark text-center mb-2">{game.game_name}</span>
-                  {game.game_description && (
-                    <small className="text-muted text-center" style={{ fontSize: '0.75rem', lineHeight: '1.4' }}>
-                      {game.game_description}
-                    </small>
-                  )}
-                </button>
-              </div>
-            ))}
-        </div>
-      )}
-
-        {/* 게임 공지사항 모달 */}
-        {noticeModalVisible && (
-          <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-                <div className="modal-header border-0" style={{ 
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  padding: '20px'
-                }}>
-                  <h5 className="modal-title text-white fw-bold mb-0">게임 공지사항</h5>
+          <div className="d-flex flex-column gap-3">
+            {games.map(game => (
               <button
-                    type="button" 
-                    className="btn-close btn-close-white" 
-                    onClick={() => setNoticeModalVisible(false)}
-                    style={{ opacity: 0.8 }}
-                  ></button>
-                </div>
-                <div className="modal-body p-4">
-                  {gameNotice ? (
-                    <div className="text-break" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
-                      {gameNotice}
-                    </div>
-                  ) : (
-                    <p className="text-muted text-center mb-0">등록된 공지사항이 없습니다.</p>
+                key={game.game_id}
+                type="button"
+                onClick={() => navigate(`/mini-games/${game.game_id}`)}
+                className="btn w-100 text-start p-0"
+                style={{ ...CARD, overflow: 'hidden' }}
+              >
+                {(game.thumbnail_url || game.thumbnail_path) ? (
+                  <img
+                    src={game.thumbnail_url || (game.thumbnail_path?.startsWith('http') ? game.thumbnail_path : `/${game.thumbnail_path}`)}
+                    alt={game.game_name}
+                    style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                ) : (
+                  <div className="d-flex align-items-center justify-content-center" style={{ height: 120, backgroundColor: '#F7F8FA' }}>
+                    <IoGameControllerOutline size={48} color="#ABABAB" />
+                  </div>
+                )}
+                <div className="p-3">
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>{game.game_name}</div>
+                  {game.game_description && (
+                    <div style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT, marginTop: 4, lineHeight: 1.4 }}>{game.game_description}</div>
                   )}
                 </div>
-                <div className="modal-footer border-0 pt-0">
-                  <button 
-                    type="button" 
-                    className="btn btn-primary w-100" 
-                    onClick={() => setNoticeModalVisible(false)}
-                    style={{ borderRadius: '12px', padding: '12px' }}
-                  >
-                    닫기
               </button>
+            ))}
+          </div>
+        )}
+
+        {/* 공지사항 모달 */}
+        {noticeModalVisible && (
+          <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content border-0" style={{ borderRadius: 20, overflow: 'hidden' }}>
+                <div className="modal-header border-0 px-4 pt-4 pb-2">
+                  <h5 className="modal-title fw-bold" style={{ color: '#1A1D1F', fontFamily: FONT }}>게임 공지사항</h5>
+                  <button type="button" className="btn-close" onClick={() => setNoticeModalVisible(false)} />
+                </div>
+                <div className="modal-body px-4">
+                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, color: '#1A1D1F', fontFamily: FONT, fontSize: 14 }}>{gameNotice}</div>
+                </div>
+                <div className="modal-footer border-0 px-4 pb-4 pt-2">
+                  <button type="button" onClick={() => setNoticeModalVisible(false)} className="btn w-100 fw-semibold" style={{ backgroundColor: '#1B6FF5', color: '#fff', borderRadius: 12, padding: 13, border: 'none', fontFamily: FONT }}>닫기</button>
                 </div>
               </div>
             </div>
-        </div>
+          </div>
         )}
       </div>
     </div>

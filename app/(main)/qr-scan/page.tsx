@@ -4,10 +4,22 @@ import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getUser } from '@/lib/storage';
 import { addStamp } from '@/utils/stamp-service';
-import { doc, getDoc, updateDoc, increment, collection, setDoc, arrayUnion, Timestamp, runTransaction } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Html5Qrcode } from 'html5-qrcode';
 import PageHeader from '@/components/PageHeader';
+
+/** Expo 네이티브 앱 환경 여부 */
+function isNativeApp(): boolean {
+  return typeof window !== 'undefined' && !!(window as any).__OHGO_NATIVE_APP__;
+}
+
+/** 네이티브로 QR 스캔 요청 */
+function requestNativeQRScan() {
+  try {
+    (window as any).ReactNativeWebView?.postMessage(JSON.stringify({ type: 'QR_SCAN_REQUEST' }));
+  } catch (_) {}
+}
 
 function QRScanPageContent() {
   const router = useRouter();
@@ -24,6 +36,8 @@ function QRScanPageContent() {
   const [scanCompleted, setScanCompleted] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  // 네이티브 앱 QR 스캔 대기 상태
+  const [nativeWaiting, setNativeWaiting] = useState(false);
   const qrCodeRef = useRef<Html5Qrcode | null>(null);
   const scanAreaRef = useRef<HTMLDivElement>(null);
 
@@ -127,10 +141,39 @@ function QRScanPageContent() {
     loadUser();
   }, [router]);
 
+  // 네이티브 앱: QR_SCAN_RESULT / QR_SCAN_CANCEL 수신 리스너
+  useEffect(() => {
+    if (!user || !isNativeApp()) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const msg = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (msg?.type === 'QR_SCAN_RESULT' && msg?.payload?.data) {
+          setNativeWaiting(false);
+          handleQRInput(msg.payload.data);
+        } else if (msg?.type === 'QR_SCAN_CANCEL') {
+          setNativeWaiting(false);
+          setMessage('스캔이 취소되었습니다.');
+          setMessageColor('#888');
+        }
+      } catch (_) {}
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [user, handleQRInput]);
+
+  // 네이티브 앱이면 카메라 초기화 건너뜀
   useEffect(() => {
     if (!user) return;
+    if (isNativeApp()) {
+      // 네이티브 앱 환경: 자동으로 QR 스캔 요청
+      setNativeWaiting(true);
+      requestNativeQRScan();
+      return;
+    }
 
-    // 카메라만 준비 (스캔은 시작하지 않음)
+    // 웹 환경: html5-qrcode로 카메라 준비
     const initCamera = async () => {
       setIsPreparing(true);
       try {
@@ -190,6 +233,12 @@ function QRScanPageContent() {
         setIsPreparing(false);
         setMessage('❌ 카메라 접근 권한이 필요합니다.');
         setMessageColor('#f44336');
+        // Expo 네이티브 앱이면 카메라 권한 요청 브릿지 호출
+        if (typeof window !== 'undefined' && (window as any).__OHGO_NATIVE_APP__) {
+          try {
+            (window as any).ReactNativeWebView?.postMessage(JSON.stringify({ type: 'CAMERA_PERMISSION_REQUEST' }));
+          } catch (_) {}
+        }
       }
     };
 
@@ -296,6 +345,93 @@ function QRScanPageContent() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">로딩 중...</p>
         </div>
+      </div>
+    );
+  }
+
+  // 네이티브 앱 환경: 스캔 대기 중 또는 결과 처리 중 UI
+  if (isNativeApp()) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#F7F8FA', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+        <div style={{ fontSize: '64px', marginBottom: '20px' }}>📷</div>
+        {nativeWaiting || isProcessing ? (
+          <>
+            <div className="spinner-border text-primary mb-3" role="status" />
+            <p style={{ color: '#1A1D1F', fontWeight: 700, fontSize: '17px', marginBottom: '8px' }}>
+              {isProcessing ? '처리 중...' : 'QR 코드 스캔 중'}
+            </p>
+            <p style={{ color: '#6F767E', fontSize: '14px', textAlign: 'center' }}>
+              {isProcessing ? '스탬프를 적립하고 있습니다.' : '카메라 화면에서 QR 코드를 스캔해 주세요.'}
+            </p>
+          </>
+        ) : (
+          <>
+            {message && (
+              <p style={{ color: messageColor, fontWeight: 700, fontSize: '17px', marginBottom: '16px', textAlign: 'center' }}>
+                {message}
+              </p>
+            )}
+            <button
+              onClick={() => {
+                setScanCompleted(false);
+                setScanning(false);
+                setMessage('');
+                setNativeWaiting(true);
+                requestNativeQRScan();
+              }}
+              style={{
+                backgroundColor: '#1B6FF5', color: '#fff', border: 'none',
+                borderRadius: '12px', padding: '14px 32px', fontSize: '16px',
+                fontWeight: '700', cursor: 'pointer', marginBottom: '12px',
+              }}
+            >
+              다시 스캔하기
+            </button>
+            <button
+              onClick={() => router.back()}
+              style={{
+                backgroundColor: 'transparent', color: '#6F767E', border: '1px solid #EFEFEF',
+                borderRadius: '12px', padding: '14px 32px', fontSize: '15px', cursor: 'pointer',
+              }}
+            >
+              돌아가기
+            </button>
+          </>
+        )}
+
+        {/* 에러 모달 */}
+        {showErrorModal && (
+          <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
+                <div className="modal-header border-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: '20px' }}>
+                  <h5 className="modal-title text-white fw-bold mb-0">알림</h5>
+                  <button type="button" className="btn-close btn-close-white" onClick={() => { setShowErrorModal(false); setErrorMessage(''); }} />
+                </div>
+                <div className="modal-body p-4">
+                  <p className="text-center mb-0" style={{ lineHeight: '1.6', whiteSpace: 'pre-line' }}>{errorMessage}</p>
+                </div>
+                <div className="modal-footer border-0 pt-0">
+                  <button
+                    onClick={() => {
+                      setShowErrorModal(false);
+                      setErrorMessage('');
+                      if (user?.uuid) {
+                        router.push(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
+                      } else {
+                        router.back();
+                      }
+                    }}
+                    className="btn btn-primary w-100 text-white fw-semibold"
+                    style={{ borderRadius: '12px', padding: '12px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none' }}
+                  >
+                    확인
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -484,25 +620,36 @@ function QRScanPageContent() {
         {permissionDenied && (
           <div className="absolute inset-0 d-flex align-items-center justify-content-center bg-black bg-opacity-75">
             <div className="text-center text-white p-4" style={{ maxWidth: '90%' }}>
-              <p className="mb-4 fw-bold" style={{ fontSize: '1.1rem' }}>카메라 권한이 필요합니다</p>
-              <p className="text-sm mb-4 text-gray-300" style={{ lineHeight: '1.6' }}>
-                QR 코드를 스캔하기 위해 휴대폰 카메라 접근 권한이 필요합니다.
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>📷</div>
+              <p className="mb-3 fw-bold" style={{ fontSize: '1.1rem' }}>카메라 권한이 필요합니다</p>
+              <p className="mb-4" style={{ lineHeight: '1.6', color: 'rgba(255,255,255,0.75)', fontSize: '0.9rem' }}>
+                QR 코드 스캔을 위해 카메라 접근 권한이 필요합니다.<br />
+                권한을 허용하거나 설정에서 활성화해 주세요.
               </p>
-              <button
-                onClick={handleRetryCamera}
-                className="btn btn-primary"
-                style={{
-                  borderRadius: '12px',
-                  padding: '12px 24px',
-                  fontSize: '1rem',
-                  fontWeight: '600',
-                  border: 'none',
-                }}
-              >
-                다시 시도
-              </button>
+              <div className="d-flex flex-column gap-2">
+                <button
+                  onClick={handleRetryCamera}
+                  className="btn btn-primary"
+                  style={{ borderRadius: '12px', padding: '12px 24px', fontSize: '1rem', fontWeight: '600', border: 'none' }}
+                >
+                  권한 다시 요청
+                </button>
+                {(window as any).__OHGO_NATIVE_APP__ && (
+                  <button
+                    onClick={() => {
+                      try {
+                        (window as any).ReactNativeWebView?.postMessage(JSON.stringify({ type: 'OPEN_SETTINGS' }));
+                      } catch (_) {}
+                    }}
+                    className="btn btn-outline-light"
+                    style={{ borderRadius: '12px', padding: '12px 24px', fontSize: '1rem', fontWeight: '600' }}
+                  >
+                    설정 열기
+                  </button>
+                )}
+              </div>
             </div>
-        </div>
+          </div>
         )}
       </div>
       

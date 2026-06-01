@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "오고피씽",
+    "slug": "ohgo-coupon",
+    "version": "1.6.0",
+    "orientation": "portrait",
+    "scheme": "ohgocoupon",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ohgo.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "QR 스캔을 위해 카메라 접근 권한이 필요합니다.",
+        "NSPhotoLibraryUsageDescription": "사진 업로드를 위해 사진 라이브러리 접근 권한이 필요합니다."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1B6FF5"
+      },
+      "package": "ohgo.mobile",
+      "permissions": [
+        "CAMERA",
+        "INTERNET",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#1B6FF5"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "QR 코드 스캔을 위해 카메라 접근 권한이 필요합니다."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "05bd1472-c27d-4c9f-b1db-2f66e714d925"
+      }
+    },
+    "owner": "jyn0204"
+  }
+}

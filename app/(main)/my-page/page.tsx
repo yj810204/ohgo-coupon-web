@@ -5,63 +5,65 @@ import { useRouter } from 'next/navigation';
 import { deleteField, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { clearUser, getUser } from '@/lib/storage';
+import { isNativeApp, requestPushTokenFromNative, savePushTokenToUser } from '@/lib/native-bridge';
 import { getCommunityPoints } from '@/utils/community-point-service';
 import PageHeader from '@/components/PageHeader';
-import { IoPersonOutline, IoNotificationsOutline, IoLogOutOutline, IoGameControllerOutline, IoChatbubblesOutline, IoBoatOutline } from 'react-icons/io5';
+import {
+  IoPersonOutline,
+  IoNotificationsOutline,
+  IoLogOutOutline,
+  IoGameControllerOutline,
+  IoChatbubblesOutline,
+  IoBoatOutline,
+  IoChevronForwardOutline,
+} from 'react-icons/io5';
+
+const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+const CARD: React.CSSProperties = {
+  backgroundColor: '#FFFFFF',
+  borderRadius: 16,
+  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+  border: 'none',
+};
 
 export default function MyPage() {
   const router = useRouter();
-  const [isPushEnabled, setIsPushEnabled] = useState(true);
-  const [userInfo, setUserInfo] = useState<{ name: string, dob: string, uuid: string } | null>(null);
+  const [isPushEnabled, setIsPushEnabled] = useState(false);
+  const [userInfo, setUserInfo] = useState<{ name: string; dob: string; uuid: string } | null>(null);
   const [gamePoints, setGamePoints] = useState(0);
   const [communityPoints, setCommunityPoints] = useState(0);
 
   const loadUser = useCallback(async () => {
     const user = await getUser();
-    if (!user?.uuid) {
-      router.replace('/login');
-      return;
-    }
+    if (!user?.uuid) { router.replace('/login'); return; }
     setUserInfo(user);
-    
-    // 웹에서는 푸시 토큰을 localStorage에서 확인
     const token = localStorage.getItem('expoPushToken');
     setIsPushEnabled(!!token);
-    
-    // 포인트 정보 로드
     try {
       const userRef = doc(db, 'users', user.uuid);
       const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        const data = userSnap.data();
-        setGamePoints(data.totalPoint || 0);
-      }
-      
-      const communityPointsTotal = await getCommunityPoints(user.uuid);
-      setCommunityPoints(communityPointsTotal);
-    } catch (error) {
-      console.error('Error loading points:', error);
-    }
+      if (userSnap.exists()) setGamePoints(userSnap.data().totalPoint || 0);
+      const cp = await getCommunityPoints(user.uuid);
+      setCommunityPoints(cp);
+    } catch (err) { console.error(err); }
   }, [router]);
 
-  useEffect(() => {
-    loadUser();
-  }, [loadUser]);
-
+  useEffect(() => { loadUser(); }, [loadUser]);
 
   const togglePush = async () => {
     if (!userInfo?.uuid) return;
-    
     if (isPushEnabled) {
       localStorage.removeItem('expoPushToken');
-      await updateDoc(doc(db, 'users', userInfo.uuid), {
-        expoPushToken: deleteField(),
-      });
+      await updateDoc(doc(db, 'users', userInfo.uuid), { expoPushToken: deleteField() });
       setIsPushEnabled(false);
     } else {
-      // 웹에서는 Web Push API를 사용해야 하지만, 일단 기본 구조만
-      alert('웹에서는 푸시 알림 설정이 제한적입니다.');
-      // TODO: Web Push API 구현
+      if (isNativeApp()) {
+        const token = await requestPushTokenFromNative();
+        if (token) { await savePushTokenToUser(userInfo.uuid, token); setIsPushEnabled(true); }
+        else alert('푸시 알림 권한이 필요합니다.');
+      } else {
+        alert('웹 브라우저에서는 푸시 알림 설정이 제한적입니다. 앱에서 이용해 주세요.');
+      }
     }
   };
 
@@ -69,186 +71,155 @@ export default function MyPage() {
     try {
       const uuid = userInfo?.uuid;
       const token = localStorage.getItem('expoPushToken');
-  
       if (uuid && token) {
-        const userRef = doc(db, 'users', uuid);
-        const docSnap = await getDoc(userRef);
-        if (docSnap.exists()) {
-          await updateDoc(userRef, {
-            expoPushToken: deleteField(),
-          });
-        }
+        const ref = doc(db, 'users', uuid);
+        const snap = await getDoc(ref);
+        if (snap.exists()) await updateDoc(ref, { expoPushToken: deleteField() });
         localStorage.removeItem('expoPushToken');
       }
-  
       await clearUser();
       localStorage.removeItem('notificationHistory');
-
-      console.log('✅ 로그아웃 완료');
       router.replace('/login');
     } catch (e) {
-      console.error('🚨 로그아웃 오류:', e);
+      console.error(e);
       alert('로그아웃 중 오류가 발생했습니다.');
     }
   };
 
   if (!userInfo) {
     return (
-      <div className="d-flex min-vh-100 align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
+      <div className="min-vh-100 d-flex align-items-center justify-content-center" style={{ backgroundColor: '#F7F8FA' }}>
+        <div className="spinner-border text-primary" role="status" />
       </div>
     );
   }
 
-  const menuItems = [
-    {
-      icon: IoNotificationsOutline,
-      label: '알림 설정',
-      onClick: () => {},
-      content: (
-        <div className="d-flex justify-content-between align-items-center w-100">
-          <div>
-            <div className="fw-semibold mb-1">푸시 알림 받기</div>
-            <small className="text-muted">쿠폰 발급, 스탬프 회수 등의 알림을 받을 수 있습니다.</small>
-          </div>
-          <label className="form-check form-switch mb-0 ms-3">
-            <input
-              className="form-check-input"
-              type="checkbox"
-              checked={isPushEnabled}
-              onChange={togglePush}
-              style={{ cursor: 'pointer' }}
-            />
-          </label>
-        </div>
-      ),
-    },
-    {
-      icon: IoPersonOutline,
-      label: '회원 정보',
-      onClick: () => {},
-      content: (
-        <div className="w-100">
-          <div className="mb-2">
-            <span className="fw-semibold">이름:</span> {userInfo.name}
-          </div>
-          <div className="mb-2">
-            <span className="fw-semibold">생년월일:</span> {userInfo.dob}
-          </div>
-          <div>
-            <span className="fw-semibold">UUID:</span> <small className="text-muted">{userInfo.uuid}</small>
-          </div>
-        </div>
-      ),
-    },
-  ];
-
   return (
-    <div 
-      className="min-h-screen bg-gray-50"
-      style={{ 
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        position: 'relative',
-      }}
-    >
+    <div className="min-vh-100 pb-4" style={{ backgroundColor: '#F7F8FA', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <PageHeader title="마이페이지" />
-      <div className="container">
-        {/* 포인트 정보 */}
-        <div className="card shadow-sm mb-3">
-          <div className="card-body">
-            <h6 className="fw-semibold mb-3">포인트</h6>
-            <div className="row g-3">
-              <div className="col-6">
-                <div className="d-flex align-items-center p-3 rounded" style={{ backgroundColor: '#f8f9fa' }}>
-                  <IoGameControllerOutline size={24} className="text-primary me-2" />
-                  <div>
-                    <div className="text-muted small">게임 포인트</div>
-                    <div className="fw-bold fs-5">{gamePoints.toLocaleString()}P</div>
-                  </div>
-                </div>
-              </div>
-              <div className="col-6">
-                <div className="d-flex align-items-center p-3 rounded" style={{ backgroundColor: '#f8f9fa' }}>
-                  <IoChatbubblesOutline size={24} className="text-info me-2" />
-                  <div>
-                    <div className="text-muted small">커뮤니티 포인트</div>
-                    <div className="fw-bold fs-5">{communityPoints.toLocaleString()}P</div>
-                  </div>
-                </div>
+      <div className="container py-3" style={{ maxWidth: 480 }}>
+
+        {/* 프로필 카드 */}
+        <div className="mb-4 p-4" style={CARD}>
+          <div className="d-flex align-items-center gap-3">
+            <div
+              className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+              style={{ width: 56, height: 56, background: 'linear-gradient(135deg,#1B6FF5,#5B8DEF)' }}
+            >
+              <span style={{ fontSize: 20, fontWeight: 700, color: '#fff', fontFamily: FONT }}>
+                {userInfo.name[0]}
+              </span>
+            </div>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>{userInfo.name}</div>
+              <div style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT, marginTop: 2 }}>
+                {userInfo.dob?.length === 8
+                  ? `${userInfo.dob.slice(0, 4)}.${userInfo.dob.slice(4, 6)}.${userInfo.dob.slice(6)}`
+                  : userInfo.dob}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="card shadow-sm mb-3">
-          <div className="card-body">
-            {menuItems.map((item, index) => {
-              const Icon = item.icon;
-              return (
-                <div key={index} className={index > 0 ? 'border-top pt-3 mt-3' : ''}>
-                  <div className="d-flex align-items-start">
-                    <div
-                      className="rounded-circle d-flex align-items-center justify-content-center me-3"
-                      style={{ 
-                        width: '40px', 
-                        height: '40px',
-                        backgroundColor: '#f0f0f0',
-                        flexShrink: 0
-                      }}
-                    >
-                      <Icon size={20} className="text-primary" />
-                    </div>
-                    <div className="flex-grow-1">
-                      <h6 className="fw-semibold mb-2">{item.label}</h6>
-                      {item.content}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+        {/* 포인트 현황 */}
+        <div className="mb-3 px-1">
+          <span style={{ fontSize: 17, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>포인트 현황</span>
+        </div>
+        <div className="row g-3 mb-4">
+          <div className="col-6">
+            <div className="p-3 h-100" style={CARD}>
+              <div className="d-flex align-items-center gap-2 mb-1">
+                <IoGameControllerOutline size={18} color="#1B6FF5" />
+                <span style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>게임 포인트</span>
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>
+                {gamePoints.toLocaleString()}P
+              </div>
+            </div>
+          </div>
+          <div className="col-6">
+            <div className="p-3 h-100" style={CARD}>
+              <div className="d-flex align-items-center gap-2 mb-1">
+                <IoChatbubblesOutline size={18} color="#34C759" />
+                <span style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>커뮤니티</span>
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>
+                {communityPoints.toLocaleString()}P
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="card shadow-sm mb-3">
-          <div className="card-body">
-            <button
-              onClick={() => router.push('/boarding-form')}
-              className="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center mb-2"
-            >
-              <IoBoatOutline size={20} className="me-2" />
-              승선명부 작성
-            </button>
-            <button
-              onClick={() => router.push('/notification-history')}
-              className="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center"
-            >
-              <IoNotificationsOutline size={20} className="me-2" />
-              알림 내역
-            </button>
+        {/* 알림 설정 */}
+        <div className="mb-3 px-1">
+          <span style={{ fontSize: 17, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>설정</span>
+        </div>
+        <div className="mb-4" style={CARD}>
+          <div className="d-flex align-items-center gap-3 p-3">
+            <div className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+              style={{ width: 40, height: 40, backgroundColor: '#EBF1FE' }}>
+              <IoNotificationsOutline size={20} color="#1B6FF5" />
+            </div>
+            <div className="flex-grow-1">
+              <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1D1F', fontFamily: FONT }}>푸시 알림</div>
+              <div style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>쿠폰 발급, 스탬프 회수 알림</div>
+            </div>
+            <div className="form-check form-switch mb-0">
+              <input className="form-check-input" type="checkbox" checked={isPushEnabled} onChange={togglePush} style={{ cursor: 'pointer', width: 44, height: 24 }} />
+            </div>
+          </div>
+          <div style={{ height: 1, backgroundColor: '#F7F8FA', marginInline: 16 }} />
+          <div className="d-flex align-items-center gap-3 p-3">
+            <div className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+              style={{ width: 40, height: 40, backgroundColor: '#F0FAF4' }}>
+              <IoPersonOutline size={20} color="#34C759" />
+            </div>
+            <div className="flex-grow-1">
+              <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1D1F', fontFamily: FONT }}>내 정보</div>
+              <div style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>UUID: {userInfo.uuid.slice(0, 16)}…</div>
+            </div>
           </div>
         </div>
 
+        {/* 기능 버튼 */}
+        <div className="mb-4" style={CARD}>
+          {[
+            { icon: IoBoatOutline, color: '#007AFF', label: '승선명부 작성', path: '/boarding-form' },
+            { icon: IoNotificationsOutline, color: '#FF9500', label: '알림 내역', path: '/notification-history' },
+          ].map(({ icon: Icon, color, label, path }, idx, arr) => (
+            <button
+              key={path}
+              type="button"
+              onClick={() => router.push(path)}
+              className="btn w-100 d-flex align-items-center gap-3 p-3"
+              style={{
+                borderBottom: idx < arr.length - 1 ? '1px solid #F7F8FA' : 'none',
+                borderRadius: 0,
+                background: 'none',
+                textAlign: 'left',
+              }}
+            >
+              <div className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                style={{ width: 40, height: 40, backgroundColor: `${color}18` }}>
+                <Icon size={20} color={color} />
+              </div>
+              <span style={{ fontSize: 15, fontWeight: 600, color: '#1A1D1F', fontFamily: FONT, flexGrow: 1 }}>{label}</span>
+              <IoChevronForwardOutline size={18} color="#ABABAB" />
+            </button>
+          ))}
+        </div>
+
+        {/* 로그아웃 */}
         <button
+          type="button"
           onClick={handleLogout}
-          className="btn btn-danger w-100 d-flex align-items-center justify-content-center"
-          style={{
-            padding: '12px',
-            fontSize: '1rem',
-            fontWeight: '500',
-            borderRadius: '8px',
-          }}
+          className="btn w-100 d-flex align-items-center justify-content-center gap-2 fw-semibold"
+          style={{ backgroundColor: '#FFF0F0', color: '#FF3B30', borderRadius: 14, padding: '14px', border: 'none', fontFamily: FONT, fontSize: 15 }}
         >
-          <IoLogOutOutline size={20} className="me-2" />
+          <IoLogOutOutline size={20} />
           로그아웃
         </button>
       </div>
     </div>
   );
 }
-

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { loginOrRegisterUser, getUserByUUID } from '@/lib/firebase-auth';
 import { saveUser, getUser } from '@/lib/storage';
+import { isNativeApp, requestPushTokenFromNative, savePushTokenToUser } from '@/lib/native-bridge';
 import { notifyAllAdmins } from '@/utils/send-push';
 import { IoPersonOutline, IoCalendarOutline, IoDocumentTextOutline, IoCloseOutline } from 'react-icons/io5';
 
@@ -195,6 +196,13 @@ export default function LoginPage() {
           uuid: user.uuid,
           isAdmin: user.isAdmin || false
         });
+
+        if (isNativeApp()) {
+          const pushToken = await requestPushTokenFromNative();
+          if (pushToken) {
+            await savePushTokenToUser(user.uuid, pushToken);
+          }
+        }
   
         // ✅ 2. 저장 확인
         const storedUser = await import('@/lib/storage').then(m => m.getUser());
@@ -229,257 +237,155 @@ export default function LoginPage() {
     }
   };
   
+  const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+
   if (checkingAuth) {
     return (
-      <div 
-        className="min-h-screen bg-gray-50 d-flex align-items-center justify-content-center"
-        style={{ 
-          overflowY: 'auto',
-          WebkitOverflowScrolling: 'touch',
-          position: 'relative',
-        }}
-      >
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
+      <div className="min-vh-100 d-flex align-items-center justify-content-center" style={{ backgroundColor: '#F7F8FA' }}>
+        <div className="spinner-border text-primary" role="status" />
       </div>
     );
   }
 
   return (
-    <div 
-      className="min-h-screen bg-gray-50 d-flex align-items-center justify-content-center"
-      style={{ 
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        position: 'relative',
-        padding: '2rem 1rem',
-      }}
+    <div
+      className="min-vh-100 d-flex align-items-center justify-content-center"
+      style={{ backgroundColor: '#F7F8FA', overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '2rem 1rem' }}
     >
-      <div className="container">
-        <div className="d-flex align-items-center justify-content-center" style={{ width: '100%' }}>
-          <div className="w-100" style={{ maxWidth: '420px' }}>
-            {/* 로그인 카드 */}
-            <div 
-              className="bg-white rounded-3xl shadow-lg p-4 p-md-5"
-              style={{
-                border: 'none',
-              }}
-            >
-              {/* 타이틀 */}
-              <div className="text-center mb-4 mb-md-5">
-                <h1 className="mb-0 fw-bold" style={{ 
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  fontSize: '2rem',
-                }}>
-                  오고피씽
-                </h1>
-              </div>
-
-              {/* 입력 폼 */}
-              <div>
-                {/* 이름 입력 */}
-                <div className="position-relative mb-3">
-                  <IoPersonOutline 
-                    className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" 
-                    size={20} 
-                    style={{ zIndex: 10, pointerEvents: 'none' }}
-                  />
-                  <input
-                    type="text"
-                    placeholder="이름"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="form-control ps-5 py-3"
-                    style={{
-                      fontSize: '16px',
-                      borderRadius: '12px',
-                      border: '2px solid #dee2e6',
-                      transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = '#667eea';
-                      e.target.style.boxShadow = '0 0 0 0.2rem rgba(102, 126, 234, 0.25)';
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = '#dee2e6';
-                      e.target.style.boxShadow = 'none';
-                    }}
-                  />
-                </div>
-
-                {/* 생년월일 입력 */}
-                <div className="position-relative mb-3">
-                  <IoCalendarOutline 
-                    className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" 
-                    size={20} 
-                    style={{ zIndex: 10, pointerEvents: 'none' }}
-                  />
-                  <input
-                    type="text"
-                    placeholder="생년월일 (예: 720610)"
-                    value={dob}
-                    onChange={(e) => setDob(e.target.value)}
-                    className="form-control ps-5 py-3"
-                    maxLength={6}
-                    style={{
-                      fontSize: '16px',
-                      borderRadius: '12px',
-                      border: '2px solid #dee2e6',
-                      transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = '#667eea';
-                      e.target.style.boxShadow = '0 0 0 0.2rem rgba(102, 126, 234, 0.25)';
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = '#dee2e6';
-                      e.target.style.boxShadow = 'none';
-                    }}
-                  />
-                </div>
-
-                {/* 개인정보 동의 */}
-                <div className="d-flex align-items-center justify-content-between gap-2 mb-4">
-                  <div className="d-flex align-items-center flex-grow-1">
-                    <input
-                      type="checkbox"
-                      id="agree"
-                      checked={agreed}
-                      onChange={(e) => setAgreed(e.target.checked)}
-                      className="form-check-input me-2"
-                      style={{
-                        cursor: 'pointer',
-                        width: '20px',
-                        height: '20px',
-                        marginTop: 0,
-                      }}
-                    />
-                    <label htmlFor="agree" className="form-check-label text-muted small mb-0" style={{ cursor: 'pointer' }}>
-                      개인정보 처리방침에 동의합니다.
-                    </label>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowPrivacyModal(true)}
-                    className="btn btn-sm btn-outline-primary d-flex align-items-center gap-1"
-                    style={{
-                      borderRadius: '8px',
-                      whiteSpace: 'nowrap',
-                      borderColor: '#667eea',
-                      color: '#667eea',
-                    }}
-                  >
-                    <IoDocumentTextOutline size={16} />
-                    <span>보기</span>
-                  </button>
-                </div>
-
-                {/* 로그인 버튼 */}
-                <button
-                  onClick={handleLogin}
-                  disabled={isLoading || !agreed}
-                  className="btn w-100 py-3 fw-semibold text-white"
-                  style={{
-                    borderRadius: '12px',
-                    fontSize: '16px',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    border: 'none',
-                    opacity: (isLoading || !agreed) ? 0.6 : 1,
-                    cursor: (isLoading || !agreed) ? 'not-allowed' : 'pointer',
-                    transition: 'opacity 0.2s ease, transform 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isLoading && agreed) {
-                      e.currentTarget.style.opacity = '0.9';
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isLoading && agreed) {
-                      e.currentTarget.style.opacity = '1';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                    }
-                  }}
-                >
-                  {isLoading ? (
-                    <span className="d-flex align-items-center justify-content-center">
-                      <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                      로그인 중...
-                    </span>
-                  ) : (
-                    '로그인'
-                  )}
-                </button>
-              </div>
-            </div>
+      <div className="w-100" style={{ maxWidth: 420 }}>
+        {/* 브랜드 */}
+        <div className="text-center mb-5">
+          <div
+            className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+            style={{ width: 72, height: 72, background: 'linear-gradient(135deg,#1B6FF5,#5B8DEF)', boxShadow: '0 8px 24px rgba(27,111,245,0.3)' }}
+          >
+            <span style={{ fontSize: 28, fontWeight: 700, color: '#fff', fontFamily: FONT }}>오</span>
           </div>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT, marginBottom: 4 }}>오고피씽</h1>
+          <p style={{ fontSize: 14, color: '#6F767E', fontFamily: FONT }}>낚시 커뮤니티에 오신 것을 환영합니다</p>
+        </div>
+
+        {/* 카드 */}
+        <div className="p-4" style={{ backgroundColor: '#FFFFFF', borderRadius: 20, boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: 'none' }}>
+          {/* 이름 */}
+          <div className="position-relative mb-3">
+            <IoPersonOutline
+              className="position-absolute top-50 start-0 translate-middle-y ms-3"
+              size={20}
+              color="#ABABAB"
+              style={{ zIndex: 10, pointerEvents: 'none' }}
+            />
+            <input
+              type="text"
+              placeholder="이름"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className="form-control ps-5"
+              style={{ fontSize: 15, borderRadius: 12, border: '2px solid #EFEFEF', padding: '13px 16px 13px 44px', fontFamily: FONT, color: '#1A1D1F', outline: 'none' }}
+              onFocus={e => { e.target.style.borderColor = '#1B6FF5'; e.target.style.boxShadow = '0 0 0 3px rgba(27,111,245,0.12)'; }}
+              onBlur={e => { e.target.style.borderColor = '#EFEFEF'; e.target.style.boxShadow = 'none'; }}
+            />
+          </div>
+
+          {/* 생년월일 */}
+          <div className="position-relative mb-3">
+            <IoCalendarOutline
+              className="position-absolute top-50 start-0 translate-middle-y ms-3"
+              size={20}
+              color="#ABABAB"
+              style={{ zIndex: 10, pointerEvents: 'none' }}
+            />
+            <input
+              type="text"
+              placeholder="생년월일 (예: 720610)"
+              value={dob}
+              onChange={e => setDob(e.target.value)}
+              className="form-control ps-5"
+              maxLength={6}
+              inputMode="numeric"
+              style={{ fontSize: 15, borderRadius: 12, border: '2px solid #EFEFEF', padding: '13px 16px 13px 44px', fontFamily: FONT, color: '#1A1D1F' }}
+              onFocus={e => { e.target.style.borderColor = '#1B6FF5'; e.target.style.boxShadow = '0 0 0 3px rgba(27,111,245,0.12)'; }}
+              onBlur={e => { e.target.style.borderColor = '#EFEFEF'; e.target.style.boxShadow = 'none'; }}
+            />
+          </div>
+
+          {/* 개인정보 동의 */}
+          <div className="d-flex align-items-center gap-2 mb-4 p-3 rounded-3" style={{ backgroundColor: '#F7F8FA' }}>
+            <input
+              type="checkbox"
+              id="agree"
+              checked={agreed}
+              onChange={e => setAgreed(e.target.checked)}
+              className="form-check-input flex-shrink-0"
+              style={{ cursor: 'pointer', width: 20, height: 20, marginTop: 0, accentColor: '#1B6FF5' }}
+            />
+            <label htmlFor="agree" className="form-check-label flex-grow-1 mb-0" style={{ fontSize: 13, color: '#6F767E', cursor: 'pointer', fontFamily: FONT }}>
+              개인정보 처리방침에 동의합니다.
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowPrivacyModal(true)}
+              className="btn d-flex align-items-center gap-1 flex-shrink-0"
+              style={{ backgroundColor: '#EBF1FE', color: '#1B6FF5', borderRadius: 8, border: 'none', padding: '5px 10px', fontSize: 12, fontFamily: FONT, fontWeight: 600 }}
+            >
+              <IoDocumentTextOutline size={14} />
+              보기
+            </button>
+          </div>
+
+          {/* 로그인 버튼 */}
+          <button
+            type="button"
+            onClick={handleLogin}
+            disabled={isLoading || !agreed}
+            className="btn w-100 fw-bold d-flex align-items-center justify-content-center gap-2"
+            style={{
+              backgroundColor: '#1B6FF5',
+              color: '#fff',
+              borderRadius: 14,
+              padding: '14px',
+              border: 'none',
+              fontSize: 16,
+              fontFamily: FONT,
+              opacity: (isLoading || !agreed) ? 0.5 : 1,
+              cursor: (isLoading || !agreed) ? 'not-allowed' : 'pointer',
+              boxShadow: '0 4px 16px rgba(27,111,245,0.3)',
+            }}
+          >
+            {isLoading ? (
+              <><span className="spinner-border spinner-border-sm" role="status" />로그인 중...</>
+            ) : '로그인'}
+          </button>
         </div>
       </div>
 
       {/* 개인정보 처리방침 모달 */}
       {showPrivacyModal && (
-        <div 
+        <div
           className="modal show d-block"
-          style={{
-            backgroundColor: 'rgba(0, 0, 0, 0.6)',
-            backdropFilter: 'blur(4px)',
-          }}
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
           onClick={() => setShowPrivacyModal(false)}
           tabIndex={-1}
         >
-          <div 
+          <div
             className="modal-dialog modal-dialog-centered modal-dialog-scrollable"
-            style={{ maxWidth: '768px' }}
-            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 640 }}
+            onClick={e => e.stopPropagation()}
           >
-            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden', maxHeight: '85vh' }}>
-              {/* 모달 헤더 */}
-              <div 
-                className="modal-header border-0"
-                style={{
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  padding: '20px',
-                }}
-              >
-                <h5 className="modal-title text-white fw-bold mb-0">개인정보 처리방침</h5>
+            <div className="modal-content border-0" style={{ borderRadius: 20, overflow: 'hidden', maxHeight: '85vh' }}>
+              <div className="modal-header border-0 px-4 pt-4 pb-2">
+                <h5 className="modal-title fw-bold" style={{ color: '#1A1D1F', fontFamily: FONT }}>개인정보 처리방침</h5>
+                <button type="button" className="btn-close" onClick={() => setShowPrivacyModal(false)} />
+              </div>
+              <div className="modal-body px-4" style={{ overflowY: 'auto' }}>
+                <div dangerouslySetInnerHTML={{ __html: privacyHtml }} style={{ fontSize: 14, lineHeight: 1.6 }} />
+              </div>
+              <div className="modal-footer border-0 px-4 pb-4 pt-2">
                 <button
                   type="button"
-                  className="btn-close btn-close-white"
                   onClick={() => setShowPrivacyModal(false)}
-                  style={{ opacity: 0.8 }}
-                ></button>
-              </div>
-              
-              {/* 모달 본문 */}
-              <div className="modal-body p-4" style={{ maxHeight: 'calc(85vh - 160px)', overflowY: 'auto' }}>
-                <div 
-                  className="prose prose-sm max-w-none"
-                  dangerouslySetInnerHTML={{ __html: privacyHtml }}
-                  style={{
-                    fontSize: '14px',
-                    lineHeight: '1.6',
-                  }}
-                />
-              </div>
-              
-              {/* 모달 푸터 */}
-              <div className="modal-footer border-0 pt-0">
-                <button
-                  type="button"
-                  className="btn w-100 text-white fw-semibold"
-                  onClick={() => setShowPrivacyModal(false)}
-                  style={{
-                    borderRadius: '12px',
-                    padding: '12px',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    border: 'none',
-                  }}
+                  className="btn w-100 fw-semibold"
+                  style={{ backgroundColor: '#1B6FF5', color: '#fff', borderRadius: 12, padding: 13, border: 'none', fontFamily: FONT }}
                 >
                   확인
                 </button>

@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "dev:mobile": "cd mobile && npm start",
+    "mobile:install": "cd mobile && npm install"
   },
   "dependencies": {
     "@ckeditor/ckeditor5-build-classic": "^41.4.2",

@@ -313,6 +313,32 @@ function GamePlayContent() {
             display: 'block',
           }}
         />
+        {/* 게임 종료 버튼 */}
+        <button
+          onClick={() => router.back()}
+          style={{
+            position: 'fixed',
+            top: '16px',
+            left: '16px',
+            zIndex: 10001,
+            width: '40px',
+            height: '40px',
+            borderRadius: '50%',
+            border: 'none',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            color: 'white',
+            fontSize: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+          }}
+          aria-label="게임 종료"
+        >
+          ✕
+        </button>
         {savingScore && (
           <div style={{
             position: 'fixed',

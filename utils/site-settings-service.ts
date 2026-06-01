@@ -21,15 +21,20 @@ export interface SiteSettings {
 // 기본 사이트 이름
 const DEFAULT_SITE_NAME = '오고피씽';
 
+// Travelia 스타일 기본 하단 탭 (홈·커뮤니티·스탬프·피씽몰·마이)
+const TRAVELIA_BOTTOM_TAB_IDS = ['home', 'community', 'stamp', 'closed-mall', 'my-page'];
+
 // 기본 메뉴 항목 (초기 데이터)
 const DEFAULT_MENU_ITEMS: MenuItem[] = [
-  { id: 'home', label: '홈', path: '/main', iconName: 'IoHomeOutline', color: '#1E88E5', order: -1, isActive: true },
-  { id: 'stamp', label: '스탬프', path: '/stamp', iconName: 'FiClipboard', color: '#FF9500', order: 0, isActive: true },
-  { id: 'coupons', label: '쿠폰', path: '/coupons', iconName: 'FiGift', color: '#FF2D55', order: 1, isActive: true },
-  { id: 'mini-games', label: '미니 게임', path: '/mini-games', iconName: 'IoGameControllerOutline', color: '#FF3B30', order: 2, isActive: true },
-  { id: 'boarding-form', label: '명부 작성', path: '/boarding-form', iconName: 'IoBoatOutline', color: '#007AFF', order: 3, isActive: true },
-  { id: 'community', label: '커뮤니티', path: '/community', iconName: 'IoChatbubblesOutline', color: '#00BCD4', order: 4, isActive: true },
-  { id: 'my-page', label: '마이페이지', path: '/my-page', iconName: 'IoPersonOutline', color: '#9C27B0', order: 5, isActive: true },
+  { id: 'home', label: '홈', path: '/main', iconName: 'IoHomeOutline', color: '#1B6FF5', order: -1, isActive: true },
+  { id: 'coupons', label: '쿠폰', path: '/coupons', iconName: 'FiGift', color: '#1B6FF5', order: 0, isActive: true },
+  { id: 'stamp', label: '스탬프', path: '/stamp', iconName: 'FiClipboard', color: '#1B6FF5', order: 1, isActive: true },
+  { id: 'notifications', label: '알림', path: '/notification-history', iconName: 'IoNotificationsOutline', color: '#1B6FF5', order: 2, isActive: true },
+  { id: 'my-page', label: '마이', path: '/my-page', iconName: 'IoPersonOutline', color: '#1B6FF5', order: 3, isActive: true },
+  { id: 'mini-games', label: '미니 게임', path: '/mini-games', iconName: 'IoGameControllerOutline', color: '#FF3B30', order: 4, isActive: true },
+  { id: 'boarding-form', label: '명부 작성', path: '/boarding-form', iconName: 'IoBoatOutline', color: '#007AFF', order: 5, isActive: true },
+  { id: 'community', label: '커뮤니티', path: '/community', iconName: 'IoChatbubblesOutline', color: '#00BCD4', order: 6, isActive: true },
+  { id: 'closed-mall', label: '피씽몰', path: '/closed-mall', iconName: 'IoStorefrontOutline', color: '#9C27B0', order: 7, isActive: true },
 ];
 
 /**
@@ -146,23 +151,25 @@ export async function getBottomTabMenuItems(): Promise<MenuItem[]> {
     console.log('getBottomTabMenuItems - activeMenuItems:', activeMenuItems);
     
     if (bottomTabMenuIds.length === 0) {
-      // 설정이 없으면 기본값으로 처음 5개 활성 메뉴 항목 반환 (홈 포함 여부는 사용자 설정에 따름)
-      const sortedItems = activeMenuItems.sort((a, b) => a.order - b.order);
-      const defaultItems = sortedItems.slice(0, 5);
-      
-      console.log('BottomTabMenu: No configuration found, using default items:', defaultItems);
+      const defaultItems = TRAVELIA_BOTTOM_TAB_IDS.map((id) => {
+        if (id === 'home') return homeMenuItem;
+        return activeMenuItems.find((item) => item.id === id) ?? DEFAULT_MENU_ITEMS.find((m) => m.id === id);
+      }).filter((item): item is MenuItem => item !== undefined);
+
+      console.log('BottomTabMenu: No configuration found, using Travelia default tabs:', defaultItems);
       return defaultItems;
     }
     
     // bottomTabMenuIds 순서대로 정렬
     const bottomTabItems = bottomTabMenuIds
       .map(id => {
-        // 홈 메뉴 항목인 경우 별도 처리
         if (id === 'home') {
           return homeMenuItem;
         }
-        // 일반 메뉴 항목은 activeMenuItems에서 찾기
-        return activeMenuItems.find(item => item.id === id);
+        return (
+          activeMenuItems.find(item => item.id === id) ??
+          DEFAULT_MENU_ITEMS.find(m => m.id === id)
+        );
       })
       .filter((item): item is MenuItem => item !== undefined);
     
@@ -171,11 +178,20 @@ export async function getBottomTabMenuItems(): Promise<MenuItem[]> {
   } catch (error) {
     console.error('Error getting bottom tab menu items:', error);
     // 에러 발생 시 기본 메뉴 항목 반환
-    const defaultItems = DEFAULT_MENU_ITEMS
-      .filter(item => item.isActive)
-      .sort((a, b) => a.order - b.order)
-      .slice(0, 5);
-    console.log('BottomTabMenu: Error occurred, using default items:', defaultItems);
+    const homeMenuItem: MenuItem = {
+      id: 'home',
+      label: '홈',
+      path: '/main',
+      iconName: 'IoHomeOutline',
+      color: '#1B6FF5',
+      order: -1,
+      isActive: true,
+    };
+    const defaultItems = TRAVELIA_BOTTOM_TAB_IDS.map((id) => {
+      if (id === 'home') return homeMenuItem;
+      return DEFAULT_MENU_ITEMS.find((m) => m.id === id);
+    }).filter((item): item is MenuItem => item !== undefined);
+    console.log('BottomTabMenu: Error occurred, using Travelia default items:', defaultItems);
     return defaultItems;
   }
 }

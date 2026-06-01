@@ -1,14 +1,21 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Script from "next/script";
 import { LoadingProvider } from "@/contexts/LoadingContext";
 import PageLoader from "@/components/PageLoader";
 import SiteTitle from "@/components/SiteTitle";
 import BottomTabBar from "@/components/BottomTabBar";
+import NativeBridgeInit from "@/components/NativeBridgeInit";
 
 export const metadata: Metadata = {
   title: "오고피씽",
   description: "오고피씽 - 낚시 미니게임과 포인트 시스템",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -19,9 +26,10 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className="antialiased">
+        <NativeBridgeInit />
         <SiteTitle />
         <LoadingProvider>
-          <div className="container-fluid pt-3 px-0 bg-gray-50">
+          <div className="container-fluid px-0 bg-gray-50">
             {children}
           </div>
           <BottomTabBar />

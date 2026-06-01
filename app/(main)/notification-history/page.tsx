@@ -1,114 +1,79 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { IoTrashOutline } from 'react-icons/io5';
+import { IoTrashOutline, IoNotificationsOutline } from 'react-icons/io5';
 import PageHeader from '@/components/PageHeader';
 
-type NotificationLog = {
-  title: string;
-  body: string;
-  time: string;
-};
+const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+
+type NotificationLog = { title: string; body: string; time: string };
 
 export default function NotificationHistoryPage() {
-  const router = useRouter();
   const [history, setHistory] = useState<NotificationLog[]>([]);
 
   const loadHistory = () => {
-    if (typeof window !== 'undefined') {
+    if (typeof window === 'undefined') return;
+    try {
       const json = localStorage.getItem('notificationHistory');
-      if (json) {
-        try {
-          setHistory(JSON.parse(json));
-        } catch (e) {
-          console.error('알림 내역 파싱 오류:', e);
-          setHistory([]);
-        }
-      }
-    }
+      if (json) setHistory(JSON.parse(json));
+    } catch { setHistory([]); }
   };
 
-  useEffect(() => {
-    loadHistory();
-  }, []);
+  useEffect(() => { loadHistory(); }, []);
 
-  const onRefresh = () => {
-    loadHistory();
-  };
-
-
-  const clearHistory = async () => {
+  const clearHistory = () => {
     if (!confirm('모든 알림 기록을 삭제하시겠습니까?')) return;
-    
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('notificationHistory');
-      setHistory([]);
-    }
+    localStorage.removeItem('notificationHistory');
+    setHistory([]);
   };
 
   return (
-    <div 
-      className="min-vh-100 bg-light"
-      style={{ 
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        position: 'relative',
-      }}
-    >
+    <div className="min-vh-100 pb-4" style={{ backgroundColor: '#F7F8FA', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <PageHeader title="알림 내역" />
-      <div className="container">
-          {history.length > 0 && (
+      <div className="container py-3" style={{ maxWidth: 480 }}>
+
+        {history.length > 0 && (
           <div className="d-flex justify-content-end mb-3">
-            <button 
-              className="btn btn-outline-danger d-flex align-items-center justify-content-center gap-2"
+            <button
+              type="button"
               onClick={clearHistory}
-              style={{
-                padding: '8px 16px',
-                fontSize: '0.9rem',
-                fontWeight: '500',
-                borderRadius: '8px',
-                transition: 'all 0.2s ease'
-              }}
+              className="btn d-flex align-items-center gap-2"
+              style={{ backgroundColor: '#FFF0F0', color: '#FF3B30', borderRadius: 10, border: 'none', padding: '8px 14px', fontSize: 13, fontFamily: FONT }}
             >
-              <IoTrashOutline size={18} className="flex-shrink-0" />
-              <span>기록 초기화</span>
+              <IoTrashOutline size={15} />
+              기록 삭제
             </button>
           </div>
-          )}
+        )}
 
-        <div className="d-flex flex-column gap-3">
-          {history.map((item, index) => (
-            <div key={index} className="card shadow-sm border-0">
-              <div className="card-body p-3">
-                <h6 className="card-title mb-2 fw-semibold" style={{ fontSize: '1rem' }}>{item.title}</h6>
-                <p className="card-text mb-2 text-muted" style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>{item.body}</p>
-                <small className="text-muted" style={{ fontSize: '0.8rem' }}>
-                  {new Date(item.time).toLocaleString('ko-KR', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </small>
+        {history.length === 0 ? (
+          <div className="py-5 text-center" style={{ backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <IoNotificationsOutline size={52} color="#EFEFEF" />
+            <p className="mt-3 mb-1" style={{ color: '#6F767E', fontFamily: FONT, fontWeight: 600 }}>저장된 알림이 없습니다.</p>
+            <p style={{ color: '#ABABAB', fontFamily: FONT, fontSize: 13 }}>로그아웃 시 알림 내역이 삭제됩니다.</p>
+          </div>
+        ) : (
+          <div className="d-flex flex-column gap-2">
+            {history.map((item, index) => (
+              <div
+                key={index}
+                className="p-3"
+                style={{ backgroundColor: '#FFFFFF', borderRadius: 14, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', borderLeft: '4px solid #1B6FF5' }}
+              >
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT, marginBottom: 4 }}>
+                  {item.title}
+                </div>
+                <div style={{ fontSize: 14, color: '#6F767E', fontFamily: FONT, lineHeight: 1.5, marginBottom: 8 }}>
+                  {item.body}
+                </div>
+                <div style={{ fontSize: 12, color: '#ABABAB', fontFamily: FONT }}>
+                  {new Date(item.time).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-
-        {history.length === 0 && (
-          <div className="text-center py-5">
-            <p className="text-muted mb-0" style={{ fontSize: '0.95rem' }}>
-              🔔 저장된 알림이 없습니다.
-            </p>
-            <p className="text-muted mt-2 mb-0" style={{ fontSize: '0.85rem' }}>
-              (로그아웃 시 알림 내역은 자동으로 삭제됩니다.)
-            </p>
+            ))}
           </div>
         )}
       </div>
     </div>
   );
 }
-

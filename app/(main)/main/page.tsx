@@ -3,167 +3,229 @@
 import { useEffect, useCallback, useState } from 'react';
 import { getUser } from '@/lib/storage';
 import { getUserByUUID } from '@/lib/firebase-auth';
-import { getUserMenuItems, MenuItem } from '@/utils/site-settings-service';
-import { getIconComponent } from '@/utils/icon-mapper';
-import { getSiteName } from '@/utils/site-settings-service';
+import { getStamps, getCouponCount } from '@/utils/stamp-service';
+import { getPhotos, type CommunityPhoto } from '@/utils/community-service';
+import { getActiveGames, type Game } from '@/lib/game-service';
 import { useNavigation } from '@/hooks/useNavigation';
-import PageHeader from '@/components/PageHeader';
-import { IoPeopleOutline, IoCalendarOutline, IoNotificationsOutline, IoGameControllerOutline, IoBoatOutline, IoSettingsOutline, IoChatbubblesOutline, IoImageOutline, IoConstructOutline } from 'react-icons/io5';
-
-interface MenuItemWithIcon extends MenuItem {
-  icon: React.ComponentType<any>;
-}
+import AvatarHeader from '@/components/home/AvatarHeader';
+import StampCouponSummary from '@/components/home/StampCouponSummary';
+import SectionHeader from '@/components/home/SectionHeader';
+import GridCard from '@/components/home/GridCard';
+import FeaturedCard from '@/components/home/FeaturedCard';
+import ProductGridCard from '@/components/home/ProductGridCard';
+import WeeklyTripSummary from '@/components/home/WeeklyTripSummary';
+import { CLOSED_MALL_PRODUCTS } from '@/constants/closed-mall';
+import { format } from 'date-fns';
 
 export default function MainPage() {
   const { navigate, navigateReplace } = useNavigation();
-  const [menuItems, setMenuItems] = useState<MenuItemWithIcon[]>([]);
-  const [siteName, setSiteName] = useState('오고피씽');
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<{ uuid?: string; name?: string; dob?: string } | null>(null);
+  const [stampCount, setStampCount] = useState(0);
+  const [couponCount, setCouponCount] = useState(0);
+  const [photos, setPhotos] = useState<CommunityPhoto[]>([]);
+  const [games, setGames] = useState<Game[]>([]);
+
+  const loadRemoteData = useCallback(async (uuid: string) => {
+    try {
+      const [stamps, coupons, photoList, activeGames] = await Promise.all([
+        getStamps(uuid),
+        getCouponCount(uuid),
+        getPhotos(4),
+        getActiveGames(),
+      ]);
+      setStampCount(stamps.length);
+      setCouponCount(coupons);
+      setPhotos(photoList);
+      setGames(activeGames);
+    } catch (error) {
+      console.error('Error loading home data:', error);
+    }
+  }, []);
 
   const handleRefresh = useCallback(async () => {
-    // 메인 페이지는 단순히 인증 확인만
-    const user = await getUser();
-    if (!user?.uuid) {
-      navigateReplace('/login');
-      return;
-    }
-
-    // 관리자 여부 확인
-    const remoteUser = await getUserByUUID(user.uuid);
-    const userIsAdmin = !!remoteUser?.isAdmin;
-    setIsAdmin(userIsAdmin);
-
-    // 사이트 설정 로드
+    setLoading(true);
     try {
-      let menuItemsData: MenuItem[];
-      let pageTitle: string;
-
-      if (userIsAdmin) {
-        // 관리자인 경우 관리자 메뉴 표시
-        menuItemsData = [
-          { id: 'admin-users', label: '회원 관리', path: '/admin', iconName: 'IoPeopleOutline', color: '#1E88E5', isActive: true, order: 1 },
-          { id: 'admin-roster', label: '승선 명부', path: '/today-roster', iconName: 'IoCalendarOutline', color: '#FF5722', isActive: true, order: 2 },
-          { id: 'admin-push', label: '전체 알림', path: '/admin-push', iconName: 'IoNotificationsOutline', color: '#FF9500', isActive: true, order: 3 },
-          { id: 'admin-games', label: '미니 게임', path: '/mini-games', iconName: 'IoGameControllerOutline', color: '#FF3B30', isActive: true, order: 4 },
-          { id: 'admin-game-settings', label: '게임 설정', path: '/admin-game-settings', iconName: 'IoSettingsOutline', color: '#4CAF50', isActive: true, order: 5 },
-          { id: 'admin-boarding', label: '명부 작성', path: '/boarding-form', iconName: 'IoBoatOutline', color: '#007AFF', isActive: true, order: 6 },
-          { id: 'admin-photos', label: '조황사진 관리', path: '/admin-photos', iconName: 'IoImageOutline', color: '#9C27B0', isActive: true, order: 7 },
-          { id: 'admin-community', label: '커뮤니티 관리', path: '/admin-community', iconName: 'IoChatbubblesOutline', color: '#00BCD4', isActive: true, order: 8 },
-          { id: 'admin-site-settings', label: '사이트 설정', path: '/admin-site-settings', iconName: 'IoConstructOutline', color: '#795548', isActive: true, order: 9 },
-        ];
-        pageTitle = '관리자';
-      } else {
-        // 일반 사용자인 경우 일반 메뉴 표시
-        const [userMenuItems, siteNameData] = await Promise.all([
-          getUserMenuItems(),
-          getSiteName(),
-        ]);
-        menuItemsData = userMenuItems;
-        pageTitle = siteNameData;
+      const localUser = await getUser();
+      if (!localUser?.uuid) {
+        navigateReplace('/login');
+        return;
       }
 
-      // 아이콘 컴포넌트 매핑
-      const itemsWithIcons: MenuItemWithIcon[] = menuItemsData
-        .map((item) => {
-          const IconComponent = getIconComponent(item.iconName);
-          if (!IconComponent) {
-            console.warn(`Icon not found: ${item.iconName}`);
-            return null;
-          }
-          return {
-            ...item,
-            icon: IconComponent,
-          };
-        })
-        .filter((item): item is MenuItemWithIcon => item !== null);
+      // 로컬 유저로 즉시 화면 표시 (Firestore 응답 대기 안 함)
+      setUser(localUser);
+      setLoading(false);
 
-      setMenuItems(itemsWithIcons);
-      setSiteName(pageTitle);
+      // 백그라운드에서 원격 유저 검증 및 데이터 로딩
+      void (async () => {
+        try {
+          const remoteUser = await getUserByUUID(localUser.uuid!);
+          if (!remoteUser) {
+            navigateReplace('/login');
+            return;
+          }
+          if (remoteUser.isAdmin) {
+            navigateReplace('/admin-main');
+            return;
+          }
+        } catch (err) {
+          console.warn('Remote user check failed:', err);
+        }
+        void loadRemoteData(localUser.uuid!);
+      })();
     } catch (error) {
-      console.error('Error loading site settings:', error);
-    } finally {
+      console.error('handleRefresh error:', error);
       setLoading(false);
     }
-  }, [navigateReplace]);
+  }, [navigateReplace, loadRemoteData]);
 
   useEffect(() => {
-    handleRefresh();
+    void handleRefresh();
   }, [handleRefresh]);
 
-  if (loading) {
+  const photoTitle = (photo: CommunityPhoto) =>
+    photo.title || photo.uploadedByName || '조황 사진';
+
+  const photoDate = (photo: CommunityPhoto) => {
+    const raw = photo.uploadedAt;
+    const d =
+      raw instanceof Date
+        ? raw
+        : raw && typeof (raw as { toDate?: () => Date }).toDate === 'function'
+          ? (raw as { toDate: () => Date }).toDate()
+          : new Date(String(raw));
+    try {
+      return format(d, 'MM.dd');
+    } catch {
+      return '';
+    }
+  };
+
+  const gameImage = (game: Game) => game.thumbnail_url || undefined;
+
+  if (loading || !user?.uuid) {
     return (
-      <div 
-        className="min-vh-100 bg-light"
-        style={{ 
-          overflowY: 'auto',
-          WebkitOverflowScrolling: 'touch',
-          position: 'relative',
-        }}
+      <div
+        className="min-vh-100 d-flex align-items-center justify-content-center"
+        style={{ backgroundColor: '#F7F8FA' }}
       >
-        <PageHeader title="오고피씽" showBackButton={false} />
-        <div className="container">
-          <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '50vh' }}>
-            <div className="text-center">
-              <div className="spinner-border text-primary mb-3" role="status">
-                <span className="visually-hidden">로딩 중...</span>
-              </div>
-              <p className="text-muted">로딩 중...</p>
-            </div>
-          </div>
+        <div className="text-center">
+          <div className="spinner-border text-primary mb-3" role="status" />
+          <p className="text-muted">로딩 중...</p>
         </div>
       </div>
     );
   }
 
+  const query = `uuid=${user.uuid}&name=${encodeURIComponent(user.name || '')}&dob=${user.dob || ''}`;
+
   return (
-    <div 
-      className="min-vh-100 bg-light"
-      style={{ 
+    <div
+      className="min-vh-100 pb-4"
+      style={{
+        backgroundColor: '#F7F8FA',
         overflowY: 'auto',
         WebkitOverflowScrolling: 'touch',
-        position: 'relative',
       }}
     >
-      <PageHeader title={siteName} showBackButton={false} />
-      <div className="container">
+      <div className="px-3" style={{ maxWidth: 480, margin: '0 auto' }}>
+        <AvatarHeader
+          userName={user.name || '회원'}
+          onMyPage={() => navigate('/my-page')}
+        />
 
-        <div className="row g-4">
-          {menuItems.length === 0 ? (
-            <div className="col-12">
-              <div className="text-center py-5">
-                <p className="text-muted">메뉴가 없습니다.</p>
-              </div>
+        <div className="mb-4">
+          <StampCouponSummary
+            stampCount={stampCount}
+            couponCount={couponCount}
+            onStampClick={() => navigate(`/stamp?${query}`)}
+            onCouponClick={() => navigate(`/coupons?${query}`)}
+            onQrScan={() => navigate(`/qr-scan?${query}`)}
+          />
+        </div>
+
+        <WeeklyTripSummary onViewAll={() => navigate('/community/trip-guide')} />
+
+        <section className="mb-4">
+          <SectionHeader
+            title="커뮤니티"
+            onViewAll={() => navigate('/community/photos')}
+          />
+          {photos.length === 0 ? (
+            <div
+              className="bg-white rounded-4 p-4 text-center text-muted"
+              style={{ borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
+            >
+              아직 조황 사진이 없어요
             </div>
           ) : (
-            menuItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div key={item.id} className="col-6 col-md-4 col-lg-3">
-                  <button
-                    onClick={() => navigate(item.path)}
-                    className="btn btn-light w-100 h-100 p-4 d-flex flex-column align-items-center shadow-sm"
-                    style={{ minHeight: '150px' }}
-                  >
-                    <div
-                      className="rounded-circle d-flex align-items-center justify-content-center mb-3"
-                      style={{ 
-                        width: '80px', 
-                        height: '80px',
-                        backgroundColor: `${item.color}20` 
-                      }}
-                    >
-                      <Icon size={40} style={{ color: item.color }} />
-                    </div>
-                    <span className="fw-medium text-dark">{item.label}</span>
-                  </button>
+            <div className="row g-3">
+              {photos.map((photo) => (
+                <div key={photo.photoId} className="col-6">
+                  <GridCard
+                    title={photoTitle(photo)}
+                    subtitle={photoDate(photo)}
+                    imageUrl={photo.imageUrls?.[0] || photo.imageUrl}
+                    onClick={() => navigate(`/community/${photo.photoId}`)}
+                  />
                 </div>
-              );
-            })
+              ))}
+            </div>
           )}
-        </div>
+        </section>
+
+        <section className="mb-4">
+          <SectionHeader title="미니게임" onViewAll={() => navigate('/mini-games')} />
+          {games.length === 0 ? (
+            <div
+              className="bg-white rounded-4 p-4 text-center text-muted"
+              style={{ borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
+            >
+              준비 중인 게임이 없습니다
+            </div>
+          ) : (
+            <div
+              className="d-flex gap-3 overflow-auto pb-1"
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            >
+              {games.map((game, i) => (
+                <FeaturedCard
+                  key={game.game_id}
+                  title={game.game_name}
+                  imageUrl={gameImage(game)}
+                  badge={i === 0 ? '인기' : undefined}
+                  onClick={() => navigate(`/mini-games/${game.game_id}`)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="mb-2">
+          <SectionHeader
+            title="오고피씽몰"
+            badge={
+              <span
+                className="badge rounded-pill"
+                style={{ backgroundColor: '#1B6FF5', fontSize: '10px' }}
+              >
+                멤버 전용
+              </span>
+            }
+            onViewAll={() => navigate('/closed-mall')}
+          />
+          <div className="row g-3">
+            {CLOSED_MALL_PRODUCTS.slice(0, 4).map((product) => (
+              <div key={product.id} className="col-6">
+                <ProductGridCard
+                  product={product}
+                  onClick={() => navigate('/closed-mall')}
+                />
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
     </div>
   );
 }
-

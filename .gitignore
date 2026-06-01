@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Expo mobile (mobile/.gitignore mirrors most rules)
+mobile/node_modules/
+mobile/.expo/

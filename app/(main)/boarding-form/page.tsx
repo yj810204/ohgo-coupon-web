@@ -1,12 +1,23 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getUser } from '@/lib/storage';
 import { getDoc, setDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { IoCheckboxOutline, IoSquareOutline } from 'react-icons/io5';
+import { IoCheckboxOutline, IoSquareOutline, IoSearchOutline } from 'react-icons/io5';
 import PageHeader from '@/components/PageHeader';
+
+// 다음 우편번호 API 타입 선언
+declare global {
+  interface Window {
+    daum?: {
+      Postcode: new (options: {
+        oncomplete: (data: { address: string; addressType: string; bname: string; buildingName: string }) => void;
+      }) => { open: () => void };
+    };
+  }
+}
 
 const PRIVACY_POLICY_HTML = `
 <!DOCTYPE html>
@@ -77,6 +88,7 @@ function BoardingFormContent() {
   const [phone, setPhone] = useState('');
   const [emergency, setEmergency] = useState('');
   const [address, setAddress] = useState('');
+  const [addressDetail, setAddressDetail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [role, setRole] = useState('');
@@ -85,6 +97,35 @@ function BoardingFormContent() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showThirdPartyModal, setShowThirdPartyModal] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // 다음 우편번호 스크립트 로드
+  useEffect(() => {
+    if (document.getElementById('daum-postcode-script')) return;
+    const script = document.createElement('script');
+    script.id = 'daum-postcode-script';
+    script.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+    script.async = true;
+    document.head.appendChild(script);
+  }, []);
+
+  const openAddressSearch = useCallback(() => {
+    if (!window.daum?.Postcode) {
+      alert('주소 검색 서비스를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+    new window.daum.Postcode({
+      oncomplete: (data) => {
+        let fullAddress = data.address;
+        if (data.addressType === 'R') {
+          if (data.bname) fullAddress += ` (${data.bname}`;
+          if (data.buildingName) fullAddress += data.bname ? `, ${data.buildingName})` : ` (${data.buildingName})`;
+          else if (data.bname) fullAddress += ')';
+        }
+        setAddress(fullAddress);
+        setAddressDetail('');
+      },
+    }).open();
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
@@ -229,7 +270,7 @@ function BoardingFormContent() {
         gender,
         phone,
         emergency,
-        address,
+        address: addressDetail ? `${address} ${addressDetail}` : address,
         agreed,
         agreedThirdParty,
       };
@@ -279,9 +320,9 @@ function BoardingFormContent() {
   }
 
   return (
-    <div className="min-vh-100 bg-light" style={{ paddingBottom: '80px' }}>
+    <div className="min-vh-100" style={{ backgroundColor: '#F7F8FA', paddingBottom: '80px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <PageHeader title="명부 작성" />
-      <div className="container">
+      <div className="container py-3" style={{ maxWidth: 480 }}>
         <div className="card shadow-sm">
           <div className="card-body">
 
@@ -352,12 +393,43 @@ function BoardingFormContent() {
 
             <div className="mb-3">
               <label className="form-label">주소 *</label>
-              <input
-                type="text"
-                className="form-control"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-              />
+              <div className="d-flex gap-2 mb-2">
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="주소 검색 버튼을 눌러주세요"
+                  value={address}
+                  readOnly
+                  style={{ backgroundColor: address ? '#fff' : '#F7F8FA', cursor: 'default' }}
+                />
+                <button
+                  type="button"
+                  onClick={openAddressSearch}
+                  className="btn d-flex align-items-center gap-1 flex-shrink-0 fw-semibold"
+                  style={{
+                    backgroundColor: '#1B6FF5',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 10,
+                    padding: '8px 14px',
+                    fontSize: 13,
+                    whiteSpace: 'nowrap',
+                    fontFamily: "'Urbanist', var(--font-urbanist), sans-serif",
+                  }}
+                >
+                  <IoSearchOutline size={15} />
+                  검색
+                </button>
+              </div>
+              {address && (
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="상세 주소 입력 (동/호수 등)"
+                  value={addressDetail}
+                  onChange={(e) => setAddressDetail(e.target.value)}
+                />
+              )}
             </div>
 
             {isAdmin && (

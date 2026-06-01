@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 오고피씽 (ohgo-coupon-web)
 
-## Getting Started
+낚시 커뮤니티·스탬프·쿠폰·미니게임·폐쇄몰 웹앱 + Expo WebView 모바일 셸.
 
-First, run the development server:
+## 웹앱 (Next.js)
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 모바일 앱 (Expo SDK 54 WebView)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+웹 UI를 그대로 로드하는 Thin Shell 앱입니다. 웹 배포만으로 앱 화면이 갱신됩니다.
 
-## Learn More
+```bash
+npm run mobile:install
+# mobile/.env 에 EXPO_PUBLIC_WEB_URL 설정
+npm run dev          # 웹 (터미널 1)
+npm run dev:mobile   # Expo (터미널 2)
+```
 
-To learn more about Next.js, take a look at the following resources:
+자세한 내용: [mobile/README.md](./mobile/README.md)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 주요 기능
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- QR 스캔 · 스탬프 적립 · 쿠폰 발급
+- 커뮤니티(조황 사진)
+- 미니게임
+- 폐쇄몰 (회원 전용)
+- 승선 명부 · 관리자
 
-## Deploy on Vercel
+## 백엔드
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Firebase Firestore / Storage
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## UI
+
+[Travelia UI Kit](https://www.figma.com/design/g1kWumlVq6GAwpoIvU1229) 스타일 참고 (Urbanist, 카드형 홈)

@@ -4,9 +4,60 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getStamps, getCouponCount, issue50PercentCoupon, deleteStamp } from '@/utils/stamp-service';
 import { getUser } from '@/lib/storage';
-import { FiTag, FiX } from 'react-icons/fi';
-import { IoQrCodeOutline, IoPricetagOutline, IoGiftOutline } from 'react-icons/io5';
+import { IoQrCodeOutline, IoPricetagOutline, IoGiftOutline, IoCheckmarkCircleOutline } from 'react-icons/io5';
 import PageHeader from '@/components/PageHeader';
+
+const CARD_STYLE: React.CSSProperties = {
+  backgroundColor: '#FFFFFF',
+  borderRadius: 16,
+  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+  border: 'none',
+  fontFamily: "'Urbanist', var(--font-urbanist), sans-serif",
+};
+
+function StampCard({ raw, isFifth, fromAdmin, onTap }: {
+  raw: string;
+  isFifth: boolean;
+  fromAdmin: boolean;
+  onTap: (raw: string, isFifth: boolean) => void;
+}) {
+  const [date, method, time] = raw.split('|');
+  const methodLabel = method === 'ADMIN' ? '선장님' : method === 'QR' ? 'QR 스캔' : '알 수 없음';
+
+  return (
+    <button
+      type="button"
+      onClick={() => onTap(raw, isFifth)}
+      className="btn w-100 text-start p-3"
+      style={{
+        ...CARD_STYLE,
+        borderLeft: isFifth ? '4px solid #1B6FF5' : '4px solid #EFEFEF',
+        transition: 'transform 0.15s',
+      }}
+    >
+      <div className="d-flex align-items-center gap-3">
+        <div
+          className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+          style={{ width: 40, height: 40, backgroundColor: isFifth ? '#EBF1FE' : '#F7F8FA' }}
+        >
+          <IoPricetagOutline size={20} color={isFifth ? '#1B6FF5' : '#6F767E'} />
+        </div>
+        <div className="flex-grow-1">
+          <div style={{ fontSize: 15, fontWeight: 600, color: isFifth ? '#1B6FF5' : '#1A1D1F' }}>
+            {date.replace(/-/g, '.')}
+            {time && ` ${time.slice(0, 5)}`}
+          </div>
+          <div style={{ fontSize: 13, color: '#6F767E', marginTop: 2 }}>
+            {isFifth && !fromAdmin ? '⭐ 50% 쿠폰 발급 가능 — 탭해서 발급받기' : `적립 방법: ${methodLabel}`}
+          </div>
+        </div>
+        {isFifth && !fromAdmin && (
+          <span className="badge rounded-pill" style={{ backgroundColor: '#1B6FF5', fontSize: 11 }}>발급</span>
+        )}
+      </div>
+    </button>
+  );
+}
 
 function StampPageContent() {
   const router = useRouter();
@@ -14,8 +65,7 @@ function StampPageContent() {
   const [stamps, setStamps] = useState<string[]>([]);
   const [couponCount, setCouponCount] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedStampInfo, setSelectedStampInfo] = useState<{ date: string; method?: string; index?: number; value?: string } | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const [selectedStampInfo, setSelectedStampInfo] = useState<{ date: string; method?: string; value?: string } | null>(null);
   const [user, setUser] = useState<{ uuid?: string; name?: string; dob?: string } | null>(null);
   const fromAdmin = searchParams.get('fromAdmin') === 'true';
   const targetUuid = searchParams.get('uuid');
@@ -25,19 +75,10 @@ function StampPageContent() {
   useEffect(() => {
     const loadUser = async () => {
       if (fromAdmin && targetUuid && targetName && targetDob) {
-        // 관리자 모드: URL 파라미터의 회원 정보 사용
-        setUser({
-          uuid: targetUuid,
-          name: targetName,
-          dob: targetDob,
-        });
+        setUser({ uuid: targetUuid, name: targetName, dob: targetDob });
       } else {
-        // 일반 모드: 로그인한 사용자 정보 사용
         const u = await getUser();
-        if (!u?.uuid) {
-          router.replace('/login');
-          return;
-        }
+        if (!u?.uuid) { router.replace('/login'); return; }
         setUser(u);
       }
     };
@@ -46,275 +87,176 @@ function StampPageContent() {
 
   const fetchStamps = useCallback(async () => {
     if (!user?.uuid) return;
-  
     try {
       const data = await getStamps(user.uuid);
-      
-      // 날짜 + 시간 기준으로 최신순 정렬
       const sorted = [...data].sort((a, b) => {
-        const [dateA, , timeA] = a.split('|');
-        const [dateB, , timeB] = b.split('|');
+        const [dA,, tA] = a.split('|');
+        const [dB,, tB] = b.split('|');
         try {
-          const dateAObj = new Date(`20${dateA.replace(/-/g, '-')}T${timeA || '00:00:00'}`);
-          const dateBObj = new Date(`20${dateB.replace(/-/g, '-')}T${timeB || '00:00:00'}`);
-          return dateBObj.getTime() - dateAObj.getTime();
-        } catch (e) {
-          return 0;
-        }
+          return new Date(`20${dB}T${tB||'00:00:00'}`).getTime() - new Date(`20${dA}T${tA||'00:00:00'}`).getTime();
+        } catch { return 0; }
       });
-    
       setStamps(sorted);
-    
       const coupons = await getCouponCount(user.uuid);
       setCouponCount(coupons);
-    } catch (error) {
-      console.error('스탬프 조회 오류:', error);
-      setStamps([]);
-    }
+    } catch (err) { console.error(err); }
   }, [user?.uuid]);
 
-  useEffect(() => {
-    if (user?.uuid) {
-      fetchStamps();
+  useEffect(() => { if (user?.uuid) fetchStamps(); }, [user?.uuid, fetchStamps]);
+
+  const handleTap = (raw: string, isFifth: boolean) => {
+    if (isFifth && !fromAdmin) {
+      if (!confirm('50% 할인 쿠폰을 발급하시겠습니까?')) return;
+      issue50PercentCoupon(user!.uuid!).then(() => {
+        alert('🎉 50% 쿠폰이 발급되었습니다!');
+        fetchStamps();
+      }).catch(err => alert('오류: ' + err.message));
+    } else {
+      const [date, method, time] = raw.split('|');
+      const methodLabel = method === 'ADMIN' ? '선장님' : method === 'QR' ? 'QR 스캔' : '알 수 없음';
+      setSelectedStampInfo({ date: `${date} ${time}`, method: methodLabel, value: raw });
+      setModalVisible(true);
     }
-  }, [user?.uuid, fetchStamps]);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchStamps();
-    setRefreshing(false);
-  };
-
-
-  const renderStampItem = (raw: string, index: number) => {
-    if (!raw) return null;
-    const [date, method, time] = raw.split('|');
-    const methodLabel = method === 'ADMIN' ? '선장님' : method === 'QR' ? 'QR 스캔' : '알 수 없음';
-  
-    const fifthStampRaw = stamps[stamps.length - 5];
-    const isFifth = raw === fifthStampRaw && stamps.length >= 5;
-  
-    return (
-      <button
-        key={index}
-        onClick={() => {
-          if (isFifth && !fromAdmin) {
-            if (confirm('50% 할인 쿠폰을 발급하시겠습니까?')) {
-              issue50PercentCoupon(user!.uuid!).then(() => {
-                alert('🎉 쿠폰 발급 완료: 50% 쿠폰이 발급되었습니다!');
-                fetchStamps();
-              }).catch(err => alert('오류: ' + err.message));
-            }
-          } else {
-            setSelectedStampInfo({
-              date: `${date} ${time}`,
-              method: methodLabel,
-              index,
-              value: raw,
-            });
-            setModalVisible(true);
-          }
-        }}
-        className={`btn btn-light w-100 text-start p-3 border-0 shadow-sm ${
-          isFifth ? 'bg-warning bg-opacity-10' : ''
-        }`}
-        style={{ 
-          borderRadius: '12px',
-          transition: 'all 0.2s ease'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'translateY(-2px)';
-          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'translateY(0)';
-          e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-        }}
-      >
-                  <div className="flex-grow-1">
-                    <div className={`fw-semibold mb-1 ${isFifth ? 'text-warning' : 'text-dark'}`}>
-              {date.replace(/-/g, '-')}, {time?.slice(0, 5)}
-                    </div>
-                    <div className={`small ${isFifth ? 'text-warning' : 'text-muted'}`}>
-              {isFifth ? '⭐ 50% 쿠폰 발급 가능 ⭐' : `적립 방법: ${methodLabel}`}
-          </div>
-        </div>
-      </button>
-    );
   };
 
   if (!user) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">로딩 중...</p>
-        </div>
+      <div className="min-vh-100 d-flex align-items-center justify-content-center" style={{ backgroundColor: '#F7F8FA' }}>
+        <div className="spinner-border text-primary" role="status" />
       </div>
     );
   }
 
+  const fifthStampRaw = stamps.length >= 5 ? stamps[stamps.length - 5] : null;
+  const query = `uuid=${user.uuid}&name=${encodeURIComponent(user.name||'')}&dob=${user.dob||''}`;
+
   return (
-    <div 
-      className="min-h-screen bg-gray-50"
-      style={{ 
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        position: 'relative',
-      }}
-    >
+    <div className="min-vh-100 pb-4" style={{ backgroundColor: '#F7F8FA', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <PageHeader title="스탬프" />
-      <div className="container">
-        {/* 회원 정보 카드 */}
-        <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: '12px' }}>
-          <div className="card-body p-3">
-            <div className="d-flex align-items-center mb-2">
-              <IoPricetagOutline size={20} className="text-primary me-2 flex-shrink-0" />
-              <span className="text-muted small">회원정보</span>
+      <div className="container py-3" style={{ maxWidth: 480 }}>
+
+        {/* 요약 카드 */}
+        <div className="p-4 mb-4" style={{ ...CARD_STYLE }}>
+          <div className="d-flex align-items-center gap-3 mb-3">
+            <div className="rounded-circle d-flex align-items-center justify-content-center"
+              style={{ width: 48, height: 48, background: 'linear-gradient(135deg,#1B6FF5,#5B8DEF)', flexShrink: 0 }}>
+              <span style={{ fontSize: 22, fontWeight: 700, color: '#fff' }}>{stamps.length}</span>
             </div>
-            <div className="ps-4">
-              <div className="fw-semibold">{user.name}</div>
-              <div className="small text-muted">
-                {user.dob?.length === 8 ? `${user.dob.slice(2, 4)}-${user.dob.slice(4, 6)}-${user.dob.slice(6, 8)}` : user.dob}
-                {fromAdmin && <span className="ms-2 text-primary">(관리자모드)</span>}
+            <div>
+              <div style={{ fontSize: 13, color: '#6F767E', fontFamily: "'Urbanist',sans-serif" }}>현재 스탬프</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: '#1A1D1F', fontFamily: "'Urbanist',sans-serif" }}>
+                {stamps.length}개 보유
               </div>
             </div>
-        </div>
-        </div>
-
-        {/* 스탬프 리스트 */}
-        {stamps.length === 0 ? (
-          <div className="card border-0 shadow-sm" style={{ borderRadius: '12px' }}>
-            <div className="card-body text-center py-5 d-flex flex-column align-items-center">
-              <IoPricetagOutline size={48} className="text-muted mb-3 opacity-50" />
-              <p className="text-muted mb-0">스탬프가 아직 없어요!</p>
-            </div>
-          </div>
-        ) : (
-          <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: '12px' }}>
-            <div className="card-body p-3">
-              <div className="d-flex flex-column gap-2">
-            {stamps.map((stamp, index) => renderStampItem(stamp, index))}
+            <div className="ms-auto text-end">
+              <div style={{ fontSize: 13, color: '#6F767E', fontFamily: "'Urbanist',sans-serif" }}>보유 쿠폰</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: '#1B6FF5', fontFamily: "'Urbanist',sans-serif" }}>
+                {couponCount}장
               </div>
             </div>
           </div>
-        )}
-
-        {/* 쿠폰 버튼 */}
-          {!fromAdmin && (
-            <button
-              onClick={() => router.push(`/coupons?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`)}
-            className="btn btn-primary w-100 d-flex align-items-center justify-content-center mt-4"
-            style={{
-              padding: '14px',
-              fontSize: '1rem',
-              fontWeight: '600',
-              borderRadius: '12px',
-              border: 'none',
-              boxShadow: '0 2px 8px rgba(13, 110, 253, 0.3)'
-            }}
-          >
-            <IoGiftOutline size={20} />
-            <span>보유 쿠폰: {couponCount}개</span>
-            </button>
-          )}
-      </div>
-
-      {/* Stamp Modal */}
-      {modalVisible && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-              <div className="modal-header border-0" style={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                padding: '20px'
-              }}>
-                <h5 className="modal-title text-white fw-bold mb-0">스탬프 정보</h5>
-                <button 
-                  type="button" 
-                  className="btn-close btn-close-white" 
-                  onClick={() => setModalVisible(false)}
-                  style={{ opacity: 0.8 }}
-                ></button>
-              </div>
-              <div className="modal-body p-4">
-                <div className="mb-3">
-                  <div className="small text-muted mb-1">적립일</div>
-                  <div className="fw-semibold">{selectedStampInfo?.date}</div>
-                </div>
-                <div className="mb-3">
-                  <div className="small text-muted mb-1">적립 방법</div>
-                  <div className="fw-semibold">{selectedStampInfo?.method || '알 수 없음'}</div>
-            </div>
-            {fromAdmin && selectedStampInfo?.value && (
+          <div className="d-flex gap-2">
+            {!fromAdmin && (
               <button
-                onClick={async () => {
-                  await deleteStamp(user.uuid!, selectedStampInfo.value!, user.name!, user.dob!);
-                  await fetchStamps();
-                  setModalVisible(false);
-                }}
-                    className="btn btn-danger w-100"
-                    style={{ borderRadius: '12px', padding: '12px' }}
+                type="button"
+                onClick={() => router.push(`/qr-scan?${query}`)}
+                className="btn flex-grow-1 d-flex align-items-center justify-content-center gap-2 fw-semibold"
+                style={{ backgroundColor: '#1B6FF5', color: '#fff', borderRadius: 12, padding: '11px', border: 'none', fontFamily: "'Urbanist',sans-serif" }}
               >
-                스탬프 회수
+                <IoQrCodeOutline size={20} />
+                QR 스캔
               </button>
             )}
+            {!fromAdmin && (
+              <button
+                type="button"
+                onClick={() => router.push(`/coupons?${query}`)}
+                className="btn flex-grow-1 d-flex align-items-center justify-content-center gap-2 fw-semibold"
+                style={{ backgroundColor: '#EBF1FE', color: '#1B6FF5', borderRadius: 12, padding: '11px', border: 'none', fontFamily: "'Urbanist',sans-serif" }}
+              >
+                <IoGiftOutline size={20} />
+                쿠폰 보기
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 회원 정보 */}
+        <div className="d-flex align-items-center gap-2 px-1 mb-2">
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#1A1D1F', fontFamily: "'Urbanist',sans-serif" }}>
+            {user.name}
+          </span>
+          {fromAdmin && (
+            <span className="badge rounded-pill" style={{ backgroundColor: '#FF9500', fontSize: 11 }}>관리자 모드</span>
+          )}
+        </div>
+
+        {/* 스탬프 목록 */}
+        {stamps.length === 0 ? (
+          <div className="py-5 text-center" style={CARD_STYLE}>
+            <IoPricetagOutline size={48} color="#EFEFEF" />
+            <p className="mt-3 mb-0" style={{ color: '#6F767E', fontFamily: "'Urbanist',sans-serif" }}>스탬프가 아직 없어요!</p>
+          </div>
+        ) : (
+          <div className="d-flex flex-column gap-2">
+            {stamps.map((raw, idx) => (
+              <StampCard
+                key={idx}
+                raw={raw}
+                isFifth={raw === fifthStampRaw}
+                fromAdmin={fromAdmin}
+                onTap={handleTap}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 상세 모달 */}
+      {modalVisible && selectedStampInfo && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0" style={{ borderRadius: 20, overflow: 'hidden' }}>
+              <div className="modal-header border-0 px-4 pt-4 pb-2">
+                <h5 className="modal-title fw-bold" style={{ color: '#1A1D1F', fontFamily: "'Urbanist',sans-serif" }}>스탬프 정보</h5>
+                <button type="button" className="btn-close" onClick={() => setModalVisible(false)} />
+              </div>
+              <div className="modal-body px-4 pb-4">
+                <div className="mb-3 p-3 rounded-3" style={{ backgroundColor: '#F7F8FA' }}>
+                  <div style={{ fontSize: 12, color: '#6F767E', marginBottom: 4 }}>적립일</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1D1F', fontFamily: "'Urbanist',sans-serif" }}>{selectedStampInfo.date}</div>
+                </div>
+                <div className="p-3 rounded-3 mb-3" style={{ backgroundColor: '#F7F8FA' }}>
+                  <div style={{ fontSize: 12, color: '#6F767E', marginBottom: 4 }}>적립 방법</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1D1F', fontFamily: "'Urbanist',sans-serif" }}>{selectedStampInfo.method}</div>
+                </div>
+                {fromAdmin && selectedStampInfo.value && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await deleteStamp(user!.uuid!, selectedStampInfo.value!, user!.name!, user!.dob!);
+                      await fetchStamps();
+                      setModalVisible(false);
+                    }}
+                    className="btn w-100 fw-semibold"
+                    style={{ backgroundColor: '#FF3B30', color: '#fff', borderRadius: 12, padding: 13, border: 'none', fontFamily: "'Urbanist',sans-serif" }}
+                  >
+                    스탬프 회수
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </div>
-      )}
-
-      {!fromAdmin && (
-        <button
-          onClick={() => router.push(`/qr-scan?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`)}
-          className="btn btn-primary position-fixed rounded-circle d-flex align-items-center justify-content-center shadow-lg"
-          style={{
-            width: '64px',
-            height: '64px',
-            bottom: '96px',
-            right: '20px',
-            zIndex: 1001,
-            border: 'none',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-            boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.1) translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 8px 20px rgba(102, 126, 234, 0.5)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1) translateY(0)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
-          }}
-          onMouseDown={(e) => {
-            e.currentTarget.style.transform = 'scale(0.95) translateY(0)';
-          }}
-          onMouseUp={(e) => {
-            e.currentTarget.style.transform = 'scale(1.1) translateY(-2px)';
-          }}
-        >
-          <IoQrCodeOutline size={28} className="text-white" />
-        </button>
       )}
     </div>
   );
 }
 
-function StampPage() {
+export default function StampPage() {
   return (
-    <Suspense fallback={
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">로딩 중...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<div className="min-vh-100 d-flex align-items-center justify-content-center" style={{ backgroundColor: '#F7F8FA' }}><div className="spinner-border text-primary" role="status" /></div>}>
       <StampPageContent />
     </Suspense>
   );
 }
-
-export default StampPage;
