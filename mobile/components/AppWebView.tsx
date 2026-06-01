@@ -11,6 +11,7 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
 import { useCameraPermissions } from 'expo-camera';
 import {
+  buildSafeAreaInjectScript,
   NATIVE_INJECT_SCRIPT,
   parseBridgeMessage,
 } from '@/lib/bridge';
@@ -44,6 +45,16 @@ export function AppWebView({ initialPath = '/' }: AppWebViewProps) {
       pushTokenRef.current = await registerForPushNotifications();
     })();
   }, []);
+
+  const injectSafeArea = useCallback(() => {
+    webRef.current?.injectJavaScript(buildSafeAreaInjectScript(insets.top, insets.bottom));
+  }, [insets.top, insets.bottom]);
+
+  useEffect(() => {
+    if (!loading) {
+      injectSafeArea();
+    }
+  }, [loading, injectSafeArea]);
 
   const sendToWeb = useCallback((type: string, payload?: unknown) => {
     const script = `(function(){
@@ -116,7 +127,7 @@ export function AppWebView({ initialPath = '/' }: AppWebViewProps) {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       {loading && (
         <View style={styles.loader}>
           <ActivityIndicator size="large" color="#1B6FF5" />
@@ -126,7 +137,10 @@ export function AppWebView({ initialPath = '/' }: AppWebViewProps) {
         ref={webRef}
         source={{ uri: initialUri }}
         style={styles.webview}
-        onLoadEnd={() => setLoading(false)}
+        onLoadEnd={() => {
+          setLoading(false);
+          injectSafeArea();
+        }}
         onMessage={handleMessage}
         injectedJavaScriptBeforeContentLoaded={NATIVE_INJECT_SCRIPT}
         javaScriptEnabled
@@ -149,6 +163,11 @@ export function AppWebView({ initialPath = '/' }: AppWebViewProps) {
         setSupportMultipleWindows={false}
         startInLoadingState
         pullToRefreshEnabled
+        onRefresh={() => {
+          webRef.current?.injectJavaScript(
+            `(function(){ window.dispatchEvent(new Event('ohgo-pull-refresh')); })();true;`,
+          );
+        }}
         bounces
         sharedCookiesEnabled
         thirdPartyCookiesEnabled

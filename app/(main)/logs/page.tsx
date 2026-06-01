@@ -5,7 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { collection, getDocs, query, orderBy, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import PageHeader from '@/components/PageHeader';
+import SubPageFrame from '@/components/SubPageFrame';
+import SubPageActionBar from '@/components/SubPageActionBar';
+import EmptyState from '@/components/EmptyState';
+import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
+import { IoListOutline } from 'react-icons/io5';
+import { OHGO_CARD, OHGO_FONT, OhgoPageLoading } from '@/lib/page-styles';
 
 function LogsPageContent() {
   const router = useRouter();
@@ -14,7 +19,6 @@ function LogsPageContent() {
   const name = searchParams.get('name') || '';
 
   const [logs, setLogs] = useState<any[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
 
   const loadLogs = async () => {
     const logRef = collection(db, `users/${uuid}/logs`);
@@ -38,12 +42,7 @@ function LogsPageContent() {
     }
   }, [uuid]);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadLogs();
-    setRefreshing(false);
-  };
-
+  useNativePullToRefresh(loadLogs);
 
   const clearLogs = async () => {
     if (!confirm('정말로 이 회원의 모든 로그를 삭제하시겠습니까?')) return;
@@ -59,81 +58,51 @@ function LogsPageContent() {
   };
 
   return (
-    <div 
-      className="min-vh-100 bg-light"
-      style={{ 
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        position: 'relative',
-      }}
-    >
-      <PageHeader title="로그 보기" />
-      <div className="container">
+    <SubPageFrame title="로그 보기" onRefresh={loadLogs}>
         {logs.length > 0 && (
-          <div className="d-flex justify-content-end mb-3">
-            <button 
-              className="btn btn-outline-danger d-flex align-items-center justify-content-center"
-              onClick={clearLogs}
-              style={{
-                padding: '8px 16px',
-                fontSize: '0.9rem',
-                fontWeight: '500',
-                borderRadius: '8px',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              삭제
-            </button>
-          </div>
+          <SubPageActionBar
+            meta={`총 ${logs.length}건`}
+            label="전체 삭제"
+            onClick={clearLogs}
+            variant="danger"
+          />
         )}
 
         <div className="d-flex flex-column gap-3">
           {logs.map((item, index) => {
             const parts = item.detail.split(/(사용)/);
             return (
-              <div key={item.id || index} className="card shadow-sm">
-                <div className="card-body">
-                  <h6 className="card-title text-primary">{item.action}</h6>
-                  <p className="card-text">
-                    {parts.map((part: string, idx: number) =>
-                      part === '사용' ? (
-                        <span key={idx} className="text-danger fw-bold">{part}</span>
-                      ) : (
-                        <span key={idx}>{part}</span>
-                      )
-                    )}
-                  </p>
-                  <small className="text-muted">
-                    {format(item.timestamp, 'yyyy-MM-dd HH:mm:ss')}
-                  </small>
-                </div>
+              <div key={item.id || index} className="p-3" style={OHGO_CARD}>
+                <h6 style={{ fontSize: 14, fontWeight: 700, color: '#1B6FF5', fontFamily: OHGO_FONT, marginBottom: 8 }}>
+                  {item.action}
+                </h6>
+                <p style={{ fontSize: 14, color: '#1A1D1F', fontFamily: OHGO_FONT, marginBottom: 8 }}>
+                  {parts.map((part: string, idx: number) =>
+                    part === '사용' ? (
+                      <span key={idx} style={{ color: '#FF3B30', fontWeight: 700 }}>{part}</span>
+                    ) : (
+                      <span key={idx}>{part}</span>
+                    )
+                  )}
+                </p>
+                <small style={{ fontSize: 12, color: '#6F767E', fontFamily: OHGO_FONT }}>
+                  {format(item.timestamp, 'yyyy-MM-dd HH:mm:ss')}
+                </small>
               </div>
             );
           })}
         </div>
 
         {logs.length === 0 && (
-          <div className="text-center py-5">
-            <p className="text-muted">📝 기록된 활동이 없습니다.</p>
-          </div>
+          <EmptyState icon={IoListOutline} message="기록된 활동이 없습니다." style={OHGO_CARD} />
         )}
-      </div>
-    </div>
+    </SubPageFrame>
   );
 }
 
 export default function LogsPage() {
   return (
-    <Suspense fallback={
-      <div className="d-flex min-vh-100 align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<OhgoPageLoading />}>
       <LogsPageContent />
     </Suspense>
   );

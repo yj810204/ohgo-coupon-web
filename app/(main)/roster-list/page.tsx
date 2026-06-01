@@ -2,12 +2,16 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import PageHeader from '@/components/PageHeader';
+import SubPageFrame from '@/components/SubPageFrame';
+import OhgoModal, { OhgoModalButton, OhgoModalField, OhgoModalText } from '@/components/OhgoModal';
+import { OhgoPageLoading } from '@/lib/page-styles';
 import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getUser } from '@/lib/storage';
 import { findCaptains } from '@/utils/find-captains';
-import { IoChevronForwardOutline, IoAddOutline, IoArrowBackOutline } from 'react-icons/io5';
+import { IoChevronForwardOutline, IoAddOutline, IoArrowBackOutline, IoBoatOutline } from 'react-icons/io5';
+import EmptyState from '@/components/EmptyState';
+import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 
 type RosterItem = {
   id: string;
@@ -278,24 +282,11 @@ function RosterListContent() {
     }
   };
 
-  const onRefresh = async () => {
-    await loadRosterData();
-  };
-
+  useNativePullToRefresh(loadRosterData);
 
   return (
-    <div 
-      className="min-vh-100 bg-light"
-      style={{ 
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        position: 'relative',
-        paddingBottom: '80px',
-      }}
-    >
-      <PageHeader title="승선명부" />
-      <div className="container">
-        <div className="card shadow-sm mb-3">
+    <SubPageFrame title="승선명부" onRefresh={loadRosterData}>
+        <div className="ohgo-card mb-3">
           <div className="card-body text-center">
             <h5 className="text-primary mb-0">{dateDisplay} {tripNum}항차</h5>
           </div>
@@ -309,15 +300,13 @@ function RosterListContent() {
             <p className="text-muted">명부 정보를 불러오는 중...</p>
           </div>
         ) : rosterItems.length === 0 ? (
-          <div className="text-center py-5">
-            <p className="text-muted">해당 날짜의 명부 정보가 없습니다.</p>
-          </div>
+          <EmptyState icon={IoBoatOutline} message="해당 날짜의 명부 정보가 없습니다." />
         ) : (
           <div className="d-flex flex-column gap-2 mb-3">
             {rosterItems.map((item) => (
               <div
                 key={item.id}
-                className={`card shadow-sm ${
+                className={`ohgo-card ${
                   item.isCaptain ? 'border-primary border-start border-4' : 
                   item.isSailor ? 'border-success border-start border-4' : ''
                 }`}
@@ -356,10 +345,12 @@ function RosterListContent() {
             ))}
           </div>
         )}
-      </div>
 
-      <div className="position-fixed bottom-0 start-0 end-0 bg-white border-top p-3 shadow-lg">
-        <div className="container">
+      <div
+        className="position-fixed bottom-0 start-0 end-0 bg-white border-top p-3 shadow-lg"
+        style={{ maxWidth: 480, left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}
+      >
+        <div>
           <div className="row g-2">
             <div className="col-4">
               <button 
@@ -433,176 +424,103 @@ function RosterListContent() {
         </div>
       </div>
 
-      {/* 명부 정보 모달 */}
-      {modalVisible && selectedRoster && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-              <div className="modal-header border-0" style={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                padding: '20px'
-              }}>
-                <h5 className="modal-title text-white fw-bold mb-0">{selectedRoster.name}님의 명부 정보</h5>
-                <button type="button" className="btn-close btn-close-white" onClick={() => setModalVisible(false)} style={{ opacity: 0.8 }}></button>
-              </div>
-              <div className="modal-body">
-                <div className="mb-3">
-                  <strong>이름:</strong> {selectedRoster.name}
-                </div>
-                <div className="mb-3">
-                  <strong>생년월일:</strong> {selectedRoster.birth}
-                </div>
-                <div className="mb-3">
-                  <strong>성별:</strong> {selectedRoster.gender || '미입력'}
-                </div>
-                <div className="mb-3">
-                  <strong>연락처:</strong> {selectedRoster.phone || '미입력'}
-                </div>
-                <div className="mb-3">
-                  <strong>비상 연락처:</strong> {selectedRoster.emergency}
-                </div>
-                <div className="mb-3">
-                  <strong>주소:</strong> {selectedRoster.address}
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button 
-                  className="btn btn-secondary d-flex align-items-center justify-content-center"
-                  onClick={() => setModalVisible(false)}
-                  style={{
-                    padding: '10px 20px',
-                    fontSize: '0.95rem',
-                    fontWeight: '500',
-                    borderRadius: '8px',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  닫기
-                </button>
-                <button 
-                  className="btn btn-warning d-flex align-items-center justify-content-center"
-                  onClick={() => {
-                    router.push(`/boarding-form?uuid=${selectedRoster.id}&name=${encodeURIComponent(selectedRoster.name)}&dob=${selectedRoster.birth}&returnTo=roster-list&date=${date}&dateDisplay=${encodeURIComponent(dateDisplay || '')}&tripNumber=${tripNum}`);
+      <OhgoModal
+        open={modalVisible && !!selectedRoster}
+        onClose={() => setModalVisible(false)}
+        title={selectedRoster ? `${selectedRoster.name}님의 명부 정보` : ''}
+        footerLayout="row"
+        footer={
+          selectedRoster ? (
+            <>
+              <OhgoModalButton variant="secondary" onClick={() => setModalVisible(false)}>
+                닫기
+              </OhgoModalButton>
+              <OhgoModalButton
+                variant="warning"
+                onClick={() => {
+                  router.push(
+                    `/boarding-form?uuid=${selectedRoster.id}&name=${encodeURIComponent(selectedRoster.name)}&dob=${selectedRoster.birth}&returnTo=roster-list&date=${date}&dateDisplay=${encodeURIComponent(dateDisplay || '')}&tripNumber=${tripNum}`
+                  );
+                  setModalVisible(false);
+                }}
+              >
+                수정
+              </OhgoModalButton>
+              <OhgoModalButton
+                variant="danger"
+                onClick={() => {
+                  if (confirm(`${selectedRoster.name}님을 명부에서 삭제하시겠습니까?`)) {
+                    removeMemberFromRoster(selectedRoster.id);
                     setModalVisible(false);
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    fontSize: '0.95rem',
-                    fontWeight: '500',
-                    borderRadius: '8px',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  수정
-                </button>
-                <button 
-                  className="btn btn-danger d-flex align-items-center justify-content-center"
-                  onClick={() => {
-                    if (confirm(`${selectedRoster.name}님을 명부에서 삭제하시겠습니까?`)) {
-                      removeMemberFromRoster(selectedRoster.id);
-                      setModalVisible(false);
-                    }
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    fontSize: '0.95rem',
-                    fontWeight: '500',
-                    borderRadius: '8px',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  삭제
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+                  }
+                }}
+              >
+                삭제
+              </OhgoModalButton>
+            </>
+          ) : null
+        }
+      >
+        {selectedRoster && (
+          <>
+            <OhgoModalField label="이름" value={selectedRoster.name} />
+            <OhgoModalField label="생년월일" value={selectedRoster.birth} />
+            <OhgoModalField label="성별" value={selectedRoster.gender || '미입력'} />
+            <OhgoModalField label="연락처" value={selectedRoster.phone || '미입력'} />
+            <OhgoModalField label="비상 연락처" value={selectedRoster.emergency} />
+            <OhgoModalField label="주소" value={selectedRoster.address} />
+          </>
+        )}
+      </OhgoModal>
 
-      {/* 명부 정보 없음 모달 */}
-      {noRosterModalVisible && selectedRoster && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-              <div className="modal-header border-0" style={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                padding: '20px'
-              }}>
-                <h5 className="modal-title text-white fw-bold mb-0">명부 정보 없음</h5>
-                <button type="button" className="btn-close btn-close-white" onClick={() => setNoRosterModalVisible(false)} style={{ opacity: 0.8 }}></button>
-              </div>
-              <div className="modal-body">
-                <p>{selectedRoster.name}님의 명부 정보가 없습니다.</p>
-              </div>
-              <div className="modal-footer">
-                <button 
-                  className="btn btn-secondary d-flex align-items-center justify-content-center"
-                  onClick={() => setNoRosterModalVisible(false)}
-                  style={{
-                    padding: '10px 20px',
-                    fontSize: '0.95rem',
-                    fontWeight: '500',
-                    borderRadius: '8px',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  닫기
-                </button>
-                <button 
-                  className="btn btn-danger d-flex align-items-center justify-content-center"
-                  onClick={() => {
-                    if (confirm(`${selectedRoster.name}님을 명부에서 삭제하시겠습니까?`)) {
-                      removeMemberFromRoster(selectedRoster.id);
-                      setNoRosterModalVisible(false);
-                    }
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    fontSize: '0.95rem',
-                    fontWeight: '500',
-                    borderRadius: '8px',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  삭제
-                </button>
-                <button 
-                  className="btn btn-success d-flex align-items-center justify-content-center"
-                  onClick={() => {
-                    router.push(`/boarding-form?uuid=${selectedRoster.id}&name=${encodeURIComponent(selectedRoster.name)}&dob=${selectedRoster.birth}&returnTo=roster-list&date=${date}&dateDisplay=${encodeURIComponent(dateDisplay || '')}&tripNumber=${tripNum}`);
+      <OhgoModal
+        open={noRosterModalVisible && !!selectedRoster}
+        onClose={() => setNoRosterModalVisible(false)}
+        title="명부 정보 없음"
+        footerLayout="row"
+        footer={
+          selectedRoster ? (
+            <>
+              <OhgoModalButton variant="secondary" onClick={() => setNoRosterModalVisible(false)}>
+                닫기
+              </OhgoModalButton>
+              <OhgoModalButton
+                variant="danger"
+                onClick={() => {
+                  if (confirm(`${selectedRoster.name}님을 명부에서 삭제하시겠습니까?`)) {
+                    removeMemberFromRoster(selectedRoster.id);
                     setNoRosterModalVisible(false);
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    fontSize: '0.95rem',
-                    fontWeight: '500',
-                    borderRadius: '8px',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  명부 작성
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+                  }
+                }}
+              >
+                삭제
+              </OhgoModalButton>
+              <OhgoModalButton
+                variant="success"
+                onClick={() => {
+                  router.push(
+                    `/boarding-form?uuid=${selectedRoster.id}&name=${encodeURIComponent(selectedRoster.name)}&dob=${selectedRoster.birth}&returnTo=roster-list&date=${date}&dateDisplay=${encodeURIComponent(dateDisplay || '')}&tripNumber=${tripNum}`
+                  );
+                  setNoRosterModalVisible(false);
+                }}
+              >
+                명부 작성
+              </OhgoModalButton>
+            </>
+          ) : null
+        }
+      >
+        {selectedRoster && (
+          <OhgoModalText>{selectedRoster.name}님의 명부 정보가 없습니다.</OhgoModalText>
+        )}
+      </OhgoModal>
+    </SubPageFrame>
   );
 }
 
 export default function RosterListPage() {
   return (
-    <Suspense fallback={
-      <div className="d-flex min-vh-100 align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<OhgoPageLoading />}>
       <RosterListContent />
     </Suspense>
   );

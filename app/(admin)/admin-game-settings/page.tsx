@@ -5,9 +5,208 @@ import { useRouter } from 'next/navigation';
 import { getUser } from '@/lib/storage';
 import { getUserByUUID } from '@/lib/firebase-auth';
 import { getAllGames, toggleGameActive, Game } from '@/lib/game-service';
-import PageHeader from '@/components/PageHeader';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import SubPageFrame from '@/components/SubPageFrame';
+import EmptyState from '@/components/EmptyState';
+import {
+  IoGameControllerOutline,
+  IoImageOutline,
+  IoPencilOutline,
+  IoPlayOutline,
+  IoPauseOutline,
+  IoRefreshOutline,
+} from 'react-icons/io5';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import {
+  OHGO_CARD,
+  OHGO_FONT,
+  OHGO_INPUT,
+  OHGO_PRIMARY_BTN,
+  OHGO_SECONDARY_BTN,
+  OhgoPageLoading,
+} from '@/lib/page-styles';
+
+const FONT = OHGO_FONT;
+const CARD: React.CSSProperties = { ...OHGO_CARD };
+
+const LABEL: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: '#6F767E',
+  fontFamily: FONT,
+  marginBottom: 6,
+  display: 'block',
+};
+
+const HINT: React.CSSProperties = {
+  fontSize: 11,
+  color: '#ABABAB',
+  fontFamily: FONT,
+  marginTop: 6,
+  marginBottom: 0,
+};
+
+const SECTION_TITLE: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 700,
+  color: '#1A1D1F',
+  fontFamily: FONT,
+  marginBottom: 12,
+};
+
+function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ ...CARD, padding: '14px 16px', marginBottom: 12 }}>
+      <div style={SECTION_TITLE}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function SwitchRow({
+  id,
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <div style={{ backgroundColor: '#F7F8FA', borderRadius: 12, padding: '12px 14px' }}>
+      <div className="form-check form-switch mb-0">
+        <input
+          className="form-check-input"
+          type="checkbox"
+          id={id}
+          checked={checked}
+          onChange={e => onChange(e.target.checked)}
+        />
+        <label className="form-check-label" htmlFor={id} style={{ fontFamily: FONT, fontWeight: 600, fontSize: 14 }}>
+          {label}
+        </label>
+      </div>
+      {hint ? <p style={{ ...HINT, marginTop: 8 }}>{hint}</p> : null}
+    </div>
+  );
+}
+
+function InlineNumberSave({
+  label,
+  hint,
+  value,
+  onChange,
+  onSave,
+  saving,
+  min,
+  placeholder,
+}: {
+  label: string;
+  hint?: string;
+  value: string;
+  onChange: (v: string) => void;
+  onSave: () => void;
+  saving: boolean;
+  min?: number;
+  placeholder?: string;
+}) {
+  return (
+    <div>
+      <label style={LABEL}>{label}</label>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr auto',
+          gap: 8,
+          alignItems: 'center',
+        }}
+      >
+        <input
+          type="number"
+          className="form-control"
+          style={{ ...OHGO_INPUT, margin: 0 }}
+          min={min}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+        />
+        <button
+          type="button"
+          className="btn fw-semibold flex-shrink-0"
+          style={{
+            ...OHGO_PRIMARY_BTN,
+            padding: '10px 14px',
+            fontSize: 13,
+            boxShadow: 'none',
+            minWidth: 72,
+            opacity: saving ? 0.65 : 1,
+          }}
+          onClick={onSave}
+          disabled={saving}
+        >
+          {saving ? '저장 중' : '저장'}
+        </button>
+      </div>
+      {hint ? <p style={HINT}>{hint}</p> : null}
+    </div>
+  );
+}
+
+function gameThumbUrl(game: Game): string | undefined {
+  if (game.thumbnail_url) return game.thumbnail_url;
+  if (game.thumbnail_path) {
+    if (game.thumbnail_path.startsWith('http://') || game.thumbnail_path.startsWith('https://')) {
+      return game.thumbnail_path;
+    }
+    return `/${game.thumbnail_path.replace(/^\//, '')}`;
+  }
+  return undefined;
+}
+
+function MedalCountPicker({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (n: 1 | 2 | 3) => void;
+}) {
+  const options: { n: 1 | 2 | 3; label: string }[] = [
+    { n: 1, label: '1위만' },
+    { n: 2, label: '2위까지' },
+    { n: 3, label: '3위까지' },
+  ];
+  return (
+    <div className="d-flex gap-2">
+      {options.map(opt => {
+        const active = value === opt.n;
+        return (
+          <button
+            key={opt.n}
+            type="button"
+            className="btn flex-fill"
+            style={{
+              backgroundColor: active ? '#1B6FF5' : '#F7F8FA',
+              color: active ? '#fff' : '#6F767E',
+              border: active ? 'none' : '1.5px solid #EFEFEF',
+              borderRadius: 10,
+              padding: '10px 8px',
+              fontFamily: FONT,
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+            onClick={() => onChange(opt.n)}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function AdminGameSettingsPage() {
   const router = useRouter();
@@ -274,317 +473,277 @@ export default function AdminGameSettingsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="d-flex min-vh-100 align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
-      </div>
-    );
+    return <OhgoPageLoading />;
   }
 
+  const formatGameDate = (game: Game) => {
+    if (!game.regdate) return '-';
+    return new Date(game.regdate.seconds * 1000).toLocaleDateString('ko-KR');
+  };
+
   return (
-    <div className="min-vh-100 bg-light">
-      <PageHeader title="게임 설정" />
-      <div className="container">
-        {/* 통합 설정 */}
-        <div className="card shadow-sm mb-4">
-          <div className="card-header bg-primary text-white">
-            <h5 className="mb-0">통합 설정</h5>
-          </div>
-          <div className="card-body">
-            {/* 대회 설정 */}
-            <div className="mb-4">
-              <label className="form-label fw-bold">대회 설정</label>
-              <div className="mb-3">
-                <div className="form-check form-switch">
-                  <input
-                    className="form-check-input"
-                    type="checkbox"
-                    id="tournament_enabled"
-                    checked={globalSettings.tournament_enabled}
-                    onChange={(e) => setGlobalSettings({ ...globalSettings, tournament_enabled: e.target.checked })}
-                  />
-                  <label className="form-check-label" htmlFor="tournament_enabled">
-                    대회 모드 활성화
-                  </label>
-                </div>
-                <small className="text-muted">대회 모드를 활성화하면 지정된 기간 동안 대회 랭킹이 표시됩니다.</small>
+    <SubPageFrame title="게임 설정">
+      <FormSection title="대회 설정">
+        <SwitchRow
+          id="tournament_enabled"
+          label="대회 모드 활성화"
+          hint="활성화 시 지정 기간 동안 대회 랭킹이 표시됩니다."
+          checked={globalSettings.tournament_enabled}
+          onChange={checked => setGlobalSettings({ ...globalSettings, tournament_enabled: checked })}
+        />
+        {globalSettings.tournament_enabled && (
+          <div className="mt-3 d-flex flex-column gap-3">
+            <div>
+              <label style={LABEL}>대회 타이틀</label>
+              <input
+                type="text"
+                className="form-control"
+                style={OHGO_INPUT}
+                value={globalSettings.tournament_title}
+                onChange={e => setGlobalSettings({ ...globalSettings, tournament_title: e.target.value })}
+                placeholder="대회 타이틀"
+              />
+            </div>
+            <div>
+              <label style={LABEL}>대회 간단설명</label>
+              <textarea
+                className="form-control"
+                rows={3}
+                style={{ ...OHGO_INPUT, resize: 'none' }}
+                value={globalSettings.tournament_description}
+                onChange={e =>
+                  setGlobalSettings({ ...globalSettings, tournament_description: e.target.value })
+                }
+                placeholder="대회 설명"
+              />
+            </div>
+            <div className="row g-2">
+              <div className="col-6">
+                <label style={LABEL}>시작일</label>
+                <input
+                  type="datetime-local"
+                  className="form-control"
+                  style={{ ...OHGO_INPUT, fontSize: 13 }}
+                  value={globalSettings.tournament_start_date}
+                  onChange={e =>
+                    setGlobalSettings({ ...globalSettings, tournament_start_date: e.target.value })
+                  }
+                />
               </div>
-              {globalSettings.tournament_enabled && (
-                <>
-                  <div className="mb-3">
-                    <label className="form-label small">대회 타이틀</label>
-                    <input
-                      type="text"
-                      className="form-control form-control-sm"
-                      value={globalSettings.tournament_title}
-                      onChange={(e) => setGlobalSettings({ ...globalSettings, tournament_title: e.target.value })}
-                      placeholder="대회 타이틀을 입력하세요"
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label small">대회 간단설명</label>
-                    <textarea
-                      className="form-control form-control-sm"
-                      rows={3}
-                      value={globalSettings.tournament_description}
-                      onChange={(e) => setGlobalSettings({ ...globalSettings, tournament_description: e.target.value })}
-                      placeholder="대회에 대한 간단한 설명을 입력하세요"
-                    />
-                  </div>
-                  <div className="row g-3">
-                    <div className="col-md-6">
-                      <label className="form-label small">대회 시작일</label>
-                      <input
-                        type="datetime-local"
-                        className="form-control form-control-sm"
-                        value={globalSettings.tournament_start_date}
-                        onChange={(e) => setGlobalSettings({ ...globalSettings, tournament_start_date: e.target.value })}
-                      />
+              <div className="col-6">
+                <label style={LABEL}>종료일</label>
+                <input
+                  type="datetime-local"
+                  className="form-control"
+                  style={{ ...OHGO_INPUT, fontSize: 13 }}
+                  value={globalSettings.tournament_end_date}
+                  onChange={e =>
+                    setGlobalSettings({ ...globalSettings, tournament_end_date: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </FormSection>
+
+      <FormSection title="일일 게임 티켓">
+        <div className="d-flex flex-column gap-3">
+        <InlineNumberSave
+          label="일일 게임 티켓 수량 제한"
+          value={ticketSettings.daily_limit}
+          onChange={v => setTicketSettings({ ...ticketSettings, daily_limit: v })}
+          onSave={() => void handleSaveTicketLimit()}
+          saving={savingTicketLimit}
+          min={0}
+          placeholder="예: 10"
+        />
+        <InlineNumberSave
+          label="교환권 당 게임 티켓 수량"
+          hint="게임 티켓 교환권 1개 사용 시 지급되는 티켓 수입니다."
+          value={ticketSettings.ticket_per_coupon}
+          onChange={v => setTicketSettings({ ...ticketSettings, ticket_per_coupon: v })}
+          onSave={() => void handleSaveTicketPerCoupon()}
+          saving={savingTicketPerCoupon}
+          min={1}
+          placeholder="예: 5"
+        />
+        </div>
+      </FormSection>
+
+      <FormSection title="랭킹 표시">
+        <SwitchRow
+          id="show_medals"
+          label="순위 메달 표시"
+          hint="랭킹 화면에서 메달 아이콘을 표시합니다."
+          checked={globalSettings.show_medals}
+          onChange={checked => setGlobalSettings({ ...globalSettings, show_medals: checked })}
+        />
+        {globalSettings.show_medals && (
+          <div className="mt-3">
+            <label style={LABEL}>순위 메달 표시 개수</label>
+            <MedalCountPicker
+              value={globalSettings.ranking_medal_count}
+              onChange={n => setGlobalSettings({ ...globalSettings, ranking_medal_count: n })}
+            />
+            <p style={HINT}>랭킹에 표시할 메달 범위입니다. (1~3위)</p>
+          </div>
+        )}
+      </FormSection>
+
+      <button
+        type="button"
+        className="btn w-100 fw-semibold mb-3"
+        style={{ ...OHGO_PRIMARY_BTN, opacity: saving ? 0.65 : 1 }}
+        onClick={() => void handleSaveGlobalSettings()}
+        disabled={saving}
+      >
+        {saving ? '저장 중...' : '대회·랭킹 설정 저장'}
+      </button>
+
+      <FormSection title="게임 폴더 스캔">
+        <button
+          type="button"
+          className="btn w-100 d-flex align-items-center justify-content-center gap-2 fw-semibold"
+          style={OHGO_SECONDARY_BTN}
+          onClick={() => void handleScanGames()}
+          disabled={scanning}
+        >
+          <IoRefreshOutline size={18} />
+          {scanning ? '스캔 중...' : '게임 스캔'}
+        </button>
+        <p style={{ ...HINT, marginTop: 10 }}>
+          public/games/ 폴더의 게임을 자동으로 스캔하여 등록합니다.
+        </p>
+      </FormSection>
+
+      <FormSection title={games.length > 0 ? `게임 목록 · ${games.length}개` : '게임 목록'}>
+        {games.length === 0 ? (
+          <EmptyState
+            icon={IoGameControllerOutline}
+            message="등록된 게임이 없습니다."
+            subtitle="public/games/ 폴더에 추가 후 스캔해 주세요."
+            compact
+          />
+        ) : (
+          <div
+            style={{
+              borderRadius: 14,
+              border: '1px solid #EFEFEF',
+              overflow: 'hidden',
+              backgroundColor: '#FFFFFF',
+            }}
+          >
+            {games.map((game, index) => {
+              const thumb = gameThumbUrl(game);
+              return (
+                <div
+                  key={game.game_id}
+                  className="px-3 py-3"
+                  style={{
+                    borderBottom: index < games.length - 1 ? '1px solid #F7F8FA' : 'none',
+                    backgroundColor: game.is_active ? '#FFFFFF' : '#FAFAFA',
+                  }}
+                >
+                  <div className="d-flex align-items-center gap-3">
+                    <div
+                      className="flex-shrink-0 overflow-hidden d-flex align-items-center justify-content-center"
+                      style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: 12,
+                        background: thumb ? `url(${thumb}) center/cover` : '#F2F3F5',
+                        border: '1px solid #EFEFEF',
+                      }}
+                    >
+                      {!thumb && <IoImageOutline size={24} color="#B0B8C4" />}
                     </div>
-                    <div className="col-md-6">
-                      <label className="form-label small">대회 종료일</label>
-                      <input
-                        type="datetime-local"
-                        className="form-control form-control-sm"
-                        value={globalSettings.tournament_end_date}
-                        onChange={(e) => setGlobalSettings({ ...globalSettings, tournament_end_date: e.target.value })}
-                      />
+
+                    <div className="flex-grow-1 min-w-0">
+                      <div className="d-flex align-items-center gap-2 flex-wrap">
+                        <span
+                          className="badge rounded-pill flex-shrink-0"
+                          style={{
+                            backgroundColor: '#F7F8FA',
+                            color: '#6F767E',
+                            fontSize: 10,
+                            fontFamily: FONT,
+                            fontWeight: 700,
+                          }}
+                        >
+                          {index + 1}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 15,
+                            fontWeight: 700,
+                            color: '#1A1D1F',
+                            fontFamily: FONT,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {game.game_name}
+                        </span>
+                        <span
+                          className="badge rounded-pill flex-shrink-0"
+                          style={{
+                            backgroundColor: game.is_active ? '#EBF1FE' : '#F7F8FA',
+                            color: game.is_active ? '#1B6FF5' : '#6F767E',
+                            fontSize: 10,
+                            fontFamily: FONT,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {game.is_active ? '활성' : '비활성'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 6 }}>
+                        {game.game_id}
+                        {game.game_type ? ` · ${game.game_type}` : ''}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#ABABAB', fontFamily: FONT, marginTop: 4 }}>
+                        포인트 {game.point_rate ?? 100}% · {formatGameDate(game)}
+                      </div>
+                    </div>
+
+                    <div className="d-flex flex-row gap-1 flex-shrink-0 align-self-center">
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleGame(game.game_id, game.is_active)}
+                        className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
+                        title={game.is_active ? '비활성화' : '활성화'}
+                        style={{
+                          width: 32,
+                          height: 32,
+                          backgroundColor: game.is_active ? '#FFF0F0' : '#EBF1FE',
+                          border: 'none',
+                        }}
+                      >
+                        {game.is_active ? (
+                          <IoPauseOutline size={16} color="#FF3B30" />
+                        ) : (
+                          <IoPlayOutline size={16} color="#1B6FF5" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleEditGame(game)}
+                        className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
+                        title="수정"
+                        style={{ width: 32, height: 32, backgroundColor: '#EBF1FE', border: 'none' }}
+                      >
+                        <IoPencilOutline size={16} color="#1B6FF5" />
+                      </button>
                     </div>
                   </div>
-                </>
-              )}
-            </div>
-
-            {/* 일일 게임 티켓 수량 관리 */}
-            <div className="mb-4">
-              <label className="form-label fw-bold">일일 게임 티켓 수량 관리</label>
-              <div className="mb-3">
-                <label className="form-label small">일일 게임 티켓 수량 제한</label>
-                <div className="d-flex gap-2 align-items-end">
-                  <input
-                    type="number"
-                    className="form-control form-control-sm"
-                    min="0"
-                    value={ticketSettings.daily_limit}
-                    onChange={(e) => setTicketSettings({ ...ticketSettings, daily_limit: e.target.value })}
-                    placeholder="일일 게임 티켓 수량을 입력하세요"
-                    style={{ maxWidth: '200px' }}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-primary"
-                    onClick={handleSaveTicketLimit}
-                    disabled={savingTicketLimit}
-                  >
-                    {savingTicketLimit ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                        저장 중...
-                      </>
-                    ) : (
-                      '저장'
-                    )}
-                  </button>
                 </div>
-              </div>
-              <div className="mb-3">
-                <label className="form-label small">교환권 당 게임 티켓 수량</label>
-                <div className="d-flex gap-2 align-items-end">
-                  <input
-                    type="number"
-                    className="form-control form-control-sm"
-                    min="1"
-                    value={ticketSettings.ticket_per_coupon}
-                    onChange={(e) => setTicketSettings({ ...ticketSettings, ticket_per_coupon: e.target.value })}
-                    placeholder="교환권 당 게임 티켓 수량을 입력하세요"
-                    style={{ maxWidth: '200px' }}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-primary"
-                    onClick={handleSaveTicketPerCoupon}
-                    disabled={savingTicketPerCoupon}
-                  >
-                    {savingTicketPerCoupon ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                        저장 중...
-                      </>
-                    ) : (
-                      '저장'
-                    )}
-                  </button>
-                </div>
-                <small className="text-muted">게임 티켓 교환권 1개 사용 시 지급되는 게임 티켓 수량입니다.</small>
-              </div>
-            </div>
-
-            {/* 랭킹 메달 표시 설정 */}
-            <div className="mb-3">
-              <label className="form-label fw-bold">랭킹 표시 설정</label>
-              <div className="mb-3">
-                <div className="form-check form-switch">
-                  <input
-                    className="form-check-input"
-                    type="checkbox"
-                    id="show_medals"
-                    checked={globalSettings.show_medals}
-                    onChange={(e) => setGlobalSettings({ ...globalSettings, show_medals: e.target.checked })}
-                  />
-                  <label className="form-check-label" htmlFor="show_medals">
-                    순위 메달 표시
-                  </label>
-                </div>
-                <small className="text-muted">랭킹에서 메달 아이콘을 표시합니다.</small>
-              </div>
-              {globalSettings.show_medals && (
-                <div>
-                  <label className="form-label small">순위 메달 표시 개수</label>
-                  <div className="d-flex gap-2 mb-2">
-                    <button
-                      type="button"
-                      className={`btn btn-sm ${globalSettings.ranking_medal_count === 1 ? 'btn-primary' : 'btn-outline-primary'}`}
-                      onClick={() => setGlobalSettings({ ...globalSettings, ranking_medal_count: 1 })}
-                    >
-                      1위만
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn btn-sm ${globalSettings.ranking_medal_count === 2 ? 'btn-primary' : 'btn-outline-primary'}`}
-                      onClick={() => setGlobalSettings({ ...globalSettings, ranking_medal_count: 2 })}
-                    >
-                      2위까지
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn btn-sm ${globalSettings.ranking_medal_count === 3 ? 'btn-primary' : 'btn-outline-primary'}`}
-                      onClick={() => setGlobalSettings({ ...globalSettings, ranking_medal_count: 3 })}
-                    >
-                      3위까지
-                    </button>
-                  </div>
-                  <small className="text-muted">랭킹 화면에서 표시할 메달의 개수를 설정합니다. (1-3위)</small>
-                </div>
-              )}
-            </div>
-
-            <div className="d-flex justify-content-end">
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleSaveGlobalSettings}
-                disabled={saving}
-              >
-                {saving ? (
-                  <>
-                    <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                    저장 중...
-                  </>
-                ) : (
-                  '통합 설정 저장'
-                )}
-              </button>
-            </div>
+              );
+            })}
           </div>
-        </div>
-
-        {/* 게임 스캔 */}
-        <div className="card shadow-sm mb-3">
-          <div className="card-body">
-            <div className="d-flex align-items-center gap-3 mb-3">
-              <button
-                className="btn btn-primary"
-                onClick={handleScanGames}
-                disabled={scanning}
-                style={{ whiteSpace: 'nowrap' }}
-              >
-                {scanning ? (
-                  <>
-                    <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                    스캔 중...
-                  </>
-                ) : (
-                  '게임 스캔'
-                )}
-              </button>
-              <small className="text-muted">public/games/ 폴더의 게임을 자동으로 스캔하여 등록합니다.</small>
-            </div>
-          </div>
-        </div>
-
-        <div className="card shadow-sm">
-          <div className="card-body">
-            {games.length === 0 ? (
-              <div className="text-center py-5">
-                <p className="text-muted">등록된 게임이 없습니다.</p>
-                <p className="text-muted small">게임은 public/games/ 폴더에 추가하면 자동으로 인식됩니다.</p>
-              </div>
-            ) : (
-              <div className="table-responsive">
-                <table className="table table-hover">
-                  <thead>
-                    <tr>
-                      <th style={{ whiteSpace: 'nowrap' }}>게임 ID</th>
-                      <th style={{ whiteSpace: 'nowrap' }}>게임명</th>
-                      <th style={{ whiteSpace: 'nowrap' }}>타입</th>
-                      <th style={{ whiteSpace: 'nowrap' }}>상태</th>
-                      <th style={{ whiteSpace: 'nowrap' }}>포인트 비율</th>
-                      <th style={{ whiteSpace: 'nowrap' }}>등록일</th>
-                      <th style={{ whiteSpace: 'nowrap' }}>관리</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {games.map((game) => (
-                      <tr key={game.game_id}>
-                        <td style={{ whiteSpace: 'nowrap' }}>{game.game_id}</td>
-                        <td style={{ whiteSpace: 'nowrap' }}>{game.game_name}</td>
-                        <td style={{ whiteSpace: 'nowrap' }}>{game.game_type || '-'}</td>
-                        <td style={{ whiteSpace: 'nowrap' }}>
-                          {game.is_active ? (
-                            <span className="badge bg-success">활성</span>
-                          ) : (
-                            <span className="badge bg-secondary">비활성</span>
-                          )}
-                        </td>
-                        <td style={{ whiteSpace: 'nowrap' }}>{game.point_rate ?? 100}%</td>
-                        <td style={{ whiteSpace: 'nowrap' }}>
-                          {game.regdate
-                            ? new Date(game.regdate.seconds * 1000).toLocaleDateString('ko-KR')
-                            : '-'}
-                        </td>
-                        <td style={{ whiteSpace: 'nowrap' }}>
-                          <div className="d-flex gap-2" style={{ whiteSpace: 'nowrap' }}>
-                            <button
-                              className="btn btn-sm btn-outline-primary"
-                              onClick={() => handleToggleGame(game.game_id, game.is_active)}
-                              style={{ whiteSpace: 'nowrap' }}
-                            >
-                              {game.is_active ? '비활성화' : '활성화'}
-                            </button>
-                            <button
-                              className="btn btn-sm btn-outline-secondary"
-                              onClick={() => handleEditGame(game)}
-                              style={{ whiteSpace: 'nowrap' }}
-                            >
-                              수정
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-
-      </div>
-    </div>
+        )}
+      </FormSection>
+    </SubPageFrame>
   );
 }

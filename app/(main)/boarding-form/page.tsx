@@ -6,7 +6,9 @@ import { getUser } from '@/lib/storage';
 import { getDoc, setDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { IoCheckboxOutline, IoSquareOutline, IoSearchOutline } from 'react-icons/io5';
-import PageHeader from '@/components/PageHeader';
+import SubPageFrame from '@/components/SubPageFrame';
+import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import { OHGO_CARD, OHGO_FONT, OhgoPageLoading } from '@/lib/page-styles';
 
 // 다음 우편번호 API 타입 선언
 declare global {
@@ -307,24 +309,12 @@ function BoardingFormContent() {
   };
 
   if (loading) {
-    return (
-      <div className="d-flex min-vh-100 align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
-      </div>
-    );
+    return <OhgoPageLoading />;
   }
 
   return (
-    <div className="min-vh-100" style={{ backgroundColor: '#F7F8FA', paddingBottom: '80px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <PageHeader title="명부 작성" />
-      <div className="container py-3" style={{ maxWidth: 480 }}>
-        <div className="card shadow-sm">
-          <div className="card-body">
+    <SubPageFrame title="명부 작성">
+        <div className="p-3" style={OHGO_CARD}>
 
             <div className="mb-3">
               <label className="form-label">이름 *</label>
@@ -531,109 +521,57 @@ function BoardingFormContent() {
                 '저장'
               )}
             </button>
-          </div>
         </div>
-      </div>
 
       {/* Privacy Modal */}
-      {showPrivacyModal && (
-        <div
-          className="modal show d-block"
-          style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-          onClick={() => setShowPrivacyModal(false)}
-        >
-          <div className="modal-dialog modal-lg modal-dialog-scrollable" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-              <div className="modal-header border-0" style={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                padding: '20px'
-              }}>
-                <h5 className="modal-title text-white fw-bold mb-0">개인정보 수집 및 이용 동의</h5>
-                <button
-                  type="button"
-                  className="btn-close btn-close-white"
-                  onClick={() => setShowPrivacyModal(false)}
-                  style={{ opacity: 0.8 }}
-                ></button>
-              </div>
-              <div className="modal-body">
-                <iframe
-                  srcDoc={PRIVACY_POLICY_HTML}
-                  style={{ width: '100%', height: '500px', border: 'none' }}
-                  title="개인정보 수집 및 이용 동의"
-                />
-              </div>
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setShowPrivacyModal(false)}
-                >
-                  닫기
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <OhgoModal
+        open={showPrivacyModal}
+        onClose={() => setShowPrivacyModal(false)}
+        title="개인정보 수집 및 이용 동의"
+        size="lg"
+        scrollable
+        closeOnBackdrop
+        bodyPadding={false}
+        footer={
+          <OhgoModalButton variant="secondary" onClick={() => setShowPrivacyModal(false)}>
+            닫기
+          </OhgoModalButton>
+        }
+      >
+        <iframe
+          srcDoc={PRIVACY_POLICY_HTML}
+          style={{ width: '100%', height: 'min(60vh, 500px)', border: 'none', display: 'block' }}
+          title="개인정보 수집 및 이용 동의"
+        />
+      </OhgoModal>
 
-      {/* Third Party Modal */}
-      {showThirdPartyModal && (
-        <div
-          className="modal show d-block"
-          style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-          onClick={() => setShowThirdPartyModal(false)}
-        >
-          <div className="modal-dialog modal-lg modal-dialog-scrollable" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-              <div className="modal-header border-0" style={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                padding: '20px'
-              }}>
-                <h5 className="modal-title text-white fw-bold mb-0">제3자 개인정보 제공 동의</h5>
-                <button
-                  type="button"
-                  className="btn-close btn-close-white"
-                  onClick={() => setShowThirdPartyModal(false)}
-                  style={{ opacity: 0.8 }}
-                ></button>
-              </div>
-              <div className="modal-body">
-                <iframe
-                  srcDoc={THIRD_PARTY_HTML}
-                  style={{ width: '100%', height: '500px', border: 'none' }}
-                  title="제3자 개인정보 제공 동의"
-                />
-              </div>
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setShowThirdPartyModal(false)}
-                >
-                  닫기
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <OhgoModal
+        open={showThirdPartyModal}
+        onClose={() => setShowThirdPartyModal(false)}
+        title="제3자 개인정보 제공 동의"
+        size="lg"
+        scrollable
+        closeOnBackdrop
+        bodyPadding={false}
+        footer={
+          <OhgoModalButton variant="secondary" onClick={() => setShowThirdPartyModal(false)}>
+            닫기
+          </OhgoModalButton>
+        }
+      >
+        <iframe
+          srcDoc={THIRD_PARTY_HTML}
+          style={{ width: '100%', height: 'min(60vh, 500px)', border: 'none', display: 'block' }}
+          title="제3자 개인정보 제공 동의"
+        />
+      </OhgoModal>
+    </SubPageFrame>
   );
 }
 
 export default function BoardingFormPage() {
   return (
-    <Suspense fallback={
-      <div className="d-flex min-vh-100 align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<OhgoPageLoading />}>
       <BoardingFormContent />
     </Suspense>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getUser } from '@/lib/storage';
 import { getUserByUUID } from '@/lib/firebase-auth';
 import { getPointRules, savePointSettings } from '@/utils/community-point-service';
@@ -26,8 +26,18 @@ import {
   EmojiPack,
   Emoji
 } from '@/utils/emoji-pack-service';
-import { IoTrashOutline, IoAddOutline, IoSettingsOutline, IoCreateOutline, IoChevronUpOutline, IoChevronDownOutline, IoHappyOutline, IoPencilOutline } from 'react-icons/io5';
-import PageHeader from '@/components/PageHeader';
+import { IoTrashOutline, IoAddOutline, IoSettingsOutline, IoChevronUpOutline, IoChevronDownOutline, IoHappyOutline, IoPencilOutline } from 'react-icons/io5';
+import type { IconType } from 'react-icons';
+import SubPageFrame from '@/components/SubPageFrame';
+import {
+  OHGO_CARD,
+  OHGO_FONT,
+  OHGO_INPUT,
+  OHGO_PRIMARY_BTN,
+  OHGO_SECONDARY_BTN,
+  OhgoPageLoading,
+} from '@/lib/page-styles';
+import EmptyState from '@/components/EmptyState';
 import { useNavigation } from '@/hooks/useNavigation';
 import {
   getPhotos,
@@ -37,8 +47,127 @@ import {
   CommunityPhoto
 } from '@/utils/community-service';
 
+const FONT = OHGO_FONT;
+const CARD: React.CSSProperties = { ...OHGO_CARD };
+
+const LABEL: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: '#6F767E',
+  fontFamily: FONT,
+  marginBottom: 6,
+  display: 'block',
+};
+
+const HINT: React.CSSProperties = {
+  fontSize: 11,
+  color: '#ABABAB',
+  fontFamily: FONT,
+  marginTop: 6,
+  marginBottom: 0,
+};
+
+const LIST_CONTAINER: React.CSSProperties = {
+  borderRadius: 14,
+  border: '1px solid #EFEFEF',
+  overflow: 'hidden',
+  backgroundColor: '#FFFFFF',
+};
+
+function FormSection({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div style={{ ...CARD, padding: '14px 16px', marginBottom: 12 }}>
+      <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>{title}</div>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function FormActions({
+  onCancel,
+  onSubmit,
+  submitLabel,
+  loading,
+  loadingLabel,
+  disabled,
+}: {
+  onCancel: () => void;
+  onSubmit: () => void;
+  submitLabel: string;
+  loading?: boolean;
+  loadingLabel?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="d-grid gap-2 mt-2" style={{ gridTemplateColumns: '1fr 1fr' }}>
+      <button type="button" className="btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--secondary" style={OHGO_SECONDARY_BTN} onClick={onCancel} disabled={loading}>
+        취소
+      </button>
+      <button
+        type="button"
+        className="btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--primary"
+        style={{ ...OHGO_PRIMARY_BTN, opacity: disabled || loading ? 0.65 : 1 }}
+        onClick={onSubmit}
+        disabled={disabled || loading}
+      >
+        {loading ? loadingLabel || '처리 중...' : submitLabel}
+      </button>
+    </div>
+  );
+}
+
+function SectionAddButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="btn d-flex align-items-center gap-1 flex-shrink-0 ohgo-modal__btn ohgo-modal__btn--primary"
+      style={{ ...OHGO_PRIMARY_BTN, padding: '8px 12px', fontSize: 13, borderRadius: 10 }}
+      onClick={onClick}
+    >
+      <IoAddOutline size={16} aria-hidden />
+      {label}
+    </button>
+  );
+}
+
+function IconActionButton({
+  onClick,
+  icon: Icon,
+  color,
+  bg,
+  title,
+  disabled,
+}: {
+  onClick: () => void;
+  icon: IconType;
+  color: string;
+  bg: string;
+  title: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      disabled={disabled}
+      className="btn p-0 d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
+      style={{ width: 32, height: 32, backgroundColor: bg, border: 'none', opacity: disabled ? 0.5 : 1 }}
+    >
+      <Icon size={16} color={color} />
+    </button>
+  );
+}
+
 function AdminCommunityContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const view = searchParams.get('view');
+  const templateIdParam = searchParams.get('templateId');
+  const emojiPackIdParam = searchParams.get('packId');
   const [user, setUser] = useState<{ uuid?: string; name?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [pointsPerComment, setPointsPerComment] = useState(1);
@@ -46,14 +175,12 @@ function AdminCommunityContent() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [templates, setTemplates] = useState<CommunityTemplate[]>([]);
   const [activeTemplateId, setActiveTemplateIdState] = useState<string | null>(null);
-  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<CommunityTemplate | null>(null);
   const [templateName, setTemplateName] = useState('');
   const [templateFields, setTemplateFields] = useState<TemplateField[]>([]);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [fieldOptionInputs, setFieldOptionInputs] = useState<Record<number, string>>({});
   const [emojiPacks, setEmojiPacks] = useState<EmojiPack[]>([]);
-  const [showEmojiPackModal, setShowEmojiPackModal] = useState(false);
   const [editingEmojiPack, setEditingEmojiPack] = useState<EmojiPack | null>(null);
   const [emojiPackName, setEmojiPackName] = useState('');
   const [emojiPackDescription, setEmojiPackDescription] = useState('');
@@ -65,7 +192,6 @@ function AdminCommunityContent() {
   // 사진 관리 관련 state
   const [photos, setPhotos] = useState<CommunityPhoto[]>([]);
   const [editingPhoto, setEditingPhoto] = useState<CommunityPhoto | null>(null);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
@@ -84,11 +210,9 @@ function AdminCommunityContent() {
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [editedImages, setEditedImages] = useState<Record<number, File>>({});
   const [editingImageIndex, setEditingImageIndex] = useState<number | null>(null);
-  const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [updatingPhoto, setUpdatingPhoto] = useState(false);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -154,15 +278,18 @@ function AdminCommunityContent() {
     setEmojiPackName('');
     setEmojiPackDescription('');
     setEmojiPackEmojis([]);
-    setShowEmojiPackModal(true);
+    router.push('/admin-community?view=emoji-form');
   };
 
-  const handleEditEmojiPack = (pack: EmojiPack) => {
+  const populateEmojiPackForm = (pack: EmojiPack) => {
     setEditingEmojiPack(pack);
     setEmojiPackName(pack.name);
     setEmojiPackDescription(pack.description || '');
     setEmojiPackEmojis([...pack.emojis]);
-    setShowEmojiPackModal(true);
+  };
+
+  const handleEditEmojiPack = (pack: EmojiPack) => {
+    router.push(`/admin-community?view=emoji-form&packId=${pack.packId}`);
   };
 
   const handleSaveEmojiPack = async () => {
@@ -183,7 +310,7 @@ function AdminCommunityContent() {
       });
       
       alert('이모티콘 팩이 저장되었습니다.');
-      setShowEmojiPackModal(false);
+      router.replace('/admin-community');
       setEditingEmojiPack(null);
       await loadEmojiPacks();
     } catch (error: any) {
@@ -333,7 +460,7 @@ function AdminCommunityContent() {
       });
       
       alert('템플릿이 저장되었습니다.');
-      setShowTemplateModal(false);
+      router.replace('/admin-community');
       setEditingTemplate(null);
       setTemplateName('');
       setTemplateFields([]);
@@ -395,7 +522,13 @@ function AdminCommunityContent() {
       }
     });
     setFieldOptionInputs(optionInputs);
-    setShowTemplateModal(true);
+  };
+
+  const initTemplateFormNew = () => {
+    setEditingTemplate(null);
+    setTemplateName('');
+    setTemplateFields([]);
+    setFieldOptionInputs({});
   };
 
   const handleAddTemplateField = () => {
@@ -550,7 +683,7 @@ function AdminCommunityContent() {
       setEditTemplateFieldValues({});
     }
     
-    setShowEditModal(true);
+    router.push(`/admin-photos?view=edit&photoId=${latestPhoto.photoId}`);
   };
 
   const handleEditFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -718,7 +851,7 @@ function AdminCommunityContent() {
       });
       
       alert('사진이 수정되었습니다.');
-      setShowEditModal(false);
+      router.replace('/admin-photos');
       setEditingPhoto(null);
       setEditTemplateFieldValues({});
       await loadPhotos();
@@ -759,12 +892,6 @@ function AdminCommunityContent() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadPhotos();
-    setRefreshing(false);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -877,7 +1004,7 @@ function AdminCommunityContent() {
       );
       
       alert(`${filesToUpload.length}개의 사진이 업로드되었습니다.`);
-      setShowUploadModal(false);
+      router.replace('/admin-photos?view=upload');
       setSelectedFiles([]);
       setPreviewUrls([]);
       setEditedImages({});
@@ -914,680 +1041,466 @@ function AdminCommunityContent() {
   };
 
 
+  useEffect(() => {
+    if (view !== 'template-form' || loading) return;
+    if (!templateIdParam) {
+      initTemplateFormNew();
+      return;
+    }
+    if (editingTemplate?.templateId === templateIdParam) return;
+    const found = templates.find(t => t.templateId === templateIdParam);
+    if (found) {
+      handleEditTemplate(found);
+      return;
+    }
+    void getTemplate(templateIdParam).then(t => {
+      if (t) handleEditTemplate(t);
+    });
+  }, [view, templateIdParam, loading, templates]);
+
+  useEffect(() => {
+    if (view !== 'emoji-form' || loading) return;
+    if (!emojiPackIdParam) {
+      setEditingEmojiPack(null);
+      setEmojiPackName('');
+      setEmojiPackDescription('');
+      setEmojiPackEmojis([]);
+      return;
+    }
+    if (editingEmojiPack?.packId === emojiPackIdParam) return;
+    const pack = emojiPacks.find(p => p.packId === emojiPackIdParam);
+    if (pack) populateEmojiPackForm(pack);
+  }, [view, emojiPackIdParam, loading, emojiPacks]);
+
   if (loading) {
+    return <OhgoPageLoading />;
+  }
+
+  if (view === 'template-form') {
     return (
-      <div className="min-vh-100 bg-light">
-        <PageHeader title="커뮤니티 관리" />
-        <div className="container">
-          <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '50vh' }}>
-            <div className="text-center">
-              <div className="spinner-border text-primary mb-3" role="status">
-                <span className="visually-hidden">로딩 중...</span>
+      <SubPageFrame title={editingTemplate ? '템플릿 수정' : '템플릿 추가'} onBack={() => router.replace('/admin-community')}>
+        <FormSection title="기본 정보">
+          <label style={LABEL}>템플릿 이름</label>
+          <input
+            type="text"
+            className="form-control"
+            style={OHGO_INPUT}
+            value={templateName}
+            onChange={e => setTemplateName(e.target.value)}
+            placeholder="예: 조황 정보 템플릿"
+            disabled={savingTemplate}
+          />
+        </FormSection>
+        <FormSection
+          title="필드"
+          action={
+            <SectionAddButton label="필드 추가" onClick={handleAddTemplateField} />
+          }
+        >
+          {templateFields.length === 0 ? (
+            <EmptyState icon={IoSettingsOutline} message="필드를 추가해주세요." compact />
+          ) : null}
+          {templateFields.map((field, index) => {
+            const fieldType: TemplateFieldType = field.type || 'text';
+            return (
+              <div key={index} style={{ ...CARD, padding: 12, marginBottom: 8, boxShadow: 'none', border: '1px solid #EFEFEF' }}>
+                <div className="d-flex align-items-center mb-2 gap-1">
+                  <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => handleMoveTemplateField(index, 'up')} disabled={savingTemplate || index === 0}><IoChevronUpOutline size={14} /></button>
+                  <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => handleMoveTemplateField(index, 'down')} disabled={savingTemplate || index === templateFields.length - 1}><IoChevronDownOutline size={14} /></button>
+                  <span className="text-muted small">순서: {index + 1}</span>
+                </div>
+                <div className="row g-2 mb-2">
+                  <div className="col-md-3">
+                    <input type="text" className="form-control form-control-sm" placeholder="필드명" value={field.label} onChange={e => handleUpdateTemplateField(index, { label: e.target.value })} disabled={savingTemplate} />
+                  </div>
+                  <div className="col-md-3">
+                    <select className="form-select form-select-sm" value={fieldType} onChange={e => {
+                      const newType = e.target.value as TemplateFieldType;
+                      const update: Partial<TemplateField> = { type: newType };
+                      if (newType !== 'radio' && newType !== 'checkbox') update.options = undefined;
+                      else if (!field.options) update.options = [];
+                      handleUpdateTemplateField(index, update);
+                    }} disabled={savingTemplate}>
+                      <option value="text">한줄 입력칸</option>
+                      <option value="textarea">여러줄 입력칸</option>
+                      <option value="date">날짜 선택</option>
+                      <option value="radio">단일 선택</option>
+                      <option value="checkbox">다중 선택</option>
+                    </select>
+                  </div>
+                  <div className="col-md-3">
+                    <input type="text" className="form-control form-control-sm" placeholder="플레이스홀더" value={field.placeholder} onChange={e => handleUpdateTemplateField(index, { placeholder: e.target.value })} disabled={savingTemplate} />
+                  </div>
+                  <div className="col-md-2">
+                    <div className="form-check">
+                      <input className="form-check-input" type="checkbox" checked={field.required || false} onChange={e => handleUpdateTemplateField(index, { required: e.target.checked })} disabled={savingTemplate} />
+                      <label className="form-check-label small">필수</label>
+                    </div>
+                  </div>
+                  <div className="col-md-1">
+                    <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => handleRemoveTemplateField(index)} disabled={savingTemplate}><IoTrashOutline size={14} /></button>
+                  </div>
+                </div>
+                {(fieldType === 'radio' || fieldType === 'checkbox') && (
+                  <input type="text" className="form-control form-control-sm" placeholder="옵션1, 옵션2" value={fieldOptionInputs[index] ?? field.options?.join(', ') ?? ''} onChange={e => handleOptionInputChange(index, e.target.value)} disabled={savingTemplate} />
+                )}
               </div>
-              <p className="text-muted">로딩 중...</p>
+            );
+          })}
+        </FormSection>
+        <FormActions
+          onCancel={() => router.replace('/admin-community')}
+          onSubmit={handleSaveTemplate}
+          submitLabel="저장"
+          loading={savingTemplate}
+          loadingLabel="저장 중..."
+          disabled={!templateName.trim() || templateFields.length === 0}
+        />
+      </SubPageFrame>
+    );
+  }
+
+  if (view === 'emoji-form') {
+    return (
+      <SubPageFrame title={editingEmojiPack ? '이모티콘 팩 수정' : '이모티콘 팩 추가'} onBack={() => router.replace('/admin-community')}>
+        <FormSection title="기본 정보">
+          <label style={LABEL}>팩 이름</label>
+          <input
+            type="text"
+            className="form-control mb-3"
+            style={OHGO_INPUT}
+            value={emojiPackName}
+            onChange={e => setEmojiPackName(e.target.value)}
+            placeholder="예: 기본 이모티콘"
+            disabled={savingEmojiPack}
+          />
+          <label style={LABEL}>설명 (선택)</label>
+          <input
+            type="text"
+            className="form-control"
+            style={OHGO_INPUT}
+            value={emojiPackDescription}
+            onChange={e => setEmojiPackDescription(e.target.value)}
+            placeholder="팩에 대한 설명"
+            disabled={savingEmojiPack}
+          />
+        </FormSection>
+        <FormSection
+          title="이모티콘"
+          action={<SectionAddButton label="추가" onClick={handleAddEmoji} />}
+        >
+          {emojiPackEmojis.length === 0 ? (
+            <EmptyState icon={IoHappyOutline} message="이모티콘을 추가해주세요." compact />
+          ) : (
+            <div className="d-flex flex-column gap-2">
+              {emojiPackEmojis.map((emoji, index) => (
+                <div key={emoji.emojiId} style={{ ...CARD, padding: 12, boxShadow: 'none', border: '1px solid #EFEFEF' }}>
+                  <div className="d-flex align-items-center gap-3">
+                    <div className="d-flex gap-1">
+                      <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => handleMoveEmoji(index, 'up')} disabled={savingEmojiPack || index === 0}><IoChevronUpOutline size={14} /></button>
+                      <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => handleMoveEmoji(index, 'down')} disabled={savingEmojiPack || index === emojiPackEmojis.length - 1}><IoChevronDownOutline size={14} /></button>
+                    </div>
+                    <div style={{ width: 60, height: 60, flexShrink: 0 }}>
+                      {emoji.imageUrl ? (
+                        <img src={emoji.imageUrl} alt={emoji.name} style={{ width: '100%', height: '100%', objectFit: 'contain', border: '1px solid #dee2e6', borderRadius: 4 }} />
+                      ) : (
+                        <div className="d-flex align-items-center justify-content-center border rounded" style={{ width: '100%', height: '100%', backgroundColor: '#f8f9fa' }}>
+                          <IoHappyOutline size={24} className="text-muted" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-grow-1">
+                      <input type="text" className="form-control form-control-sm mb-2" placeholder="이모티콘 이름" value={emoji.name} onChange={e => {
+                        const updated = [...emojiPackEmojis];
+                        updated[index] = { ...updated[index], name: e.target.value };
+                        setEmojiPackEmojis(updated);
+                      }} disabled={savingEmojiPack} />
+                      <input type="file" className="form-control form-control-sm" accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp" onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) void handleEmojiImageUpload(index, file);
+                      }} disabled={savingEmojiPack || uploadingEmojiImage} />
+                      <small className="text-muted">PNG, JPG, SVG, WebP (최대 100KB)</small>
+                    </div>
+                    <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => handleDeleteEmoji(index)} disabled={savingEmojiPack}><IoTrashOutline size={14} /></button>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        </div>
-      </div>
+          )}
+        </FormSection>
+        <FormActions
+          onCancel={() => router.replace('/admin-community')}
+          onSubmit={handleSaveEmojiPack}
+          submitLabel="저장"
+          loading={savingEmojiPack}
+          loadingLabel="저장 중..."
+          disabled={!emojiPackName.trim()}
+        />
+      </SubPageFrame>
     );
   }
 
   return (
-    <div 
-      className="min-vh-100 bg-light"
-      style={{ 
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        position: 'relative',
-      }}
-    >
-      <PageHeader title="커뮤니티 관리" />
-      <div className="container">
-        {/* 템플릿 관리 */}
-        <div className="card shadow-sm mb-4">
-          <div className="card-header d-flex align-items-center justify-content-between">
-            <div className="d-flex align-items-center">
-              <IoSettingsOutline size={20} className="me-2 flex-shrink-0" />
-              <h6 className="mb-0">템플릿 관리</h6>
-            </div>
-            <button
-              className="btn btn-sm btn-primary d-flex align-items-center"
-              onClick={() => {
-                setEditingTemplate(null);
-                setTemplateName('');
-                setTemplateFields([]);
-                setShowTemplateModal(true);
-              }}
-            >
-              <IoAddOutline size={16} className="me-1 flex-shrink-0" />
-              템플릿 추가
-            </button>
-          </div>
-          <div className="card-body">
-            <div className="mb-3">
-              <label className="form-label">활성 템플릿</label>
-              <select
-                className="form-select"
-                value={activeTemplateId || ''}
-                onChange={(e) => handleSetActiveTemplate(e.target.value || null)}
-              >
-                <option value="">템플릿 없음</option>
-                {templates.map((template) => (
-                  <option key={template.templateId} value={template.templateId}>
-                    {template.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {templates.length > 0 && (
-              <div>
-                <label className="form-label">템플릿 목록</label>
-                <div className="list-group">
-                  {templates.map((template) => (
-                    <div
-                      key={template.templateId}
-                      className="list-group-item d-flex justify-content-between align-items-center"
-                    >
-                      <div>
-                        <strong>{template.name}</strong>
-                        {activeTemplateId === template.templateId && (
-                          <span className="badge bg-success ms-2">활성</span>
-                        )}
-                        <div className="small text-muted">
-                          필드 {template.fields.length}개
-                        </div>
-                      </div>
-                      <div className="d-flex gap-2">
-                        <button
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => handleEditTemplate(template)}
+    <SubPageFrame title="커뮤니티 관리">
+      <FormSection
+        title="템플릿 관리"
+        action={
+          <SectionAddButton
+            label="템플릿 추가"
+            onClick={() => router.push('/admin-community?view=template-form')}
+          />
+        }
+      >
+        <label style={LABEL}>활성 템플릿</label>
+        <select
+          className="form-select mb-3"
+          style={OHGO_INPUT}
+          value={activeTemplateId || ''}
+          onChange={e => handleSetActiveTemplate(e.target.value || null)}
+        >
+          <option value="">템플릿 없음</option>
+          {templates.map(template => (
+            <option key={template.templateId} value={template.templateId}>
+              {template.name}
+            </option>
+          ))}
+        </select>
+
+        {templates.length === 0 ? (
+          <EmptyState icon={IoSettingsOutline} message="등록된 템플릿이 없습니다." subtitle="템플릿 추가로 조황 글 양식을 만드세요." compact />
+        ) : (
+          <>
+            <label style={LABEL}>템플릿 목록</label>
+            <div style={LIST_CONTAINER}>
+              {templates.map((template, index) => (
+                <div
+                  key={template.templateId}
+                  className="d-flex align-items-center justify-content-between gap-2 px-3 py-3"
+                  style={{
+                    borderBottom: index < templates.length - 1 ? '1px solid #F7F8FA' : 'none',
+                  }}
+                >
+                  <div className="min-w-0 flex-grow-1">
+                    <div className="d-flex align-items-center gap-2 flex-wrap">
+                      <span style={{ fontSize: 15, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>
+                        {template.name}
+                      </span>
+                      {activeTemplateId === template.templateId && (
+                        <span
+                          className="badge rounded-pill"
+                          style={{
+                            backgroundColor: '#E8F8EE',
+                            color: '#2DA44E',
+                            fontSize: 10,
+                            fontFamily: FONT,
+                            fontWeight: 700,
+                          }}
                         >
-                          <IoCreateOutline size={16} />
-                        </button>
-                        <button
-                          className="btn btn-sm btn-outline-danger"
-                          onClick={() => handleDeleteTemplate(template.templateId)}
-                        >
-                          <IoTrashOutline size={16} />
-                        </button>
-                      </div>
+                          활성
+                        </span>
+                      )}
                     </div>
-                  ))}
+                    <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 4 }}>
+                      필드 {template.fields.length}개
+                    </div>
+                  </div>
+                  <div className="d-flex gap-1 flex-shrink-0">
+                    <IconActionButton
+                      title="수정"
+                      icon={IoPencilOutline}
+                      color="#1B6FF5"
+                      bg="#EBF1FE"
+                      onClick={() =>
+                        router.push(`/admin-community?view=template-form&templateId=${template.templateId}`)
+                      }
+                    />
+                    <IconActionButton
+                      title="삭제"
+                      icon={IoTrashOutline}
+                      color="#FF3B30"
+                      bg="#FFF0F0"
+                      onClick={() => handleDeleteTemplate(template.templateId)}
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
+          </>
+        )}
+      </FormSection>
+
+      <FormSection title="댓글 포인트 설정">
+        <div className="row g-2">
+          <div className="col-6">
+            <label style={LABEL}>댓글 1개당 포인트</label>
+            <input
+              type="number"
+              className="form-control"
+              style={OHGO_INPUT}
+              min={1}
+              value={pointsPerComment}
+              onChange={e => setPointsPerComment(parseInt(e.target.value, 10) || 1)}
+              disabled={savingSettings}
+            />
+          </div>
+          <div className="col-6">
+            <label style={LABEL}>하루 최대 포인트</label>
+            <input
+              type="number"
+              className="form-control"
+              style={OHGO_INPUT}
+              min={1}
+              value={dailyLimit}
+              onChange={e => setDailyLimit(parseInt(e.target.value, 10) || 1)}
+              disabled={savingSettings}
+            />
           </div>
         </div>
+        <p style={HINT}>댓글 작성 시 지급되는 포인트와 일일 상한입니다.</p>
+        <button
+          type="button"
+          className="btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--primary mt-2"
+          style={{ ...OHGO_PRIMARY_BTN, opacity: savingSettings ? 0.65 : 1 }}
+          onClick={handleSaveSettings}
+          disabled={savingSettings}
+        >
+          {savingSettings ? '저장 중...' : '설정 저장'}
+        </button>
+      </FormSection>
 
-        {/* 포인트 설정 */}
-        <div className="card shadow-sm mb-4">
-          <div className="card-header d-flex align-items-center">
-            <IoSettingsOutline size={20} className="me-2 flex-shrink-0" />
-            <h6 className="mb-0">댓글 포인트 설정</h6>
-          </div>
-          <div className="card-body">
-            <div className="row g-3">
-              <div className="col-md-6">
-                <label className="form-label">댓글 1개당 포인트</label>
-                <input
-                  type="number"
-                  className="form-control"
-                  min="1"
-                  value={pointsPerComment}
-                  onChange={(e) => setPointsPerComment(parseInt(e.target.value) || 1)}
-                  disabled={savingSettings}
-                />
-              </div>
-              <div className="col-md-6">
-                <label className="form-label">하루 최대 포인트</label>
-                <input
-                  type="number"
-                  className="form-control"
-                  min="1"
-                  value={dailyLimit}
-                  onChange={(e) => setDailyLimit(parseInt(e.target.value) || 1)}
-                  disabled={savingSettings}
-                />
-              </div>
-            </div>
-            <div className="mt-3">
-              <button
-                className="btn btn-primary"
-                onClick={handleSaveSettings}
-                disabled={savingSettings}
+      <FormSection
+        title="이모티콘 팩 관리"
+        action={<SectionAddButton label="팩 추가" onClick={handleAddEmojiPack} />}
+      >
+        {emojiPacks.length === 0 ? (
+          <EmptyState
+            icon={IoHappyOutline}
+            message="등록된 이모티콘 팩이 없습니다."
+            subtitle="팩 추가로 댓글 이모티콘을 등록하세요."
+            compact
+          />
+        ) : (
+          <div style={LIST_CONTAINER}>
+            {emojiPacks.map((pack, index) => (
+              <div
+                key={pack.packId}
+                className="px-3 py-3"
+                style={{
+                  borderBottom: index < emojiPacks.length - 1 ? '1px solid #F7F8FA' : 'none',
+                }}
               >
-                {savingSettings ? (
-                  <>
-                    <span className="spinner-border spinner-border-sm me-2" role="status" />
-                    저장 중...
-                  </>
-                ) : (
-                  '설정 저장'
+                <div className="d-flex align-items-start justify-content-between gap-2">
+                  <div className="min-w-0 flex-grow-1">
+                    <div className="d-flex align-items-center gap-2 flex-wrap">
+                      <span style={{ fontSize: 15, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>
+                        {pack.name}
+                      </span>
+                      {!pack.isActive && (
+                        <span
+                          className="badge rounded-pill"
+                          style={{
+                            backgroundColor: '#F7F8FA',
+                            color: '#6F767E',
+                            fontSize: 10,
+                            fontFamily: FONT,
+                            fontWeight: 700,
+                          }}
+                        >
+                          비활성
+                        </span>
+                      )}
+                    </div>
+                    {pack.description ? (
+                      <div
+                        className="text-truncate"
+                        style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 4 }}
+                      >
+                        {pack.description}
+                      </div>
+                    ) : null}
+                    <div style={{ fontSize: 11, color: '#ABABAB', fontFamily: FONT, marginTop: 4 }}>
+                      이모티콘 {pack.emojis.length}개
+                    </div>
+                  </div>
+                  <div className="d-flex gap-1 flex-shrink-0">
+                    <IconActionButton
+                      title="수정"
+                      icon={IoPencilOutline}
+                      color="#1B6FF5"
+                      bg="#EBF1FE"
+                      onClick={() => handleEditEmojiPack(pack)}
+                    />
+                    <IconActionButton
+                      title="삭제"
+                      icon={IoTrashOutline}
+                      color="#FF3B30"
+                      bg="#FFF0F0"
+                      onClick={() => handleDeleteEmojiPack(pack.packId)}
+                    />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm mt-2"
+                  style={{
+                    ...OHGO_SECONDARY_BTN,
+                    padding: '6px 12px',
+                    fontSize: 12,
+                    borderRadius: 8,
+                  }}
+                  onClick={() => handleToggleEmojiPackActive(pack)}
+                >
+                  {pack.isActive ? '비활성화' : '활성화'}
+                </button>
+                {pack.emojis.length > 0 && (
+                  <div className="mt-2 d-flex gap-1 flex-wrap">
+                    {pack.emojis.slice(0, 8).map(emoji => (
+                      <img
+                        key={emoji.emojiId}
+                        src={emoji.imageUrl}
+                        alt={emoji.name}
+                        style={{
+                          width: 32,
+                          height: 32,
+                          objectFit: 'contain',
+                          border: '1px solid #EFEFEF',
+                          borderRadius: 8,
+                          backgroundColor: '#F7F8FA',
+                        }}
+                      />
+                    ))}
+                    {pack.emojis.length > 8 && (
+                      <div
+                        className="d-flex align-items-center justify-content-center"
+                        style={{
+                          width: 32,
+                          height: 32,
+                          border: '1px solid #EFEFEF',
+                          borderRadius: 8,
+                          fontSize: 11,
+                          color: '#6F767E',
+                          fontFamily: FONT,
+                          fontWeight: 600,
+                          backgroundColor: '#F7F8FA',
+                        }}
+                      >
+                        +{pack.emojis.length - 8}
+                      </div>
+                    )}
+                  </div>
                 )}
-              </button>
-            </div>
+              </div>
+            ))}
           </div>
-        </div>
-
-        {/* 이모티콘 팩 관리 */}
-        <div className="card shadow-sm mb-4">
-          <div className="card-header d-flex align-items-center justify-content-between">
-            <div className="d-flex align-items-center">
-              <IoHappyOutline size={20} className="me-2 flex-shrink-0" />
-              <h6 className="mb-0">이모티콘 팩 관리</h6>
-            </div>
-            <button
-              className="btn btn-sm btn-primary d-flex align-items-center"
-              onClick={handleAddEmojiPack}
-            >
-              <IoAddOutline size={16} className="me-1 flex-shrink-0" />
-              팩 추가
-            </button>
-          </div>
-          <div className="card-body">
-            {emojiPacks.length === 0 ? (
-              <div className="d-flex flex-column align-items-center justify-content-center py-4">
-                <IoHappyOutline size={48} className="text-muted mb-2 flex-shrink-0" />
-                <p className="text-muted mb-0">등록된 이모티콘 팩이 없습니다.</p>
-              </div>
-            ) : (
-              <div className="row g-3">
-                {emojiPacks.map((pack) => (
-                  <div key={pack.packId} className="col-md-6">
-                    <div className="card border">
-                      <div className="card-body">
-                        <div className="d-flex justify-content-between align-items-start mb-2">
-                          <div>
-                            <h6 className="mb-1">
-                              {pack.name}
-                              {!pack.isActive && (
-                                <span className="badge bg-secondary ms-2">비활성</span>
-                              )}
-                            </h6>
-                            {pack.description && (
-                              <small className="text-muted d-block">{pack.description}</small>
-                            )}
-                            <small className="text-muted d-block">
-                              이모티콘 {pack.emojis.length}개
-                            </small>
-                          </div>
-                          <div className="d-flex gap-1">
-                            <button
-                              className="btn btn-sm btn-outline-primary"
-                              onClick={() => handleEditEmojiPack(pack)}
-                              title="수정"
-                            >
-                              <IoPencilOutline size={14} />
-                            </button>
-                            <button
-                              className="btn btn-sm btn-outline-danger"
-                              onClick={() => handleDeleteEmojiPack(pack.packId)}
-                              title="삭제"
-                            >
-                              <IoTrashOutline size={14} />
-                            </button>
-                          </div>
-                        </div>
-                        <div className="d-flex gap-2">
-                          <button
-                            className="btn btn-sm btn-outline-secondary"
-                            onClick={() => handleToggleEmojiPackActive(pack)}
-                          >
-                            {pack.isActive ? '비활성화' : '활성화'}
-                          </button>
-                        </div>
-                        {pack.emojis.length > 0 && (
-                          <div className="mt-2 d-flex gap-1 flex-wrap">
-                            {pack.emojis.slice(0, 8).map((emoji) => (
-                              <img
-                                key={emoji.emojiId}
-                                src={emoji.imageUrl}
-                                alt={emoji.name}
-                                style={{
-                                  width: '32px',
-                                  height: '32px',
-                                  objectFit: 'contain',
-                                  border: '1px solid #dee2e6',
-                                  borderRadius: '4px',
-                                }}
-                              />
-                            ))}
-                            {pack.emojis.length > 8 && (
-                              <div
-                                className="d-flex align-items-center justify-content-center"
-                                style={{
-                                  width: '32px',
-                                  height: '32px',
-                                  border: '1px solid #dee2e6',
-                                  borderRadius: '4px',
-                                  fontSize: '12px',
-                                }}
-                              >
-                                +{pack.emojis.length - 8}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-      </div>
-
-      {/* 템플릿 편집 모달 */}
-      {showTemplateModal && (
-        <div 
-          className="modal show d-block"
-          style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-          onClick={() => !savingTemplate && setShowTemplateModal(false)}
-        >
-          <div 
-            className="modal-dialog modal-dialog-centered modal-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-              <div className="modal-header border-0" style={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                padding: '20px',
-              }}>
-                <h5 className="modal-title text-white fw-bold mb-0">
-                  {editingTemplate ? '템플릿 수정' : '템플릿 추가'}
-                </h5>
-                <button
-                  type="button"
-                  className="btn-close btn-close-white"
-                  onClick={() => !savingTemplate && setShowTemplateModal(false)}
-                  disabled={savingTemplate}
-                  style={{ opacity: 0.8 }}
-                ></button>
-              </div>
-              <div className="modal-body p-4">
-                <div className="mb-3">
-                  <label className="form-label">템플릿 이름</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={templateName}
-                    onChange={(e) => setTemplateName(e.target.value)}
-                    placeholder="예: 조황 정보 템플릿"
-                    disabled={savingTemplate}
-                  />
-                </div>
-                <div className="mb-3">
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <label className="form-label mb-0">필드</label>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-primary d-flex align-items-center"
-                      onClick={handleAddTemplateField}
-                      disabled={savingTemplate}
-                    >
-                      <IoAddOutline size={16} className="me-1 flex-shrink-0" />
-                      필드 추가
-                    </button>
-                  </div>
-                  {templateFields.map((field, index) => {
-                    const fieldType: TemplateFieldType = field.type || 'text';
-                    return (
-                      <div key={index} className="card mb-2">
-                        <div className="card-body">
-                          <div className="d-flex align-items-center mb-2">
-                            <div className="me-2">
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline-secondary"
-                                onClick={() => handleMoveTemplateField(index, 'up')}
-                                disabled={savingTemplate || index === 0}
-                                title="위로 이동"
-                              >
-                                <IoChevronUpOutline size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline-secondary ms-1"
-                                onClick={() => handleMoveTemplateField(index, 'down')}
-                                disabled={savingTemplate || index === templateFields.length - 1}
-                                title="아래로 이동"
-                              >
-                                <IoChevronDownOutline size={14} />
-                              </button>
-                            </div>
-                            <span className="text-muted small me-2">순서: {index + 1}</span>
-                          </div>
-                          <div className="row g-2 mb-2">
-                            <div className="col-md-3">
-                              <input
-                                type="text"
-                                className="form-control form-control-sm"
-                                placeholder="필드명 (예: 인원)"
-                                value={field.label}
-                                onChange={(e) => handleUpdateTemplateField(index, { label: e.target.value })}
-                                disabled={savingTemplate}
-                              />
-                            </div>
-                            <div className="col-md-3">
-                              <select
-                                className="form-select form-select-sm"
-                                value={fieldType}
-                                onChange={(e) => {
-                                  const newType = e.target.value as TemplateFieldType;
-                                  const update: Partial<TemplateField> = { type: newType };
-                                  if (newType !== 'radio' && newType !== 'checkbox') {
-                                    update.options = undefined;
-                                  } else if (!field.options) {
-                                    update.options = [];
-                                  }
-                                  handleUpdateTemplateField(index, update);
-                                }}
-                                disabled={savingTemplate}
-                              >
-                                <option value="text">한줄 입력칸</option>
-                                <option value="textarea">여러줄 입력칸</option>
-                                <option value="date">날짜 선택</option>
-                                <option value="radio">단일 선택</option>
-                                <option value="checkbox">다중 선택</option>
-                              </select>
-                            </div>
-                            <div className="col-md-3">
-                              <input
-                                type="text"
-                                className="form-control form-control-sm"
-                                placeholder="플레이스홀더"
-                                value={field.placeholder}
-                                onChange={(e) => handleUpdateTemplateField(index, { placeholder: e.target.value })}
-                                disabled={savingTemplate}
-                              />
-                            </div>
-                            <div className="col-md-2">
-                              <div className="form-check">
-                                <input
-                                  className="form-check-input"
-                                  type="checkbox"
-                                  checked={field.required || false}
-                                  onChange={(e) => handleUpdateTemplateField(index, { required: e.target.checked })}
-                                  disabled={savingTemplate}
-                                />
-                                <label className="form-check-label small">필수</label>
-                              </div>
-                            </div>
-                            <div className="col-md-1">
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline-danger"
-                                onClick={() => handleRemoveTemplateField(index)}
-                                disabled={savingTemplate}
-                                title="삭제"
-                              >
-                                <IoTrashOutline size={14} />
-                              </button>
-                            </div>
-                          </div>
-                          {(fieldType === 'radio' || fieldType === 'checkbox') && (
-                            <div className="mb-2">
-                              <label className="form-label small">옵션 (콤마로 구분)</label>
-                              <input
-                                type="text"
-                                className="form-control form-control-sm"
-                                placeholder="옵션1, 옵션2, 옵션3"
-                                value={fieldOptionInputs[index] ?? field.options?.join(', ') ?? ''}
-                                onChange={(e) => handleOptionInputChange(index, e.target.value)}
-                                disabled={savingTemplate}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {templateFields.length === 0 && (
-                    <p className="text-muted text-center py-3">필드를 추가해주세요.</p>
-                  )}
-                </div>
-              </div>
-              <div className="modal-footer border-0 pt-0">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setShowTemplateModal(false)}
-                  disabled={savingTemplate}
-                >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleSaveTemplate}
-                  disabled={savingTemplate || !templateName.trim() || templateFields.length === 0}
-                >
-                  {savingTemplate ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" />
-                      저장 중...
-                    </>
-                  ) : (
-                    '저장'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 이모티콘 팩 편집 모달 */}
-      {showEmojiPackModal && (
-        <div 
-          className="modal show d-block"
-          style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-          onClick={() => !savingEmojiPack && setShowEmojiPackModal(false)}
-        >
-          <div 
-            className="modal-dialog modal-dialog-centered modal-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-              <div className="modal-header border-0" style={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                padding: '20px',
-              }}>
-                <h5 className="modal-title text-white fw-bold mb-0">
-                  {editingEmojiPack ? '이모티콘 팩 수정' : '이모티콘 팩 추가'}
-                </h5>
-                <button
-                  type="button"
-                  className="btn-close btn-close-white"
-                  onClick={() => !savingEmojiPack && setShowEmojiPackModal(false)}
-                  disabled={savingEmojiPack}
-                  style={{ opacity: 0.8 }}
-                ></button>
-              </div>
-              <div className="modal-body p-4" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-                <div className="mb-3">
-                  <label className="form-label">팩 이름</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={emojiPackName}
-                    onChange={(e) => setEmojiPackName(e.target.value)}
-                    placeholder="예: 기본 이모티콘"
-                    disabled={savingEmojiPack}
-                  />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label">설명 (선택사항)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={emojiPackDescription}
-                    onChange={(e) => setEmojiPackDescription(e.target.value)}
-                    placeholder="팩에 대한 설명"
-                    disabled={savingEmojiPack}
-                  />
-                </div>
-                <div className="mb-3">
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <label className="form-label mb-0">이모티콘</label>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-primary d-flex align-items-center"
-                      onClick={handleAddEmoji}
-                      disabled={savingEmojiPack}
-                    >
-                      <IoAddOutline size={16} className="me-1 flex-shrink-0" />
-                      이모티콘 추가
-                    </button>
-                  </div>
-                  {emojiPackEmojis.length === 0 ? (
-                    <div className="d-flex flex-column align-items-center justify-content-center py-4 border rounded">
-                      <IoHappyOutline size={48} className="text-muted mb-2 flex-shrink-0" />
-                      <p className="text-muted mb-0">이모티콘을 추가해주세요.</p>
-                    </div>
-                  ) : (
-                    <div className="d-flex flex-column gap-2">
-                      {emojiPackEmojis.map((emoji, index) => (
-                        <div key={emoji.emojiId} className="card">
-                          <div className="card-body">
-                            <div className="d-flex align-items-center gap-3">
-                              <div className="d-flex gap-1">
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-outline-secondary"
-                                  onClick={() => handleMoveEmoji(index, 'up')}
-                                  disabled={savingEmojiPack || index === 0}
-                                  title="위로 이동"
-                                >
-                                  <IoChevronUpOutline size={14} />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-outline-secondary"
-                                  onClick={() => handleMoveEmoji(index, 'down')}
-                                  disabled={savingEmojiPack || index === emojiPackEmojis.length - 1}
-                                  title="아래로 이동"
-                                >
-                                  <IoChevronDownOutline size={14} />
-                                </button>
-                              </div>
-                              <div style={{ width: '60px', height: '60px', flexShrink: 0 }}>
-                                {emoji.imageUrl ? (
-                                  <img
-                                    src={emoji.imageUrl}
-                                    alt={emoji.name}
-                                    style={{
-                                      width: '100%',
-                                      height: '100%',
-                                      objectFit: 'contain',
-                                      border: '1px solid #dee2e6',
-                                      borderRadius: '4px',
-                                    }}
-                                  />
-                                ) : (
-                                  <div
-                                    className="d-flex align-items-center justify-content-center border rounded"
-                                    style={{
-                                      width: '100%',
-                                      height: '100%',
-                                      backgroundColor: '#f8f9fa',
-                                    }}
-                                  >
-                                    <IoHappyOutline size={24} className="text-muted" />
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex-grow-1">
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm mb-2"
-                                  placeholder="이모티콘 이름"
-                                  value={emoji.name}
-                                  onChange={(e) => {
-                                    const updated = [...emojiPackEmojis];
-                                    updated[index] = { ...updated[index], name: e.target.value };
-                                    setEmojiPackEmojis(updated);
-                                  }}
-                                  disabled={savingEmojiPack}
-                                />
-                                <input
-                                  type="file"
-                                  className="form-control form-control-sm"
-                                  accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
-                                      handleEmojiImageUpload(index, file);
-                                    }
-                                  }}
-                                  disabled={savingEmojiPack || uploadingEmojiImage}
-                                />
-                                <small className="text-muted">PNG, JPG, SVG, WebP (최대 100KB)</small>
-                              </div>
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline-danger"
-                                onClick={() => handleDeleteEmoji(index)}
-                                disabled={savingEmojiPack}
-                                title="삭제"
-                              >
-                                <IoTrashOutline size={14} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="modal-footer border-0 pt-0">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setShowEmojiPackModal(false)}
-                  disabled={savingEmojiPack}
-                >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleSaveEmojiPack}
-                  disabled={savingEmojiPack || !emojiPackName.trim()}
-                >
-                  {savingEmojiPack ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" />
-                      저장 중...
-                    </>
-                  ) : (
-                    '저장'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+        )}
+      </FormSection>
+    </SubPageFrame>
   );
 }
 
 export default function AdminCommunityPage() {
   return (
-    <Suspense fallback={
-      <div className="d-flex min-vh-100 align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">로딩 중...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<OhgoPageLoading />}>
       <AdminCommunityContent />
     </Suspense>
   );

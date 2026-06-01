@@ -6,8 +6,131 @@ import { collection, getDocs, getDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getUser } from '@/lib/storage';
 import { getUserByUUID } from '@/lib/firebase-auth';
-import { IoChevronDownOutline, IoChevronUpOutline, IoChatbubbleEllipsesOutline } from 'react-icons/io5';
-import PageHeader from '@/components/PageHeader';
+import {
+  IoChevronDownOutline,
+  IoChevronUpOutline,
+  IoChevronForwardOutline,
+  IoChatbubbleEllipsesOutline,
+  IoPeopleOutline,
+} from 'react-icons/io5';
+import SubPageFrame from '@/components/SubPageFrame';
+import EmptyState from '@/components/EmptyState';
+import MemberListAvatar from '@/components/MemberListAvatar';
+import { getMemberProfileImageUrl } from '@/lib/member-profile';
+import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
+import { OHGO_CARD, OHGO_FONT, OHGO_INPUT } from '@/lib/page-styles';
+
+const CARD: React.CSSProperties = { ...OHGO_CARD };
+
+function sectionAccent(title: string): string {
+  if (title === '오늘 가입한 회원') return '#FF3B30';
+  if (title === '오늘 스탬프 적립') return '#34C759';
+  return '#1B6FF5';
+}
+
+const MEMBER_STAT_CELL_WIDTH = 44;
+
+type MemberStatCell = {
+  key: string;
+  label: string;
+  value: number;
+  valueColor: string;
+};
+
+function buildMemberStatCells(member: Member): MemberStatCell[] {
+  const cells: MemberStatCell[] = [];
+  if ((member.tripCount ?? 0) > 0) {
+    cells.push({
+      key: 'trip',
+      label: '승선',
+      value: member.tripCount as number,
+      valueColor: '#1A1D1F',
+    });
+  }
+  if ((member.stampCount ?? 0) > 0) {
+    cells.push({
+      key: 'stamp',
+      label: '스탬프',
+      value: member.stampCount as number,
+      valueColor: '#1B6FF5',
+    });
+  }
+  if ((member.halfCouponCount ?? 0) > 0) {
+    cells.push({
+      key: 'half',
+      label: '50%',
+      value: member.halfCouponCount as number,
+      valueColor: '#E65100',
+    });
+  }
+  if ((member.fullCouponCount ?? 0) > 0) {
+    cells.push({
+      key: 'full',
+      label: '쿠폰',
+      value: member.fullCouponCount as number,
+      valueColor: '#E65100',
+    });
+  }
+  return cells;
+}
+
+function MemberKeyStats({ member }: { member: Member }) {
+  const statsLoading =
+    member.stampCount === undefined ||
+    member.tripCount === undefined ||
+    member.halfCouponCount === undefined ||
+    member.fullCouponCount === undefined;
+
+  if (statsLoading) {
+    return (
+      <span
+        className="flex-shrink-0 align-self-center"
+        style={{ fontSize: 10, color: '#ABABAB', fontFamily: OHGO_FONT }}
+        aria-hidden
+      >
+        …
+      </span>
+    );
+  }
+
+  const cells = buildMemberStatCells(member);
+  if (cells.length === 0) return null;
+
+  const cellBase: React.CSSProperties = {
+    width: MEMBER_STAT_CELL_WIDTH,
+    minWidth: MEMBER_STAT_CELL_WIDTH,
+    padding: '2px 4px',
+    textAlign: 'center',
+    fontFamily: OHGO_FONT,
+    lineHeight: 1.2,
+  };
+
+  return (
+    <div
+      className="ohgo-member-stat-group d-flex flex-shrink-0 overflow-hidden align-self-center"
+      style={{
+        borderRadius: 8,
+        border: '1px solid #E0E4EA',
+        backgroundColor: '#FFFFFF',
+      }}
+    >
+      {cells.map((cell, index) => (
+        <div
+          key={cell.key}
+          style={{
+            ...cellBase,
+            borderRight: index < cells.length - 1 ? '1px solid #EEF0F2' : undefined,
+          }}
+        >
+          <div style={{ fontSize: 9, color: '#9CA3AF', fontWeight: 500 }}>{cell.label}</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: cell.valueColor, marginTop: 1 }}>
+            {cell.value}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const STORAGE_KEY = 'collapsedSections';
 const MEMBERS_CACHE_KEY = 'cachedMembers';
@@ -19,6 +142,7 @@ type Member = {
   name: string;
   dob: string;
   createdAt: string;
+  profileImageUrl?: string;
   lastStampTime?: { seconds: number };
   gender?: string | null;
   tripCount?: number;
@@ -57,7 +181,6 @@ export default function AdminPage() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'boarding' | 'coupon' | 'inactive'>('all');
   const [inactivePeriod, setInactivePeriod] = useState<3 | 6 | 12>(6);
   const [filterSectionExpanded, setFilterSectionExpanded] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [statsLoadingProgress, setStatsLoadingProgress] = useState<{ loaded: number; total: number } | null>(null);
   const statsLoadedRef = useRef<Set<string>>(new Set());
@@ -271,13 +394,16 @@ export default function AdminPage() {
     
     // 기본 회원 정보만 먼저 빠르게 로드
     const snapshot = await getDocs(collection(db, 'users'));
-    const users: Member[] = snapshot.docs.map(doc => ({
-      id: doc.id,
-      uuid: doc.id,
-      name: doc.data().name,
-      dob: doc.data().dob,
-      createdAt: doc.data().createdAt,
-      lastStampTime: doc.data().lastStampTime,
+    const users: Member[] = snapshot.docs.map(docSnap => {
+      const data = docSnap.data();
+      return {
+      id: docSnap.id,
+      uuid: docSnap.id,
+      name: data.name,
+      dob: data.dob,
+      createdAt: data.createdAt,
+      profileImageUrl: getMemberProfileImageUrl(data),
+      lastStampTime: data.lastStampTime,
       gender: undefined,
       tripCount: undefined,
       couponCount: undefined,
@@ -286,7 +412,8 @@ export default function AdminPage() {
       stampCount: undefined,
       hasMemo: undefined,
       hasBoarding: undefined,
-    }));
+    };
+    });
 
     const todayKST = new Date();
     todayKST.setHours(todayKST.getHours() + 9);
@@ -476,12 +603,7 @@ export default function AdminPage() {
     }
   };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchMembers(true);
-    setRefreshing(false);
-  };
-
+  useNativePullToRefresh(() => fetchMembers(true));
 
   const filterCounts = useMemo(() => {
     const today = new Date();
@@ -515,214 +637,225 @@ export default function AdminPage() {
   const totalCount = sections.reduce((acc, sec) => acc + sec.data.length, 0);
 
   return (
-    <div 
-      className="min-vh-100 bg-light"
-      style={{ 
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        position: 'relative',
-        paddingBottom: '20px',
-          }}
-        >
-      <PageHeader title="회원 관리" />
-      <div className="container">
-        <div className="card shadow-sm mb-3">
-          <div className="card-body">
-            <button
-              onClick={() => setFilterSectionExpanded(!filterSectionExpanded)}
-              className="btn btn-link text-start p-0 w-100 d-flex justify-content-between align-items-center text-decoration-none"
-            >
-              <h5 className="mb-0 text-primary">
-                회원 검색 <small className="text-muted">({totalCount})</small>
-              </h5>
-              {filterSectionExpanded ? (
-                <IoChevronUpOutline size={20} className="text-primary" />
-              ) : (
-                <IoChevronDownOutline size={20} className="text-primary" />
-              )}
-            </button>
-            <input
-              type="text"
-              className="form-control mt-2"
-              placeholder="이름으로 검색"
-              value={keyword}
-              onChange={(e) => handleSearch(e.target.value)}
-            />
-            {filterSectionExpanded && (
-              <>
-                <div className="d-flex flex-wrap gap-2 mt-3 pt-3 border-top">
-                  <button
-                    onClick={() => applyFilter(activeFilter === 'boarding' ? 'all' : 'boarding')}
-                    className={`btn btn-sm ${activeFilter === 'boarding' ? 'btn-primary' : 'btn-outline-secondary'}`}
-                  >
-                    명부: {filterCounts.boarding}명
-                  </button>
-                  <button
-                    onClick={() => applyFilter(activeFilter === 'coupon' ? 'all' : 'coupon')}
-                    className={`btn btn-sm ${activeFilter === 'coupon' ? 'btn-primary' : 'btn-outline-secondary'}`}
-                  >
-                    쿠폰: {filterCounts.coupon}명
-                  </button>
-                  <button
-                    onClick={() => applyFilter(activeFilter === 'inactive' ? 'all' : 'inactive')}
-                    className={`btn btn-sm ${activeFilter === 'inactive' ? 'btn-primary' : 'btn-outline-secondary'}`}
-                  >
-                    {inactivePeriod}개월+ 미활동: {filterCounts.inactive}명
-                  </button>
-                </div>
-                {activeFilter === 'inactive' && (
-                  <div className="mt-3 pt-3 border-top">
-                    <label className="form-label small text-muted">미활동 기간 선택:</label>
-                    <div className="btn-group w-100" role="group">
-                      <button
-                        type="button"
-                        onClick={() => setInactivePeriod(3)}
-                        className={`btn btn-sm ${inactivePeriod === 3 ? 'btn-primary' : 'btn-outline-secondary'}`}
-                      >
-                        3개월
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setInactivePeriod(6)}
-                        className={`btn btn-sm ${inactivePeriod === 6 ? 'btn-primary' : 'btn-outline-secondary'}`}
-                      >
-                        6개월
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setInactivePeriod(12)}
-                        className={`btn btn-sm ${inactivePeriod === 12 ? 'btn-primary' : 'btn-outline-secondary'}`}
-                      >
-                        12개월
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </>
+    <SubPageFrame title="회원 관리">
+        <div className="p-3 mb-4" style={CARD}>
+          <button
+            type="button"
+            onClick={() => setFilterSectionExpanded(!filterSectionExpanded)}
+            className="btn w-100 d-flex justify-content-between align-items-center p-0"
+            style={{ border: 'none', background: 'none', fontFamily: OHGO_FONT }}
+          >
+            <span style={{ fontSize: 16, fontWeight: 700, color: '#1A1D1F' }}>
+              회원 검색{' '}
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#1B6FF5' }}>{totalCount}명</span>
+            </span>
+            {filterSectionExpanded ? (
+              <IoChevronUpOutline size={20} color="#6F767E" />
+            ) : (
+              <IoChevronDownOutline size={20} color="#6F767E" />
             )}
-          </div>
+          </button>
+          <input
+            type="text"
+            className="form-control mt-3"
+            placeholder="이름으로 검색"
+            value={keyword}
+            onChange={e => handleSearch(e.target.value)}
+            style={OHGO_INPUT}
+          />
+          {filterSectionExpanded && (
+            <>
+              <div className="ohgo-filter-group mt-3 pt-3" style={{ borderTop: '1px solid #F7F8FA' }}>
+                <button
+                  type="button"
+                  onClick={() => applyFilter(activeFilter === 'boarding' ? 'all' : 'boarding')}
+                  className={`btn btn-sm ${activeFilter === 'boarding' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                >
+                  명부 {filterCounts.boarding}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyFilter(activeFilter === 'coupon' ? 'all' : 'coupon')}
+                  className={`btn btn-sm ${activeFilter === 'coupon' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                >
+                  쿠폰 {filterCounts.coupon}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyFilter(activeFilter === 'inactive' ? 'all' : 'inactive')}
+                  className={`btn btn-sm ${activeFilter === 'inactive' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                >
+                  미활동 {filterCounts.inactive}
+                </button>
+              </div>
+              {activeFilter === 'inactive' && (
+                <div className="ohgo-filter-group mt-2">
+                  {[3, 6, 12].map(m => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setInactivePeriod(m as 3 | 6 | 12)}
+                      className={`btn btn-sm ${inactivePeriod === m ? 'btn-primary' : 'btn-outline-secondary'}`}
+                    >
+                      {m}개월+
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
 
-        <div className="list-group">
-          {sections.map((section) => {
+        <div className="d-flex flex-column gap-3">
+          {sections.map(section => {
             const isCollapsed = collapsedSections[section.title] ?? false;
-            const isTodaySection = section.title === '오늘 가입한 회원';
-            const isStampTodaySection = section.title === '오늘 스탬프 적립';
-            
+            const accent = sectionAccent(section.title);
+
             return (
               <div key={section.title}>
                 <button
+                  type="button"
                   onClick={() => toggleSection(section.title)}
-                  className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${
-                    isTodaySection ? 'bg-danger text-white' : 
-                    isStampTodaySection ? 'bg-success text-white' : 
-                    'bg-info text-white'
-                  }`}
+                  className="btn w-100 d-flex align-items-center justify-content-between mb-2 px-3 py-2"
+                  style={{
+                    ...CARD,
+                    backgroundColor: '#F7F8FA',
+                    border: '1px solid #EFEFEF',
+                    boxShadow: 'none',
+                  }}
                 >
-                  <div className="d-flex align-items-center">
+                  <div className="d-flex align-items-center gap-2 min-w-0">
                     {isCollapsed ? (
-                      <IoChevronDownOutline size={16} className="me-2" />
+                      <IoChevronDownOutline size={16} color="#6F767E" className="flex-shrink-0" />
                     ) : (
-                      <IoChevronUpOutline size={16} className="me-2" />
+                      <IoChevronUpOutline size={16} color="#6F767E" className="flex-shrink-0" />
                     )}
-                    <span className="fw-semibold">{section.title}</span>
-                  </div>
-                  <span className="badge bg-light text-dark rounded-pill">({section.data.length})</span>
-                </button>
-                {!isCollapsed && section.data.map((member) => {
-                  const lastStampDate = member.lastStampTime?.seconds 
-                    ? new Date(member.lastStampTime.seconds * 1000)
-                    : null;
-                  const today = new Date();
-                  const daysDiff = lastStampDate
-                    ? Math.floor((today.getTime() - lastStampDate.getTime()) / (1000 * 60 * 60 * 24))
-                    : null;
-                  const inactiveDays = getDaysFromMonths(inactivePeriod);
-                  const isInactive = daysDiff !== null && daysDiff >= inactiveDays;
-
-                  return (
-                    <button
-                      key={member.uuid}
-                      onClick={() => router.push(`/member-detail?uuid=${member.uuid}&name=${member.name}&dob=${member.dob}`)}
-                      className="list-group-item list-group-item-action"
+                    <span
+                      className="text-truncate"
+                      style={{ fontSize: 14, fontWeight: 700, color: '#1A1D1F', fontFamily: OHGO_FONT }}
                     >
-                      <div className="d-flex justify-content-between align-items-start">
-                        <div className="flex-grow-1">
-                          <div className="d-flex align-items-center mb-2">
-                            <h6 className="mb-0 me-2">{member.name}</h6>
-                            {member.hasMemo && (
-                              <IoChatbubbleEllipsesOutline size={16} className="text-primary" />
-                            )}
-                          </div>
-                          <div className="d-flex flex-wrap gap-2 mb-2">
-                            {member.stampCount !== undefined && member.stampCount > 0 && (
-                                <span className="badge bg-secondary">
-                                  스탬프 {member.stampCount}
-                                </span>
-                            )}
-                            {member.halfCouponCount !== undefined && member.fullCouponCount !== undefined && (
-                              <>
-                                {member.halfCouponCount > 0 && (
-                                  <span className="badge bg-warning text-dark">
-                                    쿠폰(50%) {member.halfCouponCount}
+                      {section.title}
+                    </span>
+                  </div>
+                  <span
+                    className="badge rounded-pill flex-shrink-0 ms-2"
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      color: accent,
+                      border: `1px solid ${accent}22`,
+                      fontSize: 11,
+                      fontFamily: OHGO_FONT,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {section.data.length}
+                  </span>
+                </button>
+
+                {!isCollapsed && (
+                  <div
+                    className="ohgo-list-stripe ohgo-list-fixed"
+                    style={{
+                      borderRadius: 14,
+                      border: '1px solid #EFEFEF',
+                      overflow: 'hidden',
+                      backgroundColor: '#FFFFFF',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                    }}
+                  >
+                    {section.data.map((member, memberIndex) => {
+                      const lastStampDate = member.lastStampTime?.seconds
+                        ? new Date(member.lastStampTime.seconds * 1000)
+                        : null;
+                      const today = new Date();
+                      const daysDiff = lastStampDate
+                        ? Math.floor((today.getTime() - lastStampDate.getTime()) / (1000 * 60 * 60 * 24))
+                        : null;
+                      const inactiveDays = getDaysFromMonths(inactivePeriod);
+                      const isInactive = daysDiff !== null && daysDiff >= inactiveDays;
+                      const dobStr =
+                        member.dob?.length === 8
+                          ? `${member.dob.slice(2, 4)}-${member.dob.slice(4, 6)}-${member.dob.slice(6, 8)}`
+                          : member.dob;
+                      const footLine = lastStampDate
+                        ? `최근 적립 ${toKSTDateStr(lastStampDate.toISOString()).slice(2)}${isInactive ? ` · ${inactivePeriod}개월+ 미활동` : ''}`
+                        : '';
+
+                      return (
+                        <button
+                          key={member.uuid}
+                          type="button"
+                          onClick={() =>
+                            router.push(
+                              `/member-detail?uuid=${member.uuid}&name=${member.name}&dob=${member.dob}`
+                            )
+                          }
+                          className="btn w-100 text-start ohgo-list-row"
+                        >
+                          <div className="d-flex align-items-center gap-3 ohgo-list-row-inner">
+                            <MemberListAvatar
+                              imageUrl={member.profileImageUrl}
+                              name={member.name}
+                              size={44}
+                            />
+                            <div className="flex-grow-1 min-w-0 d-flex align-items-center gap-2 ohgo-member-row-content">
+                              <div className="flex-grow-1 min-w-0 ohgo-member-row-lines">
+                              <div className="ohgo-member-row-line d-flex align-items-center gap-1 min-w-0">
+                                  <span
+                                    className="text-truncate"
+                                    style={{
+                                      fontSize: 15,
+                                      fontWeight: 700,
+                                      color: '#1A1D1F',
+                                      fontFamily: OHGO_FONT,
+                                    }}
+                                  >
+                                    {member.name}
                                   </span>
-                                )}
-                                {member.fullCouponCount > 0 && (
-                                  <span className="badge bg-warning text-dark">
-                                    쿠폰 {member.fullCouponCount}
-                                  </span>
-                                )}
-                              </>
-                            )}
-                            {member.tripCount !== undefined && member.tripCount > 0 && (
-                                <span className="badge bg-primary">
-                                  승선 {member.tripCount}
-                                </span>
-                            )}
+                                  {member.hasMemo && (
+                                    <IoChatbubbleEllipsesOutline size={14} color="#1B6FF5" className="flex-shrink-0" />
+                                  )}
+                              </div>
+                              <div
+                                className="ohgo-member-row-line ohgo-member-row-line--meta"
+                                style={{ color: '#6F767E', fontFamily: OHGO_FONT }}
+                              >
+                                {dobStr} · 가입 {toKSTDateStr(member.createdAt).slice(2)}
+                              </div>
+                              <div
+                                className="ohgo-member-row-line ohgo-member-row-line--foot"
+                                style={{
+                                  color: isInactive ? '#E65100' : '#9CA3AF',
+                                  fontFamily: OHGO_FONT,
+                                  fontWeight: isInactive ? 600 : 400,
+                                }}
+                              >
+                                {footLine}
+                              </div>
+                              </div>
+                              <MemberKeyStats member={member} />
+                            </div>
+                            <IoChevronForwardOutline size={16} color="#D0D5DD" className="flex-shrink-0" />
                           </div>
-                        </div>
-                        <div className="text-end ms-3" style={{ minWidth: '120px' }}>
-                          <div className="d-flex align-items-center justify-content-end mb-1">
-                            <small className="text-muted me-2">
-                              {member.dob?.length === 8 
-                                ? `${member.dob.slice(2, 4)}-${member.dob.slice(4, 6)}-${member.dob.slice(6, 8)}` 
-                                : member.dob}
-                            </small>
-                            {member.gender !== undefined && (
-                              member.gender ? (
-                              <span className="badge bg-secondary">{member.gender}</span>
-                            ) : (
-                              <span className="badge bg-warning">✕</span>
-                              )
-                            )}
-                          </div>
-                          <small className="text-muted d-block">
-                            {toKSTDateStr(member.createdAt).slice(2)}
-                          </small>
-                          {lastStampDate && (
-                            <small className={`d-block ${isInactive ? 'text-warning' : 'text-muted'}`}>
-                              최근 스탬프: {toKSTDateStr(lastStampDate.toISOString()).slice(2)}
-                              {isInactive && ` (${inactivePeriod}개월+)`}
-                            </small>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
 
         {sections.length === 0 && (
-          <div className="text-center py-5">
-            <p className="text-muted">일치하는 회원이 없습니다.</p>
-          </div>
+          <EmptyState icon={IoPeopleOutline} message="일치하는 회원이 없습니다." style={CARD} />
         )}
 
         {statsLoadingProgress && statsLoadingProgress.loaded < statsLoadingProgress.total && (
-          <div className="position-fixed bottom-0 start-0 end-0 bg-white border-top p-2 shadow-sm" style={{ zIndex: 100 }}>
+          <div
+            className="position-fixed bottom-0 start-0 end-0 bg-white border-top p-2"
+            style={{ zIndex: 100, maxWidth: 480, left: '50%', transform: 'translateX(-50%)', boxShadow: '0 -4px 20px rgba(0,0,0,0.08)' }}
+          >
             <div className="d-flex align-items-center justify-content-center gap-2">
               <div className="spinner-border spinner-border-sm text-primary" role="status" style={{ width: '16px', height: '16px' }}>
                 <span className="visually-hidden">Loading...</span>
@@ -733,7 +866,6 @@ export default function AdminPage() {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </SubPageFrame>
   );
 }

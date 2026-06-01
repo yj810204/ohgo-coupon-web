@@ -11,6 +11,27 @@
 (function() {
     'use strict';
     
+    // 1. 도메인 체크
+    const allowedDomains = [
+        'localhost',
+        '127.0.0.1',
+        // 운영 도메인을 여기에 추가하세요
+        'codejaka01.cafe24.com',
+        // 'www.yourdomain.com'
+    ];
+    
+    function checkDomain() {
+        const currentDomain = window.location.hostname;
+        const isAllowed = allowedDomains.some(domain => {
+            return currentDomain === domain || currentDomain.endsWith('.' + domain);
+        });
+        
+        if (!isAllowed) {
+            document.body.innerHTML = '<div style="padding: 50px; text-align: center;"><h1>접근이 제한되었습니다</h1><p>이 게임은 인증된 도메인에서만 실행할 수 있습니다.</p></div>';
+            throw new Error('Domain verification failed');
+        }
+    }
+    
     // 2. 안티 디버깅 (개발자 도구 감지)
     let devtoolsOpen = false;
     const threshold = 160;
@@ -49,34 +70,19 @@
     }
     
     // 5. 무결성 검증 (코드 변조 감지)
-    // 개발 환경에서는 무결성 검증을 완화 (Next.js Turbopack과의 호환성을 위해)
-    const isDevelopment = window.location.hostname === 'localhost' || 
-                          window.location.hostname === '127.0.0.1' ||
-                          window.location.hostname.includes('vercel.app') ||
-                          window.location.hostname.includes('localhost:');
-    
     const codeFingerprint = Date.now().toString(36);
-    
-    // 개발 환경이 아니거나 기존 값이 없을 때만 설정
-    if (!window.__gameIntegrity || isDevelopment) {
-        window.__gameIntegrity = codeFingerprint;
-    }
+    window.__gameIntegrity = codeFingerprint;
     
     function verifyIntegrity() {
-        // 개발 환경에서는 무결성 검증을 건너뜀
-        if (isDevelopment) {
-            return;
-        }
-        
-        // 프로덕션 환경에서만 검증
-        if (window.__gameIntegrity && window.__gameIntegrity !== codeFingerprint) {
-            console.warn('Code integrity verification warning (non-fatal)');
-            // 에러를 throw하지 않고 경고만 표시
+        if (window.__gameIntegrity !== codeFingerprint) {
+            throw new Error('Code has been tampered');
         }
     }
     
     // 초기화
     try {
+        checkDomain();
+        
         // 개발자 도구 감지 (주기적 체크)
         setInterval(detectDevTools, 1000);
         
@@ -84,17 +90,12 @@
         // document.addEventListener('contextmenu', preventContextMenu);
         // document.addEventListener('keydown', preventShortcuts);
         
-        // 무결성 검증 (주기적 체크) - 개발 환경에서는 비활성화
-        if (!isDevelopment) {
-            setInterval(verifyIntegrity, 5000);
-        }
+        // 무결성 검증 (주기적 체크)
+        setInterval(verifyIntegrity, 5000);
         
     } catch (error) {
-        console.error('Security initialization failed:', error);
-        // 개발 환경에서는 에러를 throw하지 않음
-        if (!isDevelopment) {
-            throw error;
-        }
+        // 보안 초기화 실패 시에도 게임은 계속 로드되도록 함
+        // throw error;
     }
 })();
 
@@ -172,14 +173,9 @@ class FlappyBirdGame {
      * 게임 시작
      */
     start(containerId) {
-        // 화면 크기 감지 및 자동 리사이징 설정
-        const container = document.getElementById(containerId);
-        const screenWidth = window.innerWidth;
-        const screenHeight = window.innerHeight;
-        
-        // 컨테이너의 실제 크기 사용 (자동 리사이징)
-        let useAutoResize = true;
+        // 화면 크기 감지 및 기기별 설정 적용
         let deviceConfig = null;
+        const screenWidth = window.innerWidth;
         
         let gameConfig = null;
         if (this.config.game_config_json) {
@@ -207,94 +203,49 @@ class FlappyBirdGame {
             }
         }
         
-        // 관리자 설정에서 고정 크기를 사용할지 확인
-        if (gameConfig && gameConfig.use_fixed_size === true) {
-            useAutoResize = false;
-            // 고정 크기 사용
-            if (screenWidth < 768) {
-                if (gameConfig.mobile) {
-                    deviceConfig = gameConfig.mobile;
-                } else {
-                    deviceConfig = { canvas_width: 400, canvas_height: 600 };
-                }
-            } else if (screenWidth < 1024) {
-                if (gameConfig.tablet) {
-                    deviceConfig = gameConfig.tablet;
-                } else {
-                    deviceConfig = { canvas_width: 500, canvas_height: 700 };
-                }
+        if (screenWidth < 768) {
+            if (gameConfig && gameConfig.mobile) {
+                deviceConfig = gameConfig.mobile;
             } else {
-                if (gameConfig.desktop) {
-                    deviceConfig = gameConfig.desktop;
-                } else if (gameConfig.canvas_width) {
-                    deviceConfig = {
-                        canvas_width: parseInt(gameConfig.canvas_width) || 600,
-                        canvas_height: parseInt(gameConfig.canvas_height) || 700
-                    };
-                } else {
-                    deviceConfig = { canvas_width: 600, canvas_height: 700 };
-                }
+                deviceConfig = { canvas_width: 400, canvas_height: 600 };
             }
-            
-            if (deviceConfig) {
-                this.canvasWidth = parseInt(deviceConfig.canvas_width) || this.canvasWidth;
-                this.canvasHeight = parseInt(deviceConfig.canvas_height) || this.canvasHeight;
+        } else if (screenWidth < 1024) {
+            if (gameConfig && gameConfig.tablet) {
+                deviceConfig = gameConfig.tablet;
+            } else {
+                deviceConfig = { canvas_width: 500, canvas_height: 700 };
             }
         } else {
-            // 자동 리사이징: 컨테이너의 실제 크기 사용
-            if (container) {
-                this.canvasWidth = container.offsetWidth || screenWidth;
-                this.canvasHeight = container.offsetHeight || screenHeight;
+            if (gameConfig && gameConfig.desktop) {
+                deviceConfig = gameConfig.desktop;
+            } else if (gameConfig && gameConfig.canvas_width) {
+                deviceConfig = {
+                    canvas_width: parseInt(gameConfig.canvas_width) || 600,
+                    canvas_height: parseInt(gameConfig.canvas_height) || 700
+                };
             } else {
-                this.canvasWidth = screenWidth;
-                this.canvasHeight = screenHeight;
+                deviceConfig = { canvas_width: 600, canvas_height: 700 };
             }
+        }
+        
+        if (deviceConfig) {
+            this.canvasWidth = parseInt(deviceConfig.canvas_width) || this.canvasWidth;
+            this.canvasHeight = parseInt(deviceConfig.canvas_height) || this.canvasHeight;
         }
         
         // 게임 설정에서 이미지 경로 로드 (preload 전에 설정되어야 함)
-        // this.config에서 직접 가져오거나 gameConfig에서 가져오기
-        if (this.config.bird_image_path) {
-            this.birdImagePath = this.config.bird_image_path;
-        }
-        if (this.config.coin_image_path) {
-            this.coinImagePath = this.config.coin_image_path;
-        }
-        if (this.config.pipe_image_path) {
-            this.pipeImagePath = this.config.pipe_image_path;
-        }
-        if (this.config.pipe_top_image_path) {
-            this.pipeTopImagePath = this.config.pipe_top_image_path;
-        }
-        if (this.config.pipe_bottom_image_path) {
-            this.pipeBottomImagePath = this.config.pipe_bottom_image_path;
-        }
-        if (this.config.background_image_path) {
-            this.backgroundImagePath = this.config.background_image_path;
-        }
-        
-        // gameConfig에서도 확인 (기존 호환성 유지)
         if (gameConfig && typeof gameConfig === 'object') {
-            if (gameConfig.bird_image_path && !this.birdImagePath) {
+            if (gameConfig.bird_image_path) {
                 this.birdImagePath = gameConfig.bird_image_path;
             }
-            if (gameConfig.coin_image_path && !this.coinImagePath) {
-                this.coinImagePath = gameConfig.coin_image_path;
-            }
-            if (gameConfig.pipe_image_path && !this.pipeImagePath) {
-                this.pipeImagePath = gameConfig.pipe_image_path;
-            }
-            if (gameConfig.pipe_top_image_path && !this.pipeTopImagePath) {
-                this.pipeTopImagePath = gameConfig.pipe_top_image_path;
-            }
-            if (gameConfig.pipe_bottom_image_path && !this.pipeBottomImagePath) {
-                this.pipeBottomImagePath = gameConfig.pipe_bottom_image_path;
-            }
-            if (gameConfig.background_image_path && !this.backgroundImagePath) {
+            if (gameConfig.coin_image_path) this.coinImagePath = gameConfig.coin_image_path;
+            if (gameConfig.pipe_image_path) this.pipeImagePath = gameConfig.pipe_image_path;
+            if (gameConfig.pipe_top_image_path) this.pipeTopImagePath = gameConfig.pipe_top_image_path;
+            if (gameConfig.pipe_bottom_image_path) this.pipeBottomImagePath = gameConfig.pipe_bottom_image_path;
+            if (gameConfig.background_image_path) {
                 this.backgroundImagePath = gameConfig.background_image_path;
             }
-            if (gameConfig.coin_bonus_score !== undefined) {
-                this.coinBonusScore = parseInt(gameConfig.coin_bonus_score) || this.coinBonusScore;
-            }
+            if (gameConfig.coin_bonus_score !== undefined) this.coinBonusScore = parseInt(gameConfig.coin_bonus_score) || this.coinBonusScore;
         }
 
         const phaserConfig = {
@@ -322,11 +273,10 @@ class FlappyBirdGame {
                 roundPixels: false
             },
             scale: {
-                mode: useAutoResize ? Phaser.Scale.RESIZE : Phaser.Scale.NONE,
+                mode: Phaser.Scale.NONE,
                 autoCenter: Phaser.Scale.CENTER_BOTH,
                 width: this.canvasWidth,
-                height: this.canvasHeight,
-                resizeInterval: useAutoResize ? 500 : undefined
+                height: this.canvasHeight
             }
         };
 
@@ -606,87 +556,66 @@ class FlappyBirdGame {
     }
 
     /**
-     * 배경 생성
+     * 배경 생성 (CSS background-size: cover — 반복 없이 화면 전체 채움)
      */
     createBackground() {
-        // 배경 이미지가 있으면 표시, 없으면 기본 색상 사용
-        const hasBackgroundImage = this.backgroundImagePath && this.scene && this.scene.textures && this.scene.textures.exists('background');
-        
+        const hasBackgroundImage =
+            this.backgroundImagePath &&
+            this.scene &&
+            this.scene.textures &&
+            this.scene.textures.exists('background');
+
         if (this.backgroundImagePath && hasBackgroundImage) {
-            // 배경 이미지를 전체가 보이도록 비율 유지하면서 조정
             try {
                 const texture = this.scene.textures.get('background');
-                if (texture && texture.source && texture.source[0]) {
-                    const sourceImage = texture.source[0];
-                    const originalWidth = sourceImage.width || texture.width || this.canvasWidth;
-                    const originalHeight = sourceImage.height || texture.height || this.canvasHeight;
-                    
-                    if (originalWidth > 0 && originalHeight > 0) {
-                        // 이미지 비율 계산
-                        const imageAspectRatio = originalWidth / originalHeight;
-                        const canvasAspectRatio = this.canvasWidth / this.canvasHeight;
-                        
-                        // contain 방식: 이미지 전체가 보이도록 작은 스케일 선택
-                        let scaleX, scaleY;
-                        if (imageAspectRatio > canvasAspectRatio) {
-                            // 이미지가 더 넓음: 가로 기준으로 스케일
-                            scaleX = this.canvasWidth / originalWidth;
-                            scaleY = scaleX;
-                        } else {
-                            // 이미지가 더 높음: 세로 기준으로 스케일
-                            scaleY = this.canvasHeight / originalHeight;
-                            scaleX = scaleY;
-                        }
-                        
-                        // TileSprite 생성 (화면 전체 크기)
-                        const bgTile = this.scene.add.tileSprite(0, 0, this.canvasWidth, this.canvasHeight, 'background');
-                        bgTile.setOrigin(0, 0);
-                        bgTile.setDepth(0);
-                        
-                        // 타일 스케일 설정 (비율 유지)
-                        bgTile.setTileScale(scaleX, scaleY);
-                        
-                        this.backgroundSprite = bgTile;
-                        console.log('배경 이미지 생성 완료 (전체 보이도록):', {
-                            originalSize: { width: originalWidth, height: originalHeight },
-                            gameSize: { width: this.canvasWidth, height: this.canvasHeight },
-                            scaleX: scaleX,
-                            scaleY: scaleY
-                        });
-                    } else {
-                        // 텍스처 정보를 가져올 수 없으면 기본 TileSprite 사용
-                        const bg = this.scene.add.tileSprite(0, 0, this.canvasWidth, this.canvasHeight, 'background');
-                        bg.setOrigin(0, 0);
-                        bg.setDepth(0);
-                        bg.setTileScale(1, 1);
-                        this.backgroundSprite = bg;
-                        console.log('배경 이미지 TileSprite 생성 완료 (기본)');
-                    }
-                } else {
-                    // 텍스처 정보를 가져올 수 없으면 기본 TileSprite 사용
-                    const bg = this.scene.add.tileSprite(0, 0, this.canvasWidth, this.canvasHeight, 'background');
-                    bg.setOrigin(0, 0);
+                const sourceImage = texture?.source?.[0];
+                const originalWidth = sourceImage?.width || texture?.width || this.canvasWidth;
+                const originalHeight = sourceImage?.height || texture?.height || this.canvasHeight;
+
+                if (originalWidth > 0 && originalHeight > 0) {
+                    const scaleX = this.canvasWidth / originalWidth;
+                    const scaleY = this.canvasHeight / originalHeight;
+                    const coverScale = Math.max(scaleX, scaleY);
+
+                    const bg = this.scene.add.image(
+                        this.canvasWidth / 2,
+                        this.canvasHeight / 2,
+                        'background'
+                    );
+                    bg.setOrigin(0.5, 0.5);
                     bg.setDepth(0);
-                    bg.setTileScale(1, 1);
+                    bg.setScale(coverScale);
+
                     this.backgroundSprite = bg;
-                    console.log('배경 이미지 TileSprite 생성 완료 (기본)');
+                    console.log('배경 이미지 생성 완료 (cover):', {
+                        originalSize: { width: originalWidth, height: originalHeight },
+                        gameSize: { width: this.canvasWidth, height: this.canvasHeight },
+                        coverScale,
+                    });
+                } else {
+                    this.createBackgroundFallbackColor();
                 }
             } catch (e) {
                 console.error('배경 이미지 생성 오류:', e);
-                // 오류 발생 시 기본 TileSprite 사용
-                const bg = this.scene.add.tileSprite(0, 0, this.canvasWidth, this.canvasHeight, 'background');
-                bg.setOrigin(0, 0);
-                bg.setDepth(0);
-                bg.setTileScale(1, 1);
-                this.backgroundSprite = bg;
+                this.createBackgroundFallbackColor();
             }
         } else {
-            // 기본 하늘 배경
-            const bg = this.scene.add.rectangle(0, 0, this.canvasWidth, this.canvasHeight, 0x87CEEB);
-            bg.setOrigin(0, 0);
-            bg.setDepth(0);
-            console.log('기본 배경 색상 사용');
+            this.createBackgroundFallbackColor();
         }
+    }
+
+    createBackgroundFallbackColor() {
+        const bg = this.scene.add.rectangle(
+            this.canvasWidth / 2,
+            this.canvasHeight / 2,
+            this.canvasWidth,
+            this.canvasHeight,
+            0x87ceeb
+        );
+        bg.setOrigin(0.5, 0.5);
+        bg.setDepth(0);
+        this.backgroundSprite = bg;
+        console.log('기본 배경 색상 사용');
     }
 
     /**
@@ -1631,48 +1560,17 @@ class FlappyBirdGame {
     showGameStartModal() {
         const modal = document.createElement('div');
         modal.className = 'game-start-modal';
-        const self = this; // this 컨텍스트 보존
         modal.innerHTML = `
             <div class="modal-content">
                 <h2>플래피 버드</h2>
                 <p class="game-description">화면을 클릭하거나 터치하여 새를 조종하세요!</p>
                 <div class="modal-buttons">
-                    <button class="btn-start" id="game-start-btn">게임 시작</button>
+                    <button class="btn-start" onclick="window.gameLoader.gameInstance.startGame()">게임 시작</button>
                 </div>
             </div>
         `;
         document.body.appendChild(modal);
         this.gameStartModal = modal;
-        
-        // 버튼 클릭 이벤트 직접 등록 (onclick 대신)
-        setTimeout(() => {
-            const startButton = modal.querySelector('#game-start-btn');
-            if (startButton) {
-                console.log('Registering click event for start button');
-                console.log('hasGameLoader:', !!window.gameLoader);
-                console.log('hasGameInstance:', !!(window.gameLoader?.gameInstance));
-                console.log('hasSelf:', !!self);
-                
-                startButton.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('Start button clicked!');
-                    
-                    if (window.gameLoader && window.gameLoader.gameInstance) {
-                        console.log('Using window.gameLoader.gameInstance.startGame()');
-                        window.gameLoader.gameInstance.startGame();
-                    } else if (self && typeof self.startGame === 'function') {
-                        console.log('Using self.startGame()');
-                        self.startGame();
-                    } else {
-                        console.error('Game instance not found');
-                        alert('게임을 시작할 수 없습니다. 페이지를 새로고침해주세요.');
-                    }
-                }, { once: true });
-            } else {
-                console.error('Start button not found in modal');
-            }
-        }, 100);
     }
 
     /**

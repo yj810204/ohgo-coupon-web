@@ -26,7 +26,7 @@ export default function FeaturedCard({ title, imageUrl, badge, onClick }: Featur
             height: 120,
             background: imageUrl
               ? `url(${imageUrl}) center/cover no-repeat`
-              : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              : '#F2F3F5',
           }}
         />
         {badge && (

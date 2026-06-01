@@ -13,19 +13,22 @@ export default function ProductGridCard({ product, onClick }: ProductGridCardPro
       type="button"
       onClick={onClick}
       className="btn w-100 p-0 border-0 bg-white text-start overflow-hidden"
-      style={{
-        borderRadius: '16px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-      }}
+      style={{ borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
     >
       <div
         className="w-100 d-flex align-items-center justify-content-center"
         style={{
           aspectRatio: '1',
-          background: 'linear-gradient(135deg, #f0f4ff 0%, #e8ecf4 100%)',
+          background: product.imageUrl
+            ? `url(${product.imageUrl}) center/cover no-repeat`
+            : '#F2F3F5',
         }}
       >
-        <span style={{ fontSize: '32px' }}>🎣</span>
+        {!product.imageUrl && (
+          <span style={{ fontSize: '12px', color: '#B0B8C4', letterSpacing: '-0.2px' }}>
+            이미지 준비중
+          </span>
+        )}
       </div>
       <div className="p-3">
         {product.memberOnly && (
@@ -38,11 +41,7 @@ export default function ProductGridCard({ product, onClick }: ProductGridCardPro
         )}
         <div
           className="fw-semibold text-truncate mb-1"
-          style={{
-            fontSize: '14px',
-            color: '#1A1D1F',
-            fontFamily: 'var(--font-urbanist), sans-serif',
-          }}
+          style={{ fontSize: '14px', color: '#1A1D1F', fontFamily: 'var(--font-urbanist), sans-serif' }}
         >
           {product.name}
         </div>

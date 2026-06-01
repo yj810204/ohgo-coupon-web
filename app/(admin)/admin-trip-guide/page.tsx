@@ -4,49 +4,93 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getUser } from '@/lib/storage';
 import { getUserByUUID } from '@/lib/firebase-auth';
-import {
-  TripGuide,
-  TripGuideInput,
-  getAllTrips,
-  addTrip,
-  updateTrip,
-  deleteTrip,
-} from '@/utils/trip-guide-service';
-import {
-  IoAddOutline,
-  IoTrashOutline,
-  IoPencilOutline,
-  IoBoatOutline,
-  IoCloseOutline,
-  IoCheckmarkOutline,
-} from 'react-icons/io5';
-import PageHeader from '@/components/PageHeader';
+import { TripGuide, TripGuideInput, getAllTrips, addTrip, deleteTrip } from '@/utils/trip-guide-service';
+import { IoAddOutline, IoTrashOutline, IoPencilOutline, IoBoatOutline, IoCopyOutline } from 'react-icons/io5';
+import SubPageFrame from '@/components/SubPageFrame';
+import EmptyState from '@/components/EmptyState';
+import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
+import { OHGO_INPUT, OHGO_PRIMARY_BTN, OHGO_SECONDARY_BTN } from '@/lib/page-styles';
 
 const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
 const CARD: React.CSSProperties = { backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: 'none' };
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-const EMPTY: TripGuideInput = {
-  date: '',
-  destination: '',
-  departureTime: '',
-  returnTime: '',
-  species: '',
-  capacity: undefined,
-  price: undefined,
-  notes: '',
-  contact: '',
+type TripDayStyle = {
+  dayLabelColor: string;
+  dayNumberColor: string;
+  monthColor: string;
+  dividerColor: string;
+  isWeekend: boolean;
 };
+
+function getTripDayStyle(dateStr: string): TripDayStyle {
+  const dayIdx = new Date(`${dateStr}T00:00:00`).getDay();
+  if (dayIdx === 6) {
+    return {
+      dayLabelColor: '#1B6FF5',
+      dayNumberColor: '#1B6FF5',
+      monthColor: '#5B9BF5',
+      dividerColor: '#C7D9FD',
+      isWeekend: true,
+    };
+  }
+  if (dayIdx === 0) {
+    return {
+      dayLabelColor: '#FF3B30',
+      dayNumberColor: '#FF3B30',
+      monthColor: '#FF6B63',
+      dividerColor: '#FFD6D4',
+      isWeekend: true,
+    };
+  }
+  return {
+    dayLabelColor: '#6F767E',
+    dayNumberColor: '#1A1D1F',
+    monthColor: '#ABABAB',
+    dividerColor: '#EFEFEF',
+    isWeekend: false,
+  };
+}
+
+const MAX_COPY_DAYS = 62;
+
+function tripToCopyInput(trip: TripGuide, date: string): TripGuideInput {
+  return {
+    date,
+    destination: trip.destination,
+    departureTime: trip.departureTime,
+    returnTime: trip.returnTime,
+    species: trip.species,
+    price: trip.price,
+    notes: trip.notes,
+    contact: trip.contact,
+  };
+}
+
+function enumerateDates(start: string, end: string): string[] {
+  const dates: string[] = [];
+  const cur = new Date(`${start}T00:00:00`);
+  const last = new Date(`${end}T00:00:00`);
+  if (Number.isNaN(cur.getTime()) || Number.isNaN(last.getTime()) || cur > last) return dates;
+  while (cur <= last) {
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth() + 1).padStart(2, '0');
+    const d = String(cur.getDate()).padStart(2, '0');
+    dates.push(`${y}-${m}-${d}`);
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
 
 export default function AdminTripGuidePage() {
   const router = useRouter();
   const [trips, setTrips] = useState<TripGuide[]>([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState<TripGuideInput>(EMPTY);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [copyingId, setCopyingId] = useState<string | null>(null);
+  const [copyStartDate, setCopyStartDate] = useState('');
+  const [copyEndDate, setCopyEndDate] = useState('');
+  const [copying, setCopying] = useState(false);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -67,62 +111,80 @@ export default function AdminTripGuidePage() {
     } finally { setLoading(false); }
   };
 
-  const openNew = () => {
-    setForm({ ...EMPTY, date: new Date().toISOString().split('T')[0] });
-    setEditId(null);
-    setShowForm(true);
-  };
-
-  const openEdit = (t: TripGuide) => {
-    setForm({
-      date: t.date,
-      destination: t.destination,
-      departureTime: t.departureTime,
-      returnTime: t.returnTime || '',
-      species: t.species || '',
-      capacity: t.capacity,
-      price: t.price,
-      notes: t.notes || '',
-      contact: t.contact || '',
-    });
-    setEditId(t.id);
-    setShowForm(true);
-  };
-
-  const closeForm = () => { setShowForm(false); setEditId(null); setForm(EMPTY); };
-
-  const handleSave = async () => {
-    if (!form.date || !form.destination || !form.departureTime) {
-      alert('날짜, 목적지, 출발 시간은 필수입니다.');
-      return;
-    }
-    setSaving(true);
-    try {
-      if (editId) {
-        await updateTrip(editId, form);
-      } else {
-        await addTrip(form);
-      }
-      await loadTrips();
-      closeForm();
-    } catch (e) {
-      alert('저장 중 오류가 발생했습니다.');
-      console.error(e);
-    } finally { setSaving(false); }
-  };
+  useNativePullToRefresh(async () => {
+    const data = await getAllTrips();
+    setTrips(data);
+  });
 
   const handleDelete = async (id: string, dest: string) => {
     if (!confirm(`"${dest}" 출조 일정을 삭제하시겠습니까?`)) return;
     try {
       await deleteTrip(id);
+      if (copyingId === id) {
+        setCopyingId(null);
+        setCopyStartDate('');
+        setCopyEndDate('');
+      }
       await loadTrips();
     } catch (e) {
       alert('삭제 중 오류가 발생했습니다.');
     }
   };
 
-  const setField = <K extends keyof TripGuideInput>(key: K, value: TripGuideInput[K]) => {
-    setForm(f => ({ ...f, [key]: value }));
+  const resetCopyPanel = () => {
+    setCopyingId(null);
+    setCopyStartDate('');
+    setCopyEndDate('');
+  };
+
+  const openCopyPanel = (tripId: string) => {
+    if (copyingId === tripId) {
+      resetCopyPanel();
+      return;
+    }
+    setCopyingId(tripId);
+    setCopyStartDate('');
+    setCopyEndDate('');
+  };
+
+  const copyDateCount =
+    copyStartDate && copyEndDate && copyStartDate <= copyEndDate
+      ? enumerateDates(copyStartDate, copyEndDate).length
+      : 0;
+
+  const handleCopy = async (trip: TripGuide) => {
+    if (!copyStartDate || !copyEndDate) {
+      alert('시작일과 종료일을 선택해주세요.');
+      return;
+    }
+    if (copyStartDate > copyEndDate) {
+      alert('시작일이 종료일보다 늦을 수 없습니다.');
+      return;
+    }
+    const dates = enumerateDates(copyStartDate, copyEndDate);
+    if (dates.length === 0) {
+      alert('복사할 기간이 올바르지 않습니다.');
+      return;
+    }
+    if (dates.length > MAX_COPY_DAYS) {
+      alert(`한 번에 최대 ${MAX_COPY_DAYS}일까지 복사할 수 있습니다.`);
+      return;
+    }
+    if (!confirm(`${dates.length}일 출조 일정을 복사하시겠습니까?`)) return;
+
+    setCopying(true);
+    try {
+      for (const date of dates) {
+        await addTrip(tripToCopyInput(trip, date));
+      }
+      resetCopyPanel();
+      await loadTrips();
+    } catch (e) {
+      console.error(e);
+      alert('복사 중 오류가 발생했습니다.');
+    } finally {
+      setCopying(false);
+    }
   };
 
   const dayLabel = (dateStr: string) => {
@@ -132,14 +194,12 @@ export default function AdminTripGuidePage() {
   };
 
   return (
-    <div className="min-vh-100 pb-4" style={{ backgroundColor: '#F7F8FA', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <PageHeader title="출조 일정 관리" />
-      <div className="container py-3" style={{ maxWidth: 480 }}>
+    <SubPageFrame title="출조 일정 관리" onRefresh={loadTrips}>
 
         {/* 추가 버튼 */}
         <button
           type="button"
-          onClick={openNew}
+          onClick={() => router.push('/admin-trip-guide/form')}
           className="btn w-100 d-flex align-items-center justify-content-center gap-2 fw-bold mb-4"
           style={{ backgroundColor: '#1B6FF5', color: '#fff', borderRadius: 14, padding: '13px', border: 'none', fontFamily: FONT, fontSize: 15, boxShadow: '0 4px 12px rgba(27,111,245,0.3)' }}
         >
@@ -151,21 +211,46 @@ export default function AdminTripGuidePage() {
         {loading ? (
           <div className="py-5 text-center"><div className="spinner-border text-primary" /></div>
         ) : trips.length === 0 ? (
-          <div className="py-5 text-center" style={CARD}>
-            <IoBoatOutline size={52} color="#EFEFEF" />
-            <p className="mt-3 mb-0" style={{ color: '#6F767E', fontFamily: FONT }}>등록된 출조 일정이 없습니다.</p>
-          </div>
+          <EmptyState icon={IoBoatOutline} message="등록된 출조 일정이 없습니다." style={CARD} />
         ) : (
           <div className="d-flex flex-column gap-3">
-            {trips.map(trip => (
-              <div key={trip.id} className="p-3" style={{ ...CARD, borderLeft: '4px solid #1B6FF5' }}>
-                <div className="d-flex align-items-start gap-3">
+            {trips.map(trip => {
+              const dayStyle = getTripDayStyle(trip.date);
+              return (
+              <div
+                key={trip.id}
+                className="p-3"
+                style={CARD}
+              >
+                <div className="d-flex align-items-center gap-3">
                   <div className="text-center flex-shrink-0" style={{ width: 44 }}>
-                    <div style={{ fontSize: 11, color: '#6F767E', fontFamily: FONT }}>{dayLabel(trip.date)}</div>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>{parseInt(trip.date.split('-')[2])}</div>
-                    <div style={{ fontSize: 11, color: '#ABABAB', fontFamily: FONT }}>{trip.date.slice(0, 7)}</div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: dayStyle.dayLabelColor,
+                        fontFamily: FONT,
+                        fontWeight: dayStyle.isWeekend ? 700 : 400,
+                      }}
+                    >
+                      {dayLabel(trip.date)}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 20,
+                        fontWeight: 800,
+                        color: dayStyle.dayNumberColor,
+                        fontFamily: FONT,
+                      }}
+                    >
+                      {parseInt(trip.date.split('-')[2])}
+                    </div>
+                    <div style={{ fontSize: 11, color: dayStyle.monthColor, fontFamily: FONT }}>
+                      {trip.date.slice(0, 7)}
+                    </div>
                   </div>
-                  <div style={{ width: 1, height: 44, backgroundColor: '#EFEFEF', flexShrink: 0 }} />
+                  <div
+                    style={{ width: 1, height: 44, backgroundColor: dayStyle.dividerColor, flexShrink: 0 }}
+                  />
                   <div className="flex-grow-1">
                     <div style={{ fontSize: 15, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>{trip.destination}</div>
                     <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 2 }}>
@@ -179,102 +264,137 @@ export default function AdminTripGuidePage() {
                       </div>
                     )}
                   </div>
-                  <div className="d-flex flex-column gap-1 flex-shrink-0">
+                  <div className="d-flex flex-row gap-1 flex-shrink-0 align-self-center">
                     <button
                       type="button"
-                      onClick={() => openEdit(trip)}
-                      className="btn p-1 d-flex align-items-center justify-content-center rounded-circle"
-                      style={{ width: 32, height: 32, backgroundColor: '#EBF1FE', border: 'none' }}
+                      onClick={() => openCopyPanel(trip.id)}
+                      className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
+                      title="다른 날짜로 복사"
+                      style={{
+                        width: 28,
+                        height: 28,
+                        backgroundColor: copyingId === trip.id ? '#34C759' : '#E8F8EE',
+                        border: 'none',
+                      }}
                     >
-                      <IoPencilOutline size={15} color="#1B6FF5" />
+                      <IoCopyOutline size={14} color={copyingId === trip.id ? '#fff' : '#34C759'} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/admin-trip-guide/form?id=${trip.id}`)}
+                      className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
+                      style={{ width: 28, height: 28, backgroundColor: '#EBF1FE', border: 'none' }}
+                    >
+                      <IoPencilOutline size={14} color="#1B6FF5" />
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDelete(trip.id, trip.destination)}
-                      className="btn p-1 d-flex align-items-center justify-content-center rounded-circle"
-                      style={{ width: 32, height: 32, backgroundColor: '#FFF0F0', border: 'none' }}
+                      className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
+                      style={{ width: 28, height: 28, backgroundColor: '#FFF0F0', border: 'none' }}
                     >
-                      <IoTrashOutline size={15} color="#FF3B30" />
+                      <IoTrashOutline size={14} color="#FF3B30" />
                     </button>
                   </div>
                 </div>
+                {copyingId === trip.id && (
+                  <div
+                    className="mt-3 pt-3 d-flex flex-column gap-3"
+                    style={{ borderTop: '1px solid #EFEFEF' }}
+                  >
+                    <div
+                      className="d-flex flex-column gap-3 p-3"
+                      style={{ backgroundColor: '#F7F8FA', borderRadius: 12 }}
+                    >
+                      <span style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, lineHeight: 1.5 }}>
+                        시작일~종료일 기간의 각 날짜에 목적지·시간·요금 등이 복사됩니다.
+                        {copyDateCount > 0 && (
+                          <span style={{ color: '#1B6FF5', fontWeight: 700 }}> {copyDateCount}일</span>
+                        )}
+                      </span>
+                      <div className="d-flex gap-2 align-items-end">
+                        <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                          <label className="form-label mb-1" style={{ fontSize: 11, color: '#6F767E', fontFamily: FONT }}>
+                            시작일
+                          </label>
+                          <input
+                            type="date"
+                            value={copyStartDate}
+                            onChange={e => {
+                              setCopyStartDate(e.target.value);
+                              if (copyEndDate && e.target.value > copyEndDate) {
+                                setCopyEndDate(e.target.value);
+                              }
+                            }}
+                            className="form-control"
+                            style={{ ...OHGO_INPUT, backgroundColor: '#FFFFFF' }}
+                            disabled={copying}
+                          />
+                        </div>
+                        <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                          <label className="form-label mb-1" style={{ fontSize: 11, color: '#6F767E', fontFamily: FONT }}>
+                            종료일
+                          </label>
+                          <input
+                            type="date"
+                            value={copyEndDate}
+                            min={copyStartDate || undefined}
+                            onChange={e => setCopyEndDate(e.target.value)}
+                            className="form-control"
+                            style={{ ...OHGO_INPUT, backgroundColor: '#FFFFFF' }}
+                            disabled={copying}
+                          />
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: 8,
+                          width: '100%',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className="btn fw-semibold w-100"
+                          onClick={resetCopyPanel}
+                          disabled={copying}
+                          style={{
+                            ...OHGO_SECONDARY_BTN,
+                            backgroundColor: '#FFFFFF',
+                            border: '2px solid #EFEFEF',
+                            minWidth: 0,
+                          }}
+                        >
+                          취소
+                        </button>
+                        <button
+                          type="button"
+                          className="btn fw-semibold w-100 d-flex align-items-center justify-content-center gap-2"
+                          onClick={() => void handleCopy(trip)}
+                          disabled={copying || !copyStartDate || !copyEndDate || copyDateCount === 0}
+                          style={{ ...OHGO_PRIMARY_BTN, minWidth: 0 }}
+                        >
+                          {copying ? (
+                            <span className="spinner-border spinner-border-sm" role="status" />
+                          ) : (
+                            <IoCopyOutline size={18} />
+                          )}
+                          {copying
+                            ? '복사 중...'
+                            : copyDateCount > 1
+                              ? `${copyDateCount}일 복사`
+                              : '복사'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            ))}
+            );
+            })}
           </div>
         )}
-      </div>
-
-      {/* 등록/수정 모달 */}
-      {showForm && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
-          <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-            <div className="modal-content border-0" style={{ borderRadius: 20, overflow: 'hidden' }}>
-              <div className="modal-header border-0 px-4 pt-4 pb-2 d-flex align-items-center">
-                <h5 className="modal-title fw-bold mb-0" style={{ color: '#1A1D1F', fontFamily: FONT }}>
-                  {editId ? '출조 일정 수정' : '새 출조 일정'}
-                </h5>
-                <button type="button" onClick={closeForm}
-                  className="btn ms-auto p-1 rounded-circle d-flex align-items-center justify-content-center"
-                  style={{ border: 'none', backgroundColor: '#F7F8FA', width: 32, height: 32 }}>
-                  <IoCloseOutline size={20} color="#6F767E" />
-                </button>
-              </div>
-
-              <div className="modal-body px-4">
-                {[
-                  { label: '날짜 *', key: 'date', type: 'date' },
-                  { label: '목적지 / 낚시터 *', key: 'destination', type: 'text', placeholder: '예: 서해 외섬' },
-                  { label: '출발 시간 *', key: 'departureTime', type: 'time' },
-                  { label: '귀항 예정', key: 'returnTime', type: 'time' },
-                  { label: '목표 어종', key: 'species', type: 'text', placeholder: '예: 참돔, 광어' },
-                  { label: '정원', key: 'capacity', type: 'number', placeholder: '명' },
-                  { label: '1인 요금 (원)', key: 'price', type: 'number', placeholder: '0' },
-                  { label: '예약 문의 (연락처)', key: 'contact', type: 'text', placeholder: '010-0000-0000' },
-                ].map(({ label, key, type, placeholder }) => (
-                  <div key={key} className="mb-3">
-                    <label style={{ fontSize: 12, fontWeight: 700, color: '#6F767E', fontFamily: FONT, marginBottom: 6, display: 'block' }}>{label}</label>
-                    <input
-                      type={type}
-                      value={(form[key as keyof TripGuideInput] as string | number | undefined) ?? ''}
-                      onChange={e => {
-                        const v = type === 'number' ? (e.target.value === '' ? undefined : Number(e.target.value)) : e.target.value;
-                        setField(key as keyof TripGuideInput, v as any);
-                      }}
-                      placeholder={placeholder}
-                      className="form-control"
-                      style={{ borderRadius: 10, border: '2px solid #EFEFEF', padding: '10px 12px', fontFamily: FONT, fontSize: 14, color: '#1A1D1F' }}
-                    />
-                  </div>
-                ))}
-
-                <div className="mb-3">
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#6F767E', fontFamily: FONT, marginBottom: 6, display: 'block' }}>비고 / 상세내용</label>
-                  <textarea
-                    value={form.notes || ''}
-                    onChange={e => setField('notes', e.target.value)}
-                    placeholder="집결 장소, 준비물, 주의사항 등"
-                    rows={4}
-                    className="form-control"
-                    style={{ borderRadius: 10, border: '2px solid #EFEFEF', padding: '10px 12px', fontFamily: FONT, fontSize: 14, color: '#1A1D1F', resize: 'none' }}
-                  />
-                </div>
-              </div>
-
-              <div className="modal-footer border-0 px-4 pb-4 pt-2 d-flex gap-2">
-                <button type="button" onClick={closeForm} className="btn flex-grow-1 fw-semibold"
-                  style={{ backgroundColor: '#F7F8FA', color: '#1A1D1F', borderRadius: 12, padding: 13, border: 'none', fontFamily: FONT }}>
-                  취소
-                </button>
-                <button type="button" onClick={handleSave} disabled={saving} className="btn flex-grow-1 fw-semibold d-flex align-items-center justify-content-center gap-2"
-                  style={{ backgroundColor: '#1B6FF5', color: '#fff', borderRadius: 12, padding: 13, border: 'none', fontFamily: FONT }}>
-                  {saving ? <span className="spinner-border spinner-border-sm" /> : <IoCheckmarkOutline size={18} />}
-                  {editId ? '수정' : '저장'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </SubPageFrame>
   );
 }

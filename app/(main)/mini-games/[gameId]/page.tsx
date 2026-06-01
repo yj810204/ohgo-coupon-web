@@ -267,7 +267,7 @@ function GamePlayContent() {
 
   if (loading) {
     return (
-      <div className="min-vh-100 bg-light d-flex align-items-center justify-content-center">
+      <div className="min-vh-100 d-flex align-items-center justify-content-center" style={{ backgroundColor: '#F7F8FA' }}>
         <div className="text-center">
           <div className="spinner-border text-primary mb-3" role="status">
             <span className="visually-hidden">Loading...</span>
@@ -280,10 +280,10 @@ function GamePlayContent() {
 
   if (error) {
     return (
-      <div className="min-vh-100 bg-light">
+      <div className="min-vh-100" style={{ backgroundColor: '#F7F8FA' }}>
         <PageHeader title={game?.game_name || '게임'} />
         <div className="container">
-          <div className="card shadow-sm">
+          <div className="ohgo-card">
             <div className="card-body text-center py-5">
               <p className="text-danger">{error}</p>
               <button className="btn btn-primary" onClick={() => router.back()}>
@@ -313,28 +313,11 @@ function GamePlayContent() {
             display: 'block',
           }}
         />
-        {/* 게임 종료 버튼 */}
+        {/* 게임 종료 — 상단 점수/타이머 HUD와 겹치지 않게 하단 우측 */}
         <button
+          type="button"
           onClick={() => router.back()}
-          style={{
-            position: 'fixed',
-            top: '16px',
-            left: '16px',
-            zIndex: 10001,
-            width: '40px',
-            height: '40px',
-            borderRadius: '50%',
-            border: 'none',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            color: 'white',
-            fontSize: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            backdropFilter: 'blur(4px)',
-            WebkitBackdropFilter: 'blur(4px)',
-          }}
+          className="ohgo-game-close-btn"
           aria-label="게임 종료"
         >
           ✕
@@ -406,7 +389,7 @@ function GamePlayContent() {
 export default function GamePlayPage() {
   return (
     <Suspense fallback={
-      <div className="min-vh-100 bg-light d-flex align-items-center justify-content-center">
+      <div className="min-vh-100 d-flex align-items-center justify-content-center" style={{ backgroundColor: '#F7F8FA' }}>
         <div className="text-center">
           <div className="spinner-border text-primary mb-3" role="status">
             <span className="visually-hidden">Loading...</span>

@@ -10,7 +10,9 @@ import { getTemplate } from '@/utils/community-template-service';
 import { getEmojiPacks, extractEmojiIds, renderEmojisInText, EmojiPack } from '@/utils/emoji-pack-service';
 import { IoArrowBackOutline, IoChatbubbleOutline, IoCheckmarkCircleOutline, IoHappyOutline } from 'react-icons/io5';
 import EmojiPicker from '@/components/EmojiPicker';
-import PageHeader from '@/components/PageHeader';
+import SubPageFrame from '@/components/SubPageFrame';
+import { OhgoPageLoading } from '@/lib/page-styles';
+import EmptyState from '@/components/EmptyState';
 import { useNavigation } from '@/hooks/useNavigation';
 
 function PhotoDetailContent() {
@@ -233,21 +235,7 @@ function PhotoDetailContent() {
   };
 
   if (loading) {
-    return (
-      <div className="min-vh-100 bg-light">
-        <PageHeader title="상세" />
-        <div className="container">
-          <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '50vh' }}>
-            <div className="text-center">
-              <div className="spinner-border text-primary mb-3" role="status">
-                <span className="visually-hidden">로딩 중...</span>
-              </div>
-              <p className="text-muted">로딩 중...</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <OhgoPageLoading />;
   }
 
   if (!photo) {
@@ -255,18 +243,9 @@ function PhotoDetailContent() {
   }
 
   return (
-    <div 
-      className="min-vh-100 bg-light"
-      style={{ 
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        position: 'relative',
-      }}
-    >
-      <PageHeader title="상세" />
-      <div className="container">
+    <SubPageFrame title="조황 상세">
         {/* 사진 */}
-        <div className="card shadow-sm mb-3">
+        <div className="ohgo-card mb-3">
           {photo.imageUrls && photo.imageUrls.length > 1 ? (
             <div className="d-flex flex-column">
               {photo.imageUrls.map((url, index) => (
@@ -367,7 +346,7 @@ function PhotoDetailContent() {
         </div>
 
         {/* 댓글 작성 */}
-        <div className="card shadow-sm mb-3">
+        <div className="ohgo-card mb-3">
           <div className="card-body">
             <h6 className="card-title mb-3 d-flex align-items-center">
               <IoChatbubbleOutline size={20} className="me-2 flex-shrink-0" />
@@ -429,13 +408,10 @@ function PhotoDetailContent() {
         </div>
 
         {/* 댓글 목록 */}
-        <div className="card shadow-sm">
+        <div className="ohgo-card">
           <div className="card-body">
             {comments.length === 0 ? (
-              <div className="d-flex flex-column align-items-center justify-content-center py-4">
-                <IoChatbubbleOutline size={48} className="text-muted mb-2" />
-                <p className="text-muted mb-0">아직 댓글이 없습니다.</p>
-              </div>
+              <EmptyState icon={IoChatbubbleOutline} message="아직 댓글이 없습니다." compact />
             ) : (
               <div className="d-flex flex-column gap-3">
                 {comments.map((comment) => (
@@ -509,7 +485,6 @@ function PhotoDetailContent() {
             )}
           </div>
         </div>
-      </div>
 
       {/* 이모티콘 피커 모달 */}
       {showEmojiPicker && (
@@ -518,22 +493,13 @@ function PhotoDetailContent() {
           onClose={() => setShowEmojiPicker(false)}
         />
       )}
-    </div>
+    </SubPageFrame>
   );
 }
 
 export default function PhotoDetailPage() {
   return (
-    <Suspense fallback={
-      <div className="d-flex min-vh-100 align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">로딩 중...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<OhgoPageLoading />}>
       <PhotoDetailContent />
     </Suspense>
   );

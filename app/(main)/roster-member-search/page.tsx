@@ -8,7 +8,10 @@ import { getUser } from '@/lib/storage';
 import { v5 as uuidv5 } from 'uuid';
 import { UUID_NAMESPACE } from '@/lib/firebase-auth';
 import { IoSearchOutline, IoAddOutline, IoArrowBackOutline } from 'react-icons/io5';
-import PageHeader from '@/components/PageHeader';
+import SubPageFrame from '@/components/SubPageFrame';
+import { OhgoPageLoading } from '@/lib/page-styles';
+import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
+import EmptyState from '@/components/EmptyState';
 
 interface UserData {
   id: string;
@@ -256,26 +259,15 @@ function RosterMemberSearchContent() {
     searchMembers();
   };
 
-  const onRefresh = async () => {
+  useNativePullToRefresh(async () => {
     if (searchText.trim()) {
       await searchMembers();
     }
-  };
-
+  });
 
   return (
-    <div 
-      className="min-vh-100 bg-light"
-      style={{ 
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        position: 'relative',
-        paddingBottom: showNewMemberForm ? '20px' : '80px',
-      }}
-    >
-      <PageHeader title="회원 검색" />
-      <div className="container">
-        <div className="card shadow-sm mb-3">
+    <SubPageFrame title="회원 검색">
+        <div className="ohgo-card mb-3">
           <div className="card-body">
             <h5 className="text-primary mb-3">{dateDisplay} {tripNumber}항차 - 회원 추가</h5>
             
@@ -315,7 +307,7 @@ function RosterMemberSearchContent() {
         </div>
 
         {showNewMemberForm && (
-          <div className="card shadow-sm mb-3">
+          <div className="ohgo-card mb-3">
             <div className="card-body">
               <h6 className="mb-3">새 회원 등록</h6>
               <div className="mb-3">
@@ -423,7 +415,7 @@ function RosterMemberSearchContent() {
         ) : searchResults.length > 0 ? (
           <div className="d-flex flex-column gap-2">
             {searchResults.map((member) => (
-              <div key={member.id} className="card shadow-sm">
+              <div key={member.id} className="ohgo-card">
                 <div className="card-body">
                   <div className="d-flex justify-content-between align-items-center">
                     <div>
@@ -456,13 +448,10 @@ function RosterMemberSearchContent() {
             ))}
           </div>
         ) : searchText.trim() && !isLoading ? (
-          <div className="text-center py-5">
-            <p className="text-muted">검색 결과가 없습니다.</p>
-          </div>
+          <EmptyState icon={IoSearchOutline} message="검색 결과가 없습니다." />
         ) : null}
-      </div>
 
-      <div className="position-fixed bottom-0 start-0 end-0 bg-white border-top p-3 shadow-lg">
+      <div className="position-fixed bottom-0 start-0 end-0 bg-white border-top p-3 shadow-lg" style={{ maxWidth: 480, left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}>
         <div className="container">
           <button 
             className="btn btn-secondary w-100 d-flex align-items-center justify-content-center gap-2"
@@ -480,22 +469,13 @@ function RosterMemberSearchContent() {
           </button>
         </div>
       </div>
-    </div>
+    </SubPageFrame>
   );
 }
 
 export default function RosterMemberSearchPage() {
   return (
-    <Suspense fallback={
-      <div className="d-flex min-vh-100 align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<OhgoPageLoading />}>
       <RosterMemberSearchContent />
     </Suspense>
   );

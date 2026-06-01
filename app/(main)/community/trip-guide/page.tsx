@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { getUser } from '@/lib/storage';
 import { getTripsByMonth, TripGuide } from '@/utils/trip-guide-service';
@@ -9,13 +9,13 @@ import {
   IoChevronForwardOutline,
   IoBoatOutline,
   IoTimeOutline,
-  IoPeopleOutline,
   IoFishOutline,
   IoCallOutline,
   IoInformationCircleOutline,
-  IoCloseOutline,
 } from 'react-icons/io5';
-import PageHeader from '@/components/PageHeader';
+import SubPageFrame from '@/components/SubPageFrame';
+import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import EmptyState from '@/components/EmptyState';
 
 const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -24,8 +24,8 @@ function toYM(y: number, m: number) {
   return `${y}-${String(m + 1).padStart(2, '0')}`;
 }
 
-function tripKey(t: TripGuide) {
-  return t.date; // YYYY-MM-DD
+function toDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function formatPrice(p?: number) {
@@ -36,11 +36,12 @@ function formatPrice(p?: number) {
 export default function TripGuidePage() {
   const router = useRouter();
   const today = new Date();
+  const todayStr = toDateStr(today);
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth()); // 0-based
   const [trips, setTrips] = useState<TripGuide[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState(todayStr);
   const [modalTrip, setModalTrip] = useState<TripGuide | null>(null);
 
   useEffect(() => {
@@ -51,21 +52,32 @@ export default function TripGuidePage() {
     checkAuth();
   }, [router]);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const data = await getTripsByMonth(toYM(year, month));
-        setTrips(data);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-    setSelectedDate(null);
+  const loadTrips = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getTripsByMonth(toYM(year, month));
+      setTrips(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   }, [year, month]);
+
+  useEffect(() => {
+    void loadTrips();
+  }, [loadTrips]);
+
+  // 다른 달로 이동 시 선택 날짜를 해당 월 범위로 맞춤 (현재 달이면 오늘)
+  useEffect(() => {
+    setSelectedDate(prev => {
+      if (!prev) return todayStr;
+      const [y, m] = prev.split('-').map(Number);
+      if (y === year && m === month + 1) return prev;
+      if (year === today.getFullYear() && month === today.getMonth()) return todayStr;
+      return `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    });
+  }, [year, month, todayStr]);
 
   const prevMonth = () => {
     if (month === 0) { setYear(y => y - 1); setMonth(11); }
@@ -93,18 +105,13 @@ export default function TripGuidePage() {
     tripMap[t.date].push(t);
   });
 
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
   const getDateStr = (day: number) =>
     `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-  const selectedTrips = selectedDate ? (tripMap[selectedDate] || []) : [];
+  const selectedTrips = tripMap[selectedDate] || [];
 
   return (
-    <div className="min-vh-100 pb-4" style={{ backgroundColor: '#F7F8FA', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <PageHeader title="출조 안내" />
-      <div className="container py-3" style={{ maxWidth: 480 }}>
-
+    <SubPageFrame title="출조 안내" onRefresh={loadTrips}>
         {/* 월 이동 헤더 */}
         <div className="d-flex align-items-center justify-content-between mb-3">
           <button type="button" onClick={prevMonth} className="btn p-2 rounded-circle" style={{ border: 'none', backgroundColor: '#F7F8FA' }}>
@@ -148,37 +155,48 @@ export default function TripGuidePage() {
               {Array.from({ length: cells.length / 7 }, (_, row) => (
                 <div key={row} className="d-flex" style={{ borderBottom: row < cells.length / 7 - 1 ? '1px solid #F7F8FA' : 'none' }}>
                   {cells.slice(row * 7, row * 7 + 7).map((day, col) => {
-                    if (!day) return <div key={col} style={{ flex: 1, minHeight: 52 }} />;
+                    if (!day) {
+                      return (
+                        <div
+                          key={col}
+                          style={{ flex: 1, minHeight: 58, padding: '6px 2px' }}
+                          aria-hidden
+                        />
+                      );
+                    }
                     const dateStr = getDateStr(day);
-                    const hasTrip = !!tripMap[dateStr]?.length;
+                    const dayTrips = tripMap[dateStr] || [];
+                    const hasTrip = dayTrips.length > 0;
                     const isToday = dateStr === todayStr;
                     const isSelected = dateStr === selectedDate;
                     const isSun = col === 0;
                     const isSat = col === 6;
+                    const dotColor = isToday ? '#FFCC00' : '#1B6FF5';
 
                     return (
                       <button
                         key={col}
                         type="button"
-                        onClick={() => setSelectedDate(isSelected ? null : dateStr)}
+                        onClick={() => setSelectedDate(dateStr)}
                         style={{
                           flex: 1,
-                          minHeight: 56,
+                          minHeight: 58,
                           border: 'none',
                           backgroundColor: isSelected ? '#EBF1FE' : 'transparent',
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 3,
+                          justifyContent: 'flex-start',
+                          gap: 4,
                           cursor: 'pointer',
-                          padding: '4px 2px',
+                          padding: '6px 2px',
                         }}
                       >
                         <div
                           style={{
                             width: 30,
                             height: 30,
+                            flexShrink: 0,
                             borderRadius: '50%',
                             display: 'flex',
                             alignItems: 'center',
@@ -200,23 +218,32 @@ export default function TripGuidePage() {
                         >
                           {day}
                         </div>
-                        {/* 출조 도트 */}
-                        {hasTrip && (
-                          <div style={{ display: 'flex', gap: 2 }}>
-                            {(tripMap[dateStr] || []).slice(0, 3).map((_, i) => (
+                        {/* 출조 도트 — 일정 없어도 동일 높이 유지 */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: 2,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            height: 6,
+                            minHeight: 6,
+                            width: '100%',
+                          }}
+                        >
+                          {hasTrip &&
+                            dayTrips.slice(0, 3).map((_, i) => (
                               <div
                                 key={i}
                                 style={{
                                   width: 5,
                                   height: 5,
                                   borderRadius: '50%',
-                                  backgroundColor: isToday ? '#FFFFFF' : '#1B6FF5',
-                                  opacity: isToday ? 0.8 : 1,
+                                  backgroundColor: dotColor,
+                                  boxShadow: isToday ? '0 0 0 1px rgba(0,0,0,0.12)' : 'none',
                                 }}
                               />
                             ))}
-                          </div>
-                        )}
+                        </div>
                       </button>
                     );
                   })}
@@ -226,29 +253,22 @@ export default function TripGuidePage() {
           )}
         </div>
 
-        {/* 출조 없을 때 안내 */}
-        {!loading && trips.length === 0 && (
-          <div className="py-4 text-center" style={{ backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <IoBoatOutline size={48} color="#EFEFEF" />
-            <p className="mt-3 mb-1" style={{ fontSize: 15, fontWeight: 600, color: '#6F767E', fontFamily: FONT }}>
-              이달의 출조 일정이 없습니다.
-            </p>
-          </div>
-        )}
-
-        {/* 날짜 선택 시 출조 리스트 */}
-        {selectedDate && (
+        {/* 선택한 날짜 출조 리스트 */}
+        {!loading && (
           <>
             <div className="d-flex align-items-center mb-2 px-1">
               <span style={{ fontSize: 15, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>
-                {parseInt(selectedDate.split('-')[1])}월 {parseInt(selectedDate.split('-')[2])}일 출조
+                {parseInt(selectedDate.split('-')[1])}월 {parseInt(selectedDate.split('-')[2])}일 출조 일정
               </span>
             </div>
 
             {selectedTrips.length === 0 ? (
-              <div className="py-4 text-center" style={{ backgroundColor: '#FFFFFF', borderRadius: 14, boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}>
-                <p className="mb-0" style={{ fontSize: 14, color: '#6F767E', fontFamily: FONT }}>이 날은 출조 일정이 없습니다.</p>
-              </div>
+              <EmptyState
+                icon={IoBoatOutline}
+                message="이 날은 출조 일정이 없습니다."
+                compact
+                style={{ backgroundColor: '#FFFFFF', borderRadius: 14, boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}
+              />
             ) : (
               <div className="d-flex flex-column gap-3">
                 {selectedTrips.map(trip => (
@@ -257,7 +277,7 @@ export default function TripGuidePage() {
                     type="button"
                     onClick={() => setModalTrip(trip)}
                     className="btn w-100 text-start p-3"
-                    style={{ backgroundColor: '#FFFFFF', borderRadius: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: 'none', borderLeft: '4px solid #1B6FF5' }}
+                    style={{ backgroundColor: '#FFFFFF', borderRadius: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: 'none' }}
                   >
                     <div className="d-flex align-items-start gap-3">
                       <div className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
@@ -298,121 +318,89 @@ export default function TripGuidePage() {
           </>
         )}
 
-        {/* 이달 전체 출조 요약 (날짜 미선택시) */}
-        {!selectedDate && !loading && trips.length > 0 && (
+      <OhgoModal
+        open={!!modalTrip}
+        onClose={() => setModalTrip(null)}
+        closeOnBackdrop
+        title={modalTrip?.destination ?? '출조 정보'}
+        footer={
+          <OhgoModalButton variant="secondary" onClick={() => setModalTrip(null)}>
+            닫기
+          </OhgoModalButton>
+        }
+      >
+        {modalTrip && (
           <>
-            <div className="d-flex align-items-center mb-2 px-1">
-              <span style={{ fontSize: 15, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>이달의 출조 일정</span>
-              <span className="badge rounded-pill ms-2" style={{ backgroundColor: '#1B6FF5', fontSize: 12 }}>{trips.length}건</span>
-            </div>
-            <div className="d-flex flex-column gap-2">
-              {trips.map(trip => (
-                <button
-                  key={trip.id}
-                  type="button"
-                  onClick={() => { setSelectedDate(trip.date); setModalTrip(trip); }}
-                  className="btn w-100 text-start d-flex align-items-center gap-3 px-3 py-3"
-                  style={{ backgroundColor: '#FFFFFF', borderRadius: 14, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', border: 'none' }}
-                >
-                  <div className="text-center flex-shrink-0" style={{ width: 40 }}>
-                    <div style={{ fontSize: 11, color: '#6F767E', fontFamily: FONT }}>{DAYS[new Date(trip.date + 'T00:00:00').getDay()]}</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>{parseInt(trip.date.split('-')[2])}</div>
-                  </div>
-                  <div style={{ width: 1, height: 32, backgroundColor: '#EFEFEF', flexShrink: 0 }} />
-                  <div className="flex-grow-1">
-                    <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1D1F', fontFamily: FONT }}>{trip.destination}</div>
-                    <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 2 }}>
-                      {trip.departureTime} 출발
-                      {trip.species && ` · ${trip.species}`}
-                    </div>
-                  </div>
-                  {trip.price && (
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#1B6FF5', fontFamily: FONT, flexShrink: 0 }}>
-                      {formatPrice(trip.price)}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* 상세 모달 */}
-      {modalTrip && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1} onClick={() => setModalTrip(null)}>
-          <div className="modal-dialog modal-dialog-centered" onClick={e => e.stopPropagation()}>
-            <div className="modal-content border-0" style={{ borderRadius: 20, overflow: 'hidden' }}>
-              {/* 헤더 */}
-              <div className="px-4 pt-4 pb-3 d-flex align-items-start justify-content-between"
-                style={{ borderBottom: '1px solid #F7F8FA' }}>
-                <div className="d-flex align-items-center gap-3">
-                  <div className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                    style={{ width: 48, height: 48, background: 'linear-gradient(135deg,#1B6FF5,#5B8DEF)' }}>
-                    <IoBoatOutline size={24} color="#fff" />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>{modalTrip.destination}</div>
-                    <div style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>
-                      {parseInt(modalTrip.date.split('-')[1])}월 {parseInt(modalTrip.date.split('-')[2])}일 ({DAYS[new Date(modalTrip.date + 'T00:00:00').getDay()]})
-                    </div>
-                  </div>
-                </div>
-                <button type="button" onClick={() => setModalTrip(null)}
-                  className="btn p-1 rounded-circle d-flex align-items-center justify-content-center"
-                  style={{ border: 'none', backgroundColor: '#F7F8FA', width: 32, height: 32 }}>
-                  <IoCloseOutline size={20} color="#6F767E" />
-                </button>
+            <div className="d-flex align-items-center gap-3 mb-3">
+              <div
+                className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                style={{ width: 44, height: 44, backgroundColor: '#1B6FF5' }}
+              >
+                <IoBoatOutline size={22} color="#fff" />
               </div>
-
-              {/* 정보 */}
-              <div className="px-4 py-3">
-                {[
-                  { icon: IoTimeOutline, label: '출발', value: `${modalTrip.departureTime}${modalTrip.returnTime ? ` ~ ${modalTrip.returnTime}` : ''}` },
-                  modalTrip.species ? { icon: IoFishOutline, label: '목표 어종', value: modalTrip.species } : null,
-                  modalTrip.capacity ? { icon: IoPeopleOutline, label: '정원', value: `${modalTrip.capacity}명` } : null,
-                  modalTrip.contact ? { icon: IoCallOutline, label: '예약 문의', value: modalTrip.contact } : null,
-                ].filter(Boolean).map((item, idx) => item && (
+              <div style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>
+                {parseInt(modalTrip.date.split('-')[1])}월 {parseInt(modalTrip.date.split('-')[2])}일 (
+                {DAYS[new Date(modalTrip.date + 'T00:00:00').getDay()]})
+              </div>
+            </div>
+            {[
+              {
+                icon: IoTimeOutline,
+                label: '출발',
+                value: `${modalTrip.departureTime}${modalTrip.returnTime ? ` ~ ${modalTrip.returnTime}` : ''}`,
+              },
+              modalTrip.species ? { icon: IoFishOutline, label: '목표 어종', value: modalTrip.species } : null,
+              modalTrip.contact ? { icon: IoCallOutline, label: '예약 문의', value: modalTrip.contact } : null,
+            ]
+              .filter(Boolean)
+              .map((item, idx) =>
+                item ? (
                   <div key={idx} className="d-flex align-items-start gap-3 mb-3">
-                    <div className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                      style={{ width: 36, height: 36, backgroundColor: '#F7F8FA' }}>
+                    <div
+                      className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                      style={{ width: 36, height: 36, backgroundColor: '#F7F8FA' }}
+                    >
                       <item.icon size={18} color="#1B6FF5" />
                     </div>
                     <div>
                       <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT }}>{item.label}</div>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1D1F', fontFamily: FONT }}>{item.value}</div>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1D1F', fontFamily: FONT }}>
+                        {item.value}
+                      </div>
                     </div>
                   </div>
-                ))}
-
-                {modalTrip.price && (
-                  <div className="p-3 rounded-3 mb-3 d-flex align-items-center justify-content-between"
-                    style={{ backgroundColor: '#EBF1FE' }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: '#1B6FF5', fontFamily: FONT }}>1인 요금</span>
-                    <span style={{ fontSize: 20, fontWeight: 800, color: '#1B6FF5', fontFamily: FONT }}>{formatPrice(modalTrip.price)}</span>
-                  </div>
-                )}
-
-                {modalTrip.notes && (
-                  <div className="p-3 rounded-3" style={{ backgroundColor: '#F7F8FA' }}>
-                    <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginBottom: 6 }}>비고</div>
-                    <div style={{ fontSize: 14, color: '#1A1D1F', fontFamily: FONT, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-                      {modalTrip.notes}
-                    </div>
-                  </div>
-                )}
+                ) : null
+              )}
+            {modalTrip.price && (
+              <div
+                className="p-3 rounded-3 mb-3 d-flex align-items-center justify-content-between"
+                style={{ backgroundColor: '#EBF1FE' }}
+              >
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#1B6FF5', fontFamily: FONT }}>1인 요금</span>
+                <span style={{ fontSize: 20, fontWeight: 800, color: '#1B6FF5', fontFamily: FONT }}>
+                  {formatPrice(modalTrip.price)}
+                </span>
               </div>
-
-              <div className="px-4 pb-4 pt-1">
-                <button type="button" onClick={() => setModalTrip(null)} className="btn w-100 fw-semibold"
-                  style={{ backgroundColor: '#F7F8FA', color: '#1A1D1F', borderRadius: 12, padding: 13, border: 'none', fontFamily: FONT }}>
-                  닫기
-                </button>
+            )}
+            {modalTrip.notes && (
+              <div className="p-3 rounded-3" style={{ backgroundColor: '#F7F8FA' }}>
+                <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginBottom: 6 }}>비고</div>
+                <div
+                  style={{
+                    fontSize: 14,
+                    color: '#1A1D1F',
+                    fontFamily: FONT,
+                    whiteSpace: 'pre-wrap',
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {modalTrip.notes}
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+            )}
+          </>
+        )}
+      </OhgoModal>
+    </SubPageFrame>
   );
 }

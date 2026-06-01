@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase';
 import { clearUser, getUser } from '@/lib/storage';
 import { isNativeApp, requestPushTokenFromNative, savePushTokenToUser } from '@/lib/native-bridge';
 import { getCommunityPoints } from '@/utils/community-point-service';
-import PageHeader from '@/components/PageHeader';
+import SubPageFrame from '@/components/SubPageFrame';
 import {
   IoPersonOutline,
   IoNotificationsOutline,
@@ -95,10 +95,7 @@ export default function MyPage() {
   }
 
   return (
-    <div className="min-vh-100 pb-4" style={{ backgroundColor: '#F7F8FA', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <PageHeader title="마이페이지" />
-      <div className="container py-3" style={{ maxWidth: 480 }}>
-
+    <SubPageFrame title="마이페이지" onRefresh={loadUser}>
         {/* 프로필 카드 */}
         <div className="mb-4 p-4" style={CARD}>
           <div className="d-flex align-items-center gap-3">
@@ -214,12 +211,20 @@ export default function MyPage() {
           type="button"
           onClick={handleLogout}
           className="btn w-100 d-flex align-items-center justify-content-center gap-2 fw-semibold"
-          style={{ backgroundColor: '#FFF0F0', color: '#FF3B30', borderRadius: 14, padding: '14px', border: 'none', fontFamily: FONT, fontSize: 15 }}
+          style={{
+            backgroundColor: '#E53935',
+            color: '#FFFFFF',
+            borderRadius: 14,
+            padding: '14px',
+            border: 'none',
+            fontFamily: FONT,
+            fontSize: 15,
+            boxShadow: '0 4px 12px rgba(229, 57, 53, 0.28)',
+          }}
         >
-          <IoLogOutOutline size={20} />
+          <IoLogOutOutline size={20} color="#FFFFFF" />
           로그아웃
         </button>
-      </div>
-    </div>
+    </SubPageFrame>
   );
 }

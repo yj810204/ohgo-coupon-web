@@ -1,6 +1,6 @@
 'use client';
 
-import { IoPersonCircleOutline } from 'react-icons/io5';
+import { IoPersonOutline } from 'react-icons/io5';
 
 interface AvatarHeaderProps {
   userName: string;
@@ -62,7 +62,7 @@ export default function AvatarHeader({ userName, onMyPage }: AvatarHeaderProps) 
         }}
         aria-label="마이페이지"
       >
-        <IoPersonCircleOutline size={24} color="#1A1D1F" />
+        <IoPersonOutline size={22} color="#1A1D1F" />
       </button>
     </div>
   );

@@ -7,12 +7,10 @@ import { addStamp } from '@/utils/stamp-service';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Html5Qrcode } from 'html5-qrcode';
-import PageHeader from '@/components/PageHeader';
-
-/** Expo 네이티브 앱 환경 여부 */
-function isNativeApp(): boolean {
-  return typeof window !== 'undefined' && !!(window as any).__OHGO_NATIVE_APP__;
-}
+import { isNativeApp } from '@/lib/native-bridge';
+import { IoCameraOutline, IoCheckmarkCircleOutline, IoCloseCircleOutline } from 'react-icons/io5';
+import OhgoModal, { OhgoModalButton, OhgoModalText } from '@/components/OhgoModal';
+import { OHGO_PRIMARY_BTN, OHGO_SECONDARY_BTN } from '@/lib/page-styles';
 
 /** 네이티브로 QR 스캔 요청 */
 function requestNativeQRScan() {
@@ -38,7 +36,14 @@ function QRScanPageContent() {
   const [errorMessage, setErrorMessage] = useState('');
   // 네이티브 앱 QR 스캔 대기 상태
   const [nativeWaiting, setNativeWaiting] = useState(false);
+  const [isNative, setIsNative] = useState(false);
+  const [nativeChecked, setNativeChecked] = useState(false);
   const qrCodeRef = useRef<Html5Qrcode | null>(null);
+
+  useEffect(() => {
+    setIsNative(isNativeApp());
+    setNativeChecked(true);
+  }, []);
   const scanAreaRef = useRef<HTMLDivElement>(null);
 
   const handleQRInput = useCallback(async (qrData: string) => {
@@ -68,7 +73,7 @@ function QRScanPageContent() {
       if (qrData === 'OHGO-STAMP-BOAT19033326262005') {
         try {
           await addStamp(user.uuid, 'QR');
-          setMessage('✅ 스탬프가 적립되었습니다!');
+          setMessage('스탬프가 적립되었습니다!');
           setMessageColor('#4caf50');
           
           // 스캐너 중지
@@ -98,7 +103,7 @@ function QRScanPageContent() {
       const qrSnap = await getDoc(qrRef);
 
       if (!qrSnap.exists()) {
-        setMessage('❌ 유효하지 않은 QR 코드입니다.');
+        setMessage('유효하지 않은 QR 코드입니다.');
         setMessageColor('#f44336');
         setIsScanning(false);
         setScanning(false);
@@ -107,7 +112,7 @@ function QRScanPageContent() {
       }
 
       await addStamp(user.uuid, 'QR');
-      setMessage('✅ 스탬프가 적립되었습니다!');
+      setMessage('스탬프가 적립되었습니다!');
       setMessageColor('#4caf50');
       
       // 스캐너 중지
@@ -143,7 +148,7 @@ function QRScanPageContent() {
 
   // 네이티브 앱: QR_SCAN_RESULT / QR_SCAN_CANCEL 수신 리스너
   useEffect(() => {
-    if (!user || !isNativeApp()) return;
+    if (!user || !isNative) return;
 
     const handleMessage = (event: MessageEvent) => {
       try {
@@ -161,12 +166,12 @@ function QRScanPageContent() {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [user, handleQRInput]);
+  }, [user, isNative, handleQRInput]);
 
   // 네이티브 앱이면 카메라 초기화 건너뜀
   useEffect(() => {
-    if (!user) return;
-    if (isNativeApp()) {
+    if (!user || !nativeChecked) return;
+    if (isNative) {
       // 네이티브 앱 환경: 자동으로 QR 스캔 요청
       setNativeWaiting(true);
       requestNativeQRScan();
@@ -231,7 +236,7 @@ function QRScanPageContent() {
         console.error('카메라 초기화 실패:', error);
         setPermissionDenied(true);
         setIsPreparing(false);
-        setMessage('❌ 카메라 접근 권한이 필요합니다.');
+        setMessage('카메라 접근 권한이 필요합니다.');
         setMessageColor('#f44336');
         // Expo 네이티브 앱이면 카메라 권한 요청 브릿지 호출
         if (typeof window !== 'undefined' && (window as any).__OHGO_NATIVE_APP__) {
@@ -262,7 +267,7 @@ function QRScanPageContent() {
       };
       cleanup();
     };
-  }, [user, router, handleQRInput, scanCompleted, scanning]);
+  }, [user, nativeChecked, isNative, router, handleQRInput, scanCompleted, scanning]);
 
   // 스캔 시작 함수
   const handleStartScan = useCallback(async () => {
@@ -333,7 +338,7 @@ function QRScanPageContent() {
       console.error('스캔 시작 실패:', error);
       setIsScanning(false);
       setIsPreparing(false);
-      setMessage('❌ 스캔을 시작할 수 없습니다.');
+      setMessage('스캔을 시작할 수 없습니다.');
       setMessageColor('#f44336');
     }
   }, [isScanning, cameraReady, scanCompleted, handleQRInput]);
@@ -350,10 +355,10 @@ function QRScanPageContent() {
   }
 
   // 네이티브 앱 환경: 스캔 대기 중 또는 결과 처리 중 UI
-  if (isNativeApp()) {
+  if (isNative) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#F7F8FA', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-        <div style={{ fontSize: '64px', marginBottom: '20px' }}>📷</div>
+        <IoCameraOutline size={64} color="#1B6FF5" style={{ marginBottom: '20px' }} />
         {nativeWaiting || isProcessing ? (
           <>
             <div className="spinner-border text-primary mb-3" role="status" />
@@ -371,67 +376,67 @@ function QRScanPageContent() {
                 {message}
               </p>
             )}
-            <button
-              onClick={() => {
-                setScanCompleted(false);
-                setScanning(false);
-                setMessage('');
-                setNativeWaiting(true);
-                requestNativeQRScan();
-              }}
+            <div
               style={{
-                backgroundColor: '#1B6FF5', color: '#fff', border: 'none',
-                borderRadius: '12px', padding: '14px 32px', fontSize: '16px',
-                fontWeight: '700', cursor: 'pointer', marginBottom: '12px',
+                width: '100%',
+                maxWidth: 320,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
               }}
             >
-              다시 스캔하기
-            </button>
-            <button
-              onClick={() => router.back()}
-              style={{
-                backgroundColor: 'transparent', color: '#6F767E', border: '1px solid #EFEFEF',
-                borderRadius: '12px', padding: '14px 32px', fontSize: '15px', cursor: 'pointer',
-              }}
-            >
-              돌아가기
-            </button>
+              <button
+                type="button"
+                className="btn w-100 fw-semibold"
+                onClick={() => {
+                  setScanCompleted(false);
+                  setScanning(false);
+                  setMessage('');
+                  setNativeWaiting(true);
+                  requestNativeQRScan();
+                }}
+                style={OHGO_PRIMARY_BTN}
+              >
+                다시 스캔하기
+              </button>
+              <button
+                type="button"
+                className="btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--secondary"
+                onClick={() => router.back()}
+                style={OHGO_SECONDARY_BTN}
+              >
+                돌아가기
+              </button>
+            </div>
           </>
         )}
 
         {/* 에러 모달 */}
-        {showErrorModal && (
-          <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-                <div className="modal-header border-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: '20px' }}>
-                  <h5 className="modal-title text-white fw-bold mb-0">알림</h5>
-                  <button type="button" className="btn-close btn-close-white" onClick={() => { setShowErrorModal(false); setErrorMessage(''); }} />
-                </div>
-                <div className="modal-body p-4">
-                  <p className="text-center mb-0" style={{ lineHeight: '1.6', whiteSpace: 'pre-line' }}>{errorMessage}</p>
-                </div>
-                <div className="modal-footer border-0 pt-0">
-                  <button
-                    onClick={() => {
-                      setShowErrorModal(false);
-                      setErrorMessage('');
-                      if (user?.uuid) {
-                        router.push(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
-                      } else {
-                        router.back();
-                      }
-                    }}
-                    className="btn btn-primary w-100 text-white fw-semibold"
-                    style={{ borderRadius: '12px', padding: '12px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none' }}
-                  >
-                    확인
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <OhgoModal
+          open={showErrorModal}
+          onClose={() => {
+            setShowErrorModal(false);
+            setErrorMessage('');
+          }}
+          title="알림"
+          footer={
+            <OhgoModalButton
+              onClick={() => {
+                setShowErrorModal(false);
+                setErrorMessage('');
+                if (user?.uuid) {
+                  router.push(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
+                } else {
+                  router.back();
+                }
+              }}
+            >
+              확인
+            </OhgoModalButton>
+          }
+        >
+          <OhgoModalText>{errorMessage}</OhgoModalText>
+        </OhgoModal>
       </div>
     );
   }
@@ -503,7 +508,7 @@ function QRScanPageContent() {
           setMessageColor('#000');
         } catch (error: any) {
           setPermissionDenied(true);
-          setMessage('❌ 카메라 접근 권한이 필요합니다.');
+          setMessage('카메라 접근 권한이 필요합니다.');
           setMessageColor('#f44336');
         }
       };
@@ -620,7 +625,7 @@ function QRScanPageContent() {
         {permissionDenied && (
           <div className="absolute inset-0 d-flex align-items-center justify-content-center bg-black bg-opacity-75">
             <div className="text-center text-white p-4" style={{ maxWidth: '90%' }}>
-              <div style={{ fontSize: '48px', marginBottom: '16px' }}>📷</div>
+              <IoCameraOutline size={48} color="#FFFFFF" style={{ marginBottom: '16px' }} />
               <p className="mb-3 fw-bold" style={{ fontSize: '1.1rem' }}>카메라 권한이 필요합니다</p>
               <p className="mb-4" style={{ lineHeight: '1.6', color: 'rgba(255,255,255,0.75)', fontSize: '0.9rem' }}>
                 QR 코드 스캔을 위해 카메라 접근 권한이 필요합니다.<br />
@@ -634,7 +639,7 @@ function QRScanPageContent() {
                 >
                   권한 다시 요청
                 </button>
-                {(window as any).__OHGO_NATIVE_APP__ && (
+                {isNative && (
                   <button
                     onClick={() => {
                       try {
@@ -675,57 +680,31 @@ function QRScanPageContent() {
       </div>
       
       {/* 에러 모달 */}
-      {showErrorModal && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-              <div className="modal-header border-0" style={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                padding: '20px'
-              }}>
-                <h5 className="modal-title text-white fw-bold mb-0">알림</h5>
-                <button 
-                  type="button" 
-                  className="btn-close btn-close-white" 
-                  onClick={() => {
-                    setShowErrorModal(false);
-                    setErrorMessage('');
-                  }}
-                  style={{ opacity: 0.8 }}
-                ></button>
-              </div>
-              <div className="modal-body p-4">
-                <p className="text-center mb-0" style={{ lineHeight: '1.6', whiteSpace: 'pre-line' }}>
-                  {errorMessage}
-                </p>
-              </div>
-              <div className="modal-footer border-0 pt-0">
-                <button
-                  onClick={() => {
-                    setShowErrorModal(false);
-                    setErrorMessage('');
-                    // 스탬프 화면으로 이동
-                    if (user?.uuid) {
-                      router.push(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
-                    } else {
-                      router.back();
-                    }
-                  }}
-                  className="btn btn-primary w-100 text-white fw-semibold"
-                  style={{
-                    borderRadius: '12px',
-                    padding: '12px',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    border: 'none',
-                  }}
-                >
-                  확인
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <OhgoModal
+        open={showErrorModal}
+        onClose={() => {
+          setShowErrorModal(false);
+          setErrorMessage('');
+        }}
+        title="알림"
+        footer={
+          <OhgoModalButton
+            onClick={() => {
+              setShowErrorModal(false);
+              setErrorMessage('');
+              if (user?.uuid) {
+                router.push(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
+              } else {
+                router.back();
+              }
+            }}
+          >
+            확인
+          </OhgoModalButton>
+        }
+      >
+        <OhgoModalText>{errorMessage}</OhgoModalText>
+      </OhgoModal>
     </div>
     </>
   );

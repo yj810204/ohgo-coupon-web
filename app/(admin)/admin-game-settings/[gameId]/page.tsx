@@ -5,7 +5,8 @@ import { useRouter, useParams } from 'next/navigation';
 import { getUser } from '@/lib/storage';
 import { getUserByUUID } from '@/lib/firebase-auth';
 import { getGame, Game } from '@/lib/game-service';
-import PageHeader from '@/components/PageHeader';
+import SubPageFrame from '@/components/SubPageFrame';
+import { OhgoPageLoading } from '@/lib/page-styles';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db, storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -418,16 +419,7 @@ function GameEditContent() {
   };
 
   if (loading) {
-    return (
-      <div className="d-flex min-vh-100 align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
-      </div>
-    );
+    return <OhgoPageLoading />;
   }
 
   if (!game) {
@@ -435,10 +427,8 @@ function GameEditContent() {
   }
 
   return (
-    <div className="min-vh-100 bg-light">
-      <PageHeader title="게임 정보 수정" />
-      <div className="container">
-        <div className="card shadow-sm">
+    <SubPageFrame title="게임 정보 수정">
+        <div className="ohgo-card">
           <div className="card-body">
             <div className="mb-4">
               <label className="form-label fw-bold">게임 썸네일</label>
@@ -605,7 +595,7 @@ function GameEditContent() {
                   </p>
                   
                   {/* 모바일 보드 크기 */}
-                  <div className="card mb-3">
+                  <div className="ohgo-card mb-3">
                     <div className="card-header bg-light">
                       <h6 className="mb-0">📱 스마트폰 (화면 너비 &lt; 768px)</h6>
                     </div>
@@ -626,7 +616,7 @@ function GameEditContent() {
                   </div>
                   
                   {/* 태블릿 보드 크기 */}
-                  <div className="card mb-3">
+                  <div className="ohgo-card mb-3">
                     <div className="card-header bg-light">
                       <h6 className="mb-0">📱 태블릿 (화면 너비 768px - 1024px)</h6>
                     </div>
@@ -647,7 +637,7 @@ function GameEditContent() {
                   </div>
                   
                   {/* 데스크톱 보드 크기 */}
-                  <div className="card mb-3">
+                  <div className="ohgo-card mb-3">
                     <div className="card-header bg-light">
                       <h6 className="mb-0">💻 PC (화면 너비 &gt; 1024px)</h6>
                     </div>
@@ -678,7 +668,7 @@ function GameEditContent() {
                   </p>
 
               {/* 모바일 설정 */}
-              <div className="card mb-3">
+              <div className="ohgo-card mb-3">
                 <div className="card-header bg-light">
                   <h6 className="mb-0">📱 스마트폰 (화면 너비 &lt; 768px)</h6>
                 </div>
@@ -727,7 +717,7 @@ function GameEditContent() {
               </div>
 
               {/* 태블릿 설정 */}
-              <div className="card mb-3">
+              <div className="ohgo-card mb-3">
                 <div className="card-header bg-light">
                   <h6 className="mb-0">📱 태블릿 (화면 너비 768px - 1024px)</h6>
                 </div>
@@ -776,7 +766,7 @@ function GameEditContent() {
               </div>
 
               {/* 데스크톱 설정 */}
-              <div className="card mb-3">
+              <div className="ohgo-card mb-3">
                 <div className="card-header bg-light">
                   <h6 className="mb-0">💻 PC (화면 너비 &gt; 1024px)</h6>
                 </div>
@@ -1169,23 +1159,13 @@ function GameEditContent() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </SubPageFrame>
   );
 }
 
 export default function GameEditPage() {
   return (
-    <Suspense fallback={
-      <div className="d-flex min-vh-100 align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<OhgoPageLoading />}>
       <GameEditContent />
     </Suspense>
   );

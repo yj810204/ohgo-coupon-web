@@ -15,7 +15,7 @@ import { db } from '@/lib/firebase';
 export interface TripGuide {
   id: string;
   date: string;           // YYYY-MM-DD
-  destination: string;    // 목적지 / 낚시터
+  destination: string;    // 목적지
   departureTime: string;  // 출발 시간 (HH:mm)
   returnTime?: string;    // 귀항 예정 시간
   species?: string;       // 목표 어종 (참돔, 광어 등)

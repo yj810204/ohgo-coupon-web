@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getUser } from '@/lib/storage';
-import PageHeader from '@/components/PageHeader';
+import SubPageFrame from '@/components/SubPageFrame';
 import ProductGridCard from '@/components/home/ProductGridCard';
 import { CLOSED_MALL_PRODUCTS } from '@/constants/closed-mall';
 
@@ -32,9 +32,7 @@ export default function ClosedMallPage() {
   }
 
   return (
-    <div className="min-vh-100 pb-4" style={{ backgroundColor: '#F7F8FA', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <PageHeader title="오고피씽몰" />
-      <div className="container py-3" style={{ maxWidth: 480 }}>
+    <SubPageFrame title="오고피씽몰">
         <p className="mb-4" style={{ fontSize: 13, color: '#6F767E', fontFamily: "'Urbanist', var(--font-urbanist), sans-serif" }}>
           오고피씽 회원 전용 혜택 상품입니다. 상세 주문 기능은 준비 중입니다.
         </p>
@@ -48,7 +46,6 @@ export default function ClosedMallPage() {
             </div>
           ))}
         </div>
-      </div>
-    </div>
+    </SubPageFrame>
   );
 }

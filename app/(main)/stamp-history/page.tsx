@@ -6,7 +6,12 @@ import { format } from 'date-fns';
 import { collection, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getStampHistory } from '@/utils/stamp-service';
-import PageHeader from '@/components/PageHeader';
+import SubPageFrame from '@/components/SubPageFrame';
+import SubPageActionBar from '@/components/SubPageActionBar';
+import EmptyState from '@/components/EmptyState';
+import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
+import { IoTimeOutline } from 'react-icons/io5';
+import { OHGO_CARD, OHGO_FONT, OHGO_INPUT, OHGO_SECONDARY_BTN, OhgoPageLoading } from '@/lib/page-styles';
 
 type StampHistoryItem = {
   id: string;
@@ -32,24 +37,18 @@ function StampHistoryPageContent() {
   const name = searchParams.get('name') || '';
 
   const [history, setHistory] = useState<StampHistoryItem[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [action, setAction] = useState<'all' | 'add' | 'recall' | 'remove'>('all');
 
   const fetchHistory = async () => {
-    setRefreshing(true);
-    try {
-      let result = await getStampHistory({
-        uuid,
-        startDate,
-        endDate,
-      }) as StampHistoryItem[];
-      if (action !== 'all') result = result.filter(x => x.action === action);
-      setHistory(result);
-    } finally {
-      setRefreshing(false);
-    }
+    let result = await getStampHistory({
+      uuid,
+      startDate,
+      endDate,
+    }) as StampHistoryItem[];
+    if (action !== 'all') result = result.filter(x => x.action === action);
+    setHistory(result);
   };
 
   useEffect(() => {
@@ -58,10 +57,7 @@ function StampHistoryPageContent() {
     }
   }, [uuid, startDate, endDate, action]);
 
-  const onRefresh = async () => {
-    await fetchHistory();
-  };
-
+  useNativePullToRefresh(fetchHistory);
 
   const handleClearHistory = async () => {
     if (!confirm('정말로 이 회원의 모든 스탬프 이력을 삭제하시겠습니까?')) return;
@@ -84,37 +80,8 @@ function StampHistoryPageContent() {
   };
 
   return (
-    <div 
-      className="min-vh-100 bg-light"
-      style={{ 
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        position: 'relative',
-      }}
-    >
-      <PageHeader title="스탬프 이력" />
-      <div className="container">
-        {history.length > 0 && (
-          <div className="d-flex justify-content-end mb-3">
-            <button 
-              className="btn btn-outline-danger d-flex align-items-center justify-content-center"
-              onClick={handleClearHistory}
-              style={{
-                padding: '8px 16px',
-                fontSize: '0.9rem',
-                fontWeight: '500',
-                borderRadius: '8px',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              전체 삭제
-            </button>
-          </div>
-        )}
-
-        {/* 필터 */}
-        <div className="card shadow-sm mb-3">
-          <div className="card-body">
+    <SubPageFrame title="스탬프 이력" onRefresh={fetchHistory}>
+        <div className="p-3 mb-3" style={OHGO_CARD}>
             <div className="mb-2">
               <label className="form-label small">시작일</label>
               <input
@@ -133,7 +100,7 @@ function StampHistoryPageContent() {
                 onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : undefined)}
               />
             </div>
-            <div className="btn-group w-100" role="group">
+            <div className="ohgo-filter-group w-100 mb-2" role="group">
               <button
                 type="button"
                 className={`btn btn-sm ${action === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}
@@ -164,29 +131,31 @@ function StampHistoryPageContent() {
               </button>
             </div>
             <button
-              className="btn btn-outline-secondary w-100 mt-2 d-flex align-items-center justify-content-center"
+              type="button"
+              className="btn w-100 mt-2 fw-semibold"
               onClick={() => {
                 setAction('all');
                 setStartDate(undefined);
                 setEndDate(undefined);
               }}
-              style={{
-                padding: '10px',
-                fontSize: '0.95rem',
-                fontWeight: '500',
-                borderRadius: '8px',
-                transition: 'all 0.2s ease'
-              }}
+              style={{ ...OHGO_SECONDARY_BTN, marginTop: 8 }}
             >
               필터 초기화
             </button>
-          </div>
         </div>
+
+        {history.length > 0 && (
+          <SubPageActionBar
+            meta={`조회 ${history.length}건 · 전체 이력 삭제`}
+            label="전체 삭제"
+            onClick={handleClearHistory}
+            variant="danger"
+          />
+        )}
 
         <div className="d-flex flex-column gap-3">
           {history.map((item) => (
-            <div key={item.id} className="card shadow-sm">
-              <div className="card-body">
+            <div key={item.id} className="p-3" style={OHGO_CARD}>
                 <div className="d-flex justify-content-between align-items-start mb-2">
                   <span className={`badge bg-${getActionColor(item.action)}`}>
                     {getActionLabel(item.action)}
@@ -197,37 +166,24 @@ function StampHistoryPageContent() {
                       : '-'}
                   </small>
                 </div>
-                <p className="card-text mb-1">{item.message}</p>
+                <p className="mb-1" style={{ fontSize: 14, color: '#1A1D1F', fontFamily: OHGO_FONT }}>{item.message}</p>
                 {item.date && (
-                  <small className="text-muted">최초 적립일: {item.date}</small>
+                  <small style={{ fontSize: 12, color: '#6F767E', fontFamily: OHGO_FONT }}>최초 적립일: {item.date}</small>
                 )}
-              </div>
             </div>
           ))}
         </div>
 
         {history.length === 0 && (
-          <div className="text-center py-5">
-            <p className="text-muted">📝 기록된 스탬프 이력이 없습니다.</p>
-          </div>
+          <EmptyState icon={IoTimeOutline} message="기록된 스탬프 이력이 없습니다." style={OHGO_CARD} />
         )}
-      </div>
-    </div>
+    </SubPageFrame>
   );
 }
 
 export default function StampHistoryPage() {
   return (
-    <Suspense fallback={
-      <div className="d-flex min-vh-100 align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<OhgoPageLoading />}>
       <StampHistoryPageContent />
     </Suspense>
   );

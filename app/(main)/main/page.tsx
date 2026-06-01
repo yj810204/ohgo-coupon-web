@@ -7,6 +7,7 @@ import { getStamps, getCouponCount } from '@/utils/stamp-service';
 import { getPhotos, type CommunityPhoto } from '@/utils/community-service';
 import { getActiveGames, type Game } from '@/lib/game-service';
 import { useNavigation } from '@/hooks/useNavigation';
+import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import AvatarHeader from '@/components/home/AvatarHeader';
 import StampCouponSummary from '@/components/home/StampCouponSummary';
 import SectionHeader from '@/components/home/SectionHeader';
@@ -14,8 +15,12 @@ import GridCard from '@/components/home/GridCard';
 import FeaturedCard from '@/components/home/FeaturedCard';
 import ProductGridCard from '@/components/home/ProductGridCard';
 import WeeklyTripSummary from '@/components/home/WeeklyTripSummary';
-import { CLOSED_MALL_PRODUCTS } from '@/constants/closed-mall';
+import { getPointMallProducts } from '@/utils/point-mall-service';
+import { formatPointPrice } from '@/constants/point-mall';
+import type { PointMallProduct } from '@/constants/point-mall';
 import { format } from 'date-fns';
+import { IoGameControllerOutline, IoStorefrontOutline } from 'react-icons/io5';
+import EmptyState from '@/components/EmptyState';
 
 export default function MainPage() {
   const { navigate, navigateReplace } = useNavigation();
@@ -25,19 +30,22 @@ export default function MainPage() {
   const [couponCount, setCouponCount] = useState(0);
   const [photos, setPhotos] = useState<CommunityPhoto[]>([]);
   const [games, setGames] = useState<Game[]>([]);
+  const [mallProducts, setMallProducts] = useState<PointMallProduct[]>([]);
 
   const loadRemoteData = useCallback(async (uuid: string) => {
     try {
-      const [stamps, coupons, photoList, activeGames] = await Promise.all([
+      const [stamps, coupons, photoList, activeGames, pointProducts] = await Promise.all([
         getStamps(uuid),
         getCouponCount(uuid),
         getPhotos(4),
         getActiveGames(),
+        getPointMallProducts(),
       ]);
       setStampCount(stamps.length);
       setCouponCount(coupons);
       setPhotos(photoList);
       setGames(activeGames);
+      setMallProducts(pointProducts.slice(0, 4));
     } catch (error) {
       console.error('Error loading home data:', error);
     }
@@ -83,6 +91,18 @@ export default function MainPage() {
     void handleRefresh();
   }, [handleRefresh]);
 
+  const onPullRefresh = useCallback(async () => {
+    const localUser = await getUser();
+    if (!localUser?.uuid) {
+      await handleRefresh();
+      return;
+    }
+    setUser(localUser);
+    await loadRemoteData(localUser.uuid);
+  }, [handleRefresh, loadRemoteData]);
+
+  useNativePullToRefresh(onPullRefresh);
+
   const photoTitle = (photo: CommunityPhoto) =>
     photo.title || photo.uploadedByName || '조황 사진';
 
@@ -100,6 +120,14 @@ export default function MainPage() {
       return '';
     }
   };
+
+  const DUMMY_PHOTOS = [
+    { photoId: 'dummy-1', title: '오늘의 조황', subtitle: '사진 준비중' },
+    { photoId: 'dummy-2', title: '선상 낚시 후기', subtitle: '사진 준비중' },
+    { photoId: 'dummy-3', title: '대물 낚시 현장', subtitle: '사진 준비중' },
+    { photoId: 'dummy-4', title: '조황 정보 공유', subtitle: '사진 준비중' },
+  ];
+  const isPhotoDummy = photos.length === 0;
 
   const gameImage = (game: Game) => game.thumbnail_url || undefined;
 
@@ -120,15 +148,8 @@ export default function MainPage() {
   const query = `uuid=${user.uuid}&name=${encodeURIComponent(user.name || '')}&dob=${user.dob || ''}`;
 
   return (
-    <div
-      className="min-vh-100 pb-4"
-      style={{
-        backgroundColor: '#F7F8FA',
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-      }}
-    >
-      <div className="px-3" style={{ maxWidth: 480, margin: '0 auto' }}>
+    <div className="min-vh-100 pb-4" style={{ backgroundColor: '#F7F8FA' }}>
+      <div className="px-3 pt-2" style={{ maxWidth: 480, margin: '0 auto' }}>
         <AvatarHeader
           userName={user.name || '회원'}
           onMyPage={() => navigate('/my-page')}
@@ -151,38 +172,38 @@ export default function MainPage() {
             title="커뮤니티"
             onViewAll={() => navigate('/community/photos')}
           />
-          {photos.length === 0 ? (
-            <div
-              className="bg-white rounded-4 p-4 text-center text-muted"
-              style={{ borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
-            >
-              아직 조황 사진이 없어요
-            </div>
-          ) : (
-            <div className="row g-3">
-              {photos.map((photo) => (
-                <div key={photo.photoId} className="col-6">
-                  <GridCard
-                    title={photoTitle(photo)}
-                    subtitle={photoDate(photo)}
-                    imageUrl={photo.imageUrls?.[0] || photo.imageUrl}
-                    onClick={() => navigate(`/community/${photo.photoId}`)}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="row g-3">
+            {isPhotoDummy
+              ? DUMMY_PHOTOS.map((p) => (
+                  <div key={p.photoId} className="col-6">
+                    <GridCard
+                      title={p.title}
+                      subtitle={p.subtitle}
+                    />
+                  </div>
+                ))
+              : photos.map((photo) => (
+                  <div key={photo.photoId} className="col-6">
+                    <GridCard
+                      title={photoTitle(photo)}
+                      subtitle={photoDate(photo)}
+                      imageUrl={photo.imageUrls?.[0] || photo.imageUrl}
+                      onClick={() => navigate(`/community/${photo.photoId}`)}
+                    />
+                  </div>
+                ))}
+          </div>
         </section>
 
         <section className="mb-4">
           <SectionHeader title="미니게임" onViewAll={() => navigate('/mini-games')} />
           {games.length === 0 ? (
-            <div
-              className="bg-white rounded-4 p-4 text-center text-muted"
-              style={{ borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
-            >
-              준비 중인 게임이 없습니다
-            </div>
+            <EmptyState
+              icon={IoGameControllerOutline}
+              message="준비 중인 게임이 없습니다"
+              compact
+              style={{ backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
+            />
           ) : (
             <div
               className="d-flex gap-3 overflow-auto pb-1"
@@ -203,27 +224,42 @@ export default function MainPage() {
 
         <section className="mb-2">
           <SectionHeader
-            title="오고피씽몰"
+            title="Oh~Go! 포인트몰"
             badge={
               <span
                 className="badge rounded-pill"
                 style={{ backgroundColor: '#1B6FF5', fontSize: '10px' }}
               >
-                멤버 전용
+                포인트 사용
               </span>
             }
-            onViewAll={() => navigate('/closed-mall')}
+            onViewAll={() => navigate('/point-mall')}
           />
-          <div className="row g-3">
-            {CLOSED_MALL_PRODUCTS.slice(0, 4).map((product) => (
-              <div key={product.id} className="col-6">
-                <ProductGridCard
-                  product={product}
-                  onClick={() => navigate('/closed-mall')}
-                />
-              </div>
-            ))}
-          </div>
+          {mallProducts.length === 0 ? (
+            <EmptyState
+              icon={IoStorefrontOutline}
+              message="등록된 상품이 없습니다"
+              compact
+              style={{ backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
+            />
+          ) : (
+            <div className="row g-3">
+              {mallProducts.map((product) => (
+                <div key={product.id} className="col-6">
+                  <ProductGridCard
+                    product={{
+                      id: product.id,
+                      name: product.name,
+                      price: product.stock === 0 ? '품절' : formatPointPrice(product.pointPrice),
+                      imageUrl: product.imageUrl,
+                      memberOnly: false,
+                    }}
+                    onClick={() => navigate('/point-mall')}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       </div>
     </div>

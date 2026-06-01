@@ -4,8 +4,10 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getStamps, getCouponCount, issue50PercentCoupon, deleteStamp } from '@/utils/stamp-service';
 import { getUser } from '@/lib/storage';
-import { IoQrCodeOutline, IoPricetagOutline, IoGiftOutline, IoCheckmarkCircleOutline } from 'react-icons/io5';
-import PageHeader from '@/components/PageHeader';
+import { IoQrCodeOutline, IoPricetagOutline, IoGiftOutline, IoCheckmarkCircleOutline, IoStarOutline } from 'react-icons/io5';
+import SubPageFrame from '@/components/SubPageFrame';
+import OhgoModal, { OhgoModalButton, OhgoModalField } from '@/components/OhgoModal';
+import EmptyState from '@/components/EmptyState';
 
 const CARD_STYLE: React.CSSProperties = {
   backgroundColor: '#FFFFFF',
@@ -31,7 +33,7 @@ function StampCard({ raw, isFifth, fromAdmin, onTap }: {
       className="btn w-100 text-start p-3"
       style={{
         ...CARD_STYLE,
-        borderLeft: isFifth ? '4px solid #1B6FF5' : '4px solid #EFEFEF',
+        ...(isFifth ? { backgroundColor: '#EBF1FE', border: '1.5px solid #C7D9FD' } : {}),
         transition: 'transform 0.15s',
       }}
     >
@@ -48,7 +50,9 @@ function StampCard({ raw, isFifth, fromAdmin, onTap }: {
             {time && ` ${time.slice(0, 5)}`}
           </div>
           <div style={{ fontSize: 13, color: '#6F767E', marginTop: 2 }}>
-            {isFifth && !fromAdmin ? '⭐ 50% 쿠폰 발급 가능 — 탭해서 발급받기' : `적립 방법: ${methodLabel}`}
+            {isFifth && !fromAdmin
+              ? <><IoStarOutline size={13} style={{ verticalAlign: 'middle', marginRight: 3 }} />50% 쿠폰 발급 가능 — 탭해서 발급받기</>
+              : `적립 방법: ${methodLabel}`}
           </div>
         </div>
         {isFifth && !fromAdmin && (
@@ -108,7 +112,7 @@ function StampPageContent() {
     if (isFifth && !fromAdmin) {
       if (!confirm('50% 할인 쿠폰을 발급하시겠습니까?')) return;
       issue50PercentCoupon(user!.uuid!).then(() => {
-        alert('🎉 50% 쿠폰이 발급되었습니다!');
+        alert('50% 쿠폰이 발급되었습니다!');
         fetchStamps();
       }).catch(err => alert('오류: ' + err.message));
     } else {
@@ -131,10 +135,7 @@ function StampPageContent() {
   const query = `uuid=${user.uuid}&name=${encodeURIComponent(user.name||'')}&dob=${user.dob||''}`;
 
   return (
-    <div className="min-vh-100 pb-4" style={{ backgroundColor: '#F7F8FA', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <PageHeader title="스탬프" />
-      <div className="container py-3" style={{ maxWidth: 480 }}>
-
+    <SubPageFrame title="스탬프" onRefresh={fetchStamps}>
         {/* 요약 카드 */}
         <div className="p-4 mb-4" style={{ ...CARD_STYLE }}>
           <div className="d-flex align-items-center gap-3 mb-3">
@@ -181,10 +182,10 @@ function StampPageContent() {
           </div>
         </div>
 
-        {/* 회원 정보 */}
-        <div className="d-flex align-items-center gap-2 px-1 mb-2">
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#1A1D1F', fontFamily: "'Urbanist',sans-serif" }}>
-            {user.name}
+        {/* 적립 내역 */}
+        <div className="d-flex align-items-center justify-content-between mb-2 px-1">
+          <span style={{ fontSize: 17, fontWeight: 700, color: '#1A1D1F', fontFamily: "'Urbanist',sans-serif" }}>
+            적립 내역
           </span>
           {fromAdmin && (
             <span className="badge rounded-pill" style={{ backgroundColor: '#FF9500', fontSize: 11 }}>관리자 모드</span>
@@ -193,10 +194,7 @@ function StampPageContent() {
 
         {/* 스탬프 목록 */}
         {stamps.length === 0 ? (
-          <div className="py-5 text-center" style={CARD_STYLE}>
-            <IoPricetagOutline size={48} color="#EFEFEF" />
-            <p className="mt-3 mb-0" style={{ color: '#6F767E', fontFamily: "'Urbanist',sans-serif" }}>스탬프가 아직 없어요!</p>
-          </div>
+          <EmptyState icon={IoPricetagOutline} message="스탬프가 아직 없어요!" style={CARD_STYLE} />
         ) : (
           <div className="d-flex flex-column gap-2">
             {stamps.map((raw, idx) => (
@@ -210,46 +208,32 @@ function StampPageContent() {
             ))}
           </div>
         )}
-      </div>
 
-      {/* 상세 모달 */}
-      {modalVisible && selectedStampInfo && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content border-0" style={{ borderRadius: 20, overflow: 'hidden' }}>
-              <div className="modal-header border-0 px-4 pt-4 pb-2">
-                <h5 className="modal-title fw-bold" style={{ color: '#1A1D1F', fontFamily: "'Urbanist',sans-serif" }}>스탬프 정보</h5>
-                <button type="button" className="btn-close" onClick={() => setModalVisible(false)} />
-              </div>
-              <div className="modal-body px-4 pb-4">
-                <div className="mb-3 p-3 rounded-3" style={{ backgroundColor: '#F7F8FA' }}>
-                  <div style={{ fontSize: 12, color: '#6F767E', marginBottom: 4 }}>적립일</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1D1F', fontFamily: "'Urbanist',sans-serif" }}>{selectedStampInfo.date}</div>
-                </div>
-                <div className="p-3 rounded-3 mb-3" style={{ backgroundColor: '#F7F8FA' }}>
-                  <div style={{ fontSize: 12, color: '#6F767E', marginBottom: 4 }}>적립 방법</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1D1F', fontFamily: "'Urbanist',sans-serif" }}>{selectedStampInfo.method}</div>
-                </div>
-                {fromAdmin && selectedStampInfo.value && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await deleteStamp(user!.uuid!, selectedStampInfo.value!, user!.name!, user!.dob!);
-                      await fetchStamps();
-                      setModalVisible(false);
-                    }}
-                    className="btn w-100 fw-semibold"
-                    style={{ backgroundColor: '#FF3B30', color: '#fff', borderRadius: 12, padding: 13, border: 'none', fontFamily: "'Urbanist',sans-serif" }}
-                  >
-                    스탬프 회수
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <OhgoModal
+        open={modalVisible && !!selectedStampInfo}
+        onClose={() => setModalVisible(false)}
+        title="스탬프 정보"
+      >
+        {selectedStampInfo && (
+          <>
+            <OhgoModalField label="적립일" value={selectedStampInfo.date} />
+            <OhgoModalField label="적립 방법" value={selectedStampInfo.method} />
+            {fromAdmin && selectedStampInfo.value && (
+              <OhgoModalButton
+                variant="danger"
+                onClick={async () => {
+                  await deleteStamp(user!.uuid!, selectedStampInfo.value!, user!.name!, user!.dob!);
+                  await fetchStamps();
+                  setModalVisible(false);
+                }}
+              >
+                스탬프 회수
+              </OhgoModalButton>
+            )}
+          </>
+        )}
+      </OhgoModal>
+    </SubPageFrame>
   );
 }
 

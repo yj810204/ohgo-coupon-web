@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppWebView } from '@/components/AppWebView';
 import { pathFromPushData } from '@/lib/push';
 
@@ -38,5 +39,9 @@ export default function IndexScreen() {
     return () => sub.remove();
   }, []);
 
-  return <AppWebView key={initialPath} initialPath={initialPath} />;
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top', 'left', 'right', 'bottom']}>
+      <AppWebView key={initialPath} initialPath={initialPath} />
+    </SafeAreaView>
+  );
 }

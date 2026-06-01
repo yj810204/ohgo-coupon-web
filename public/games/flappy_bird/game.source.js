@@ -556,87 +556,66 @@ class FlappyBirdGame {
     }
 
     /**
-     * 배경 생성
+     * 배경 생성 (CSS background-size: cover — 반복 없이 화면 전체 채움)
      */
     createBackground() {
-        // 배경 이미지가 있으면 표시, 없으면 기본 색상 사용
-        const hasBackgroundImage = this.backgroundImagePath && this.scene && this.scene.textures && this.scene.textures.exists('background');
-        
+        const hasBackgroundImage =
+            this.backgroundImagePath &&
+            this.scene &&
+            this.scene.textures &&
+            this.scene.textures.exists('background');
+
         if (this.backgroundImagePath && hasBackgroundImage) {
-            // 배경 이미지를 전체가 보이도록 비율 유지하면서 조정
             try {
                 const texture = this.scene.textures.get('background');
-                if (texture && texture.source && texture.source[0]) {
-                    const sourceImage = texture.source[0];
-                    const originalWidth = sourceImage.width || texture.width || this.canvasWidth;
-                    const originalHeight = sourceImage.height || texture.height || this.canvasHeight;
-                    
-                    if (originalWidth > 0 && originalHeight > 0) {
-                        // 이미지 비율 계산
-                        const imageAspectRatio = originalWidth / originalHeight;
-                        const canvasAspectRatio = this.canvasWidth / this.canvasHeight;
-                        
-                        // contain 방식: 이미지 전체가 보이도록 작은 스케일 선택
-                        let scaleX, scaleY;
-                        if (imageAspectRatio > canvasAspectRatio) {
-                            // 이미지가 더 넓음: 가로 기준으로 스케일
-                            scaleX = this.canvasWidth / originalWidth;
-                            scaleY = scaleX;
-                        } else {
-                            // 이미지가 더 높음: 세로 기준으로 스케일
-                            scaleY = this.canvasHeight / originalHeight;
-                            scaleX = scaleY;
-                        }
-                        
-                        // TileSprite 생성 (화면 전체 크기)
-                        const bgTile = this.scene.add.tileSprite(0, 0, this.canvasWidth, this.canvasHeight, 'background');
-                        bgTile.setOrigin(0, 0);
-                        bgTile.setDepth(0);
-                        
-                        // 타일 스케일 설정 (비율 유지)
-                        bgTile.setTileScale(scaleX, scaleY);
-                        
-                        this.backgroundSprite = bgTile;
-                        console.log('배경 이미지 생성 완료 (전체 보이도록):', {
-                            originalSize: { width: originalWidth, height: originalHeight },
-                            gameSize: { width: this.canvasWidth, height: this.canvasHeight },
-                            scaleX: scaleX,
-                            scaleY: scaleY
-                        });
-                    } else {
-                        // 텍스처 정보를 가져올 수 없으면 기본 TileSprite 사용
-                        const bg = this.scene.add.tileSprite(0, 0, this.canvasWidth, this.canvasHeight, 'background');
-                        bg.setOrigin(0, 0);
-                        bg.setDepth(0);
-                        bg.setTileScale(1, 1);
-                        this.backgroundSprite = bg;
-                        console.log('배경 이미지 TileSprite 생성 완료 (기본)');
-                    }
-                } else {
-                    // 텍스처 정보를 가져올 수 없으면 기본 TileSprite 사용
-                    const bg = this.scene.add.tileSprite(0, 0, this.canvasWidth, this.canvasHeight, 'background');
-                    bg.setOrigin(0, 0);
+                const sourceImage = texture?.source?.[0];
+                const originalWidth = sourceImage?.width || texture?.width || this.canvasWidth;
+                const originalHeight = sourceImage?.height || texture?.height || this.canvasHeight;
+
+                if (originalWidth > 0 && originalHeight > 0) {
+                    const scaleX = this.canvasWidth / originalWidth;
+                    const scaleY = this.canvasHeight / originalHeight;
+                    const coverScale = Math.max(scaleX, scaleY);
+
+                    const bg = this.scene.add.image(
+                        this.canvasWidth / 2,
+                        this.canvasHeight / 2,
+                        'background'
+                    );
+                    bg.setOrigin(0.5, 0.5);
                     bg.setDepth(0);
-                    bg.setTileScale(1, 1);
+                    bg.setScale(coverScale);
+
                     this.backgroundSprite = bg;
-                    console.log('배경 이미지 TileSprite 생성 완료 (기본)');
+                    console.log('배경 이미지 생성 완료 (cover):', {
+                        originalSize: { width: originalWidth, height: originalHeight },
+                        gameSize: { width: this.canvasWidth, height: this.canvasHeight },
+                        coverScale,
+                    });
+                } else {
+                    this.createBackgroundFallbackColor();
                 }
             } catch (e) {
                 console.error('배경 이미지 생성 오류:', e);
-                // 오류 발생 시 기본 TileSprite 사용
-                const bg = this.scene.add.tileSprite(0, 0, this.canvasWidth, this.canvasHeight, 'background');
-                bg.setOrigin(0, 0);
-                bg.setDepth(0);
-                bg.setTileScale(1, 1);
-                this.backgroundSprite = bg;
+                this.createBackgroundFallbackColor();
             }
         } else {
-            // 기본 하늘 배경
-            const bg = this.scene.add.rectangle(0, 0, this.canvasWidth, this.canvasHeight, 0x87CEEB);
-            bg.setOrigin(0, 0);
-            bg.setDepth(0);
-            console.log('기본 배경 색상 사용');
+            this.createBackgroundFallbackColor();
         }
+    }
+
+    createBackgroundFallbackColor() {
+        const bg = this.scene.add.rectangle(
+            this.canvasWidth / 2,
+            this.canvasHeight / 2,
+            this.canvasWidth,
+            this.canvasHeight,
+            0x87ceeb
+        );
+        bg.setOrigin(0.5, 0.5);
+        bg.setDepth(0);
+        this.backgroundSprite = bg;
+        console.log('기본 배경 색상 사용');
     }
 
     /**

@@ -8,7 +8,9 @@ import { getUser } from '@/lib/storage';
 import { sendPushToUser } from '@/utils/send-push';
 import { useCouponById as useCouponByIdFunc } from '@/utils/stamp-service';
 import { IoGiftOutline, IoCheckmarkCircleOutline } from 'react-icons/io5';
-import PageHeader from '@/components/PageHeader';
+import SubPageFrame from '@/components/SubPageFrame';
+import OhgoModal, { OhgoModalActions, OhgoModalButton, OhgoModalField } from '@/components/OhgoModal';
+import EmptyState from '@/components/EmptyState';
 
 const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
 const CARD: React.CSSProperties = { backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: 'none' };
@@ -102,10 +104,7 @@ function CouponsPageContent() {
   const used = coupons.filter(c => c.used);
 
   return (
-    <div className="min-vh-100 pb-4" style={{ backgroundColor: '#F7F8FA', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <PageHeader title="쿠폰" />
-      <div className="container py-3" style={{ maxWidth: 480 }}>
-
+    <SubPageFrame title="쿠폰" onRefresh={fetchCoupons}>
         {/* 회원 정보 */}
         <div className="mb-4 p-3" style={{ ...CARD }}>
           <div className="d-flex align-items-center gap-3">
@@ -134,10 +133,12 @@ function CouponsPageContent() {
         </div>
 
         {usable.length === 0 ? (
-          <div className="py-5 text-center mb-4" style={CARD}>
-            <IoGiftOutline size={48} color="#EFEFEF" />
-            <p className="mt-3 mb-0" style={{ color: '#6F767E', fontFamily: FONT }}>사용 가능한 쿠폰이 없습니다.</p>
-          </div>
+          <EmptyState
+            icon={IoGiftOutline}
+            message="사용 가능한 쿠폰이 없습니다."
+            className="mb-4"
+            style={CARD}
+          />
         ) : (
           <div className="d-flex flex-column gap-2 mb-4">
             {usable.map(coupon => (
@@ -146,7 +147,7 @@ function CouponsPageContent() {
                 type="button"
                 onClick={() => { setSelectedCoupon(coupon); setModalVisible(true); }}
                 className="btn w-100 text-start p-3"
-                style={{ ...CARD, borderLeft: '4px solid #1B6FF5' }}
+                style={CARD}
               >
                 <div className="d-flex align-items-center gap-3">
                   <div className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
@@ -175,7 +176,7 @@ function CouponsPageContent() {
             </div>
             <div className="d-flex flex-column gap-2">
               {used.map(coupon => (
-                <div key={coupon.id} className="p-3" style={{ ...CARD, opacity: 0.5, borderLeft: '4px solid #EFEFEF' }}>
+                <div key={coupon.id} className="p-3" style={{ ...CARD, opacity: 0.5 }}>
                   <div className="d-flex align-items-center gap-3">
                     <div className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
                       style={{ width: 40, height: 40, backgroundColor: '#F7F8FA' }}>
@@ -191,72 +192,72 @@ function CouponsPageContent() {
             </div>
           </>
         )}
-      </div>
 
-      {/* 쿠폰 상세 모달 */}
-      {modalVisible && selectedCoupon && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content border-0" style={{ borderRadius: 20, overflow: 'hidden' }}>
-              <div className="modal-header border-0 px-4 pt-4 pb-2">
-                <h5 className="modal-title fw-bold" style={{ color: '#1A1D1F', fontFamily: FONT }}>쿠폰 정보</h5>
-                <button type="button" className="btn-close" onClick={() => setModalVisible(false)} />
+      <OhgoModal
+        open={modalVisible && !!selectedCoupon}
+        onClose={() => setModalVisible(false)}
+        title="쿠폰 정보"
+      >
+        {selectedCoupon && (
+          <>
+            <OhgoModalField label="쿠폰" value={selectedCoupon.reason || '쿠폰'} />
+            <OhgoModalField label="발급일" value={selectedCoupon.issuedAt || '알 수 없음'} />
+            {selectedCoupon.isHalf === 'Y' && (
+              <div className="mb-2">
+                <span className="badge rounded-pill" style={{ backgroundColor: '#FF9500', fontSize: 12 }}>
+                  50% 할인 쿠폰
+                </span>
               </div>
-              <div className="modal-body px-4 pb-4">
-                <div className="mb-3 p-3 rounded-3" style={{ backgroundColor: '#F7F8FA' }}>
-                  <div style={{ fontSize: 12, color: '#6F767E' }}>쿠폰</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1D1F', fontFamily: FONT }}>{selectedCoupon.reason || '쿠폰'}</div>
-                </div>
-                <div className="mb-3 p-3 rounded-3" style={{ backgroundColor: '#F7F8FA' }}>
-                  <div style={{ fontSize: 12, color: '#6F767E' }}>발급일</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: '#1A1D1F', fontFamily: FONT }}>{selectedCoupon.issuedAt || '알 수 없음'}</div>
-                </div>
-                {selectedCoupon.isHalf === 'Y' && (
-                  <div className="mb-3"><span className="badge rounded-pill" style={{ backgroundColor: '#FF9500', fontSize: 12 }}>50% 할인 쿠폰</span></div>
+            )}
+            {!selectedCoupon.used && (
+              <OhgoModalActions>
+                <OhgoModalButton onClick={handleUse}>쿠폰 사용</OhgoModalButton>
+                {fromAdmin && (
+                  <OhgoModalButton variant="danger" onClick={handleRevoke}>
+                    쿠폰 회수
+                  </OhgoModalButton>
                 )}
-                {!selectedCoupon.used && (
-                  <div className="d-grid gap-2">
-                    <button type="button" onClick={handleUse} className="btn fw-semibold" style={{ backgroundColor: '#1B6FF5', color: '#fff', borderRadius: 12, padding: 13, border: 'none', fontFamily: FONT }}>쿠폰 사용</button>
-                    {fromAdmin && (
-                      <button type="button" onClick={handleRevoke} className="btn fw-semibold" style={{ backgroundColor: '#FF3B30', color: '#fff', borderRadius: 12, padding: 13, border: 'none', fontFamily: FONT }}>쿠폰 회수</button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+              </OhgoModalActions>
+            )}
+          </>
+        )}
+      </OhgoModal>
 
-      {/* 비밀번호 모달 */}
-      {passwordModalVisible && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content border-0" style={{ borderRadius: 20, overflow: 'hidden' }}>
-              <div className="modal-header border-0 px-4 pt-4 pb-2">
-                <h5 className="modal-title fw-bold" style={{ color: '#1A1D1F', fontFamily: FONT }}>비밀번호 입력</h5>
-                <button type="button" className="btn-close" onClick={() => { setPasswordModalVisible(false); setPassword(''); }} />
-              </div>
-              <div className="modal-body px-4 pb-4">
-                <input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="비밀번호를 입력하세요"
-                  className="form-control mb-3"
-                  style={{ borderRadius: 12, padding: 12, fontFamily: FONT, border: '2px solid #EFEFEF' }}
-                  onKeyDown={e => { if (e.key === 'Enter') handlePasswordSubmit(); }}
-                />
-                <div className="d-grid gap-2">
-                  <button type="button" onClick={handlePasswordSubmit} className="btn fw-semibold" style={{ backgroundColor: '#1B6FF5', color: '#fff', borderRadius: 12, padding: 13, border: 'none', fontFamily: FONT }}>확인</button>
-                  <button type="button" onClick={() => { setPasswordModalVisible(false); setPassword(''); }} className="btn fw-semibold" style={{ backgroundColor: '#F7F8FA', color: '#1A1D1F', borderRadius: 12, padding: 13, border: 'none', fontFamily: FONT }}>취소</button>
-                </div>
-              </div>
-            </div>
-          </div>
+      <OhgoModal
+        open={passwordModalVisible}
+        onClose={() => {
+          setPasswordModalVisible(false);
+          setPassword('');
+        }}
+        title="비밀번호 입력"
+      >
+        <input
+          type="password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          placeholder="비밀번호를 입력하세요"
+          className="form-control"
+          style={{ borderRadius: 12, padding: 12, fontFamily: FONT, border: '2px solid #EFEFEF' }}
+          onKeyDown={e => {
+            if (e.key === 'Enter') handlePasswordSubmit();
+          }}
+        />
+        <div className="mt-3">
+          <OhgoModalActions>
+            <OhgoModalButton onClick={handlePasswordSubmit}>확인</OhgoModalButton>
+            <OhgoModalButton
+              variant="secondary"
+              onClick={() => {
+                setPasswordModalVisible(false);
+                setPassword('');
+              }}
+            >
+              취소
+            </OhgoModalButton>
+          </OhgoModalActions>
         </div>
-      )}
-    </div>
+      </OhgoModal>
+    </SubPageFrame>
   );
 }
 

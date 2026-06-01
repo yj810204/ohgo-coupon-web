@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { getEmojiPacks, EmojiPack, Emoji } from '@/utils/emoji-pack-service';
-import { IoCloseOutline } from 'react-icons/io5';
+import { IoCloseOutline, IoHappyOutline } from 'react-icons/io5';
+import EmptyState from '@/components/EmptyState';
 
 interface EmojiPickerProps {
   onSelect: (emojiId: string) => void;
@@ -84,9 +85,7 @@ export default function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
               onClick={onClose}
             />
           </div>
-          <div className="text-center py-4">
-            <p className="text-muted mb-0">등록된 이모티콘 팩이 없습니다.</p>
-          </div>
+          <EmptyState icon={IoHappyOutline} message="등록된 이모티콘 팩이 없습니다." compact />
         </div>
       </div>
     );
@@ -172,9 +171,7 @@ export default function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
               ))}
             </div>
           ) : (
-            <div className="text-center py-4">
-              <p className="text-muted mb-0">이모티콘이 없습니다.</p>
-            </div>
+            <EmptyState icon={IoHappyOutline} message="이모티콘이 없습니다." compact />
           )}
         </div>
       </div>

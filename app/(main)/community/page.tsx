@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getUser } from '@/lib/storage';
 import { IoImageOutline, IoBoatOutline, IoChevronForwardOutline } from 'react-icons/io5';
-import PageHeader from '@/components/PageHeader';
+import SubPageFrame from '@/components/SubPageFrame';
 import { useNavigation } from '@/hooks/useNavigation';
 
 const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
@@ -53,10 +53,7 @@ export default function CommunityPage() {
   }, [router]);
 
   return (
-    <div className="min-vh-100 pb-4" style={{ backgroundColor: '#F7F8FA', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <PageHeader title="커뮤니티" />
-      <div className="container py-3" style={{ maxWidth: 480 }}>
-
+    <SubPageFrame title="커뮤니티">
         <p style={{ fontSize: 14, color: '#6F767E', fontFamily: FONT, marginBottom: 20 }}>
           낚시 커뮤니티에 참여하고 정보를 나눠보세요.
         </p>
@@ -89,7 +86,6 @@ export default function CommunityPage() {
             </button>
           ))}
         </div>
-      </div>
-    </div>
+    </SubPageFrame>
   );
 }

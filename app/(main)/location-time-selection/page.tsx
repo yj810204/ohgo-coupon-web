@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import PageHeader from '@/components/PageHeader';
+import SubPageFrame from '@/components/SubPageFrame';
+import { OhgoPageLoading } from '@/lib/page-styles';
 import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import html2canvas from 'html2canvas';
@@ -412,12 +413,9 @@ function LocationTimeSelectionContent() {
   );
 
   return (
-    <div className="min-vh-100 bg-light" style={{ paddingBottom: '80px' }}>
-      <PageHeader title="위치 및 시간 선택" />
+    <SubPageFrame title="위치 및 시간 선택">
       {renderA4Roster()}
-      
-      <div className="container">
-        <div className="card shadow-sm mb-3">
+        <div className="ohgo-card mb-3">
           <div className="card-body">
             <h5 className="text-primary mb-0 text-center">위치 및 입항시간 선택</h5>
           </div>
@@ -432,7 +430,7 @@ function LocationTimeSelectionContent() {
         </div>
       ) : (
         <>
-          <div className="card shadow-sm mb-3">
+          <div className="ohgo-card mb-3">
             <div className="card-body">
               <h6 className="mb-3">위치 선택 <span className="text-danger">*</span></h6>
               <div className="d-flex flex-wrap gap-2">
@@ -457,7 +455,7 @@ function LocationTimeSelectionContent() {
             </div>
           </div>
 
-          <div className="card shadow-sm mb-3">
+          <div className="ohgo-card mb-3">
             <div className="card-body">
               <h6 className="mb-3">입항시간 선택 <span className="text-danger">*</span></h6>
               <select
@@ -472,7 +470,7 @@ function LocationTimeSelectionContent() {
             </div>
           </div>
 
-          <div className="card shadow-sm mb-3">
+          <div className="ohgo-card mb-3">
             <div className="card-body">
               <h6 className="mb-3">글자크기</h6>
               <div className="d-flex gap-2">
@@ -491,10 +489,12 @@ function LocationTimeSelectionContent() {
           </div>
         </>
       )}
-      </div>
 
-      <div className="position-fixed bottom-0 start-0 end-0 bg-white border-top p-3 shadow-lg">
-        <div className="container">
+      <div
+        className="position-fixed bottom-0 start-0 end-0 bg-white border-top p-3 shadow-lg"
+        style={{ maxWidth: 480, left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}
+      >
+        <div>
           <div className="row g-2">
             <div className="col-6">
               <button
@@ -526,22 +526,13 @@ function LocationTimeSelectionContent() {
           </div>
         </div>
       </div>
-    </div>
+    </SubPageFrame>
   );
 }
 
 export default function LocationTimeSelectionPage() {
   return (
-    <Suspense fallback={
-      <div className="d-flex min-vh-100 align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<OhgoPageLoading />}>
       <LocationTimeSelectionContent />
     </Suspense>
   );

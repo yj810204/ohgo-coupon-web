@@ -1,26 +1,134 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, type CSSProperties, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { getStamps, getCouponCount, addStamp, addStampBatch, deleteUser } from '@/utils/stamp-service';
 import { sendPushToUser } from '@/utils/send-push';
-import PageHeader from '@/components/PageHeader';
+import SubPageFrame from '@/components/SubPageFrame';
+import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import MemberListAvatar from '@/components/MemberListAvatar';
+import { getMemberProfileImageUrl } from '@/lib/member-profile';
+import { OHGO_CARD, OHGO_FONT, OHGO_PRIMARY_BTN, OhgoPageLoading } from '@/lib/page-styles';
+import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
+import type { IconType } from 'react-icons';
 import { 
   IoPersonCircleOutline, 
   IoCalendarOutline, 
   IoTimeOutline,
   IoPricetagOutline,
-  IoGiftOutline,
-  IoTicketOutline,
   IoAddCircleOutline,
   IoDocumentTextOutline,
   IoListOutline,
   IoTrashOutline,
   IoChevronForwardOutline
 } from 'react-icons/io5';
+
+const DETAIL_LABEL: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: '#6F767E',
+  fontFamily: OHGO_FONT,
+  lineHeight: 1.2,
+};
+
+const DETAIL_VALUE: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 600,
+  color: '#1A1D1F',
+  fontFamily: OHGO_FONT,
+  lineHeight: 1.35,
+};
+
+const DETAIL_BANNER_LABEL: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  opacity: 0.9,
+  fontFamily: OHGO_FONT,
+  lineHeight: 1.2,
+  marginBottom: 2,
+};
+
+const DETAIL_BANNER_VALUE: CSSProperties = {
+  fontSize: 15,
+  fontWeight: 700,
+  fontFamily: OHGO_FONT,
+  lineHeight: 1.3,
+};
+
+const DETAIL_MENU_LABEL: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 600,
+  color: '#1A1D1F',
+  fontFamily: OHGO_FONT,
+};
+
+function DetailInfoRow({
+  icon: Icon,
+  label,
+  value,
+  valueStyle,
+  isLast,
+}: {
+  icon: IconType;
+  label: string;
+  value: ReactNode;
+  valueStyle?: CSSProperties;
+  isLast?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        padding: '12px 14px',
+        borderBottom: isLast ? undefined : '1px solid #F7F8FA',
+      }}
+    >
+      <div className="d-flex align-items-center gap-2" style={{ marginBottom: 4 }}>
+        <Icon size={16} color="#9CA3AF" aria-hidden />
+        <span style={DETAIL_LABEL}>{label}</span>
+      </div>
+      <div style={{ ...DETAIL_VALUE, ...valueStyle }}>{value}</div>
+    </div>
+  );
+}
+
+function DetailMenuRow({
+  icon: Icon,
+  iconColor,
+  label,
+  onClick,
+  isLast,
+}: {
+  icon: IconType;
+  iconColor: string;
+  label: string;
+  onClick: () => void;
+  isLast?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="btn w-100 d-flex align-items-center justify-content-between"
+      onClick={onClick}
+      style={{
+        padding: '12px 14px',
+        borderRadius: 0,
+        border: 'none',
+        borderBottom: isLast ? undefined : '1px solid #F7F8FA',
+        background: 'none',
+        textAlign: 'left',
+      }}
+    >
+      <div className="d-flex align-items-center gap-2">
+        <Icon size={18} color={iconColor} aria-hidden />
+        <span style={DETAIL_MENU_LABEL}>{label}</span>
+      </div>
+      <IoChevronForwardOutline size={18} color="#C4C8CC" aria-hidden />
+    </button>
+  );
+}
 
 function MemberDetailContent() {
   const router = useRouter();
@@ -40,7 +148,6 @@ function MemberDetailContent() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isResettingPoints, setIsResettingPoints] = useState(false);
   const [baitModalVisible, setBaitModalVisible] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [createdAt, setCreatedAt] = useState('');
   const [lastStampDate, setLastStampDate] = useState('');
   const [rosterData, setRosterData] = useState<{
@@ -52,6 +159,7 @@ function MemberDetailContent() {
     address: string;
   } | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [profileImageUrl, setProfileImageUrl] = useState<string | undefined>();
 
   const loadCounts = async () => {
     const stamps = await getStamps(uuid);
@@ -65,6 +173,7 @@ function MemberDetailContent() {
       const snap = await getDoc(doc(db, 'users', uuid));
       if (snap.exists()) {
         const data = snap.data();
+        setProfileImageUrl(getMemberProfileImageUrl(data));
         setTargetUserIsAdmin(!!data.isAdmin);
         if (data.createdAt) {
           const ts = typeof data.createdAt === 'string' ? new Date(data.createdAt) : data.createdAt.toDate();
@@ -111,13 +220,10 @@ function MemberDetailContent() {
     }
   }, [uuid]);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
+  useNativePullToRefresh(async () => {
     await loadCounts();
     await loadTargetUserInfo();
-    setRefreshing(false);
-  };
-
+  });
 
   const handleAddStamp = async () => {
     if (!confirm(`${name}님에게 스탬프 1개를 적립하시겠습니까?`)) return;
@@ -249,189 +355,151 @@ function MemberDetailContent() {
     }
   };
 
+  const formattedDob =
+    dob?.length === 8
+      ? `${dob.slice(2, 4)}-${dob.slice(4, 6)}-${dob.slice(6, 8)}`
+      : dob;
+
+  const statItems = [
+    {
+      label: '스탬프',
+      value: stampCount,
+      valueColor: '#1B6FF5',
+      onClick: () =>
+        router.push(`/stamp?uuid=${uuid}&name=${name}&dob=${dob}&fromAdmin=true`),
+    },
+    {
+      label: '쿠폰',
+      value: couponCount,
+      valueColor: '#FF9500',
+      onClick: () =>
+        router.push(`/coupons?uuid=${uuid}&name=${name}&dob=${dob}&fromAdmin=true`),
+    },
+    {
+      label: '교환권',
+      value: baitCoupons,
+      valueColor: '#1A1D1F',
+      onClick: () => setBaitModalVisible(true),
+    },
+  ];
+
   return (
-    <div 
-      className="min-vh-100 bg-light"
-      style={{ 
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        position: 'relative',
-      }}
-    >
-      <PageHeader title="회원 상세" />
-      <div className="container">
-        {/* 프로필 헤더 */}
-        <div className="card border-0 shadow-sm mb-4" style={{ 
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          borderRadius: '16px',
-          overflow: 'hidden'
-        }}>
-          <div className="card-body text-white p-4">
-            <div className="d-flex align-items-center mb-3">
-              <div className="rounded-circle bg-white bg-opacity-20 d-flex align-items-center justify-content-center me-3" 
-                   style={{ width: '60px', height: '60px', fontSize: '32px' }}>
-                👤
-            </div>
-              <div className="flex-grow-1">
-                <h4 className="mb-1 fw-bold">{name}</h4>
+    <SubPageFrame title="회원 상세">
+        <div className="ohgo-profile-banner mb-3">
+          <div className="d-flex align-items-center gap-3 mb-3">
+            <MemberListAvatar imageUrl={profileImageUrl} name={name} size={56} tone="light" />
+            <div className="flex-grow-1 min-w-0">
+              <div style={{ fontSize: 18, fontWeight: 800, fontFamily: OHGO_FONT, lineHeight: 1.25 }}>
+                {name}
+              </div>
               <button
+                type="button"
                 onClick={handleNamePress}
-                  className="btn btn-link p-0 text-white text-decoration-underline opacity-75"
-                  style={{ fontSize: '0.9rem' }}
+                className="btn btn-link p-0 text-white text-decoration-underline"
+                style={{ fontSize: 12, opacity: 0.9, fontFamily: OHGO_FONT, marginTop: 2 }}
               >
-                  명부 정보 보기
+                명부 정보 보기
               </button>
             </div>
-            </div>
-            <div className="d-flex align-items-center justify-content-between">
-              <div>
-                <div className="small opacity-75 mb-1">포인트</div>
+          </div>
+          <div className="d-flex align-items-end justify-content-between gap-3">
+            <div>
+              <div style={DETAIL_BANNER_LABEL}>포인트</div>
               <button
+                type="button"
                 onClick={resetPoints}
-                  className="btn btn-link p-0 text-white fw-bold"
+                className="btn btn-link p-0 text-white"
                 disabled={isResettingPoints}
-                  style={{ fontSize: '1.5rem', textDecoration: 'none' }}
+                style={{
+                  ...DETAIL_BANNER_VALUE,
+                  fontSize: 18,
+                  textDecoration: 'none',
+                  lineHeight: 1.2,
+                }}
               >
-                  {points.toLocaleString()}<small className="opacity-75">P</small>
+                {points.toLocaleString()}
+                <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.85, marginLeft: 2 }}>P</span>
               </button>
             </div>
-              <div className="text-end">
-                <div className="small opacity-75 mb-1">가입일</div>
-                <div className="fw-semibold">{createdAt}</div>
-              </div>
+            <div className="text-end">
+              <div style={DETAIL_BANNER_LABEL}>가입일</div>
+              <div style={DETAIL_BANNER_VALUE}>{createdAt || '—'}</div>
             </div>
           </div>
         </div>
 
-        {/* 통계 카드 */}
-        <div className="row g-3 mb-4">
-          <div className="col-4">
+        <div
+          className="mb-3"
+          style={{
+            ...OHGO_CARD,
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr 1fr',
+            padding: 0,
+            overflow: 'hidden',
+          }}
+        >
+          {statItems.map((item, index) => (
             <button
-              onClick={() => router.push(`/stamp?uuid=${uuid}&name=${name}&dob=${dob}&fromAdmin=true`)}
-              className="card border-0 shadow-sm w-100 h-100 text-decoration-none"
-              style={{ 
-                borderRadius: '12px',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                border: 'none'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+              key={item.label}
+              type="button"
+              onClick={item.onClick}
+              className="btn d-flex flex-column align-items-center justify-content-center"
+              style={{
+                border: 'none',
+                background: 'none',
+                padding: '12px 8px',
+                borderRight: index < statItems.length - 1 ? '1px solid #EFEFEF' : undefined,
               }}
             >
-              <div className="card-body text-center p-3 d-flex flex-column align-items-center">
-                <IoPricetagOutline size={28} className="text-primary mb-2" />
-                <div className="fs-5 fw-bold text-dark mb-1">{stampCount}</div>
-                <div className="small text-muted">스탬프</div>
+              <div
+                style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: item.valueColor,
+                  fontFamily: OHGO_FONT,
+                  lineHeight: 1.2,
+                }}
+              >
+                {item.value}
               </div>
+              <div style={{ ...DETAIL_LABEL, marginTop: 4 }}>{item.label}</div>
             </button>
-          </div>
-          <div className="col-4">
-            <button
-              onClick={() => router.push(`/coupons?uuid=${uuid}&name=${name}&dob=${dob}&fromAdmin=true`)}
-              className="card border-0 shadow-sm w-100 h-100 text-decoration-none"
-              style={{ 
-                borderRadius: '12px',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                border: 'none'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-              }}
-            >
-              <div className="card-body text-center p-3 d-flex flex-column align-items-center">
-                <IoGiftOutline size={28} className="text-danger mb-2" />
-                <div className="fs-5 fw-bold text-dark mb-1">{couponCount}</div>
-                <div className="small text-muted">쿠폰</div>
-              </div>
-            </button>
-          </div>
-          <div className="col-4">
-            <button
-              onClick={() => setBaitModalVisible(true)}
-              className="card border-0 shadow-sm w-100 h-100 text-decoration-none"
-              style={{ 
-                borderRadius: '12px',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                border: 'none'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-              }}
-            >
-              <div className="card-body text-center p-3 d-flex flex-column align-items-center">
-                <IoTicketOutline size={28} className="text-warning mb-2" />
-                <div className="fs-5 fw-bold text-dark mb-1">{baitCoupons}</div>
-                <div className="small text-muted">교환권</div>
-              </div>
-            </button>
-          </div>
+          ))}
         </div>
 
-        {/* 정보 카드 */}
-        <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: '12px' }}>
-          <div className="card-body p-3">
-            <div className="d-flex align-items-center mb-3">
-              <IoCalendarOutline size={20} className="text-muted me-2" />
-              <span className="text-muted small">생년월일</span>
-            </div>
-            <div className="ps-4 mb-3">
-              {dob?.length === 8
-                ? `${dob.slice(2, 4)}-${dob.slice(4, 6)}-${dob.slice(6, 8)}`
-                : dob}
-            </div>
-            <div className="d-flex align-items-center">
-              <IoTimeOutline size={20} className="text-muted me-2" />
-              <span className="text-muted small">UUID</span>
-            </div>
-            <button
-              onClick={() => alert('UUID: ' + uuid)}
-              className="btn btn-link p-0 ps-4 text-primary text-decoration-underline"
-              style={{ fontSize: '0.85rem' }}
-            >
-              확인하기
-            </button>
-          </div>
+        <div className="mb-3" style={{ ...OHGO_CARD, padding: 0, overflow: 'hidden' }}>
+          <DetailInfoRow icon={IoCalendarOutline} label="생년월일" value={formattedDob || '—'} />
+          <DetailInfoRow
+            icon={IoTimeOutline}
+            label="UUID"
+            value={uuid}
+            isLast
+            valueStyle={{
+              fontSize: 12,
+              fontWeight: 500,
+              fontFamily: 'ui-monospace, monospace',
+              wordBreak: 'break-all',
+            }}
+          />
         </div>
 
-        {/* 액션 버튼 */}
-        <div className="row g-2 mb-4">
+        <div className="row g-2 mb-3">
           <div className="col-6">
             <button
-              className="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2"
+              type="button"
+              className="btn w-100 d-flex align-items-center justify-content-center gap-2"
               onClick={handleAddStamp}
               disabled={isLoadingOne || isLoadingFive}
-              style={{
-                padding: '14px',
-                fontSize: '1rem',
-                fontWeight: '600',
-                borderRadius: '12px',
-                border: 'none',
-                boxShadow: '0 2px 8px rgba(13, 110, 253, 0.3)'
-              }}
+              style={OHGO_PRIMARY_BTN}
             >
               {isLoadingOne ? (
                 <>
-                  <span className="spinner-border spinner-border-sm"></span>
+                  <span className="spinner-border spinner-border-sm text-white" />
                   <span>적립 중...</span>
                 </>
               ) : (
                 <>
-                  <IoAddCircleOutline size={20} className="flex-shrink-0" />
+                  <IoAddCircleOutline size={18} className="flex-shrink-0" />
                   <span>스탬프 +1</span>
                 </>
               )}
@@ -439,284 +507,168 @@ function MemberDetailContent() {
           </div>
           <div className="col-6">
             <button
+              type="button"
               className="btn w-100 d-flex align-items-center justify-content-center gap-2 text-white"
               onClick={handleAddStampFive}
               disabled={isLoadingOne || isLoadingFive}
               style={{
-                padding: '14px',
-                fontSize: '1rem',
-                fontWeight: '600',
-                borderRadius: '12px',
-                border: 'none',
-                backgroundColor: '#6c757d',
-                boxShadow: '0 2px 8px rgba(108, 117, 125, 0.3)'
+                ...OHGO_PRIMARY_BTN,
+                backgroundColor: '#6F767E',
+                boxShadow: '0 4px 12px rgba(111,118,126,0.25)',
               }}
             >
               {isLoadingFive ? (
                 <>
-                  <span className="spinner-border spinner-border-sm"></span>
+                  <span className="spinner-border spinner-border-sm text-white" />
                   <span>적립 중...</span>
                 </>
               ) : (
                 <>
-                  <IoAddCircleOutline size={20} className="flex-shrink-0" />
+                  <IoAddCircleOutline size={18} className="flex-shrink-0" />
                   <span>스탬프 +5</span>
                 </>
               )}
             </button>
           </div>
-          </div>
+        </div>
 
-        {/* 메뉴 버튼 */}
-        <div className="d-grid gap-2 mb-4">
-          <button
-            className="btn btn-light d-flex align-items-center justify-content-between shadow-sm"
+        <div className="mb-3" style={{ ...OHGO_CARD, padding: 0, overflow: 'hidden' }}>
+          <DetailMenuRow
+            icon={IoDocumentTextOutline}
+            iconColor="#1B6FF5"
+            label="관리자 메모"
             onClick={() => router.push(`/memo?uuid=${uuid}&name=${name}`)}
-            style={{
-              padding: '14px 16px',
-              borderRadius: '12px',
-              border: 'none',
-              textAlign: 'left'
-            }}
-          >
-            <div className="d-flex align-items-center gap-2">
-              <IoDocumentTextOutline size={20} className="text-primary" />
-              <span className="fw-semibold">관리자 메모</span>
-            </div>
-            <IoChevronForwardOutline size={20} className="text-muted" />
-          </button>
-            <button
-            className="btn btn-light d-flex align-items-center justify-content-between shadow-sm"
+          />
+          <DetailMenuRow
+            icon={IoListOutline}
+            iconColor="#00BCD4"
+            label="로그 보기"
             onClick={() => router.push(`/logs?uuid=${uuid}&name=${name}`)}
-              style={{ 
-              padding: '14px 16px',
-              borderRadius: '12px',
-              border: 'none',
-              textAlign: 'left'
-              }}
-          >
-            <div className="d-flex align-items-center gap-2">
-              <IoListOutline size={20} className="text-info" />
-              <span className="fw-semibold">로그 보기</span>
-            </div>
-            <IoChevronForwardOutline size={20} className="text-muted" />
-            </button>
-            <button
-            className="btn btn-light d-flex align-items-center justify-content-between shadow-sm"
+          />
+          <DetailMenuRow
+            icon={IoPricetagOutline}
+            iconColor="#34C759"
+            label="스탬프 이력"
             onClick={() => router.push(`/stamp-history?uuid=${uuid}&name=${name}`)}
-              style={{ 
-              padding: '14px 16px',
-              borderRadius: '12px',
-              border: 'none',
-              textAlign: 'left'
-              }}
-          >
-            <div className="d-flex align-items-center gap-2">
-              <IoPricetagOutline size={20} className="text-success flex-shrink-0" />
-              <span className="fw-semibold">스탬프 이력</span>
-            </div>
-            <IoChevronForwardOutline size={20} className="text-muted flex-shrink-0" />
-            </button>
-          </div>
+            isLast
+          />
+        </div>
 
-        {/* 삭제 버튼 */}
-          <button
-          className="btn btn-outline-danger d-flex align-items-center justify-content-center gap-2 w-100"
-            onClick={handleDeleteUser}
-            disabled={isDeleting}
-            style={{
-            padding: '14px',
-              fontSize: '1rem',
-            fontWeight: '600',
-            borderRadius: '12px',
-            borderWidth: '2px'
-            }}
-          >
+        <button
+          type="button"
+          className="btn w-100 d-flex align-items-center justify-content-center gap-2 mb-3"
+          onClick={handleDeleteUser}
+          disabled={isDeleting}
+          style={{
+            padding: '13px',
+            fontSize: 15,
+            fontWeight: 600,
+            borderRadius: 14,
+            border: 'none',
+            backgroundColor: '#FF3B30',
+            color: '#FFFFFF',
+            fontFamily: OHGO_FONT,
+          }}
+        >
             {isDeleting ? (
               <>
-              <span className="spinner-border spinner-border-sm"></span>
+              <span className="spinner-border spinner-border-sm text-white"></span>
               <span>삭제 중...</span>
               </>
             ) : (
             <>
-              <IoTrashOutline size={20} className="flex-shrink-0" />
+              <IoTrashOutline size={20} color="#FFFFFF" className="flex-shrink-0" />
               <span>회원 삭제</span>
             </>
             )}
           </button>
-      </div>
 
-      {/* 명부 정보 모달 */}
-      {modalVisible && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-              <div className="modal-header border-0" style={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                padding: '20px'
-              }}>
-                <h5 className="modal-title text-white fw-bold mb-0">{name}님의 명부 정보</h5>
-                <button 
-                  type="button" 
-                  className="btn-close btn-close-white" 
-                  onClick={() => setModalVisible(false)}
-                  style={{ opacity: 0.8 }}
-                ></button>
-              </div>
-              <div className="modal-body p-4">
-                {rosterData && (
-                  <div className="d-grid gap-3">
-                    <div className="d-flex align-items-start">
-                      <IoPersonCircleOutline size={20} className="text-primary me-3 mt-1" />
-                      <div className="flex-grow-1">
-                        <div className="small text-muted mb-1">이름</div>
-                        <div className="fw-semibold">{rosterData.name}</div>
-                      </div>
-                    </div>
-                    <div className="d-flex align-items-start">
-                      <IoCalendarOutline size={20} className="text-primary me-3 mt-1" />
-                      <div className="flex-grow-1">
-                        <div className="small text-muted mb-1">생년월일</div>
-                        <div className="fw-semibold">{rosterData.birth}</div>
-                      </div>
-                    </div>
-                    <div className="d-flex align-items-start">
-                      <IoPersonCircleOutline size={20} className="text-primary me-3 mt-1" />
-                      <div className="flex-grow-1">
-                        <div className="small text-muted mb-1">성별</div>
-                        <div className="fw-semibold">{rosterData.gender}</div>
-                      </div>
-                    </div>
-                    <div className="d-flex align-items-start">
-                      <IoTimeOutline size={20} className="text-primary me-3 mt-1" />
-                      <div className="flex-grow-1">
-                        <div className="small text-muted mb-1">연락처</div>
-                        <div className="fw-semibold">{rosterData.phone}</div>
-                      </div>
-                    </div>
-                    <div className="d-flex align-items-start">
-                      <IoTimeOutline size={20} className="text-primary me-3 mt-1" />
-                      <div className="flex-grow-1">
-                        <div className="small text-muted mb-1">비상 연락처</div>
-                        <div className="fw-semibold">{rosterData.emergency}</div>
-                      </div>
-                    </div>
-                    <div className="d-flex align-items-start">
-                      <IoTimeOutline size={20} className="text-primary me-3 mt-1" />
-                      <div className="flex-grow-1">
-                        <div className="small text-muted mb-1">주소</div>
-                        <div className="fw-semibold">{rosterData.address}</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="modal-footer border-0 pt-0">
-                <button 
-                  type="button" 
-                  className="btn btn-primary w-100" 
-                  onClick={() => setModalVisible(false)}
-                  style={{ borderRadius: '12px', padding: '12px' }}
-                >
-                  닫기
-                </button>
-              </div>
-            </div>
+      <OhgoModal
+        open={modalVisible}
+        onClose={() => setModalVisible(false)}
+        title={`${name}님의 명부 정보`}
+        bodyPadding={false}
+        footer={
+          <OhgoModalButton variant="secondary" onClick={() => setModalVisible(false)}>
+            닫기
+          </OhgoModalButton>
+        }
+      >
+        {rosterData && (
+          <div style={{ ...OHGO_CARD, borderRadius: 0, boxShadow: 'none' }}>
+            {(
+              [
+                { icon: IoPersonCircleOutline, label: '이름', value: rosterData.name },
+                { icon: IoCalendarOutline, label: '생년월일', value: rosterData.birth },
+                { icon: IoPersonCircleOutline, label: '성별', value: rosterData.gender },
+                { icon: IoTimeOutline, label: '연락처', value: rosterData.phone },
+                { icon: IoTimeOutline, label: '비상 연락처', value: rosterData.emergency },
+                { icon: IoTimeOutline, label: '주소', value: rosterData.address },
+              ] as const
+            ).map((row, index, arr) => (
+              <DetailInfoRow
+                key={row.label}
+                icon={row.icon}
+                label={row.label}
+                value={row.value}
+                isLast={index === arr.length - 1}
+              />
+            ))}
           </div>
-        </div>
-      )}
+        )}
+      </OhgoModal>
 
-      {/* 교환권 모달 */}
-      {baitModalVisible && (
-        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} tabIndex={-1}>
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-              <div className="modal-header border-0" style={{ 
-                background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                padding: '20px'
-              }}>
-                <h5 className="modal-title text-white fw-bold mb-0">{name}님의 교환권</h5>
-                <button 
-                  type="button" 
-                  className="btn-close btn-close-white" 
-                  onClick={() => setBaitModalVisible(false)}
-                  style={{ opacity: 0.8 }}
-                ></button>
-              </div>
-              <div className="modal-body text-center p-4">
-                <div className="d-flex align-items-center justify-content-center">
-                  <button
-                    className="btn btn-success rounded-circle d-flex align-items-center justify-content-center shadow-lg"
-                    style={{ 
-                      width: '70px', 
-                      height: '70px',
-                      fontSize: '2rem',
-                      border: 'none',
-                      transition: 'transform 0.2s'
-                    }}
-                    onClick={() => updateBaitCoupons(1)}
-                    disabled={isLoadingBait}
-                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                  >
-                    <span>+</span>
-                  </button>
-                  <div className="fs-1 fw-bold" style={{ minWidth: '80px' }}>{baitCoupons}</div>
-                  {baitCoupons > 0 && (
-                    <button
-                      className="btn btn-danger rounded-circle d-flex align-items-center justify-content-center shadow-lg"
-                      style={{ 
-                        width: '70px', 
-                        height: '70px',
-                        fontSize: '2rem',
-                        border: 'none',
-                        transition: 'transform 0.2s'
-                      }}
-                      onClick={() => updateBaitCoupons(-1)}
-                      disabled={isLoadingBait}
-                      onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                      onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                    >
-                      <span>-</span>
-                    </button>
-                  )}
-                </div>
-                {isLoadingBait && (
-                  <div className="text-center">
-                    <div className="spinner-border spinner-border-sm text-primary"></div>
-                  </div>
-                )}
-              </div>
-              <div className="modal-footer border-0 pt-0">
-                <button 
-                  type="button" 
-                  className="btn btn-primary w-100" 
-                  onClick={() => setBaitModalVisible(false)}
-                  style={{ borderRadius: '12px', padding: '12px' }}
-                >
-                  닫기
-                </button>
-              </div>
-            </div>
+      <OhgoModal
+        open={baitModalVisible}
+        onClose={() => setBaitModalVisible(false)}
+        title={`${name}님의 교환권`}
+        footer={
+          <OhgoModalButton variant="secondary" onClick={() => setBaitModalVisible(false)}>
+            닫기
+          </OhgoModalButton>
+        }
+      >
+        <div className="d-flex align-items-center justify-content-center py-2">
+          <button
+            type="button"
+            className="btn btn-success rounded-circle d-flex align-items-center justify-content-center"
+            style={{ width: 56, height: 56, fontSize: '1.5rem', border: 'none' }}
+            onClick={() => updateBaitCoupons(1)}
+            disabled={isLoadingBait}
+          >
+            +
+          </button>
+          <div
+            className="fw-bold text-center mx-3"
+            style={{ minWidth: 72, fontSize: 28, color: '#1A1D1F', fontFamily: OHGO_FONT }}
+          >
+            {baitCoupons}
           </div>
+          {baitCoupons > 0 && (
+            <button
+              type="button"
+              className="btn btn-danger rounded-circle d-flex align-items-center justify-content-center"
+              style={{ width: 56, height: 56, fontSize: '1.5rem', border: 'none' }}
+              onClick={() => updateBaitCoupons(-1)}
+              disabled={isLoadingBait}
+            >
+              −
+            </button>
+          )}
         </div>
-      )}
-    </div>
+        {isLoadingBait && (
+          <div className="text-center pb-2">
+            <div className="spinner-border spinner-border-sm text-primary" />
+          </div>
+        )}
+      </OhgoModal>
+    </SubPageFrame>
   );
 }
 
 export default function MemberDetailPage() {
   return (
-    <Suspense fallback={
-      <div className="d-flex min-vh-100 align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<OhgoPageLoading />}>
       <MemberDetailContent />
     </Suspense>
   );

@@ -1,5 +1,7 @@
 'use client';
 
+import { IoChevronForwardOutline } from 'react-icons/io5';
+
 interface SectionHeaderProps {
   title: string;
   onViewAll?: () => void;
@@ -27,7 +29,7 @@ export default function SectionHeader({ title, onViewAll, badge }: SectionHeader
         <button
           type="button"
           onClick={onViewAll}
-          className="btn btn-link p-0 text-decoration-none"
+          className="btn btn-link p-0 text-decoration-none d-inline-flex align-items-center gap-1"
           style={{
             fontSize: '14px',
             fontWeight: 600,
@@ -35,7 +37,8 @@ export default function SectionHeader({ title, onViewAll, badge }: SectionHeader
             fontFamily: 'var(--font-urbanist), system-ui, sans-serif',
           }}
         >
-          전체보기 &gt;
+          전체보기
+          <IoChevronForwardOutline size={16} aria-hidden />
         </button>
       )}
     </div>

@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { Timestamp } from 'firebase/firestore';
 import { getUser } from '@/lib/storage';
 import { getPhotos, CommunityPhoto } from '@/utils/community-service';
-import { IoChatbubblesOutline, IoImageOutline, IoAddOutline, IoRefreshOutline } from 'react-icons/io5';
-import PageHeader from '@/components/PageHeader';
+import { IoChatbubblesOutline, IoImageOutline, IoAddOutline } from 'react-icons/io5';
+import SubPageFrame from '@/components/SubPageFrame';
+import EmptyState from '@/components/EmptyState';
 import { useNavigation } from '@/hooks/useNavigation';
 
 const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
@@ -16,8 +17,6 @@ function PhotosPageContent() {
   const { navigate } = useNavigation();
   const [photos, setPhotos] = useState<CommunityPhoto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
   useEffect(() => {
     const checkAuth = async () => {
       const user = await getUser();
@@ -38,12 +37,6 @@ function PhotosPageContent() {
     } finally { setLoading(false); }
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadPhotos();
-    setRefreshing(false);
-  };
-
   const formatDate = (date: Date | Timestamp | string | undefined): string => {
     if (!date) return '';
     let d: Date;
@@ -62,44 +55,30 @@ function PhotosPageContent() {
   }
 
   return (
-    <div className="min-vh-100 pb-4" style={{ backgroundColor: '#F7F8FA', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <PageHeader title="조황 사진" />
-      <div className="container py-3" style={{ maxWidth: 480 }}>
-
+    <SubPageFrame title="조황 사진" onRefresh={loadPhotos}>
         {/* 툴바 */}
         <div className="d-flex align-items-center justify-content-between mb-3">
           <span style={{ fontSize: 14, color: '#6F767E', fontFamily: FONT }}>
             총 {photos.length}개
           </span>
-          <div className="d-flex gap-2">
-            <button
-              type="button"
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="btn d-flex align-items-center gap-1"
-              style={{ backgroundColor: '#F7F8FA', borderRadius: 10, border: 'none', padding: '7px 12px', fontSize: 13, color: '#6F767E', fontFamily: FONT }}
-            >
-              <IoRefreshOutline size={15} className={refreshing ? 'spin' : ''} />
-              새로고침
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/community/photos/upload')}
-              className="btn d-flex align-items-center gap-1"
-              style={{ backgroundColor: '#1B6FF5', borderRadius: 10, border: 'none', padding: '7px 14px', fontSize: 13, color: '#fff', fontFamily: FONT, fontWeight: 600 }}
-            >
-              <IoAddOutline size={15} />
-              올리기
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/community/photos/upload')}
+            className="btn d-flex align-items-center gap-1"
+            style={{ backgroundColor: '#1B6FF5', borderRadius: 10, border: 'none', padding: '7px 14px', fontSize: 13, color: '#fff', fontFamily: FONT, fontWeight: 600 }}
+          >
+            <IoAddOutline size={15} />
+            등록하기
+          </button>
         </div>
 
         {/* 사진 그리드 */}
         {photos.length === 0 ? (
-          <div className="py-5 text-center" style={{ backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <IoImageOutline size={56} color="#EFEFEF" />
-            <p className="mt-3 mb-0" style={{ color: '#6F767E', fontFamily: FONT }}>아직 등록된 사진이 없습니다.</p>
-          </div>
+          <EmptyState
+            icon={IoImageOutline}
+            message="아직 등록된 사진이 없습니다."
+            style={{ backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
+          />
         ) : (
           <div className="row g-2">
             {photos.map(photo => (
@@ -143,8 +122,7 @@ function PhotosPageContent() {
             ))}
           </div>
         )}
-      </div>
-    </div>
+    </SubPageFrame>
   );
 }
 

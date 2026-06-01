@@ -7,6 +7,7 @@ import { saveUser, getUser } from '@/lib/storage';
 import { isNativeApp, requestPushTokenFromNative, savePushTokenToUser } from '@/lib/native-bridge';
 import { notifyAllAdmins } from '@/utils/send-push';
 import { IoPersonOutline, IoCalendarOutline, IoDocumentTextOutline, IoCloseOutline } from 'react-icons/io5';
+import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
 
 export default function LoginPage() {
   const [name, setName] = useState('');
@@ -360,40 +361,22 @@ export default function LoginPage() {
       </div>
 
       {/* 개인정보 처리방침 모달 */}
-      {showPrivacyModal && (
+      <OhgoModal
+        open={showPrivacyModal}
+        onClose={() => setShowPrivacyModal(false)}
+        title="개인정보 처리방침"
+        size="lg"
+        scrollable
+        closeOnBackdrop
+        footer={
+          <OhgoModalButton onClick={() => setShowPrivacyModal(false)}>확인</OhgoModalButton>
+        }
+      >
         <div
-          className="modal show d-block"
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-          onClick={() => setShowPrivacyModal(false)}
-          tabIndex={-1}
-        >
-          <div
-            className="modal-dialog modal-dialog-centered modal-dialog-scrollable"
-            style={{ maxWidth: 640 }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="modal-content border-0" style={{ borderRadius: 20, overflow: 'hidden', maxHeight: '85vh' }}>
-              <div className="modal-header border-0 px-4 pt-4 pb-2">
-                <h5 className="modal-title fw-bold" style={{ color: '#1A1D1F', fontFamily: FONT }}>개인정보 처리방침</h5>
-                <button type="button" className="btn-close" onClick={() => setShowPrivacyModal(false)} />
-              </div>
-              <div className="modal-body px-4" style={{ overflowY: 'auto' }}>
-                <div dangerouslySetInnerHTML={{ __html: privacyHtml }} style={{ fontSize: 14, lineHeight: 1.6 }} />
-              </div>
-              <div className="modal-footer border-0 px-4 pb-4 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPrivacyModal(false)}
-                  className="btn w-100 fw-semibold"
-                  style={{ backgroundColor: '#1B6FF5', color: '#fff', borderRadius: 12, padding: 13, border: 'none', fontFamily: FONT }}
-                >
-                  확인
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+          dangerouslySetInnerHTML={{ __html: privacyHtml }}
+          style={{ fontSize: 14, lineHeight: 1.6, color: '#1A1D1F', fontFamily: FONT }}
+        />
+      </OhgoModal>
     </div>
   );
 }

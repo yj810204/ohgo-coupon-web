@@ -3,7 +3,9 @@
 import { useEffect, useCallback, useState } from 'react';
 import { getUser } from '@/lib/storage';
 import { useNavigation } from '@/hooks/useNavigation';
-import PageHeader from '@/components/PageHeader';
+import SubPageFrame from '@/components/SubPageFrame';
+import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import EmptyState from '@/components/EmptyState';
 import { getActiveGames, Game, getGlobalGameSettings } from '@/lib/game-service';
 import { IoGameControllerOutline, IoNotificationsOutline, IoTrophyOutline } from 'react-icons/io5';
 
@@ -54,10 +56,7 @@ export default function MiniGamesPage() {
   const CARD: React.CSSProperties = { backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: 'none' };
 
   return (
-    <div className="min-vh-100 pb-4" style={{ backgroundColor: '#F7F8FA', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <PageHeader title="미니 게임" />
-      <div className="container py-3" style={{ maxWidth: 480 }}>
-
+    <SubPageFrame title="미니 게임" onRefresh={loadGames}>
         {/* 게임 공지 배너 */}
         {gameNotice && (
           <button
@@ -89,11 +88,12 @@ export default function MiniGamesPage() {
         {loading ? (
           <div className="py-5 text-center"><div className="spinner-border text-primary" role="status" /></div>
         ) : games.length === 0 ? (
-          <div className="py-5 text-center" style={CARD}>
-            <IoGameControllerOutline size={52} color="#EFEFEF" />
-            <p className="mt-3 mb-1" style={{ color: '#6F767E', fontFamily: FONT, fontWeight: 600 }}>등록된 게임이 없습니다.</p>
-            <p style={{ color: '#ABABAB', fontFamily: FONT, fontSize: 13 }}>관리자 페이지에서 게임 스캔을 실행해주세요.</p>
-          </div>
+          <EmptyState
+            icon={IoGameControllerOutline}
+            message="등록된 게임이 없습니다."
+            subtitle="관리자 페이지에서 게임 스캔을 실행해주세요."
+            style={CARD}
+          />
         ) : (
           <div className="d-flex flex-column gap-3">
             {games.map(game => (
@@ -113,7 +113,12 @@ export default function MiniGamesPage() {
                   />
                 ) : (
                   <div className="d-flex align-items-center justify-content-center" style={{ height: 120, backgroundColor: '#F7F8FA' }}>
-                    <IoGameControllerOutline size={48} color="#ABABAB" />
+                    <div
+                      className="d-inline-flex align-items-center justify-content-center rounded-circle"
+                      style={{ width: 56, height: 56, backgroundColor: '#F2F3F5' }}
+                    >
+                      <IoGameControllerOutline size={28} color="#6F767E" />
+                    </div>
                   </div>
                 )}
                 <div className="p-3">
@@ -128,25 +133,20 @@ export default function MiniGamesPage() {
         )}
 
         {/* 공지사항 모달 */}
-        {noticeModalVisible && (
-          <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content border-0" style={{ borderRadius: 20, overflow: 'hidden' }}>
-                <div className="modal-header border-0 px-4 pt-4 pb-2">
-                  <h5 className="modal-title fw-bold" style={{ color: '#1A1D1F', fontFamily: FONT }}>게임 공지사항</h5>
-                  <button type="button" className="btn-close" onClick={() => setNoticeModalVisible(false)} />
-                </div>
-                <div className="modal-body px-4">
-                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, color: '#1A1D1F', fontFamily: FONT, fontSize: 14 }}>{gameNotice}</div>
-                </div>
-                <div className="modal-footer border-0 px-4 pb-4 pt-2">
-                  <button type="button" onClick={() => setNoticeModalVisible(false)} className="btn w-100 fw-semibold" style={{ backgroundColor: '#1B6FF5', color: '#fff', borderRadius: 12, padding: 13, border: 'none', fontFamily: FONT }}>닫기</button>
-                </div>
-              </div>
-            </div>
+        <OhgoModal
+          open={noticeModalVisible}
+          onClose={() => setNoticeModalVisible(false)}
+          title="게임 공지사항"
+          footer={
+            <OhgoModalButton variant="secondary" onClick={() => setNoticeModalVisible(false)}>
+              닫기
+            </OhgoModalButton>
+          }
+        >
+          <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, color: '#1A1D1F', fontFamily: FONT, fontSize: 14 }}>
+            {gameNotice}
           </div>
-        )}
-      </div>
-    </div>
+        </OhgoModal>
+    </SubPageFrame>
   );
 }

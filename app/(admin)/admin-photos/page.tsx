@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getUser } from '@/lib/storage';
 import { getUserByUUID } from '@/lib/firebase-auth';
 import { getPhotos, uploadPhoto, deletePhoto, updatePhoto, CommunityPhoto } from '@/utils/community-service';
@@ -16,17 +16,218 @@ import { IoImageOutline, IoTrashOutline, IoAddOutline, IoPencilOutline } from 'r
 import CKEditorComponent from '@/components/CKEditor';
 import TemplateFieldInput from '@/components/TemplateFieldInput';
 import ImageEditor from '@/components/ImageEditor';
-import PageHeader from '@/components/PageHeader';
+import SubPageFrame from '@/components/SubPageFrame';
+import {
+  OHGO_CARD,
+  OHGO_FONT,
+  OHGO_INPUT,
+  OHGO_PRIMARY_BTN,
+  OHGO_SECONDARY_BTN,
+  OhgoPageLoading,
+} from '@/lib/page-styles';
+import EmptyState from '@/components/EmptyState';
 import { useNavigation } from '@/hooks/useNavigation';
+import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
+
+const FONT = OHGO_FONT;
+const CARD: React.CSSProperties = { ...OHGO_CARD };
+
+const LABEL: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: '#6F767E',
+  fontFamily: FONT,
+  marginBottom: 6,
+  display: 'block',
+};
+
+const HINT: React.CSSProperties = {
+  fontSize: 11,
+  color: '#ABABAB',
+  fontFamily: FONT,
+  marginTop: 6,
+  marginBottom: 0,
+};
+
+function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ ...CARD, padding: '14px 16px', marginBottom: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT, marginBottom: 12 }}>
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function FormActions({
+  onCancel,
+  onSubmit,
+  submitLabel,
+  loading,
+  loadingLabel,
+  disabled,
+}: {
+  onCancel: () => void;
+  onSubmit: () => void;
+  submitLabel: string;
+  loading?: boolean;
+  loadingLabel?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <div
+      className="d-grid gap-2 mt-2"
+      style={{ gridTemplateColumns: '1fr 1fr' }}
+    >
+      <button
+        type="button"
+        className="btn w-100 fw-semibold"
+        style={OHGO_SECONDARY_BTN}
+        onClick={onCancel}
+        disabled={loading}
+      >
+        취소
+      </button>
+      <button
+        type="button"
+        className="btn w-100 fw-semibold"
+        style={{
+          ...OHGO_PRIMARY_BTN,
+          opacity: disabled || loading ? 0.65 : 1,
+        }}
+        onClick={onSubmit}
+        disabled={disabled || loading}
+      >
+        {loading ? loadingLabel || '처리 중...' : submitLabel}
+      </button>
+    </div>
+  );
+}
+
+function FilePickButton({
+  label,
+  multiple,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  multiple?: boolean;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label
+      className="btn w-100 d-flex align-items-center justify-content-center gap-2 mb-0"
+      style={{
+        backgroundColor: '#F7F8FA',
+        color: '#1A1D1F',
+        borderRadius: 10,
+        padding: 12,
+        border: '2px dashed #EFEFEF',
+        fontFamily: FONT,
+        fontSize: 14,
+        fontWeight: 600,
+        opacity: disabled ? 0.6 : 1,
+      }}
+    >
+      <IoImageOutline size={18} />
+      {label}
+      <input
+        type="file"
+        accept="image/*"
+        className="d-none"
+        multiple={multiple}
+        onChange={onChange}
+        disabled={disabled}
+      />
+    </label>
+  );
+}
+
+function ImagePreviewGrid({
+  urls,
+  disabled,
+  onRemove,
+  onEdit,
+  canRemove,
+}: {
+  urls: string[];
+  disabled?: boolean;
+  onRemove: (index: number) => void;
+  onEdit: (index: number) => void;
+  canRemove?: (index: number) => boolean;
+}) {
+  if (urls.length === 0) return null;
+  return (
+    <div
+      className="mt-3"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: 8,
+      }}
+    >
+      {urls.map((url, index) => {
+        const removable = canRemove ? canRemove(index) : true;
+        return (
+          <div key={`${url}-${index}`} className="position-relative">
+            <img
+              src={url}
+              alt={`미리보기 ${index + 1}`}
+              className="w-100"
+              style={{
+                aspectRatio: '1',
+                objectFit: 'cover',
+                borderRadius: 12,
+                border: '1px solid #EFEFEF',
+                cursor: disabled ? 'default' : 'pointer',
+              }}
+              onClick={() => !disabled && onEdit(index)}
+            />
+            {removable && (
+              <button
+                type="button"
+                className="btn p-0 position-absolute d-flex align-items-center justify-content-center rounded-circle"
+                style={{
+                  top: 6,
+                  right: 6,
+                  width: 28,
+                  height: 28,
+                  backgroundColor: 'rgba(255,255,255,0.95)',
+                  border: 'none',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+                  zIndex: 10,
+                }}
+                onClick={e => {
+                  e.stopPropagation();
+                  onRemove(index);
+                }}
+                disabled={disabled}
+              >
+                <IoTrashOutline size={14} color="#FF3B30" />
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function photoThumbUrl(photo: CommunityPhoto): string | undefined {
+  return photo.imageUrls?.[0] || photo.imageUrl;
+}
 
 function AdminPhotosContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const view = searchParams.get('view');
+  const editPhotoId = searchParams.get('photoId');
   const { navigate } = useNavigation();
   const [photos, setPhotos] = useState<CommunityPhoto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [editingImageIndex, setEditingImageIndex] = useState<number | null>(null);
@@ -40,7 +241,6 @@ function AdminPhotosContent() {
   const [user, setUser] = useState<{ uuid?: string; name?: string } | null>(null);
   const [templates, setTemplates] = useState<CommunityTemplate[]>([]);
   const [activeTemplateId, setActiveTemplateIdState] = useState<string | null>(null);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState<CommunityPhoto | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
@@ -126,11 +326,17 @@ function AdminPhotosContent() {
     }
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadPhotos();
-    setRefreshing(false);
+  const reloadPhotos = async () => {
+    try {
+      const photosList = await getPhotos();
+      setPhotos(photosList);
+    } catch (error) {
+      console.error('Error loading photos:', error);
+      alert('사진을 불러오는 중 오류가 발생했습니다.');
+    }
   };
+
+  useNativePullToRefresh(reloadPhotos);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -233,7 +439,7 @@ function AdminPhotosContent() {
       );
       
       alert(`${filesToUpload.length}개의 사진이 업로드되었습니다.`);
-      setShowUploadModal(false);
+      router.replace('/admin-photos');
       setSelectedFiles([]);
       setPreviewUrls([]);
       setEditedImages({});
@@ -350,8 +556,29 @@ function AdminPhotosContent() {
       setEditTemplateFieldValues({});
     }
     
-    setShowEditModal(true);
   };
+
+  useEffect(() => {
+    if (view !== 'edit' || !editPhotoId || loading) return;
+    if (editingPhoto?.photoId === editPhotoId) return;
+    const run = async () => {
+      let photo = photos.find(p => p.photoId === editPhotoId);
+      if (!photo) {
+        try {
+          const { getPhoto } = await import('@/utils/community-service');
+          photo = (await getPhoto(editPhotoId)) ?? undefined;
+        } catch {
+          photo = undefined;
+        }
+      }
+      if (photo) {
+        await handleEditPhoto(photo);
+      } else {
+        router.replace('/admin-photos');
+      }
+    };
+    void run();
+  }, [view, editPhotoId, loading, photos]);
 
   const handleEditFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -497,7 +724,7 @@ function AdminPhotosContent() {
       });
       
       alert('사진이 수정되었습니다.');
-      setShowEditModal(false);
+      router.replace('/admin-photos');
       setEditingPhoto(null);
       setEditTemplateFieldValues({});
       await loadPhotos();
@@ -522,469 +749,331 @@ function AdminPhotosContent() {
   };
 
   if (loading) {
-    return (
-      <div className="min-vh-100 bg-light">
-        <PageHeader title="조황사진 관리" />
-        <div className="container">
-          <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '50vh' }}>
-            <div className="text-center">
-              <div className="spinner-border text-primary mb-3" role="status">
-                <span className="visually-hidden">로딩 중...</span>
+    return <OhgoPageLoading />;
+  }
+
+  const uploadForm = (
+    <>
+      <FormSection title="사진">
+        <FilePickButton
+          label={previewUrls.length > 0 ? '사진 추가' : '사진 선택'}
+          multiple
+          onChange={handleFileSelect}
+          disabled={uploading}
+        />
+        <p style={HINT}>여러 장 선택 가능 · 이미지당 5MB 이하 · 탭하여 편집</p>
+        <ImagePreviewGrid
+          urls={previewUrls}
+          disabled={uploading}
+          onRemove={handleRemoveImage}
+          onEdit={setEditingImageIndex}
+        />
+      </FormSection>
+      <FormSection title="제목">
+        <label style={LABEL}>제목 (선택)</label>
+        <input
+          type="text"
+          className="form-control"
+          style={OHGO_INPUT}
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="사진 제목"
+          disabled={uploading}
+        />
+      </FormSection>
+      {activeTemplateId && showTemplateFields && (
+        <FormSection title="템플릿 필드">
+          {templates
+            .find(t => t.templateId === activeTemplateId)
+            ?.fields.sort((a, b) => (a.order || 0) - (b.order || 0))
+            .map((field, index) => (
+              <div key={index} className={index > 0 ? 'mt-3' : undefined}>
+                <label style={LABEL}>
+                  {field.label}
+                  {field.required && <span style={{ color: '#FF3B30' }}> *</span>}
+                </label>
+                <TemplateFieldInput
+                  field={field}
+                  value={templateFieldValues[field.label] || (field.type === 'checkbox' ? [] : '')}
+                  onChange={value => setTemplateFieldValues(prev => ({ ...prev, [field.label]: value }))}
+                  disabled={uploading}
+                />
               </div>
-              <p className="text-muted">로딩 중...</p>
-            </div>
-          </div>
-        </div>
-      </div>
+            ))}
+        </FormSection>
+      )}
+      <FormSection title="내용">
+        <CKEditorComponent
+          value={content}
+          onChange={setContent}
+          disabled={uploading}
+          placeholder="내용을 입력하세요..."
+        />
+      </FormSection>
+      <FormActions
+        onCancel={() => router.replace('/admin-photos')}
+        onSubmit={() => void handleUpload()}
+        submitLabel="등록"
+        loading={uploading}
+        loadingLabel="등록 중..."
+        disabled={selectedFiles.length === 0}
+      />
+    </>
+  );
+
+  const editForm =
+    editingPhoto && (
+      <>
+        <FormSection title="사진">
+          <FilePickButton
+            label="사진 추가"
+            multiple
+            onChange={handleEditFileSelect}
+            disabled={updatingPhoto}
+          />
+          <p style={HINT}>탭하여 편집 · 최소 1장 유지</p>
+          <ImagePreviewGrid
+            urls={editPreviewUrls}
+            disabled={updatingPhoto}
+            onRemove={handleEditImageRemove}
+            onEdit={setEditEditingImageIndex}
+            canRemove={index => {
+              const isExisting = index < editPreviewUrls.length - editSelectedFiles.length;
+              if (!isExisting) return true;
+              return editPreviewUrls.length - editSelectedFiles.length > 1;
+            }}
+          />
+        </FormSection>
+        <FormSection title="제목">
+          <input
+            type="text"
+            className="form-control"
+            style={OHGO_INPUT}
+            value={editTitle}
+            onChange={e => setEditTitle(e.target.value)}
+            placeholder="사진 제목"
+            disabled={updatingPhoto}
+          />
+        </FormSection>
+        {editingPhoto.templateId && showEditTemplateFields && (
+          <FormSection title="템플릿 필드">
+            {templates
+              .find(t => t.templateId === editingPhoto.templateId)
+              ?.fields.sort((a, b) => (a.order || 0) - (b.order || 0))
+              .map((field, index) => (
+                <div key={index} className={index > 0 ? 'mt-3' : undefined}>
+                  <label style={LABEL}>
+                    {field.label}
+                    {field.required && <span style={{ color: '#FF3B30' }}> *</span>}
+                  </label>
+                  <TemplateFieldInput
+                    field={field}
+                    value={editTemplateFieldValues[field.label] ?? (field.type === 'checkbox' ? [] : '')}
+                    onChange={value => setEditTemplateFieldValues(prev => ({ ...prev, [field.label]: value }))}
+                    disabled={updatingPhoto}
+                  />
+                </div>
+              ))}
+          </FormSection>
+        )}
+        <FormSection title="내용">
+          <CKEditorComponent value={editContent} onChange={setEditContent} disabled={updatingPhoto} />
+        </FormSection>
+        <FormActions
+          onCancel={() => router.replace('/admin-photos')}
+          onSubmit={() => void handleUpdatePhoto()}
+          submitLabel="저장"
+          loading={updatingPhoto}
+          loadingLabel="저장 중..."
+        />
+      </>
+    );
+
+  if (view === 'upload') {
+    return (
+      <SubPageFrame title="새글 등록" onBack={() => router.replace('/admin-photos')}>
+        {uploadForm}
+        {editingImageIndex !== null && previewUrls[editingImageIndex] && (
+          <ImageEditor
+            imageUrl={previewUrls[editingImageIndex]}
+            onSave={editedFile => handleImageEditSave(editingImageIndex, editedFile)}
+            onCancel={() => setEditingImageIndex(null)}
+          />
+        )}
+      </SubPageFrame>
+    );
+  }
+
+  if (view === 'edit') {
+    return (
+      <SubPageFrame title="글 수정" onBack={() => router.replace('/admin-photos')}>
+        {editForm || <OhgoPageLoading />}
+        {editEditingImageIndex !== null && editPreviewUrls[editEditingImageIndex] && (
+          <ImageEditor
+            imageUrl={editPreviewUrls[editEditingImageIndex]}
+            onSave={editedFile => handleEditImageEditSave(editEditingImageIndex, editedFile)}
+            onCancel={() => setEditEditingImageIndex(null)}
+          />
+        )}
+      </SubPageFrame>
     );
   }
 
   return (
-    <div 
-      className="min-vh-100 bg-light"
-      style={{ 
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        position: 'relative',
-      }}
-    >
-      <PageHeader title="조황사진 관리" />
-      <div className="container">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h5 className="mb-0">조황사진 목록</h5>
-          <div className="d-flex gap-2">
-            <button
-              className="btn btn-sm btn-outline-primary"
-              onClick={handleRefresh}
-              disabled={refreshing}
-            >
-              {refreshing ? (
-                <>
-                  <span className="spinner-border spinner-border-sm me-1" role="status" />
-                  새로고침
-                </>
-              ) : (
-                '새로고침'
-              )}
-            </button>
-            <button
-              className="btn btn-sm btn-primary d-flex align-items-center"
-              onClick={() => {
-                setTitle('');
-                setDescription('');
-                setContent('');
-                setTemplateFieldValues({});
-                setSelectedFiles([]);
-                setPreviewUrls([]);
-                setEditedImages({});
-                setEditingImageIndex(null);
-                setShowUploadModal(true);
-              }}
-            >
-              <IoAddOutline size={18} className="me-1 flex-shrink-0" />
-              새글 등록
-            </button>
-          </div>
-        </div>
+    <SubPageFrame title="조황사진 관리" onRefresh={reloadPhotos}>
+      <button
+        type="button"
+        onClick={() => router.push('/admin-photos?view=upload')}
+        className="btn w-100 d-flex align-items-center justify-content-center gap-2 fw-semibold ohgo-modal__btn ohgo-modal__btn--primary mb-3"
+        style={OHGO_PRIMARY_BTN}
+      >
+        <IoAddOutline size={20} aria-hidden />
+        새글 등록
+      </button>
 
-        {photos.length === 0 ? (
-          <div className="d-flex flex-column align-items-center justify-content-center py-5" style={{ minHeight: '50vh' }}>
-            <IoImageOutline size={64} className="text-muted mb-3" />
-            <p className="text-muted mb-0">등록된 사진이 없습니다.</p>
-          </div>
-        ) : (
-          <div className="row g-3">
-            {photos.map((photo) => (
-              <div key={photo.photoId} className="col-6 col-md-4 col-lg-3">
-                <div className="card shadow-sm">
-                  <div 
-                    style={{ position: 'relative', paddingTop: '100%', overflow: 'hidden', cursor: 'pointer' }}
+      {photos.length > 0 && (
+        <p className="mb-3" style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, fontWeight: 600 }}>
+          총 {photos.length}건
+        </p>
+      )}
+
+      {photos.length === 0 ? (
+        <div style={{ ...CARD, padding: '20px 16px' }}>
+          <EmptyState
+            icon={IoImageOutline}
+            message="등록된 사진이 없습니다."
+            subtitle="위 「+ 새글 등록」 버튼으로 조황을 공유해 보세요."
+            compact
+          />
+        </div>
+      ) : (
+        <div
+          style={{
+            borderRadius: 14,
+            border: '1px solid #EFEFEF',
+            overflow: 'hidden',
+            backgroundColor: '#FFFFFF',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+          }}
+        >
+          {photos.map((photo, index) => {
+            const thumb = photoThumbUrl(photo);
+            const titleText = photo.title?.trim() || '제목 없음';
+            const isDeleting = deletingPhotoId === photo.photoId;
+
+            return (
+              <div
+                key={photo.photoId}
+                className="px-3 py-3"
+                style={{
+                  borderBottom: index < photos.length - 1 ? '1px solid #F7F8FA' : 'none',
+                }}
+              >
+                <div className="d-flex align-items-start gap-3">
+                  <button
+                    type="button"
+                    className="flex-shrink-0 p-0 border-0 overflow-hidden"
+                    style={{
+                      width: 72,
+                      height: 72,
+                      borderRadius: 12,
+                      background: thumb ? `url(${thumb}) center/cover` : '#F2F3F5',
+                      border: '1px solid #EFEFEF',
+                    }}
                     onClick={() => navigate(`/community/${photo.photoId}`)}
+                    aria-label="조황 글 보기"
                   >
-                    <img
-                      src={photo.imageUrl}
-                      alt={photo.title || '조황사진'}
-                      className="card-img-top"
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                      }}
-                      loading="lazy"
-                    />
-                  </div>
-                  <div className="card-body p-2">
-                    {photo.title && (
-                      <h6 className="card-title mb-1" style={{ fontSize: '14px' }}>
-                        {photo.title}
-                      </h6>
+                    {!thumb && (
+                      <span className="d-flex align-items-center justify-content-center w-100 h-100">
+                        <IoImageOutline size={28} color="#B0B8C4" />
+                      </span>
                     )}
-                    <p className="card-text mb-1" style={{ fontSize: '12px', color: '#666' }}>
-                      댓글 {photo.commentCount}개
-                    </p>
-                    <p className="card-text mb-2" style={{ fontSize: '11px', color: '#999' }}>
+                  </button>
+
+                  <div className="flex-grow-1 min-w-0">
+                    <div className="d-flex align-items-center gap-2 flex-wrap">
+                      <span
+                        className="badge rounded-pill flex-shrink-0"
+                        style={{
+                          backgroundColor: '#F7F8FA',
+                          color: '#6F767E',
+                          fontSize: 10,
+                          fontFamily: FONT,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {index + 1}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-link p-0 text-start flex-grow-1 min-w-0"
+                        style={{
+                          fontSize: 15,
+                          fontWeight: 700,
+                          color: '#1A1D1F',
+                          fontFamily: FONT,
+                          textDecoration: 'none',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                        onClick={() => navigate(`/community/${photo.photoId}`)}
+                      >
+                        {titleText}
+                      </button>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 6 }}>
+                      댓글 {photo.commentCount ?? 0}개
+                    </div>
+                    <div style={{ fontSize: 11, color: '#ABABAB', fontFamily: FONT, marginTop: 4 }}>
                       {formatDate(photo.uploadedAt)}
-                    </p>
-                    <div className="d-flex gap-2">
-                      <button
-                        className="btn btn-sm btn-primary flex-fill d-flex align-items-center justify-content-center"
-                        onClick={() => handleEditPhoto(photo)}
-                      >
-                        <IoPencilOutline size={16} className="me-1 flex-shrink-0" />
-                        수정
-                      </button>
-                      <button
-                        className="btn btn-sm btn-danger flex-fill d-flex align-items-center justify-content-center"
-                        onClick={() => handleDelete(photo.photoId)}
-                        disabled={deletingPhotoId === photo.photoId}
-                      >
-                        {deletingPhotoId === photo.photoId ? (
-                          <>
-                            <span className="spinner-border spinner-border-sm me-1" role="status" />
-                            삭제 중...
-                          </>
-                        ) : (
-                          <>
-                            <IoTrashOutline size={16} className="me-1 flex-shrink-0" />
-                            삭제
-                          </>
-                        )}
-                      </button>
                     </div>
                   </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {/* 업로드 모달 */}
-      {showUploadModal && (
-        <div 
-          className="modal show d-block"
-          style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-          onClick={() => !uploading && setShowUploadModal(false)}
-        >
-          <div 
-            className="modal-dialog modal-dialog-centered"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-              <div className="modal-header border-0" style={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                padding: '20px',
-              }}>
-                <h5 className="modal-title text-white fw-bold mb-0">새글 등록</h5>
-                <button
-                  type="button"
-                  className="btn-close btn-close-white"
-                  onClick={() => !uploading && setShowUploadModal(false)}
-                  disabled={uploading}
-                  style={{ opacity: 0.8 }}
-                ></button>
-              </div>
-              <div className="modal-body p-4">
-                <div className="mb-3">
-                  <label className="form-label">사진 선택 (여러 장 가능)</label>
-                  <input
-                    type="file"
-                    className="form-control"
-                    accept="image/*"
-                    multiple
-                    onChange={handleFileSelect}
-                    disabled={uploading}
-                  />
-                  {previewUrls.length > 0 && (
-                    <div className="mt-3">
-                      <div className="row g-2">
-                        {previewUrls.map((url, index) => (
-                          <div key={index} className="col-6 col-md-4">
-                            <div className="position-relative">
-                              <img
-                                src={url}
-                                alt={`미리보기 ${index + 1}`}
-                                className="img-fluid rounded"
-                                style={{ 
-                                  width: '100%', 
-                                  height: '150px', 
-                                  objectFit: 'cover',
-                                  cursor: 'pointer'
-                                }}
-                                onClick={() => setEditingImageIndex(index)}
-                              />
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleRemoveImage(index);
-                                }}
-                                style={{ zIndex: 10 }}
-                              >
-                                <IoTrashOutline size={14} />
-                              </button>
-                              <div className="position-absolute bottom-0 start-0 end-0 bg-dark bg-opacity-50 text-white text-center p-1">
-                                <small>클릭하여 편집</small>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="mb-3">
-                  <label className="form-label">제목 (선택사항)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="사진 제목"
-                    disabled={uploading}
-                  />
-                </div>
-                {activeTemplateId && showTemplateFields && (
-                  <div className="mb-3">
-                    <label className="form-label">템플릿 필드</label>
-                    {templates.find(t => t.templateId === activeTemplateId)?.fields
-                      .sort((a, b) => (a.order || 0) - (b.order || 0))
-                      .map((field, index) => (
-                      <div key={index} className="mb-2">
-                        <label className="form-label small">{field.label}{field.required && <span className="text-danger">*</span>}</label>
-                        <TemplateFieldInput
-                          field={field}
-                          value={templateFieldValues[field.label] || (field.type === 'checkbox' ? [] : '')}
-                          onChange={(value) => setTemplateFieldValues(prev => ({ ...prev, [field.label]: value }))}
-                          disabled={uploading}
-                        />
-                      </div>
-                    ))}
+                  <div className="d-flex flex-row gap-1 flex-shrink-0 align-self-center">
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/admin-photos?view=edit&photoId=${photo.photoId}`)}
+                      className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
+                      title="수정"
+                      style={{ width: 28, height: 28, backgroundColor: '#EBF1FE', border: 'none' }}
+                    >
+                      <IoPencilOutline size={14} color="#1B6FF5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete(photo.photoId)}
+                      className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
+                      title="삭제"
+                      disabled={isDeleting}
+                      style={{
+                        width: 28,
+                        height: 28,
+                        backgroundColor: '#FFF0F0',
+                        border: 'none',
+                        opacity: isDeleting ? 0.5 : 1,
+                      }}
+                    >
+                      {isDeleting ? (
+                        <span className="spinner-border spinner-border-sm" style={{ width: 14, height: 14 }} role="status" />
+                      ) : (
+                        <IoTrashOutline size={14} color="#FF3B30" />
+                      )}
+                    </button>
                   </div>
-                )}
-                <div className="mb-3">
-                  <label className="form-label">내용</label>
-                  <CKEditorComponent
-                    value={content}
-                    onChange={setContent}
-                    disabled={uploading}
-                    placeholder="내용을 입력하세요..."
-                  />
                 </div>
               </div>
-              <div className="modal-footer border-0 pt-0">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setShowUploadModal(false)}
-                  disabled={uploading}
-                >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleUpload}
-                  disabled={uploading || selectedFiles.length === 0}
-                >
-                  {uploading ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" />
-                      업로드 중...
-                    </>
-                  ) : (
-                    '업로드'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
+            );
+          })}
         </div>
       )}
-
-      {/* 사진 수정 모달 */}
-      {showEditModal && editingPhoto && (
-        <div 
-          className="modal show d-block"
-          style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-          onClick={() => !updatingPhoto && setShowEditModal(false)}
-        >
-          <div 
-            className="modal-dialog modal-dialog-centered modal-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-              <div className="modal-header border-0" style={{ 
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                padding: '20px',
-              }}>
-                <h5 className="modal-title text-white fw-bold mb-0">사진 수정</h5>
-                <button
-                  type="button"
-                  className="btn-close btn-close-white"
-                  onClick={() => !updatingPhoto && setShowEditModal(false)}
-                  disabled={updatingPhoto}
-                  style={{ opacity: 0.8 }}
-                ></button>
-              </div>
-              <div className="modal-body p-4" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-                <div className="mb-3">
-                  <label className="form-label">이미지</label>
-                  <input
-                    type="file"
-                    className="form-control mb-2"
-                    accept="image/*"
-                    multiple
-                    onChange={handleEditFileSelect}
-                    disabled={updatingPhoto}
-                  />
-                  {editPreviewUrls.length > 0 && (
-                    <div className="row g-2 mt-2">
-                      {editPreviewUrls.map((url, index) => {
-                        const isExistingImage = index < editPreviewUrls.length - editSelectedFiles.length;
-                        return (
-                          <div key={index} className="col-6 col-md-4">
-                            <div className="position-relative">
-                              <img
-                                src={url}
-                                alt={`이미지 ${index + 1}`}
-                                className="img-fluid rounded border"
-                                style={{ 
-                                  width: '100%', 
-                                  height: '150px', 
-                                  objectFit: 'cover',
-                                  cursor: 'pointer'
-                                }}
-                                onClick={() => setEditEditingImageIndex(index)}
-                              />
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEditImageRemove(index);
-                                }}
-                                disabled={updatingPhoto || (isExistingImage && editPreviewUrls.length - editSelectedFiles.length <= 1)}
-                                title="삭제"
-                              >
-                                <IoTrashOutline size={14} />
-                              </button>
-                              {isExistingImage && (
-                                <span className="badge bg-info position-absolute bottom-0 start-0 m-1">기존</span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-                <div className="mb-3">
-                  <label className="form-label">제목</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    placeholder="사진 제목"
-                    disabled={updatingPhoto}
-                  />
-                </div>
-                {editingPhoto?.templateId && showEditTemplateFields && (
-                  <div className="mb-3">
-                    <label className="form-label">템플릿 필드</label>
-                    {templates.find(t => t.templateId === editingPhoto.templateId)?.fields
-                      .sort((a, b) => (a.order || 0) - (b.order || 0))
-                      .map((field, index) => (
-                      <div key={index} className="mb-2">
-                        <label className="form-label small">{field.label}{field.required && <span className="text-danger">*</span>}</label>
-                        <TemplateFieldInput
-                          field={field}
-                          value={editTemplateFieldValues[field.label] ?? (field.type === 'checkbox' ? [] : '')}
-                          onChange={(value) => setEditTemplateFieldValues(prev => ({ ...prev, [field.label]: value }))}
-                          disabled={updatingPhoto}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="mb-3">
-                  <label className="form-label">내용</label>
-                  <CKEditorComponent
-                    value={editContent}
-                    onChange={setEditContent}
-                    disabled={updatingPhoto}
-                    placeholder="내용을 입력하세요..."
-                  />
-                </div>
-              </div>
-              <div className="modal-footer border-0 pt-0">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setShowEditModal(false)}
-                  disabled={updatingPhoto}
-                >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleUpdatePhoto}
-                  disabled={updatingPhoto}
-                >
-                  {updatingPhoto ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" />
-                      수정 중...
-                    </>
-                  ) : (
-                    '수정'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 이미지 편집 모달 (업로드용) */}
-      {editingImageIndex !== null && previewUrls[editingImageIndex] && (
-        <ImageEditor
-          imageUrl={previewUrls[editingImageIndex]}
-          onSave={(editedFile) => handleImageEditSave(editingImageIndex, editedFile)}
-          onCancel={() => setEditingImageIndex(null)}
-        />
-      )}
-
-      {/* 이미지 편집 모달 (수정용) */}
-      {editEditingImageIndex !== null && editPreviewUrls[editEditingImageIndex] && (
-        <ImageEditor
-          imageUrl={editPreviewUrls[editEditingImageIndex]}
-          onSave={(editedFile) => handleEditImageEditSave(editEditingImageIndex, editedFile)}
-          onCancel={() => setEditEditingImageIndex(null)}
-        />
-      )}
-    </div>
+    </SubPageFrame>
   );
 }
 
 export default function AdminPhotosPage() {
   return (
-    <Suspense fallback={
-      <div className="d-flex min-vh-100 align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
-            <span className="visually-hidden">로딩 중...</span>
-          </div>
-          <p className="text-muted">로딩 중...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<OhgoPageLoading />}>
       <AdminPhotosContent />
     </Suspense>
   );

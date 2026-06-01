@@ -7,8 +7,10 @@
   --foreground: #1A1D1F;
   --font-urbanist: 'Urbanist', system-ui, -apple-system, sans-serif;
   --color-primary: #1B6FF5;
-  --safe-area-top: env(safe-area-inset-top, 0px);
-  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --ohgo-tab-bar-height: 60px;
+  --ohgo-page-header-height: 56px;
+  /* fixed 헤더(spacer) 아래 콘텐츠 상단 여백 — 예전 container 80px − 헤더 56px */
+  --ohgo-page-content-padding-top: 24px;
 }
 
 @theme inline {
@@ -33,34 +35,707 @@ body {
   padding-bottom: 0;
 }
 
-/* Expo WebView Safe Area */
-html[data-native-app="true"] body {
-  padding-top: var(--safe-area-top);
-  padding-bottom: calc(var(--safe-area-bottom) + 77px);
-}
-
-html[data-native-app="true"] body[data-has-bottom-tab="true"] {
-  padding-bottom: calc(var(--safe-area-bottom) + 77px);
-}
-
-html[data-native-app="true"] body[data-page="login"] {
-  padding-top: var(--safe-area-top);
-  padding-bottom: var(--safe-area-bottom);
-}
-
-/* PageHeader가 fixed이므로 body에 padding-top 추가 */
 body[data-has-page-header="true"] {
-  padding-top: 56px;
+  padding-top: 0;
 }
 
-/* 하단 탭 바가 있을 때 페이지 하단에 padding 추가 */
-/* 하단 탭 바는 fixed이므로 콘텐츠가 가려지지 않도록 padding 추가 */
+/* 버튼·링크 클릭/포커스 시 검은 테두리·Bootstrap focus ring 제거 */
+a,
+button,
+.btn,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+a:focus,
+a:active,
+a:focus-visible,
+button:focus,
+button:active,
+button:focus-visible,
+.btn:focus,
+.btn:active,
+.btn:focus-visible,
+.btn.active:focus,
+.btn.active:focus-visible,
+[role="button"]:focus,
+[role="button"]:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Bootstrap .btn 기본 1px 테두리 — 포커스 시 검은 변 방지 (outline/색상 버튼은 유지) */
+.btn:not([class*="btn-outline-"]):not(.btn-primary):not(.btn-secondary):not(.btn-success):not(.btn-danger):not(.btn-warning):not(.btn-info):not(.btn-light):not(.btn-dark):not(.btn-link) {
+  --bs-btn-border-width: 0;
+  --bs-btn-focus-box-shadow: none;
+  border: none !important;
+}
+
+.btn:not([class*="btn-outline-"]):not(.btn-primary):not(.btn-secondary):not(.btn-success):not(.btn-danger):not(.btn-warning):not(.btn-info):not(.btn-light):not(.btn-dark):not(.btn-link):focus,
+.btn:not([class*="btn-outline-"]):not(.btn-primary):not(.btn-secondary):not(.btn-success):not(.btn-danger):not(.btn-warning):not(.btn-info):not(.btn-light):not(.btn-dark):not(.btn-link):active,
+.btn:not([class*="btn-outline-"]):not(.btn-primary):not(.btn-secondary):not(.btn-success):not(.btn-danger):not(.btn-warning):not(.btn-info):not(.btn-light):not(.btn-dark):not(.btn-link):focus-visible {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* 서브페이지 상단 바: 고정, 뒤로가기·타이틀·마이페이지 */
+.ohgo-page-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background-color: #ffffff;
+  border-bottom: 1px solid #efefef;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+
+.ohgo-page-header__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--ohgo-page-header-height);
+}
+
+.ohgo-page-header__side {
+  display: flex;
+  align-items: center;
+  min-width: 36px;
+}
+
+.ohgo-page-header__side--end {
+  justify-content: flex-end;
+}
+
+.ohgo-page-header-spacer {
+  height: var(--ohgo-page-header-height);
+  flex-shrink: 0;
+}
+
+.ohgo-page-header__icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: #f7f8fa;
+  color: #1a1d1f;
+  flex-shrink: 0;
+}
+
+.ohgo-page-header__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0 8px;
+  font-size: 17px;
+  font-weight: 600;
+  color: #1a1d1f;
+  font-family: var(--font-urbanist), system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  text-align: center;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ohgo-page-header__title-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.ohgo-subpage {
+  background-color: #f7f8fa;
+  font-family: var(--font-urbanist), 'Urbanist', sans-serif;
+}
+
+/* 포인트몰 — 잔액 카드 + 구매 내역 (좌측 포인트 / 우측 버튼, 줄바꿈·겹침 방지) */
+.point-mall-balance {
+  background: linear-gradient(135deg, #1b6ff5 0%, #5b8def 100%);
+  border-radius: 14px;
+  color: #fff;
+  box-shadow: 0 3px 12px rgba(27, 111, 245, 0.22);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.point-mall-balance__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.point-mall-balance__points {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.point-mall-balance__label {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.9;
+  margin-bottom: 4px;
+}
+
+.point-mall-balance__total {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+  margin-bottom: 6px;
+  word-break: break-all;
+}
+
+.point-mall-balance__breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 11px;
+  opacity: 0.92;
+}
+
+.point-mall-balance__orders-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.28);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
+}
+
+.point-mall-balance__orders-btn:active {
+  background: rgba(255, 255, 255, 0.38);
+}
+
+@media (max-width: 360px) {
+  .point-mall-balance__total {
+    font-size: 22px;
+  }
+
+  .point-mall-balance__orders-btn {
+    font-size: 12px;
+    padding: 9px 10px;
+    gap: 4px;
+  }
+
+  .point-mall-balance__orders-btn span {
+    letter-spacing: -0.02em;
+  }
+}
+
+@media (max-width: 320px) {
+  .point-mall-balance__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .point-mall-balance__orders-btn {
+    width: 100%;
+    margin-top: 4px;
+  }
+}
+
+/* 줄무늬 리스트 — 회원 관리 등 행 구분 */
+.ohgo-subpage .ohgo-list-stripe .ohgo-list-row {
+  border: none;
+  border-radius: 0;
+  transition: background-color 0.12s ease;
+}
+
+.ohgo-subpage .ohgo-list-stripe .ohgo-list-row:nth-child(odd) {
+  background-color: #ffffff;
+}
+
+.ohgo-subpage .ohgo-list-stripe .ohgo-list-row:nth-child(even) {
+  background-color: #f9fafb;
+}
+
+.ohgo-subpage .ohgo-list-stripe .ohgo-list-row:active {
+  background-color: #f2f3f5 !important;
+}
+
+/* 고정 높이 리스트 행 — 회원 관리 등 */
+.ohgo-subpage .ohgo-list-stripe.ohgo-list-fixed .ohgo-list-row {
+  height: 74px;
+  min-height: 74px;
+  max-height: 74px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.ohgo-subpage .ohgo-list-stripe.ohgo-list-fixed .ohgo-list-row-inner {
+  width: 100%;
+  align-items: center;
+}
+
+.ohgo-subpage .ohgo-member-row-content {
+  align-items: center;
+}
+
+.ohgo-subpage .ohgo-member-stat-group {
+  align-self: center;
+}
+
+.ohgo-subpage .ohgo-member-stat-group > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+
+.ohgo-subpage .ohgo-member-row-lines {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 50px;
+}
+
+.ohgo-subpage .ohgo-member-row-line {
+  min-height: 18px;
+  line-height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ohgo-subpage .ohgo-member-row-line--meta {
+  min-height: 16px;
+  line-height: 16px;
+  font-size: 12px;
+}
+
+.ohgo-subpage .ohgo-member-row-line--foot {
+  min-height: 14px;
+  line-height: 14px;
+  font-size: 11px;
+}
+
+.ohgo-subpage .ohgo-member-row-line--foot:empty {
+  visibility: hidden;
+}
+
+/* 공통 모달 (OhgoModal) */
+.ohgo-modal-backdrop {
+  background-color: rgba(26, 29, 31, 0.45) !important;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.ohgo-modal__content {
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+
+.ohgo-modal__header {
+  padding: 16px 16px 8px;
+  background-color: #ffffff;
+}
+
+.ohgo-modal__title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #1a1d1f;
+  font-family: var(--font-urbanist), 'Urbanist', sans-serif;
+}
+
+.ohgo-modal__body {
+  padding: 4px 16px 16px;
+}
+
+.ohgo-modal__body--flush {
+  padding: 0;
+}
+
+.ohgo-modal .modal-footer.ohgo-modal__footer {
+  padding: 0 16px 16px;
+  display: grid !important;
+  gap: 8px;
+  justify-content: stretch !important;
+  flex-wrap: nowrap;
+}
+
+.ohgo-modal__btn {
+  width: 100% !important;
+  font-family: var(--font-urbanist), 'Urbanist', sans-serif;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  border-radius: 14px !important;
+  padding: 13px !important;
+}
+
+.ohgo-modal__btn--primary {
+  background-color: #1b6ff5 !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(27, 111, 245, 0.3) !important;
+}
+
+.ohgo-modal__btn--secondary {
+  background-color: #ffffff !important;
+  color: #1a1d1f !important;
+  border: 1.5px solid #c8cdd5 !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08) !important;
+}
+
+.ohgo-modal__btn--success {
+  background-color: #34c759 !important;
+  color: #ffffff !important;
+  border: 1.5px solid #2da44e !important;
+  box-shadow: 0 4px 12px rgba(52, 199, 89, 0.28) !important;
+}
+
+.ohgo-modal__btn--danger {
+  background-color: #ff3b30 !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(255, 59, 48, 0.25) !important;
+}
+
+.ohgo-modal__btn--warning {
+  background-color: #ff9500 !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(255, 149, 0, 0.28) !important;
+}
+
+.ohgo-modal__footer.ohgo-modal__footer--row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ohgo-modal__footer.ohgo-modal__footer--row .btn {
+  width: auto;
+  flex: 1 1 0;
+  min-width: 72px;
+}
+
+.ohgo-modal__field {
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background-color: #f7f8fa;
+}
+
+.ohgo-modal__field:last-child {
+  margin-bottom: 0;
+}
+
+.ohgo-modal__field-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6f767e;
+  font-family: var(--font-urbanist), 'Urbanist', sans-serif;
+  margin-bottom: 4px;
+}
+
+.ohgo-modal__field-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1d1f;
+  font-family: var(--font-urbanist), 'Urbanist', sans-serif;
+  line-height: 1.35;
+}
+
+.ohgo-modal__text {
+  font-size: 15px;
+  line-height: 1.5;
+  color: #1a1d1f;
+  font-family: var(--font-urbanist), 'Urbanist', sans-serif;
+  text-align: center;
+  white-space: pre-line;
+}
+
+/* 서브페이지 카드 — 메인·마이페이지와 동일 (border 없음, 그림자) */
+.ohgo-subpage .ohgo-card,
+.ohgo-subpage .card {
+  background-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: none !important;
+}
+
+.ohgo-subpage .card .card-body {
+  padding: 1rem;
+}
+
+.ohgo-subpage .card-header {
+  background-color: transparent;
+  border-bottom: 1px solid #f7f8fa;
+  border-radius: 16px 16px 0 0;
+  padding: 1rem 1rem 0.75rem;
+  font-family: var(--font-urbanist), 'Urbanist', sans-serif;
+}
+
+.ohgo-subpage .card-header.bg-light {
+  background-color: #f7f8fa !important;
+  border-bottom: 1px solid #f7f8fa;
+}
+
+.ohgo-subpage .card-header.bg-primary {
+  background: linear-gradient(135deg, #1b6ff5 0%, #5b8def 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 16px 16px 0 0;
+}
+
+.ohgo-subpage .ohgo-profile-banner {
+  background: linear-gradient(135deg, #1b6ff5 0%, #5b8def 100%);
+  color: #ffffff;
+  padding: 1rem 1.125rem;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: none;
+}
+
+.ohgo-subpage .ohgo-section-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #1a1d1f;
+  font-family: var(--font-urbanist), 'Urbanist', sans-serif;
+}
+
+.ohgo-subpage .form-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6f767e;
+  font-family: var(--font-urbanist), 'Urbanist', sans-serif;
+  margin-bottom: 6px;
+}
+
+.ohgo-subpage .form-control,
+.ohgo-subpage .form-select {
+  border-radius: 10px;
+  border: 2px solid #efefef;
+  font-family: var(--font-urbanist), 'Urbanist', sans-serif;
+  font-size: 14px;
+  color: #1a1d1f;
+}
+
+/* Bootstrap 화살표 + 브라우저 기본 화살표 중복 방지 */
+.ohgo-subpage .form-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 2.25rem;
+  cursor: pointer;
+}
+
+.ohgo-subpage .form-control:focus,
+.ohgo-subpage .form-select:focus {
+  border-color: #1b6ff5;
+  box-shadow: 0 0 0 3px rgba(27, 111, 245, 0.12);
+}
+
+.ohgo-subpage .modal-content {
+  border: none !important;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.ohgo-subpage .modal-header {
+  border-bottom: 1px solid #f7f8fa;
+  background-color: #ffffff;
+}
+
+.ohgo-subpage .modal-header.border-0[style*='linear-gradient'] {
+  border-bottom: none !important;
+}
+
+.ohgo-subpage .modal-footer {
+  border-top: 1px solid #f7f8fa;
+}
+
+.ohgo-subpage .btn-primary {
+  background-color: #1b6ff5;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(27, 111, 245, 0.25);
+}
+
+.ohgo-subpage .btn-primary:hover,
+.ohgo-subpage .btn-primary:focus {
+  background-color: #1557c7;
+  border: none;
+}
+
+.ohgo-subpage .btn-secondary {
+  background-color: #f7f8fa;
+  border: none;
+  color: #1a1d1f;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.ohgo-subpage .position-fixed.bottom-0.bg-white.border-top {
+  border-top: 1px solid #efefef !important;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+}
+
+/* 필터·세그먼트 버튼 */
+.ohgo-subpage .ohgo-filter-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ohgo-subpage .ohgo-filter-group .btn {
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  padding: 8px 14px;
+}
+
+.ohgo-subpage .ohgo-filter-group .btn-outline-primary,
+.ohgo-subpage .ohgo-filter-group .btn-outline-success,
+.ohgo-subpage .ohgo-filter-group .btn-outline-warning,
+.ohgo-subpage .ohgo-filter-group .btn-outline-danger,
+.ohgo-subpage .ohgo-filter-group .btn-outline-secondary {
+  background-color: #f7f8fa;
+  color: #6f767e;
+}
+
+.ohgo-subpage .ohgo-filter-group .btn-primary,
+.ohgo-subpage .ohgo-filter-group .btn-success,
+.ohgo-subpage .ohgo-filter-group .btn-warning,
+.ohgo-subpage .ohgo-filter-group .btn-danger {
+  box-shadow: none;
+}
+
+/* PageHeader fixed — 헤더 spacer 다음 본문 container 상단 여백 (예: padding-top: 80px 규칙 복구) */
+.ohgo-page-header-spacer + .container,
+.ohgo-subpage > .container {
+  padding-top: var(--ohgo-page-content-padding-top) !important;
+}
+
 body[data-has-bottom-tab="true"] {
-  padding-bottom: 77px;
+  padding-bottom: var(--ohgo-tab-bar-height);
 }
 
-/* 로그인 페이지에서는 padding 제거 */
 body[data-page="login"] {
   padding-top: 0;
   padding-bottom: 0;
+}
+
+/* 하단 탭 바 */
+#ohgo-bottom-tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  width: 100%;
+  height: var(--ohgo-tab-bar-height);
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  background-color: #ffffff;
+  border-top: 1px solid #efefef;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+#ohgo-bottom-tab-bar .ohgo-tab-bar__row {
+  height: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+}
+
+#ohgo-bottom-tab-bar .ohgo-tab-bar__item {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+  color: #6f767e;
+  font-family: var(--font-urbanist);
+}
+
+#ohgo-bottom-tab-bar .ohgo-tab-bar__item--active {
+  color: #1b6ff5;
+}
+
+#ohgo-bottom-tab-bar .ohgo-tab-bar__label {
+  font-size: 11px;
+  line-height: 1.15;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
+}
+
+/* 미니게임 전체화면 닫기 — 상단 점수·타이머와 겹치지 않음 */
+.ohgo-game-close-btn {
+  position: fixed;
+  z-index: 10001;
+  bottom: calc(var(--ohgo-tab-bar-height) + env(safe-area-inset-bottom, 0px) + 12px);
+  right: max(12px, env(safe-area-inset-right, 0px) + 12px);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background-color: rgba(26, 29, 31, 0.72);
+  color: #ffffff;
+  font-size: 20px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Tailwind/Bootstrap 이후 최종 오버라이드 — 링크·리스트 버튼 포커스 테두리 */
+html body a:focus,
+html body a:active,
+html body a:focus-visible,
+html body button:not(.ohgo-modal__btn):focus,
+html body button:not(.ohgo-modal__btn):active,
+html body button:not(.ohgo-modal__btn):focus-visible,
+html body .btn:not(.ohgo-modal__btn):focus,
+html body .btn:not(.ohgo-modal__btn):active,
+html body .btn:not(.ohgo-modal__btn):focus-visible {
+  outline: 0 !important;
+  outline-width: 0 !important;
+  box-shadow: none !important;
+}
+
+html body .btn:not(.ohgo-modal__btn):not([class*="btn-outline-"]):not(.btn-primary):not(.btn-secondary):not(.btn-success):not(.btn-danger):not(.btn-warning):not(.btn-info):not(.btn-light):not(.btn-dark):not(.btn-link),
+html body .btn:not(.ohgo-modal__btn):not([class*="btn-outline-"]):not(.btn-primary):not(.btn-secondary):not(.btn-success):not(.btn-danger):not(.btn-warning):not(.btn-info):not(.btn-light):not(.btn-dark):not(.btn-link):focus,
+html body .btn:not(.ohgo-modal__btn):not([class*="btn-outline-"]):not(.btn-primary):not(.btn-secondary):not(.btn-success):not(.btn-danger):not(.btn-warning):not(.btn-info):not(.btn-light):not(.btn-dark):not(.btn-link):active,
+html body .btn:not(.ohgo-modal__btn):not([class*="btn-outline-"]):not(.btn-primary):not(.btn-secondary):not(.btn-success):not(.btn-danger):not(.btn-warning):not(.btn-info):not(.btn-light):not(.btn-dark):not(.btn-link):focus-visible {
+  border: 0 !important;
+  border-width: 0 !important;
+  border-color: transparent !important;
 }

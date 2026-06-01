@@ -59,13 +59,8 @@ export function initNativeBridge(): void {
   document.addEventListener('message', onMessage as EventListener);
 
   window.addEventListener('ohgo-native-ready', () => {
-    document.documentElement.setAttribute('data-native-app', 'true');
     handlers.forEach((h) => h({ type: 'NATIVE_READY' }));
   });
-
-  if (isNativeApp()) {
-    document.documentElement.setAttribute('data-native-app', 'true');
-  }
 }
 
 export async function requestPushTokenFromNative(): Promise<string | null> {
