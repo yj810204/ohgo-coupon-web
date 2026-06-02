@@ -41,29 +41,51 @@ export const OHGO_INPUT: CSSProperties = {
   color: '#1A1D1F',
 };
 
-export const OHGO_PRIMARY_BTN: CSSProperties = {
-  backgroundColor: '#1B6FF5',
-  color: '#fff',
-  borderRadius: 14,
-  padding: '13px',
+/**
+ * 확인·저장·OK 공통 — Travelia OK Button (Figma node 56517:32683)
+ * @see https://www.figma.com/design/g1kWumlVq6GAwpoIvU1229/...?node-id=56517-32683
+ */
+export const OHGO_CONFIRM_BTN_CLASS = 'ohgo-btn-confirm';
+
+export const OHGO_CONFIRM_BTN: CSSProperties = {
+  backgroundColor: '#237FFF',
+  color: '#FFFFFF',
+  borderRadius: 1000,
+  padding: '16px',
   border: 'none',
   fontFamily: OHGO_FONT,
-  fontSize: 15,
-  fontWeight: 600,
-  boxShadow: '0 4px 12px rgba(27,111,245,0.3)',
+  fontSize: 16,
+  fontWeight: 700,
+  letterSpacing: '0.2px',
+  lineHeight: 1.6,
+  boxShadow: 'none',
 };
 
-export const OHGO_SECONDARY_BTN: CSSProperties = {
-  backgroundColor: '#FFFFFF',
-  color: '#1A1D1F',
-  borderRadius: 14,
-  padding: '13px',
-  border: '1.5px solid #D0D5DD',
+/** @deprecated OHGO_CONFIRM_BTN 사용 */
+export const OHGO_PRIMARY_BTN: CSSProperties = OHGO_CONFIRM_BTN;
+
+/**
+ * 닫기·취소 공통 — Travelia UI Kit (Figma node 56517:32682)
+ * @see https://www.figma.com/design/g1kWumlVq6GAwpoIvU1229/...?node-id=56517-32682
+ */
+export const OHGO_DISMISS_BTN_CLASS = 'ohgo-btn-dismiss';
+
+export const OHGO_DISMISS_BTN: CSSProperties = {
+  backgroundColor: '#EDF5FF',
+  color: '#237FFF',
+  borderRadius: 1000,
+  padding: '16px',
+  border: 'none',
   fontFamily: OHGO_FONT,
-  fontSize: 15,
-  fontWeight: 600,
-  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+  fontSize: 16,
+  fontWeight: 700,
+  letterSpacing: '0.2px',
+  lineHeight: 1.6,
+  boxShadow: 'none',
 };
+
+/** @deprecated OHGO_DISMISS_BTN 사용 */
+export const OHGO_SECONDARY_BTN: CSSProperties = OHGO_DISMISS_BTN;
 
 
 export function OhgoPageLoading() {

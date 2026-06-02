@@ -21,8 +21,10 @@ import {
   OHGO_CARD,
   OHGO_FONT,
   OHGO_INPUT,
+  OHGO_CONFIRM_BTN_CLASS,
   OHGO_PRIMARY_BTN,
-  OHGO_SECONDARY_BTN,
+  OHGO_DISMISS_BTN,
+  OHGO_DISMISS_BTN_CLASS,
   OhgoPageLoading,
 } from '@/lib/page-styles';
 import EmptyState from '@/components/EmptyState';
@@ -82,8 +84,8 @@ function FormActions({
     >
       <button
         type="button"
-        className="btn w-100 fw-semibold"
-        style={OHGO_SECONDARY_BTN}
+        className={`btn w-100 fw-semibold ${OHGO_DISMISS_BTN_CLASS}`}
+        style={OHGO_DISMISS_BTN}
         onClick={onCancel}
         disabled={loading}
       >
@@ -91,7 +93,7 @@ function FormActions({
       </button>
       <button
         type="button"
-        className="btn w-100 fw-semibold"
+        className={`btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--primary ${OHGO_CONFIRM_BTN_CLASS}`}
         style={{
           ...OHGO_PRIMARY_BTN,
           opacity: disabled || loading ? 0.65 : 1,
@@ -924,7 +926,7 @@ function AdminPhotosContent() {
       <button
         type="button"
         onClick={() => router.push('/admin-photos?view=upload')}
-        className="btn w-100 d-flex align-items-center justify-content-center gap-2 fw-semibold ohgo-modal__btn ohgo-modal__btn--primary mb-3"
+        className={`btn w-100 d-flex align-items-center justify-content-center gap-2 fw-semibold ohgo-modal__btn ohgo-modal__btn--primary ${OHGO_CONFIRM_BTN_CLASS} mb-3`}
         style={OHGO_PRIMARY_BTN}
       >
         <IoAddOutline size={20} aria-hidden />

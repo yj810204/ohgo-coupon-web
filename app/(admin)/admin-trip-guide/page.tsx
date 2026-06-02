@@ -9,7 +9,7 @@ import { IoAddOutline, IoTrashOutline, IoPencilOutline, IoBoatOutline, IoCopyOut
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
-import { OHGO_INPUT, OHGO_PRIMARY_BTN, OHGO_SECONDARY_BTN } from '@/lib/page-styles';
+import { OHGO_CONFIRM_BTN_CLASS, OHGO_INPUT, OHGO_PRIMARY_BTN, OHGO_SECONDARY_BTN } from '@/lib/page-styles';
 
 const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
 const CARD: React.CSSProperties = { backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: 'none' };
@@ -370,7 +370,7 @@ export default function AdminTripGuidePage() {
                         </button>
                         <button
                           type="button"
-                          className="btn fw-semibold w-100 d-flex align-items-center justify-content-center gap-2"
+                          className={`btn fw-semibold w-100 d-flex align-items-center justify-content-center gap-2 ${OHGO_CONFIRM_BTN_CLASS}`}
                           onClick={() => void handleCopy(trip)}
                           disabled={copying || !copyStartDate || !copyEndDate || copyDateCount === 0}
                           style={{ ...OHGO_PRIMARY_BTN, minWidth: 0 }}

@@ -33,7 +33,10 @@ import {
   OHGO_CARD,
   OHGO_FONT,
   OHGO_INPUT,
+  OHGO_CONFIRM_BTN_CLASS,
   OHGO_PRIMARY_BTN,
+  OHGO_DISMISS_BTN,
+  OHGO_DISMISS_BTN_CLASS,
   OHGO_SECONDARY_BTN,
   OhgoPageLoading,
 } from '@/lib/page-styles';
@@ -103,12 +106,18 @@ function FormActions({
 }) {
   return (
     <div className="d-grid gap-2 mt-2" style={{ gridTemplateColumns: '1fr 1fr' }}>
-      <button type="button" className="btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--secondary" style={OHGO_SECONDARY_BTN} onClick={onCancel} disabled={loading}>
+      <button
+        type="button"
+        className={`btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--secondary ${OHGO_DISMISS_BTN_CLASS}`}
+        style={OHGO_DISMISS_BTN}
+        onClick={onCancel}
+        disabled={loading}
+      >
         취소
       </button>
       <button
         type="button"
-        className="btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--primary"
+        className={`btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--primary ${OHGO_CONFIRM_BTN_CLASS}`}
         style={{ ...OHGO_PRIMARY_BTN, opacity: disabled || loading ? 0.65 : 1 }}
         onClick={onSubmit}
         disabled={disabled || loading}
@@ -1359,7 +1368,7 @@ function AdminCommunityContent() {
         <p style={HINT}>댓글 작성 시 지급되는 포인트와 일일 상한입니다.</p>
         <button
           type="button"
-          className="btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--primary mt-2"
+          className={`btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--primary ${OHGO_CONFIRM_BTN_CLASS} mt-2`}
           style={{ ...OHGO_PRIMARY_BTN, opacity: savingSettings ? 0.65 : 1 }}
           onClick={handleSaveSettings}
           disabled={savingSettings}

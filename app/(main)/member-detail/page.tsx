@@ -11,7 +11,7 @@ import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
 import MemberListAvatar from '@/components/MemberListAvatar';
 import { getMemberProfileImageUrl } from '@/lib/member-profile';
-import { OHGO_CARD, OHGO_FONT, OHGO_PRIMARY_BTN, OhgoPageLoading } from '@/lib/page-styles';
+import { OHGO_CARD, OHGO_CONFIRM_BTN_CLASS, OHGO_FONT, OHGO_PRIMARY_BTN, OhgoPageLoading } from '@/lib/page-styles';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import type { IconType } from 'react-icons';
 import { 
@@ -487,7 +487,7 @@ function MemberDetailContent() {
           <div className="col-6">
             <button
               type="button"
-              className="btn w-100 d-flex align-items-center justify-content-center gap-2"
+              className={`btn w-100 d-flex align-items-center justify-content-center gap-2 ${OHGO_CONFIRM_BTN_CLASS}`}
               onClick={handleAddStamp}
               disabled={isLoadingOne || isLoadingFive}
               style={OHGO_PRIMARY_BTN}

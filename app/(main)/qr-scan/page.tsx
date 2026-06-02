@@ -10,7 +10,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { isNativeApp } from '@/lib/native-bridge';
 import { IoCameraOutline, IoCheckmarkCircleOutline, IoCloseCircleOutline } from 'react-icons/io5';
 import OhgoModal, { OhgoModalButton, OhgoModalText } from '@/components/OhgoModal';
-import { OHGO_PRIMARY_BTN, OHGO_SECONDARY_BTN } from '@/lib/page-styles';
+import { OHGO_CONFIRM_BTN, OHGO_CONFIRM_BTN_CLASS, OHGO_DISMISS_BTN, OHGO_DISMISS_BTN_CLASS } from '@/lib/page-styles';
 
 /** 네이티브로 QR 스캔 요청 */
 function requestNativeQRScan() {
@@ -387,7 +387,7 @@ function QRScanPageContent() {
             >
               <button
                 type="button"
-                className="btn w-100 fw-semibold"
+                className={`btn w-100 fw-semibold ${OHGO_CONFIRM_BTN_CLASS}`}
                 onClick={() => {
                   setScanCompleted(false);
                   setScanning(false);
@@ -395,15 +395,15 @@ function QRScanPageContent() {
                   setNativeWaiting(true);
                   requestNativeQRScan();
                 }}
-                style={OHGO_PRIMARY_BTN}
+                style={OHGO_CONFIRM_BTN}
               >
                 다시 스캔하기
               </button>
               <button
                 type="button"
-                className="btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--secondary"
+                className={`btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--secondary ${OHGO_DISMISS_BTN_CLASS}`}
                 onClick={() => router.back()}
-                style={OHGO_SECONDARY_BTN}
+                style={OHGO_DISMISS_BTN}
               >
                 돌아가기
               </button>
@@ -634,8 +634,8 @@ function QRScanPageContent() {
               <div className="d-flex flex-column gap-2">
                 <button
                   onClick={handleRetryCamera}
-                  className="btn btn-primary"
-                  style={{ borderRadius: '12px', padding: '12px 24px', fontSize: '1rem', fontWeight: '600', border: 'none' }}
+                  className={`btn btn-primary ${OHGO_CONFIRM_BTN_CLASS}`}
+                  style={OHGO_CONFIRM_BTN}
                 >
                   권한 다시 요청
                 </button>

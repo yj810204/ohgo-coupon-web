@@ -21,6 +21,7 @@ import {
   OHGO_CARD,
   OHGO_FONT,
   OHGO_INPUT,
+  OHGO_CONFIRM_BTN_CLASS,
   OHGO_PRIMARY_BTN,
   OHGO_SECONDARY_BTN,
   OhgoPageLoading,
@@ -593,7 +594,7 @@ export default function AdminGameSettingsPage() {
 
       <button
         type="button"
-        className="btn w-100 fw-semibold mb-3"
+        className={`btn w-100 fw-semibold mb-3 ${OHGO_CONFIRM_BTN_CLASS}`}
         style={{ ...OHGO_PRIMARY_BTN, opacity: saving ? 0.65 : 1 }}
         onClick={() => void handleSaveGlobalSettings()}
         disabled={saving}

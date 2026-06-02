@@ -6,8 +6,9 @@
   --background: #F7F8FA;
   --foreground: #1A1D1F;
   --font-urbanist: 'Urbanist', system-ui, -apple-system, sans-serif;
-  --color-primary: #1B6FF5;
+  --color-primary: #237fff;
   --ohgo-tab-bar-height: 60px;
+  --ohgo-modal-zindex: 20000;
   --ohgo-page-header-height: 56px;
   /* fixed 헤더(spacer) 아래 콘텐츠 상단 여백 — 예전 container 80px − 헤더 56px */
   --ohgo-page-content-padding-top: 24px;
@@ -150,6 +151,33 @@ button:focus-visible,
 .ohgo-subpage {
   background-color: #f7f8fa;
   font-family: var(--font-urbanist), 'Urbanist', sans-serif;
+}
+
+/* 출조 안내 — 지난 일정 */
+.trip-schedule-card--past {
+  background-color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+}
+
+.trip-schedule-card--past .trip-schedule-card__icon-wrap {
+  background-color: #e8eaed !important;
+}
+
+.trip-schedule-card--past .trip-schedule-card__title {
+  color: #6f767e !important;
+}
+
+.trip-schedule-card--past .trip-schedule-card__meta {
+  color: #9a9fa5 !important;
+}
+
+.trip-schedule-card--past .trip-schedule-card__price {
+  background-color: #e8eaed !important;
+  color: #6f767e !important;
+}
+
+.trip-schedule-card--past .trip-schedule-card__info-icon {
+  color: #c5c8cd !important;
 }
 
 /* 포인트몰 — 잔액 카드 + 구매 내역 (좌측 포인트 / 우측 버튼, 줄바꿈·겹침 방지) */
@@ -329,22 +357,89 @@ button:focus-visible,
   visibility: hidden;
 }
 
-/* 공통 모달 (OhgoModal) */
-.ohgo-modal-backdrop {
-  background-color: rgba(26, 29, 31, 0.45) !important;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+/* 공통 모달 (OhgoModal) — Travelia bottom sheet */
+@keyframes ohgo-modal-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
-.ohgo-modal__content {
-  border-radius: 20px;
+/* Bootstrap .modal(1055)보다 하단 탭(10000) 위 — body 포털 + 고정 z-index */
+.modal.show.ohgo-modal-backdrop.ohgo-modal--sheet {
+  --bs-modal-zindex: var(--ohgo-modal-zindex);
+  --bs-modal-bg: transparent;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: var(--ohgo-modal-zindex) !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background-color: rgba(26, 29, 31, 0.5) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.ohgo-modal-dialog {
+  position: relative;
+  z-index: 1;
+  margin: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  animation: ohgo-modal-slide-up 0.28s ease-out;
+}
+
+.ohgo-modal.ohgo-modal__content {
+  position: relative;
+  z-index: 2;
+  border-radius: 28px 28px 0 0 !important;
   overflow: hidden;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.12);
+  max-height: min(88vh, 720px);
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+}
+
+.ohgo-modal-dialog--lg .ohgo-modal__content {
+  max-height: min(92vh, 880px);
+}
+
+.ohgo-modal-dialog--scroll .ohgo-modal__body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ohgo-modal__handle {
+  flex-shrink: 0;
+  width: 40px;
+  height: 4px;
+  margin: 10px auto 4px;
+  border-radius: 100px;
+  background-color: #e0e4ea;
 }
 
 .ohgo-modal__header {
-  padding: 16px 16px 8px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 4px 20px 14px;
   background-color: #ffffff;
+  border-bottom: 1px solid #efefef;
+}
+
+.ohgo-modal__header .btn-close {
+  display: none !important;
 }
 
 .ohgo-modal__title {
@@ -352,22 +447,132 @@ button:focus-visible,
   font-weight: 700;
   color: #1a1d1f;
   font-family: var(--font-urbanist), 'Urbanist', sans-serif;
+  line-height: 1.35;
+  width: 100%;
+}
+
+.ohgo-modal__title--danger {
+  color: #ff5a5f;
+}
+
+.ohgo-modal__title--brand {
+  color: #237fff;
 }
 
 .ohgo-modal__body {
-  padding: 4px 16px 16px;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 16px 20px 20px;
+  overflow-y: auto;
 }
 
 .ohgo-modal__body--flush {
   padding: 0;
 }
 
+.ohgo-modal__info-card {
+  background-color: #f7f8fa;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.ohgo-modal__info-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.ohgo-modal__info-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #efefef;
+}
+
+.ohgo-modal__info-row:last-child {
+  border-bottom: none;
+}
+
+.ohgo-modal__info-row--date {
+  background-color: #237fff;
+  border-bottom: none;
+}
+
+.ohgo-modal__info-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.ohgo-modal__info-icon--brand {
+  width: 42px;
+  height: 42px;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.ohgo-modal__info-icon--muted {
+  width: 38px;
+  height: 38px;
+  background-color: #edf0f4;
+}
+
+.ohgo-modal__info-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ohgo-modal__info-label {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #9a9fa5;
+  font-family: var(--font-urbanist), 'Urbanist', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.ohgo-modal__info-row--date .ohgo-modal__info-label {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.ohgo-modal__info-value {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #1a1d1f;
+  font-family: var(--font-urbanist), 'Urbanist', sans-serif;
+}
+
+.ohgo-modal__info-row--date .ohgo-modal__info-value {
+  color: #ffffff;
+  font-size: 18px;
+}
+
 .ohgo-modal .modal-footer.ohgo-modal__footer {
-  padding: 0 16px 16px;
+  flex-shrink: 0;
+  padding: 0 20px calc(16px + env(safe-area-inset-bottom, 0px));
   display: grid !important;
-  gap: 8px;
+  gap: 10px;
   justify-content: stretch !important;
   flex-wrap: nowrap;
+  border-top: none !important;
+  margin-top: 0 !important;
+}
+
+.ohgo-modal__footer-actions {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.ohgo-modal__footer-actions .ohgo-modal__btn {
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto !important;
 }
 
 .ohgo-modal__btn {
@@ -379,18 +584,75 @@ button:focus-visible,
   padding: 13px !important;
 }
 
-.ohgo-modal__btn--primary {
-  background-color: #1b6ff5 !important;
-  color: #ffffff !important;
-  border: none !important;
-  box-shadow: 0 4px 12px rgba(27, 111, 245, 0.3) !important;
+.ohgo-modal__btn.ohgo-btn-dismiss,
+.ohgo-modal__btn.ohgo-modal__btn--secondary,
+.ohgo-modal__btn.ohgo-btn-confirm,
+.ohgo-modal__btn.ohgo-modal__btn--primary {
+  border-radius: 1000px !important;
+  padding: 16px !important;
 }
 
-.ohgo-modal__btn--secondary {
-  background-color: #ffffff !important;
-  color: #1a1d1f !important;
-  border: 1.5px solid #c8cdd5 !important;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08) !important;
+/* 확인·저장·OK — Travelia OK Button (Figma 56517:32683) */
+.ohgo-btn-confirm,
+.ohgo-modal__btn.ohgo-modal__btn--primary {
+  background-color: #237fff !important;
+  color: #ffffff !important;
+  border: none !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.2px !important;
+  line-height: 1.6 !important;
+  box-shadow: none !important;
+}
+
+.ohgo-btn-confirm:active,
+.ohgo-modal__btn.ohgo-modal__btn--primary:active {
+  background-color: #1a6fe6 !important;
+}
+
+.ohgo-btn-confirm.btn-sm {
+  padding: 10px 14px !important;
+  font-size: 13px !important;
+  border-radius: 1000px !important;
+}
+
+/* 닫기·취소 — Travelia Cancel Button (Figma 56517:32682) */
+.ohgo-btn-dismiss,
+.ohgo-modal__btn.ohgo-modal__btn--secondary {
+  background-color: #edf5ff !important;
+  color: #237fff !important;
+  border: none !important;
+  border-radius: 1000px !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.2px !important;
+  line-height: 1.6 !important;
+  padding: 16px !important;
+  box-shadow: none !important;
+}
+
+.ohgo-btn-dismiss:active,
+.ohgo-modal__btn.ohgo-modal__btn--secondary:active {
+  background-color: #dceaff !important;
+  color: #1a6fe6 !important;
+}
+
+.ohgo-modal__footer.ohgo-modal__footer--row {
+  display: flex !important;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.ohgo-modal__footer.ohgo-modal__footer--row > .ohgo-modal__btn,
+.ohgo-modal__footer.ohgo-modal__footer--row > .ohgo-modal__footer-actions {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.ohgo-modal__footer.ohgo-modal__footer--row .ohgo-modal__btn {
+  width: auto !important;
 }
 
 .ohgo-modal__btn--success {
@@ -412,18 +674,6 @@ button:focus-visible,
   color: #ffffff !important;
   border: none !important;
   box-shadow: 0 4px 12px rgba(255, 149, 0, 0.28) !important;
-}
-
-.ohgo-modal__footer.ohgo-modal__footer--row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.ohgo-modal__footer.ohgo-modal__footer--row .btn {
-  width: auto;
-  flex: 1 1 0;
-  min-width: 72px;
 }
 
 .ohgo-modal__field {
@@ -454,12 +704,24 @@ button:focus-visible,
 }
 
 .ohgo-modal__text {
-  font-size: 15px;
+  font-size: 16px;
+  font-weight: 700;
   line-height: 1.5;
   color: #1a1d1f;
   font-family: var(--font-urbanist), 'Urbanist', sans-serif;
   text-align: center;
   white-space: pre-line;
+}
+
+.ohgo-modal__text--muted {
+  font-size: 14px;
+  font-weight: 500;
+  color: #6f767e;
+  margin-top: 8px;
+}
+
+.ohgo-modal__body .ohgo-modal__footer-actions {
+  margin-top: 16px;
 }
 
 /* 서브페이지 카드 — 메인·마이페이지와 동일 (border 없음, 그림자) */
@@ -543,14 +805,14 @@ button:focus-visible,
   box-shadow: 0 0 0 3px rgba(27, 111, 245, 0.12);
 }
 
-.ohgo-subpage .modal-content {
+.ohgo-subpage .ohgo-modal .modal-content {
   border: none !important;
-  border-radius: 20px;
+  border-radius: 28px 28px 0 0 !important;
   overflow: hidden;
 }
 
-.ohgo-subpage .modal-header {
-  border-bottom: 1px solid #f7f8fa;
+.ohgo-subpage .ohgo-modal .modal-header {
+  border-bottom: 1px solid #efefef;
   background-color: #ffffff;
 }
 
@@ -562,26 +824,38 @@ button:focus-visible,
   border-top: 1px solid #f7f8fa;
 }
 
-.ohgo-subpage .btn-primary {
-  background-color: #1b6ff5;
-  border: none;
-  border-radius: 12px;
-  font-weight: 600;
-  box-shadow: 0 4px 12px rgba(27, 111, 245, 0.25);
+.ohgo-subpage .btn-primary:not(.ohgo-filter-group .btn-primary) {
+  background-color: #237fff !important;
+  border: none !important;
+  color: #ffffff !important;
+  border-radius: 1000px !important;
+  font-weight: 700 !important;
+  font-size: 16px !important;
+  letter-spacing: 0.2px !important;
+  line-height: 1.6 !important;
+  padding: 16px !important;
+  box-shadow: none !important;
 }
 
-.ohgo-subpage .btn-primary:hover,
-.ohgo-subpage .btn-primary:focus {
-  background-color: #1557c7;
-  border: none;
+.ohgo-subpage .btn-primary:not(.ohgo-filter-group .btn-primary):hover,
+.ohgo-subpage .btn-primary:not(.ohgo-filter-group .btn-primary):focus,
+.ohgo-subpage .btn-primary:not(.ohgo-filter-group .btn-primary):active {
+  background-color: #1a6fe6 !important;
+  border: none !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
 }
 
-.ohgo-subpage .btn-secondary {
-  background-color: #f7f8fa;
-  border: none;
-  color: #1a1d1f;
-  border-radius: 12px;
-  font-weight: 600;
+.ohgo-subpage .btn-secondary:not(.ohgo-filter-group .btn-secondary) {
+  background-color: #edf5ff !important;
+  border: none !important;
+  color: #237fff !important;
+  border-radius: 1000px !important;
+  font-weight: 700 !important;
+  font-size: 16px !important;
+  letter-spacing: 0.2px !important;
+  padding: 16px !important;
+  box-shadow: none !important;
 }
 
 .ohgo-subpage .position-fixed.bottom-0.bg-white.border-top {
@@ -641,7 +915,7 @@ body[data-page="login"] {
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 10000;
+  z-index: 10000; /* --ohgo-modal-zindex(20000) 미만 */
   width: 100%;
   height: var(--ohgo-tab-bar-height);
   margin: 0;

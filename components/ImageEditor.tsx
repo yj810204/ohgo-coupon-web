@@ -176,7 +176,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
         <div className="d-flex gap-2 mt-3">
           <button
             type="button"
-            className="btn btn-secondary flex-fill d-flex align-items-center justify-content-center gap-2"
+            className="btn btn-secondary ohgo-btn-dismiss flex-fill d-flex align-items-center justify-content-center gap-2 fw-semibold"
             onClick={onCancel}
           >
             <IoCloseOutline size={18} />
@@ -184,7 +184,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
           </button>
           <button
             type="button"
-            className="btn btn-primary flex-fill d-flex align-items-center justify-content-center gap-2"
+            className="btn btn-primary ohgo-btn-confirm flex-fill d-flex align-items-center justify-content-center gap-2 fw-semibold"
             onClick={handleSave}
           >
             <IoCheckmarkOutline size={18} />

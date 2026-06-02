@@ -195,6 +195,7 @@ export default function PointMallPage() {
         }}
         closeOnBackdrop
         title="구매 확인"
+        titleTone="brand"
         footerLayout="row"
         footer={
           selected ? (

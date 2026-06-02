@@ -8,7 +8,7 @@ import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import { IoDocumentTextOutline } from 'react-icons/io5';
-import { OHGO_CARD, OHGO_FONT, OHGO_INPUT, OHGO_PRIMARY_BTN, OhgoPageLoading } from '@/lib/page-styles';
+import { OHGO_CARD, OHGO_CONFIRM_BTN, OHGO_CONFIRM_BTN_CLASS, OHGO_FONT, OHGO_INPUT, OhgoPageLoading } from '@/lib/page-styles';
 
 function MemoPageContent() {
   const router = useRouter();
@@ -62,7 +62,12 @@ function MemoPageContent() {
             rows={3}
             style={{ ...OHGO_INPUT, resize: 'none' }}
           />
-          <button type="button" className="btn w-100 fw-semibold" onClick={handleAdd} style={OHGO_PRIMARY_BTN}>
+          <button
+            type="button"
+            className={`btn w-100 fw-semibold ${OHGO_CONFIRM_BTN_CLASS}`}
+            onClick={handleAdd}
+            style={OHGO_CONFIRM_BTN}
+          >
             메모 추가
           </button>
         </div>

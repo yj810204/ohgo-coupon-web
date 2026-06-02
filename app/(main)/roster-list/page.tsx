@@ -477,6 +477,7 @@ function RosterListContent() {
         open={noRosterModalVisible && !!selectedRoster}
         onClose={() => setNoRosterModalVisible(false)}
         title="명부 정보 없음"
+        titleTone="danger"
         footerLayout="row"
         footer={
           selectedRoster ? (

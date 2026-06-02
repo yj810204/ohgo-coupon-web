@@ -7,7 +7,15 @@ import { getAvailableIcons, getIconComponent } from '@/utils/icon-mapper';
 import { IoCheckmarkOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-import { OHGO_FONT, OHGO_INPUT, OHGO_PRIMARY_BTN, OHGO_SECONDARY_BTN, OhgoPageLoading } from '@/lib/page-styles';
+import {
+  OHGO_CONFIRM_BTN,
+  OHGO_CONFIRM_BTN_CLASS,
+  OHGO_DISMISS_BTN,
+  OHGO_DISMISS_BTN_CLASS,
+  OHGO_FONT,
+  OHGO_INPUT,
+  OhgoPageLoading,
+} from '@/lib/page-styles';
 
 const LABEL: React.CSSProperties = {
   fontSize: 12,
@@ -193,15 +201,21 @@ function MenuFormContent() {
         </div>
       </div>
       <div className="d-flex gap-2">
-        <button type="button" className="btn flex-grow-1" onClick={() => router.back()} disabled={saving} style={OHGO_SECONDARY_BTN}>
+        <button
+          type="button"
+          className={`btn flex-grow-1 fw-semibold ${OHGO_DISMISS_BTN_CLASS}`}
+          onClick={() => router.back()}
+          disabled={saving}
+          style={OHGO_DISMISS_BTN}
+        >
           취소
         </button>
         <button
           type="button"
-          className="btn flex-grow-1 fw-semibold d-flex align-items-center justify-content-center gap-2"
+          className={`btn flex-grow-1 fw-semibold d-flex align-items-center justify-content-center gap-2 ${OHGO_CONFIRM_BTN_CLASS}`}
           onClick={() => void handleSave()}
           disabled={saving || !menuItemLabel.trim() || !menuItemPath.trim() || !menuItemIconName}
-          style={OHGO_PRIMARY_BTN}
+          style={OHGO_CONFIRM_BTN}
         >
           {saving ? <span className="spinner-border spinner-border-sm" /> : <IoCheckmarkOutline size={18} />}
           저장

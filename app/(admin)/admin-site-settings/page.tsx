@@ -25,6 +25,7 @@ import {
   OHGO_CARD,
   OHGO_FONT,
   OHGO_INPUT,
+  OHGO_CONFIRM_BTN_CLASS,
   OHGO_PRIMARY_BTN,
   OHGO_SECONDARY_BTN,
   ohgoListRowStyle,
@@ -319,7 +320,7 @@ function AdminSiteSettingsContent() {
           </p>
           <button
             type="button"
-            className="btn w-100 fw-semibold mt-3"
+            className={`btn w-100 fw-semibold mt-3 ${OHGO_CONFIRM_BTN_CLASS}`}
             onClick={handleSaveSiteName}
             disabled={saving || !siteName.trim()}
             style={OHGO_PRIMARY_BTN}
@@ -729,7 +730,7 @@ function AdminSiteSettingsContent() {
 
               <button
                 type="button"
-                className="btn w-100 fw-semibold"
+                className={`btn w-100 fw-semibold ${OHGO_CONFIRM_BTN_CLASS}`}
                 onClick={async () => {
                   try {
                     setSaving(true);

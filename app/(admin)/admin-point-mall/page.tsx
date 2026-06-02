@@ -21,7 +21,7 @@ import {
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
-import { OHGO_CARD, OHGO_FONT, OHGO_INPUT, OHGO_PRIMARY_BTN } from '@/lib/page-styles';
+import { OHGO_CARD, OHGO_CONFIRM_BTN_CLASS, OHGO_FONT, OHGO_INPUT, OHGO_PRIMARY_BTN } from '@/lib/page-styles';
 
 const FONT = OHGO_FONT;
 const CARD: React.CSSProperties = { ...OHGO_CARD };
@@ -104,7 +104,7 @@ export default function AdminPointMallPage() {
       <button
         type="button"
         onClick={() => router.push('/admin-point-mall/form')}
-        className="btn w-100 d-flex align-items-center justify-content-center gap-2 fw-bold mb-4"
+        className={`btn w-100 d-flex align-items-center justify-content-center gap-2 fw-bold mb-4 ${OHGO_CONFIRM_BTN_CLASS}`}
         style={OHGO_PRIMARY_BTN}
       >
         <IoAddOutline size={20} />
@@ -284,12 +284,9 @@ export default function AdminPointMallPage() {
                     <button
                       type="button"
                       onClick={() => void handleStockSave(product.id)}
-                      className="btn btn-sm fw-semibold flex-shrink-0"
+                      className={`btn btn-sm fw-semibold flex-shrink-0 ${OHGO_CONFIRM_BTN_CLASS}`}
                       style={{
                         ...OHGO_PRIMARY_BTN,
-                        padding: '10px 14px',
-                        fontSize: 13,
-                        boxShadow: 'none',
                         minWidth: 72,
                       }}
                     >

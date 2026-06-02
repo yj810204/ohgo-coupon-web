@@ -9,7 +9,7 @@ import { sendPushToUser } from '@/utils/send-push';
 import { useCouponById as useCouponByIdFunc } from '@/utils/stamp-service';
 import { IoGiftOutline, IoCheckmarkCircleOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
-import OhgoModal, { OhgoModalActions, OhgoModalButton, OhgoModalField } from '@/components/OhgoModal';
+import OhgoModal, { OhgoModalButton, OhgoModalField } from '@/components/OhgoModal';
 import EmptyState from '@/components/EmptyState';
 
 const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
@@ -196,7 +196,27 @@ function CouponsPageContent() {
       <OhgoModal
         open={modalVisible && !!selectedCoupon}
         onClose={() => setModalVisible(false)}
+        closeOnBackdrop
         title="쿠폰 정보"
+        footer={
+          selectedCoupon && !selectedCoupon.used ? (
+            <>
+              <OhgoModalButton variant="secondary" onClick={() => setModalVisible(false)}>
+                닫기
+              </OhgoModalButton>
+              <OhgoModalButton onClick={handleUse}>쿠폰 사용</OhgoModalButton>
+              {fromAdmin ? (
+                <OhgoModalButton variant="danger" onClick={handleRevoke}>
+                  회수
+                </OhgoModalButton>
+              ) : null}
+            </>
+          ) : (
+            <OhgoModalButton variant="secondary" onClick={() => setModalVisible(false)}>
+              닫기
+            </OhgoModalButton>
+          )
+        }
       >
         {selectedCoupon && (
           <>
@@ -209,16 +229,6 @@ function CouponsPageContent() {
                 </span>
               </div>
             )}
-            {!selectedCoupon.used && (
-              <OhgoModalActions>
-                <OhgoModalButton onClick={handleUse}>쿠폰 사용</OhgoModalButton>
-                {fromAdmin && (
-                  <OhgoModalButton variant="danger" onClick={handleRevoke}>
-                    쿠폰 회수
-                  </OhgoModalButton>
-                )}
-              </OhgoModalActions>
-            )}
           </>
         )}
       </OhgoModal>
@@ -229,7 +239,22 @@ function CouponsPageContent() {
           setPasswordModalVisible(false);
           setPassword('');
         }}
+        closeOnBackdrop
         title="비밀번호 입력"
+        footer={
+          <>
+            <OhgoModalButton
+              variant="secondary"
+              onClick={() => {
+                setPasswordModalVisible(false);
+                setPassword('');
+              }}
+            >
+              취소
+            </OhgoModalButton>
+            <OhgoModalButton onClick={handlePasswordSubmit}>확인</OhgoModalButton>
+          </>
+        }
       >
         <input
           type="password"
@@ -242,20 +267,6 @@ function CouponsPageContent() {
             if (e.key === 'Enter') handlePasswordSubmit();
           }}
         />
-        <div className="mt-3">
-          <OhgoModalActions>
-            <OhgoModalButton onClick={handlePasswordSubmit}>확인</OhgoModalButton>
-            <OhgoModalButton
-              variant="secondary"
-              onClick={() => {
-                setPasswordModalVisible(false);
-                setPassword('');
-              }}
-            >
-              취소
-            </OhgoModalButton>
-          </OhgoModalActions>
-        </div>
       </OhgoModal>
     </SubPageFrame>
   );

@@ -1,7 +1,14 @@
 'use client';
 
 import type { CSSProperties, ReactNode } from 'react';
-import { OHGO_CARD, OHGO_FONT, OHGO_PRIMARY_BTN, OHGO_SECONDARY_BTN } from '@/lib/page-styles';
+import {
+  OHGO_CARD,
+  OHGO_CONFIRM_BTN,
+  OHGO_CONFIRM_BTN_CLASS,
+  OHGO_DISMISS_BTN,
+  OHGO_DISMISS_BTN_CLASS,
+  OHGO_FONT,
+} from '@/lib/page-styles';
 
 const SECTION_CARD: CSSProperties = { ...OHGO_CARD, padding: '14px 16px', marginBottom: 12 };
 
@@ -44,8 +51,8 @@ export function FormActions({
     <div className="d-grid gap-2" style={{ gridTemplateColumns: '1fr 1fr' }}>
       <button
         type="button"
-        className="btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--secondary"
-        style={OHGO_SECONDARY_BTN}
+        className={`btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--secondary ${OHGO_DISMISS_BTN_CLASS}`}
+        style={OHGO_DISMISS_BTN}
         onClick={onCancel}
         disabled={loading}
       >
@@ -53,9 +60,9 @@ export function FormActions({
       </button>
       <button
         type="button"
-        className="btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--primary"
+        className={`btn w-100 fw-semibold ohgo-modal__btn ohgo-modal__btn--primary ${OHGO_CONFIRM_BTN_CLASS}`}
         style={{
-          ...OHGO_PRIMARY_BTN,
+          ...OHGO_CONFIRM_BTN,
           opacity: disabled || loading ? 0.65 : 1,
         }}
         onClick={onSubmit}

@@ -2,7 +2,14 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 import type { IconType } from 'react-icons';
-import { OHGO_CARD, OHGO_FONT, OHGO_PRIMARY_BTN, OHGO_SECONDARY_BTN } from '@/lib/page-styles';
+import {
+  OHGO_CARD,
+  OHGO_CONFIRM_BTN,
+  OHGO_CONFIRM_BTN_CLASS,
+  OHGO_DISMISS_BTN,
+  OHGO_DISMISS_BTN_CLASS,
+  OHGO_FONT,
+} from '@/lib/page-styles';
 
 type SubPageActionBarVariant = 'danger' | 'primary' | 'secondary';
 
@@ -30,8 +37,8 @@ const VARIANT_STYLE: Record<SubPageActionBarVariant, CSSProperties> = {
     border: 'none',
     boxShadow: '0 4px 12px rgba(255, 59, 48, 0.25)',
   },
-  primary: OHGO_PRIMARY_BTN,
-  secondary: OHGO_SECONDARY_BTN,
+  primary: OHGO_CONFIRM_BTN,
+  secondary: OHGO_DISMISS_BTN,
 };
 
 /**
@@ -64,7 +71,7 @@ export default function SubPageActionBar({
       ) : null}
       <button
         type="button"
-        className={`btn w-100 d-flex align-items-center justify-content-center gap-2 fw-semibold ohgo-modal__btn ${VARIANT_CLASS[variant]}`}
+        className={`btn w-100 d-flex align-items-center justify-content-center gap-2 fw-semibold ohgo-modal__btn ${VARIANT_CLASS[variant]}${variant === 'secondary' ? ` ${OHGO_DISMISS_BTN_CLASS}` : ''}${variant === 'primary' ? ` ${OHGO_CONFIRM_BTN_CLASS}` : ''}`}
         style={{
           ...VARIANT_STYLE[variant],
           opacity: disabled ? 0.65 : 1,

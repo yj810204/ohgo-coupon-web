@@ -1,7 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { getTripsByMonth, TripGuide } from '@/utils/trip-guide-service';
+import {
+  formatWeekRangeLabel,
+  getTripsInDateRange,
+  getWeekRange,
+  isPastTripDate,
+  TripGuide,
+  tripDateToStr,
+  tripWeekdayLabelColor,
+  tripWeekdayNumberColor,
+} from '@/utils/trip-guide-service';
 import { IoTimeOutline, IoChevronForwardOutline, IoBoatOutline } from 'react-icons/io5';
 
 const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
@@ -11,41 +20,11 @@ const MAX_VISIBLE = 3;
 const TODAY_ACCENT = '#E65100';
 const TODAY_BG = '#FFF3E0';
 
-function getWeekRange(): { start: Date; end: Date } {
-  const now = new Date();
-  const day = now.getDay();
-  const mon = new Date(now);
-  mon.setDate(now.getDate() - ((day + 6) % 7));
-  mon.setHours(0, 0, 0, 0);
-  const sun = new Date(mon);
-  sun.setDate(mon.getDate() + 6);
-  sun.setHours(23, 59, 59, 999);
-  return { start: mon, end: sun };
-}
-
-function toDateStr(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function formatWeekLabel(start: Date, end: Date) {
-  const fmt = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
-  return `${fmt(start)} ~ ${fmt(end)}`;
-}
-
-function getDayColors(dayIdx: number) {
-  if (dayIdx === 0) {
-    return { dayLabelColor: '#FF3B30', dayNumberColor: '#FF3B30' };
-  }
-  if (dayIdx === 6) {
-    return { dayLabelColor: '#1B6FF5', dayNumberColor: '#1B6FF5' };
-  }
-  return { dayLabelColor: '#6F767E', dayNumberColor: '#1A1D1F' };
-}
 
 /** 메인 노출: 오늘 포함 이후 일정 우선, 없으면 가장 가까운 일정부터 */
 function pickVisibleTrips(trips: TripGuide[], limit: number): TripGuide[] {
   const sorted = [...trips].sort((a, b) => a.date.localeCompare(b.date));
-  const today = toDateStr(new Date());
+  const today = tripDateToStr();
   const fromToday = sorted.filter(t => t.date >= today);
   const pool = fromToday.length > 0 ? fromToday : sorted;
   return pool.slice(0, limit);
@@ -58,30 +37,14 @@ interface Props {
 export default function WeeklyTripSummary({ onViewAll }: Props) {
   const [trips, setTrips] = useState<TripGuide[]>([]);
   const [loading, setLoading] = useState(true);
-  const weekRange = useMemo(() => getWeekRange(), []);
+  const weekRange = useMemo(() => getWeekRange(new Date()), []);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const { start, end } = weekRange;
-        const startYM = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`;
-        const endYM = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}`;
-
-        let all: TripGuide[] = [];
-        if (startYM === endYM) {
-          all = await getTripsByMonth(startYM);
-        } else {
-          const [a, b] = await Promise.all([
-            getTripsByMonth(startYM),
-            getTripsByMonth(endYM),
-          ]);
-          all = [...a, ...b];
-        }
-
-        const startStr = toDateStr(start);
-        const endStr = toDateStr(end);
-        const weekly = all.filter(t => t.date >= startStr && t.date <= endStr);
-        weekly.sort((a, b) => a.date.localeCompare(b.date));
+        const startStr = tripDateToStr(weekRange.start);
+        const endStr = tripDateToStr(weekRange.end);
+        const weekly = await getTripsInDateRange(startStr, endStr);
         setTrips(weekly);
       } catch (e) {
         console.error(e);
@@ -94,15 +57,15 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
 
   if (loading) return null;
 
-  const todayStr = toDateStr(new Date());
-  const weekLabel = formatWeekLabel(weekRange.start, weekRange.end);
+  const todayStr = tripDateToStr();
+  const weekLabel = formatWeekRangeLabel(weekRange.start, weekRange.end);
 
   const DUMMY_TRIPS: TripGuide[] = (() => {
     const { start } = weekRange;
     return [
       {
         id: 'dummy-1',
-        date: toDateStr(new Date(start.getTime() + 2 * 86400000)),
+        date: tripDateToStr(new Date(start.getTime() + 2 * 86400000)),
         destination: '출조 일정 등록 예정',
         departureTime: '06:00',
         returnTime: '14:00',
@@ -158,8 +121,10 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
       >
         {visibleTrips.map((trip, index) => {
           const isToday = !isDummy && trip.date === todayStr;
+          const isPast = !isDummy && !isToday && isPastTripDate(trip.date, todayStr);
           const dayIdx = new Date(`${trip.date}T00:00:00`).getDay();
-          const { dayLabelColor, dayNumberColor } = getDayColors(dayIdx);
+          const dayLabelColor = tripWeekdayLabelColor(dayIdx, isPast);
+          const dayNumberColor = tripWeekdayNumberColor(dayIdx, isPast);
           const subtitle = [
             trip.departureTime && `${trip.departureTime} 출발`,
             trip.species,
@@ -175,11 +140,12 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
               onClick={isDummy ? undefined : onViewAll}
               className="btn w-100 text-start d-flex align-items-center gap-2 px-3 py-2"
               style={{
-                backgroundColor: isToday ? TODAY_BG : '#FFFFFF',
+                backgroundColor: isToday ? TODAY_BG : isPast ? '#F7F8FA' : '#FFFFFF',
                 border: 'none',
                 borderBottom: index < visibleTrips.length - 1 || hiddenCount > 0 ? '1px solid #F7F8FA' : 'none',
                 borderRadius: 0,
                 cursor: isDummy ? 'default' : 'pointer',
+                opacity: isPast ? 0.92 : 1,
               }}
             >
               <div className="text-center flex-shrink-0" style={{ width: 32 }}>
@@ -216,11 +182,26 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
                       오늘
                     </span>
                   )}
+                  {isPast && (
+                    <span
+                      className="badge rounded-pill flex-shrink-0"
+                      style={{
+                        backgroundColor: '#E8EAED',
+                        color: '#6F767E',
+                        fontSize: 10,
+                        fontFamily: FONT,
+                        fontWeight: 600,
+                        padding: '2px 6px',
+                      }}
+                    >
+                      지난
+                    </span>
+                  )}
                   <span
                     style={{
                       fontSize: 14,
                       fontWeight: 700,
-                      color: '#1A1D1F',
+                      color: isPast ? '#6F767E' : '#1A1D1F',
                       fontFamily: FONT,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -235,7 +216,7 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
                     className="d-flex align-items-center gap-1 mt-0"
                     style={{
                       fontSize: 11,
-                      color: '#6F767E',
+                      color: isPast ? '#9A9FA5' : '#6F767E',
                       fontFamily: FONT,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { sendPushToAllUsers } from '@/utils/send-push';
 import SubPageFrame from '@/components/SubPageFrame';
-import { OHGO_CARD, OHGO_FONT, OHGO_INPUT, OHGO_PRIMARY_BTN } from '@/lib/page-styles';
+import { OHGO_CARD, OHGO_CONFIRM_BTN_CLASS, OHGO_FONT, OHGO_INPUT, OHGO_PRIMARY_BTN } from '@/lib/page-styles';
 
 export default function AdminPushPage() {
   const [title, setTitle] = useState('');
@@ -72,7 +72,7 @@ export default function AdminPushPage() {
 
         <button
           type="button"
-          className="btn w-100 fw-semibold"
+          className={`btn w-100 fw-semibold ${OHGO_CONFIRM_BTN_CLASS}`}
           onClick={handleSendPush}
           disabled={loading}
           style={OHGO_PRIMARY_BTN}
