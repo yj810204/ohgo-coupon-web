@@ -40,6 +40,8 @@ function mapProductDoc(id: string, data: Record<string, unknown>): PointMallProd
     isActive: data.isActive !== false,
     order: Number(data.order) || 0,
     createdAt: data.createdAt as Timestamp | Date | undefined,
+    isBaitProduct: data.isBaitProduct === true,
+    baitAmount: data.isBaitProduct === true ? Math.max(0, Number(data.baitAmount) || 0) : undefined,
   };
 }
 
@@ -50,7 +52,7 @@ function sortByOrder(products: PointMallProduct[]): PointMallProduct[] {
 /** Firestore는 undefined 필드를 허용하지 않음 — imageUrl은 URL이 있을 때만 포함 */
 function buildProductWriteData(
   input: Partial<PointMallProductInput>,
-  options?: { includeCreatedAt?: boolean }
+  options?: { includeCreatedAt?: boolean; isUpdate?: boolean }
 ): Record<string, unknown> {
   const data: Record<string, unknown> = {};
 
@@ -60,13 +62,16 @@ function buildProductWriteData(
   if (input.stock !== undefined) data.stock = Number(input.stock);
   if (input.isActive !== undefined) data.isActive = input.isActive;
   if (input.order !== undefined) data.order = Number(input.order) || 0;
+  if (input.isBaitProduct !== undefined) data.isBaitProduct = !!input.isBaitProduct;
+  if (input.baitAmount !== undefined) data.baitAmount = Math.max(0, Number(input.baitAmount) || 0);
 
   if (input.imageUrls !== undefined) {
     const urls = input.imageUrls.map(u => u.trim()).filter(Boolean);
     if (urls.length > 0) {
       data.imageUrl = urls[0];
       data.imageUrls = urls;
-    } else {
+    } else if (options?.isUpdate) {
+      // deleteField()는 문서 수정(update)에서만 사용 가능
       data.imageUrl = deleteField();
       data.imageUrls = deleteField();
     }
@@ -121,6 +126,8 @@ export async function addPointMallProduct(input: PointMallProductInput): Promise
       order: input.order ?? 0,
       imageUrls: input.imageUrls,
       imageUrl: input.imageUrl,
+      isBaitProduct: input.isBaitProduct === true,
+      baitAmount: input.isBaitProduct ? Math.max(1, Number(input.baitAmount) || 1) : 0,
     },
     { includeCreatedAt: true }
   );
@@ -133,7 +140,7 @@ export async function updatePointMallProduct(
   id: string,
   input: Partial<PointMallProductInput>
 ): Promise<void> {
-  const data = buildProductWriteData(input);
+  const data = buildProductWriteData(input, { isUpdate: true });
   if (Object.keys(data).length === 0) return;
   await updateDoc(doc(db, COL, id), data);
 }
@@ -155,16 +162,27 @@ export async function uploadProductImage(file: File): Promise<string> {
 }
 
 export type PurchaseResult =
-  | { ok: true; orderId: string }
-  | { ok: false; code: 'USER_NOT_FOUND' | 'PRODUCT_NOT_FOUND' | 'PRODUCT_INACTIVE' | 'OUT_OF_STOCK' | 'INSUFFICIENT_POINTS' | 'UNKNOWN' };
+  | { ok: true; orderId: string; baitGranted?: number }
+  | {
+      ok: false;
+      code:
+        | 'USER_NOT_FOUND'
+        | 'PRODUCT_NOT_FOUND'
+        | 'PRODUCT_INACTIVE'
+        | 'OUT_OF_STOCK'
+        | 'INSUFFICIENT_POINTS'
+        | 'COMMUNITY_POINT_ONLY'
+        | 'INVALID_BAIT_PRODUCT'
+        | 'UNKNOWN';
+    };
 
-/** 포인트 차감 + 주문 생성 (게임 포인트 우선 차감) */
+/** 포인트 차감 + 주문 생성 (일반: 게임 포인트 우선, 미끼: 커뮤니티 포인트만) */
 export async function purchaseProduct(uuid: string, productId: string): Promise<PurchaseResult> {
   const userRef = doc(db, 'users', uuid);
   const productRef = doc(db, COL, productId);
 
   try {
-    const orderId = await runTransaction(db, async transaction => {
+    const result = await runTransaction(db, async transaction => {
       const userSnap = await transaction.get(userRef);
       const productSnap = await transaction.get(productRef);
 
@@ -178,19 +196,29 @@ export async function purchaseProduct(uuid: string, productId: string): Promise<
       if (stock === 0) throw new Error('OUT_OF_STOCK');
 
       const price = Number(productData.pointPrice) || 0;
+      const isBaitProduct = productData.isBaitProduct === true;
       let totalPoint = Number(userSnap.data()?.totalPoint) || 0;
       let communityPoint = Number(userSnap.data()?.communityPoint) || 0;
-      const available = totalPoint + communityPoint;
+      let baitCoupons = Number(userSnap.data()?.baitCoupons) || 0;
 
-      if (available < price) throw new Error('INSUFFICIENT_POINTS');
+      if (isBaitProduct) {
+        const baitAmount = Math.max(1, Number(productData.baitAmount) || 0);
+        if (communityPoint < price) throw new Error('INSUFFICIENT_POINTS');
+        communityPoint -= price;
+        baitCoupons += baitAmount;
+        transaction.update(userRef, { communityPoint, baitCoupons });
+      } else {
+        const available = totalPoint + communityPoint;
+        if (available < price) throw new Error('INSUFFICIENT_POINTS');
 
-      let remaining = price;
-      const fromGame = Math.min(totalPoint, remaining);
-      totalPoint -= fromGame;
-      remaining -= fromGame;
-      communityPoint -= remaining;
+        let remaining = price;
+        const fromGame = Math.min(totalPoint, remaining);
+        totalPoint -= fromGame;
+        remaining -= fromGame;
+        communityPoint -= remaining;
 
-      transaction.update(userRef, { totalPoint, communityPoint });
+        transaction.update(userRef, { totalPoint, communityPoint });
+      }
 
       if (stock > 0) {
         transaction.update(productRef, { stock: stock - 1 });
@@ -205,10 +233,18 @@ export async function purchaseProduct(uuid: string, productId: string): Promise<
         purchasedAt: Timestamp.now(),
       });
 
-      return orderRef.id;
+      const baitGranted = isBaitProduct
+        ? Math.max(1, Number(productData.baitAmount) || 0)
+        : undefined;
+
+      return { orderId: orderRef.id, baitGranted };
     });
 
-    return { ok: true, orderId };
+    return {
+      ok: true,
+      orderId: result.orderId,
+      baitGranted: result.baitGranted,
+    };
   } catch (e) {
     const msg = e instanceof Error ? e.message : '';
     if (msg === 'USER_NOT_FOUND') return { ok: false, code: 'USER_NOT_FOUND' };
@@ -216,6 +252,7 @@ export async function purchaseProduct(uuid: string, productId: string): Promise<
     if (msg === 'PRODUCT_INACTIVE') return { ok: false, code: 'PRODUCT_INACTIVE' };
     if (msg === 'OUT_OF_STOCK') return { ok: false, code: 'OUT_OF_STOCK' };
     if (msg === 'INSUFFICIENT_POINTS') return { ok: false, code: 'INSUFFICIENT_POINTS' };
+    if (msg === 'INVALID_BAIT_PRODUCT') return { ok: false, code: 'INVALID_BAIT_PRODUCT' };
     console.error('purchaseProduct error:', e);
     return { ok: false, code: 'UNKNOWN' };
   }
@@ -235,6 +272,12 @@ export async function getMyOrders(uuid: string): Promise<PointMallOrder[]> {
     const tb = b.purchasedAt instanceof Timestamp ? b.purchasedAt.toMillis() : new Date(b.purchasedAt).getTime();
     return tb - ta;
   });
+}
+
+/** 회원 미끼(교환권) 보유 수 */
+export async function getUserBaitCoupons(uuid: string): Promise<number> {
+  const userSnap = await getDoc(doc(db, 'users', uuid));
+  return userSnap.exists() ? Math.max(0, Number(userSnap.data()?.baitCoupons) || 0) : 0;
 }
 
 /** 회원 포인트 잔액 조회 */

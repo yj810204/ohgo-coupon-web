@@ -12,6 +12,10 @@ export interface PointMallProduct {
   isActive: boolean;
   order: number;
   createdAt?: Date;
+  /** 미끼 상품 여부 (커뮤니티 포인트 전용 구매) */
+  isBaitProduct?: boolean;
+  /** 구매 시 지급되는 미끼 수량 */
+  baitAmount?: number;
 }
 
 /** 상품 이미지 URL 목록 (imageUrls 우선, 없으면 imageUrl) */
@@ -38,11 +42,13 @@ export type PointMallProductInput = Omit<PointMallProduct, 'id' | 'createdAt'>;
 export const DEFAULT_POINT_MALL_SEED: PointMallProductInput[] = [
   {
     name: '프리미엄 미끼 세트',
-    description: '게임·커뮤니티 활동으로 모은 포인트로 교환하는 미끼 세트입니다.',
+    description: '커뮤니티 활동으로 모은 포인트로 교환하는 미끼 세트입니다.',
     pointPrice: 500,
     stock: -1,
     isActive: true,
     order: 1,
+    isBaitProduct: true,
+    baitAmount: 1,
   },
   {
     name: '낚시 라인 & 훅 패키지',
@@ -87,11 +93,17 @@ export function purchaseErrorMessage(
     | 'PRODUCT_INACTIVE'
     | 'OUT_OF_STOCK'
     | 'INSUFFICIENT_POINTS'
+    | 'COMMUNITY_POINT_ONLY'
+    | 'INVALID_BAIT_PRODUCT'
     | 'UNKNOWN'
 ): string {
   switch (code) {
     case 'INSUFFICIENT_POINTS':
       return '포인트가 부족합니다.';
+    case 'COMMUNITY_POINT_ONLY':
+      return '이 상품은 커뮤니티 포인트로만 구매할 수 있습니다. 댓글 등 커뮤니티 활동으로 포인트를 모아 주세요.';
+    case 'INVALID_BAIT_PRODUCT':
+      return '미끼 상품 설정이 올바르지 않습니다. 관리자에게 문의해 주세요.';
     case 'OUT_OF_STOCK':
       return '재고가 없습니다.';
     case 'PRODUCT_INACTIVE':

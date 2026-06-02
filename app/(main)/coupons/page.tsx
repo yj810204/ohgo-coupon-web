@@ -201,9 +201,6 @@ function CouponsPageContent() {
         footer={
           selectedCoupon && !selectedCoupon.used ? (
             <>
-              <OhgoModalButton variant="secondary" onClick={() => setModalVisible(false)}>
-                닫기
-              </OhgoModalButton>
               <OhgoModalButton onClick={handleUse}>쿠폰 사용</OhgoModalButton>
               {fromAdmin ? (
                 <OhgoModalButton variant="danger" onClick={handleRevoke}>
@@ -211,11 +208,7 @@ function CouponsPageContent() {
                 </OhgoModalButton>
               ) : null}
             </>
-          ) : (
-            <OhgoModalButton variant="secondary" onClick={() => setModalVisible(false)}>
-              닫기
-            </OhgoModalButton>
-          )
+          ) : undefined
         }
       >
         {selectedCoupon && (

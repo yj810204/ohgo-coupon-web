@@ -1546,13 +1546,35 @@ class FlappyBirdGame {
      * 게임 시작 모달 표시
      */
     showGameStartModal() {
+        if (this.gameStartModal) {
+            this.gameStartModal.remove();
+            this.gameStartModal = null;
+        }
+        const baitCount =
+            typeof window !== 'undefined' && typeof window.__OHGO_BAIT_COUNT__ === 'number'
+                ? Math.max(0, window.__OHGO_BAIT_COUNT__)
+                : 0;
+        const hasBait = baitCount >= 1;
+        const actionBtn = hasBait
+            ? '<button class="btn-start" onclick="window.postMessage({ type: \'GAME_START_REQUEST\' }, \'*\')">게임 시작 (미끼 -1)</button>'
+            : '<button class="btn-start" onclick="window.postMessage({ type: \'GAME_GO_POINT_MALL\' }, \'*\')">포인트몰로 이동</button>';
+        const baitCountHtml = hasBait
+            ? `<span class="game-bait-info__count">${baitCount}<span class="game-bait-info__unit">개</span></span>`
+            : '<span class="game-bait-info__count game-bait-info__count--zero" aria-label="보유 미끼 0개">0<span class="game-bait-info__unit">개</span></span>';
+        const baitInfoClass = hasBait ? 'game-bait-info' : 'game-bait-info game-bait-info--empty';
         const modal = document.createElement('div');
         modal.className = 'game-start-modal';
         modal.innerHTML = `
             <div class="modal-content">
+                <div class="${baitInfoClass}">
+                    <div class="game-bait-info__inner">
+                        <span class="game-bait-info__label">보유 미끼</span>
+                        ${baitCountHtml}
+                    </div>
+                </div>
                 <p class="game-description">화면을 클릭하거나 터치하여 새를 조종하세요!</p>
                 <div class="modal-buttons">
-                    <button class="btn-start" onclick="window.gameLoader.gameInstance.startGame()">게임 시작</button>
+                    ${actionBtn}
                 </div>
             </div>
         `;
@@ -1847,7 +1869,7 @@ class FlappyBirdGame {
                 <p class="final-score-label">최종 점수</p>
                 <p class="combo-info">통과한 파이프 ${this.pipesPassed}개 · Lv.${this.currentLevel}</p>
                 <div class="modal-buttons">
-                    <button class="btn-restart" onclick="window.gameLoader.gameInstance.restartGame()">다시 하기</button>
+                    <button class="btn-restart" onclick="window.postMessage({ type: 'GAME_RESTART_REQUEST' }, '*')">다시 하기</button>
                     <button class="btn-exit" onclick="window.gameLoader.gameInstance.exitGame()">나가기</button>
                 </div>
             </div>

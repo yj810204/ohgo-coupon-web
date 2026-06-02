@@ -532,11 +532,6 @@ function BoardingFormContent() {
         scrollable
         closeOnBackdrop
         bodyPadding={false}
-        footer={
-          <OhgoModalButton variant="secondary" onClick={() => setShowPrivacyModal(false)}>
-            닫기
-          </OhgoModalButton>
-        }
       >
         <iframe
           srcDoc={PRIVACY_POLICY_HTML}
@@ -553,11 +548,6 @@ function BoardingFormContent() {
         scrollable
         closeOnBackdrop
         bodyPadding={false}
-        footer={
-          <OhgoModalButton variant="secondary" onClick={() => setShowThirdPartyModal(false)}>
-            닫기
-          </OhgoModalButton>
-        }
       >
         <iframe
           srcDoc={THIRD_PARTY_HTML}

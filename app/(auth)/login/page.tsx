@@ -242,7 +242,7 @@ export default function LoginPage() {
 
   if (checkingAuth) {
     return (
-      <div className="min-vh-100 d-flex align-items-center justify-content-center" style={{ backgroundColor: '#F7F8FA' }}>
+      <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F7F8FA' }}>
         <div className="spinner-border text-primary" role="status" />
       </div>
     );
@@ -250,114 +250,225 @@ export default function LoginPage() {
 
   return (
     <div
-      className="min-vh-100 d-flex align-items-center justify-content-center"
-      style={{ backgroundColor: '#F7F8FA', overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '2rem 1rem' }}
+      style={{
+        minHeight: '100dvh',
+        display: 'flex',
+        flexDirection: 'column',
+        fontFamily: FONT,
+        backgroundColor: '#FFFFFF',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+      }}
     >
-      <div className="w-100" style={{ maxWidth: 420 }}>
-        {/* 브랜드 */}
-        <div className="text-center mb-5">
-          <div
-            className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-            style={{ width: 72, height: 72, background: 'linear-gradient(135deg,#1B6FF5,#5B8DEF)', boxShadow: '0 8px 24px rgba(27,111,245,0.3)' }}
-          >
-            <span style={{ fontSize: 28, fontWeight: 700, color: '#fff', fontFamily: FONT }}>오</span>
-          </div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT, marginBottom: 4 }}>오고피씽</h1>
-          <p style={{ fontSize: 14, color: '#6F767E', fontFamily: FONT }}>낚시 커뮤니티에 오신 것을 환영합니다</p>
+      {/* ── 히어로 플레이스홀더 ── */}
+      <div
+        style={{
+          flex: '0 0 auto',
+          background: 'linear-gradient(160deg, #EBF1FE 0%, #DCEAFE 60%, #C7DCFF 100%)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 16,
+          padding: '48px 24px 36px',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        {/* 배경 원 장식 */}
+        <div style={{ position: 'absolute', width: 260, height: 260, borderRadius: '50%', backgroundColor: '#1B6FF5', opacity: 0.05, top: -80, right: -60 }} />
+        <div style={{ position: 'absolute', width: 180, height: 180, borderRadius: '50%', backgroundColor: '#1B6FF5', opacity: 0.06, bottom: -50, left: -40 }} />
+
+        {/* 로고 원형 */}
+        <div
+          style={{
+            width: 80,
+            height: 80,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #1B6FF5 0%, #5B8DEF 100%)',
+            boxShadow: '0 12px 32px rgba(27,111,245,0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 4,
+          }}
+        >
+          {/* 로고 이미지 자리 — 실제 이미지로 교체 */}
+          <span style={{ fontSize: 30, fontWeight: 800, color: '#fff', fontFamily: FONT }}>오</span>
         </div>
 
-        {/* 카드 */}
-        <div className="p-4" style={{ backgroundColor: '#FFFFFF', borderRadius: 20, boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: 'none' }}>
-          {/* 이름 */}
-          <div className="position-relative mb-3">
-            <IoPersonOutline
-              className="position-absolute top-50 start-0 translate-middle-y ms-3"
-              size={20}
-              color="#ABABAB"
-              style={{ zIndex: 10, pointerEvents: 'none' }}
-            />
-            <input
-              type="text"
-              placeholder="이름"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              className="form-control ps-5"
-              style={{ fontSize: 15, borderRadius: 12, border: '2px solid #EFEFEF', padding: '13px 16px 13px 44px', fontFamily: FONT, color: '#1A1D1F', outline: 'none' }}
-              onFocus={e => { e.target.style.borderColor = '#1B6FF5'; e.target.style.boxShadow = '0 0 0 3px rgba(27,111,245,0.12)'; }}
-              onBlur={e => { e.target.style.borderColor = '#EFEFEF'; e.target.style.boxShadow = 'none'; }}
-            />
-          </div>
+        <div style={{ textAlign: 'center' }}>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: '#1A1D1F', margin: '0 0 6px', letterSpacing: -0.5 }}>오고피씽</h1>
+          <p style={{ fontSize: 14, color: '#6F767E', margin: 0, lineHeight: 1.5 }}>낚시 커뮤니티에 오신 것을 환영합니다</p>
+        </div>
 
-          {/* 생년월일 */}
-          <div className="position-relative mb-3">
-            <IoCalendarOutline
-              className="position-absolute top-50 start-0 translate-middle-y ms-3"
-              size={20}
-              color="#ABABAB"
-              style={{ zIndex: 10, pointerEvents: 'none' }}
-            />
-            <input
-              type="text"
-              placeholder="생년월일 (예: 720610)"
-              value={dob}
-              onChange={e => setDob(e.target.value)}
-              className="form-control ps-5"
-              maxLength={6}
-              inputMode="numeric"
-              style={{ fontSize: 15, borderRadius: 12, border: '2px solid #EFEFEF', padding: '13px 16px 13px 44px', fontFamily: FONT, color: '#1A1D1F' }}
-              onFocus={e => { e.target.style.borderColor = '#1B6FF5'; e.target.style.boxShadow = '0 0 0 3px rgba(27,111,245,0.12)'; }}
-              onBlur={e => { e.target.style.borderColor = '#EFEFEF'; e.target.style.boxShadow = 'none'; }}
-            />
-          </div>
+        {/* 이미지 자리 안내 배지 */}
+        <span style={{
+          marginTop: 4,
+          fontSize: 11,
+          fontWeight: 600,
+          color: '#1B6FF5',
+          backgroundColor: 'rgba(27,111,245,0.1)',
+          borderRadius: 20,
+          padding: '3px 12px',
+          letterSpacing: 0.3,
+        }}>
+          히어로 이미지 영역
+        </span>
+      </div>
 
-          {/* 개인정보 동의 */}
-          <div className="d-flex align-items-center gap-2 mb-4 p-3 rounded-3" style={{ backgroundColor: '#F7F8FA' }}>
-            <input
-              type="checkbox"
-              id="agree"
-              checked={agreed}
-              onChange={e => setAgreed(e.target.checked)}
-              className="form-check-input flex-shrink-0"
-              style={{ cursor: 'pointer', width: 20, height: 20, marginTop: 0, accentColor: '#1B6FF5' }}
-            />
-            <label htmlFor="agree" className="form-check-label flex-grow-1 mb-0" style={{ fontSize: 13, color: '#6F767E', cursor: 'pointer', fontFamily: FONT }}>
-              개인정보 처리방침에 동의합니다.
-            </label>
-            <button
-              type="button"
-              onClick={() => setShowPrivacyModal(true)}
-              className="btn d-flex align-items-center gap-1 flex-shrink-0"
-              style={{ backgroundColor: '#EBF1FE', color: '#1B6FF5', borderRadius: 8, border: 'none', padding: '5px 10px', fontSize: 12, fontFamily: FONT, fontWeight: 600 }}
-            >
-              <IoDocumentTextOutline size={14} />
-              보기
-            </button>
-          </div>
+      {/* ── 로그인 카드 ── */}
+      <div
+        style={{
+          flex: 1,
+          backgroundColor: '#FFFFFF',
+          borderRadius: '28px 28px 0 0',
+          marginTop: -20,
+          padding: '32px 24px',
+          boxShadow: '0 -4px 24px rgba(0,0,0,0.06)',
+          maxWidth: 480,
+          width: '100%',
+          alignSelf: 'center',
+          boxSizing: 'border-box',
+        }}
+      >
+        <h2 style={{ fontSize: 20, fontWeight: 800, color: '#1A1D1F', margin: '0 0 4px', letterSpacing: -0.3 }}>
+          로그인
+        </h2>
+        <p style={{ fontSize: 13, color: '#9CA3AF', margin: '0 0 24px' }}>
+          이름과 생년월일로 간편하게 시작하세요
+        </p>
 
-          {/* 로그인 버튼 */}
+        {/* 이름 */}
+        <div style={{ position: 'relative', marginBottom: 14 }}>
+          <IoPersonOutline
+            size={18}
+            color="#ABABAB"
+            style={{ position: 'absolute', top: '50%', left: 14, transform: 'translateY(-50%)', pointerEvents: 'none', zIndex: 10 }}
+          />
+          <input
+            type="text"
+            placeholder="이름"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            style={{
+              width: '100%',
+              fontSize: 15,
+              borderRadius: 14,
+              border: '2px solid #EFEFEF',
+              padding: '14px 16px 14px 42px',
+              fontFamily: FONT,
+              color: '#1A1D1F',
+              outline: 'none',
+              boxSizing: 'border-box',
+              backgroundColor: '#FAFAFA',
+            }}
+            onFocus={e => { e.target.style.borderColor = '#1B6FF5'; e.target.style.boxShadow = '0 0 0 3px rgba(27,111,245,0.10)'; e.target.style.backgroundColor = '#FFF'; }}
+            onBlur={e => { e.target.style.borderColor = '#EFEFEF'; e.target.style.boxShadow = 'none'; e.target.style.backgroundColor = '#FAFAFA'; }}
+          />
+        </div>
+
+        {/* 생년월일 */}
+        <div style={{ position: 'relative', marginBottom: 20 }}>
+          <IoCalendarOutline
+            size={18}
+            color="#ABABAB"
+            style={{ position: 'absolute', top: '50%', left: 14, transform: 'translateY(-50%)', pointerEvents: 'none', zIndex: 10 }}
+          />
+          <input
+            type="text"
+            placeholder="생년월일 (예: 720610)"
+            value={dob}
+            onChange={e => setDob(e.target.value)}
+            maxLength={6}
+            inputMode="numeric"
+            style={{
+              width: '100%',
+              fontSize: 15,
+              borderRadius: 14,
+              border: '2px solid #EFEFEF',
+              padding: '14px 16px 14px 42px',
+              fontFamily: FONT,
+              color: '#1A1D1F',
+              outline: 'none',
+              boxSizing: 'border-box',
+              backgroundColor: '#FAFAFA',
+            }}
+            onFocus={e => { e.target.style.borderColor = '#1B6FF5'; e.target.style.boxShadow = '0 0 0 3px rgba(27,111,245,0.10)'; e.target.style.backgroundColor = '#FFF'; }}
+            onBlur={e => { e.target.style.borderColor = '#EFEFEF'; e.target.style.boxShadow = 'none'; e.target.style.backgroundColor = '#FAFAFA'; }}
+          />
+        </div>
+
+        {/* 개인정보 동의 */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 24,
+            padding: '12px 14px',
+            borderRadius: 14,
+            backgroundColor: '#F7F8FA',
+          }}
+        >
+          <input
+            type="checkbox"
+            id="agree"
+            checked={agreed}
+            onChange={e => setAgreed(e.target.checked)}
+            className="form-check-input flex-shrink-0"
+            style={{ cursor: 'pointer', width: 20, height: 20, marginTop: 0, accentColor: '#1B6FF5' }}
+          />
+          <label
+            htmlFor="agree"
+            style={{ flex: 1, fontSize: 13, color: '#6F767E', cursor: 'pointer', margin: 0, fontFamily: FONT }}
+          >
+            개인정보 처리방침에 동의합니다.
+          </label>
           <button
             type="button"
-            onClick={handleLogin}
-            disabled={isLoading || !agreed}
-            className="btn w-100 fw-bold d-flex align-items-center justify-content-center gap-2"
+            onClick={() => setShowPrivacyModal(true)}
             style={{
-              backgroundColor: '#1B6FF5',
-              color: '#fff',
-              borderRadius: 14,
-              padding: '14px',
-              border: 'none',
-              fontSize: 16,
-              fontFamily: FONT,
-              opacity: (isLoading || !agreed) ? 0.5 : 1,
-              cursor: (isLoading || !agreed) ? 'not-allowed' : 'pointer',
-              boxShadow: '0 4px 16px rgba(27,111,245,0.3)',
+              display: 'flex', alignItems: 'center', gap: 4,
+              backgroundColor: '#EBF1FE', color: '#1B6FF5',
+              borderRadius: 8, border: 'none',
+              padding: '5px 10px', fontSize: 12, fontFamily: FONT, fontWeight: 600,
+              cursor: 'pointer', flexShrink: 0,
             }}
           >
-            {isLoading ? (
-              <><span className="spinner-border spinner-border-sm" role="status" />로그인 중...</>
-            ) : '로그인'}
+            <IoDocumentTextOutline size={13} />
+            보기
           </button>
         </div>
+
+        {/* 로그인 버튼 */}
+        <button
+          type="button"
+          onClick={handleLogin}
+          disabled={isLoading || !agreed}
+          style={{
+            width: '100%',
+            backgroundColor: '#1B6FF5',
+            color: '#fff',
+            borderRadius: 50,
+            padding: '16px',
+            border: 'none',
+            fontSize: 16,
+            fontWeight: 700,
+            fontFamily: FONT,
+            opacity: (isLoading || !agreed) ? 0.45 : 1,
+            cursor: (isLoading || !agreed) ? 'not-allowed' : 'pointer',
+            boxShadow: (isLoading || !agreed) ? 'none' : '0 8px 24px rgba(27,111,245,0.32)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+          }}
+        >
+          {isLoading ? (
+            <><span className="spinner-border spinner-border-sm" role="status" />로그인 중...</>
+          ) : '로그인'}
+        </button>
       </div>
 
       {/* 개인정보 처리방침 모달 */}

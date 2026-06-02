@@ -432,9 +432,6 @@ function RosterListContent() {
         footer={
           selectedRoster ? (
             <>
-              <OhgoModalButton variant="secondary" onClick={() => setModalVisible(false)}>
-                닫기
-              </OhgoModalButton>
               <OhgoModalButton
                 variant="warning"
                 onClick={() => {
@@ -482,9 +479,6 @@ function RosterListContent() {
         footer={
           selectedRoster ? (
             <>
-              <OhgoModalButton variant="secondary" onClick={() => setNoRosterModalVisible(false)}>
-                닫기
-              </OhgoModalButton>
               <OhgoModalButton
                 variant="danger"
                 onClick={() => {

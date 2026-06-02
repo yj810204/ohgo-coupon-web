@@ -7,6 +7,7 @@ import { getGame, Game } from '@/lib/game-service';
 import { GameLoader } from '@/lib/game-loader';
 import PageHeader from '@/components/PageHeader';
 import { isNativeApp, postToNative } from '@/lib/native-bridge';
+import { getUserBaitCoupons } from '@/utils/point-mall-service';
 
 function GamePlayContent() {
   const router = useRouter();
@@ -19,6 +20,9 @@ function GamePlayContent() {
   const [gameLoader, setGameLoader] = useState<GameLoader | null>(null);
   const [gameStarted, setGameStarted] = useState(false);
   const [savingScore, setSavingScore] = useState(false);
+  const [baitCount, setBaitCount] = useState<number | null>(null);
+  const [baitUsing, setBaitUsing] = useState(false);
+  const userUuidRef = useRef<string | null>(null);
   const gameContainerRef = useRef<HTMLDivElement>(null);
   const scoreListenerRef = useRef<((event: MessageEvent) => void) | null>(null);
   const gameStartAttemptedRef = useRef(false); // 게임 시작 시도 플래그
@@ -65,6 +69,67 @@ function GamePlayContent() {
     }
   }, [gameId, savingScore]);
 
+  const consumeBait = useCallback(async (): Promise<boolean> => {
+    const uuid = userUuidRef.current;
+    if (!uuid) {
+      alert('로그인이 필요합니다.');
+      return false;
+    }
+    setBaitUsing(true);
+    try {
+      const response = await fetch('/api/games/use-bait', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: uuid }),
+      });
+      const result = await response.json();
+      if (result.ok) {
+        const remaining = typeof result.remaining === 'number' ? result.remaining : 0;
+        setBaitCount(remaining);
+        if (typeof window !== 'undefined') {
+          (window as Window & { __OHGO_BAIT_COUNT__?: number }).__OHGO_BAIT_COUNT__ = remaining;
+        }
+        return true;
+      }
+      if (result.code === 'NO_BAIT') {
+        setBaitCount(0);
+        if (typeof window !== 'undefined') {
+          (window as Window & { __OHGO_BAIT_COUNT__?: number }).__OHGO_BAIT_COUNT__ = 0;
+        }
+        const instance = (window.gameLoader as { gameInstance?: { showGameStartModal?: () => void } })
+          ?.gameInstance;
+        instance?.showGameStartModal?.();
+      } else {
+        alert(result.message || '미끼 사용에 실패했습니다.');
+      }
+      return false;
+    } catch (e) {
+      console.error('consumeBait error:', e);
+      alert('미끼 사용 중 오류가 발생했습니다.');
+      return false;
+    } finally {
+      setBaitUsing(false);
+    }
+  }, []);
+
+  const handleGameStartRequest = useCallback(async () => {
+    const ok = await consumeBait();
+    if (!ok) return;
+    const instance = (window.gameLoader as { gameInstance?: { startGame?: () => void } })?.gameInstance;
+    if (instance?.startGame) {
+      instance.startGame();
+    }
+  }, [consumeBait]);
+
+  const handleGameRestartRequest = useCallback(async () => {
+    const ok = await consumeBait();
+    if (!ok) return;
+    const instance = (window.gameLoader as { gameInstance?: { restartGame?: () => void } })?.gameInstance;
+    if (instance?.restartGame) {
+      instance.restartGame();
+    }
+  }, [consumeBait]);
+
   useEffect(() => {
     let loaderInstance: GameLoader | null = null;
 
@@ -75,6 +140,13 @@ function GamePlayContent() {
         if (!user?.uuid) {
           router.replace('/login');
           return;
+        }
+        userUuidRef.current = user.uuid;
+
+        const bait = await getUserBaitCoupons(user.uuid);
+        setBaitCount(bait);
+        if (typeof window !== 'undefined') {
+          (window as Window & { __OHGO_BAIT_COUNT__?: number }).__OHGO_BAIT_COUNT__ = bait;
         }
 
         // 게임 정보 로드
@@ -200,20 +272,31 @@ function GamePlayContent() {
     init();
 
     // 점수 저장 리스너 설정
-    const handleScoreMessage = async (event: MessageEvent) => {
-      // 게임에서 전달된 점수 처리
-      if (event.data && typeof event.data === 'object') {
-        if (event.data.type === 'GAME_SCORE' && event.data.gameId === gameId) {
-          await saveScore(event.data.score, event.data.level, event.data.moves, event.data.time);
-        } else if (event.data.gameId === gameId && typeof event.data.score === 'number') {
-          // 간단한 형식도 지원
-          await saveScore(event.data.score, event.data.level, event.data.moves, event.data.time);
-        }
+    const handleGameMessage = async (event: MessageEvent) => {
+      if (!event.data || typeof event.data !== 'object') return;
+      const data = event.data as { type?: string; gameId?: string; score?: number; level?: number; moves?: number; time?: number };
+
+      if (data.type === 'GAME_START_REQUEST') {
+        await handleGameStartRequest();
+        return;
+      }
+      if (data.type === 'GAME_GO_POINT_MALL') {
+        router.push('/point-mall?filter=bait');
+        return;
+      }
+      if (data.type === 'GAME_RESTART_REQUEST') {
+        await handleGameRestartRequest();
+        return;
+      }
+      if (data.type === 'GAME_SCORE' && data.gameId === gameId) {
+        await saveScore(data.score ?? 0, data.level, data.moves, data.time);
+      } else if (data.gameId === gameId && typeof data.score === 'number') {
+        await saveScore(data.score, data.level, data.moves, data.time);
       }
     };
 
-    window.addEventListener('message', handleScoreMessage);
-    scoreListenerRef.current = handleScoreMessage;
+    window.addEventListener('message', handleGameMessage);
+    scoreListenerRef.current = handleGameMessage;
 
     // 게임 로더에 점수 저장 콜백 등록
     if (gameLoader) {
@@ -257,7 +340,7 @@ function GamePlayContent() {
         }
       }
     };
-  }, [gameId, router, saveScore]);
+  }, [gameId, router, saveScore, handleGameStartRequest, handleGameRestartRequest]);
 
   useEffect(() => {
     if (error) {
@@ -358,6 +441,12 @@ function GamePlayContent() {
         <div className="ohgo-game-saving-toast">
           <div className="spinner-border spinner-border-sm me-2" role="status" />
           <span>점수 저장 중...</span>
+        </div>
+      )}
+      {baitUsing && (
+        <div className="ohgo-game-saving-toast">
+          <div className="spinner-border spinner-border-sm me-2" role="status" />
+          <span>미끼 사용 중...</span>
         </div>
       )}
       {!gameStarted && !error && (

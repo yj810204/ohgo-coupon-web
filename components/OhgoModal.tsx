@@ -38,7 +38,7 @@ export default function OhgoModal({
   footer,
   size = 'default',
   scrollable = true,
-  closeOnBackdrop = false,
+  closeOnBackdrop = true,
   bodyPadding = true,
   footerLayout = 'row',
   titleTone = 'default',

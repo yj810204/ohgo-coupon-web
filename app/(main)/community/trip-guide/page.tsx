@@ -33,7 +33,6 @@ import {
 } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal, {
-  OhgoModalActions,
   OhgoModalButton,
   OhgoModalInfoList,
   OhgoModalInfoRow,
@@ -219,7 +218,7 @@ export default function TripGuidePage() {
 
   return (
     <SubPageFrame title="출조 안내" onRefresh={loadTrips}>
-        <div className="position-relative mb-4" style={{ ...CARD, overflow: 'hidden' }}>
+        <div className="position-relative mb-4" style={{ ...CARD, overflow: 'hidden', width: '100%', minWidth: 0 }}>
           {loading && (
             <div
               className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
@@ -324,7 +323,8 @@ export default function TripGuidePage() {
                     disabled={loading}
                     className="btn"
                     style={{
-                      flex: 1,
+                      flex: '1 1 0',
+                      minWidth: 0,
                       minHeight: 56,
                       border: 'none',
                       backgroundColor: cellBg,
@@ -333,7 +333,7 @@ export default function TripGuidePage() {
                       alignItems: 'center',
                       justifyContent: 'flex-start',
                       gap: 4,
-                      padding: '6px 2px',
+                      padding: '6px 1px',
                       borderRadius: 0,
                     }}
                   >
@@ -468,7 +468,8 @@ export default function TripGuidePage() {
                       border: 'none',
                     }}
                   >
-                    <div className="d-flex align-items-start gap-3">
+                    <div className="d-flex align-items-center gap-3">
+                      {/* 좌측 아이콘 */}
                       <div
                         className="trip-schedule-card__icon-wrap rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
                         style={{
@@ -479,60 +480,76 @@ export default function TripGuidePage() {
                       >
                         <IoBoatOutline size={22} color={isPast ? '#9A9FA5' : '#1B6FF5'} />
                       </div>
-                      <div className="flex-grow-1">
-                        <div
-                          className="trip-schedule-card__title"
-                          style={{
-                            fontSize: 16,
-                            fontWeight: 700,
-                            color: isPast ? '#6F767E' : '#1A1D1F',
-                            fontFamily: FONT,
-                          }}
-                        >
-                          {trip.destination}
-                        </div>
-                        <div className="d-flex align-items-center gap-3 mt-1 flex-wrap">
-                          <span
-                            className="trip-schedule-card__meta d-flex align-items-center gap-1"
-                            style={{ fontSize: 13, color: isPast ? '#9A9FA5' : '#6F767E', fontFamily: FONT }}
+
+                      {/* 우측 콘텐츠 전체 */}
+                      <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                        {/* 줄 1: 목적지+시간 (왼쪽) | ⓘ (오른쪽) */}
+                        <div className="d-flex align-items-center justify-content-between gap-2">
+                          <div
+                            className="trip-schedule-card__title"
+                            style={{
+                              fontSize: 15,
+                              fontWeight: 700,
+                              color: isPast ? '#6F767E' : '#1A1D1F',
+                              fontFamily: FONT,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              minWidth: 0,
+                            }}
                           >
-                            <IoTimeOutline size={14} />
-                            {trip.departureTime} 출발
-                            {trip.returnTime && ` ~ ${trip.returnTime} 귀항`}
-                          </span>
-                          {trip.species && (
-                            <span
-                              className="trip-schedule-card__meta d-flex align-items-center gap-1"
-                              style={{ fontSize: 13, color: isPast ? '#9A9FA5' : '#6F767E', fontFamily: FONT }}
-                            >
-                              <IoFishOutline size={14} />
-                              {trip.species}
-                            </span>
-                          )}
+                            {trip.destination}
+                            {(trip.departureTime || trip.returnTime) && (
+                              <span
+                                style={{
+                                  fontWeight: 500,
+                                  color: isPast ? '#ABABAB' : '#6F767E',
+                                  marginLeft: 6,
+                                }}
+                              >
+                                {trip.departureTime}{trip.returnTime && ` ~ ${trip.returnTime}`}
+                              </span>
+                            )}
+                          </div>
+                          <IoInformationCircleOutline
+                            size={20}
+                            color={isPast ? '#C5C8CD' : '#ABABAB'}
+                            className="trip-schedule-card__info-icon flex-shrink-0"
+                          />
                         </div>
-                        {trip.price && (
-                          <div className="mt-1">
-                            <span
-                              className="trip-schedule-card__price badge rounded-pill"
-                              style={{
-                                backgroundColor: isPast ? '#E8EAED' : '#EBF1FE',
-                                color: isPast ? '#6F767E' : '#1B6FF5',
-                                fontSize: 12,
-                                fontFamily: FONT,
-                                fontWeight: 600,
-                              }}
-                            >
-                              {formatPrice(trip.price)}
-                            </span>
+
+                        {/* 줄 2: 어종 + 가격 배지 (나란히, 왼쪽 정렬) */}
+                        {(trip.species || trip.price) && (
+                          <div className="d-flex align-items-center gap-2 mt-1" style={{ flexWrap: 'wrap' }}>
+                            {trip.species && (
+                              <span
+                                className="trip-schedule-card__meta"
+                                style={{
+                                  fontSize: 13,
+                                  color: isPast ? '#9A9FA5' : '#6F767E',
+                                  fontFamily: FONT,
+                                }}
+                              >
+                                {trip.species}
+                              </span>
+                            )}
+                            {trip.price && (
+                              <span
+                                className="trip-schedule-card__price badge rounded-pill"
+                                style={{
+                                  backgroundColor: isPast ? '#E8EAED' : '#EBF1FE',
+                                  color: isPast ? '#6F767E' : '#1B6FF5',
+                                  fontSize: 12,
+                                  fontFamily: FONT,
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {formatPrice(trip.price)}
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>
-                      <IoInformationCircleOutline
-                        size={20}
-                        color={isPast ? '#C5C8CD' : '#ABABAB'}
-                        className="trip-schedule-card__info-icon flex-shrink-0"
-                        style={{ marginTop: 2 }}
-                      />
                     </div>
                   </button>
                   );
@@ -546,26 +563,6 @@ export default function TripGuidePage() {
         open={!!modalTrip}
         onClose={() => setModalTrip(null)}
         title={modalTrip?.destination ?? '출조 정보'}
-        footer={
-          <OhgoModalActions>
-            <OhgoModalButton variant="secondary" onClick={() => setModalTrip(null)}>
-              닫기
-            </OhgoModalButton>
-            {canShowReserveButton && (
-              <OhgoModalButton
-                variant="primary"
-                disabled={!!modalReservation || isTripFull}
-                onClick={() => void handleReserveClick()}
-              >
-                {modalReservation
-                  ? '예약 완료'
-                  : isTripFull
-                    ? '정원 마감'
-                    : '예약'}
-              </OhgoModalButton>
-            )}
-          </OhgoModalActions>
-        }
       >
         {modalTrip && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -581,7 +578,7 @@ export default function TripGuidePage() {
               <OhgoModalInfoRow icon={IoBoatOutline} variant="date" value={formatTripModalDate(modalTrip.date)} />
               <OhgoModalInfoRow
                 icon={IoTimeOutline}
-                label="출항 시간(귀항 예정)"
+                label="출항 시간"
                 value={`${modalTrip.departureTime}${modalTrip.returnTime ? ` ~ ${modalTrip.returnTime}` : ''}`}
               />
               {modalTrip.species ? (
@@ -617,6 +614,15 @@ export default function TripGuidePage() {
                   {modalTrip.notes}
                 </div>
               </div>
+            )}
+            {canShowReserveButton && (
+              <OhgoModalButton
+                variant="primary"
+                disabled={!!modalReservation || isTripFull}
+                onClick={() => void handleReserveClick()}
+              >
+                {modalReservation ? '예약 완료' : isTripFull ? '정원 마감' : '예약'}
+              </OhgoModalButton>
             )}
           </div>
         )}

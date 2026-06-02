@@ -554,11 +554,6 @@ export default function TodayRosterPage() {
         open={modalVisible && !!tempSelectedDate}
         onClose={() => setModalVisible(false)}
         title={tempSelectedDate ? format(tempSelectedDate, 'yyyy년 MM월 dd일') : ''}
-        footer={
-          <OhgoModalButton variant="secondary" onClick={() => setModalVisible(false)}>
-            취소
-          </OhgoModalButton>
-        }
       >
         {tempSelectedDate && (() => {
           const dateStr = format(tempSelectedDate, 'yyyy-MM-dd');

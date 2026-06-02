@@ -259,9 +259,6 @@ export default function AdminReservationsPage() {
         title="예약 거절"
         footer={
           <>
-            <OhgoModalButton variant="secondary" onClick={() => setRejectTarget(null)}>
-              닫기
-            </OhgoModalButton>
             <OhgoModalButton variant="danger" disabled={acting} onClick={() => void handleReject()}>
               {acting ? '처리 중...' : '거절'}
             </OhgoModalButton>

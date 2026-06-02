@@ -233,8 +233,15 @@ function PointMallProductContent() {
     try {
       const result = await purchaseProduct(uuid, product.id);
       if (result.ok) {
-        alert('구매가 완료되었습니다.');
+        const baitMsg =
+          result.baitGranted && result.baitGranted > 0
+            ? `미끼 ${result.baitGranted}개가 추가되었습니다.`
+            : '구매가 완료되었습니다.';
+        alert(baitMsg);
         setConfirmOpen(false);
+        const balance = await getUserPointBalance(uuid);
+        setGamePoints(balance.gamePoints);
+        setCommunityPoints(balance.communityPoints);
         router.push('/point-mall/orders');
       } else {
         alert(purchaseErrorMessage(result.code));
@@ -249,9 +256,11 @@ function PointMallProductContent() {
   }
 
   const images = getProductImageUrls(product);
+  const isBaitProduct = product.isBaitProduct === true;
   const totalPoints = gamePoints + communityPoints;
+  const payablePoints = isBaitProduct ? communityPoints : totalPoints;
   const outOfStock = product.stock === 0;
-  const canPurchase = !outOfStock && totalPoints >= product.pointPrice;
+  const canPurchase = !outOfStock && payablePoints >= product.pointPrice;
 
   return (
     <SubPageFrame title="상품 상세" onBack={() => router.back()}>
@@ -281,6 +290,32 @@ function PointMallProductContent() {
             >
               {formatProductStock(product.stock)}
             </span>
+            {isBaitProduct && (
+              <span
+                className="badge rounded-pill"
+                style={{
+                  backgroundColor: '#FFF4E5',
+                  color: '#E68600',
+                  fontWeight: 700,
+                  fontSize: 11,
+                }}
+              >
+                커뮤니티 포인트 전용
+              </span>
+            )}
+            {isBaitProduct && (product.baitAmount ?? 0) > 0 && (
+              <span
+                className="badge rounded-pill"
+                style={{
+                  backgroundColor: '#E8F5E9',
+                  color: '#2E7D32',
+                  fontWeight: 700,
+                  fontSize: 11,
+                }}
+              >
+                미끼 {product.baitAmount}개 지급
+              </span>
+            )}
           </div>
           {product.description ? (
             <p className="mb-0" style={{ fontSize: 14, color: '#6F767E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
@@ -305,23 +340,49 @@ function PointMallProductContent() {
             </span>
           </div>
           <div style={{ fontSize: 13, color: '#6F767E' }}>
-            <div className="d-flex justify-content-between mb-1">
-              <span>사용 가능 포인트</span>
-              <span style={{ fontWeight: 700, color: '#1A1D1F' }}>{totalPoints.toLocaleString('ko-KR')}P</span>
-            </div>
-            <div className="d-flex flex-wrap gap-3 mt-2" style={{ fontSize: 12, color: '#9A9FA5' }}>
-              <span className="d-inline-flex align-items-center gap-1">
-                <IoGameControllerOutline size={12} aria-hidden />
-                게임 {gamePoints.toLocaleString('ko-KR')}P
-              </span>
-              <span className="d-inline-flex align-items-center gap-1">
-                <IoChatbubblesOutline size={12} aria-hidden />
-                커뮤니티 {communityPoints.toLocaleString('ko-KR')}P
-              </span>
-            </div>
-            <p className="mb-0 mt-2" style={{ fontSize: 11, color: '#9A9FA5' }}>
-              게임 포인트가 우선 차감됩니다.
-            </p>
+            {isBaitProduct ? (
+              <>
+                <div className="d-flex justify-content-between mb-1">
+                  <span>사용 가능 (커뮤니티)</span>
+                  <span style={{ fontWeight: 700, color: '#1A1D1F' }}>
+                    {communityPoints.toLocaleString('ko-KR')}P
+                  </span>
+                </div>
+                <div className="d-flex flex-wrap gap-3 mt-2" style={{ fontSize: 12, color: '#9A9FA5' }}>
+                  <span className="d-inline-flex align-items-center gap-1">
+                    <IoGameControllerOutline size={12} aria-hidden />
+                    게임 {gamePoints.toLocaleString('ko-KR')}P (사용 불가)
+                  </span>
+                  <span className="d-inline-flex align-items-center gap-1">
+                    <IoChatbubblesOutline size={12} aria-hidden />
+                    커뮤니티 {communityPoints.toLocaleString('ko-KR')}P
+                  </span>
+                </div>
+                <p className="mb-0 mt-2" style={{ fontSize: 11, color: '#9A9FA5' }}>
+                  미끼 상품은 커뮤니티 활동(댓글 등)으로 모은 포인트로만 구매할 수 있습니다.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="d-flex justify-content-between mb-1">
+                  <span>사용 가능 포인트</span>
+                  <span style={{ fontWeight: 700, color: '#1A1D1F' }}>{totalPoints.toLocaleString('ko-KR')}P</span>
+                </div>
+                <div className="d-flex flex-wrap gap-3 mt-2" style={{ fontSize: 12, color: '#9A9FA5' }}>
+                  <span className="d-inline-flex align-items-center gap-1">
+                    <IoGameControllerOutline size={12} aria-hidden />
+                    게임 {gamePoints.toLocaleString('ko-KR')}P
+                  </span>
+                  <span className="d-inline-flex align-items-center gap-1">
+                    <IoChatbubblesOutline size={12} aria-hidden />
+                    커뮤니티 {communityPoints.toLocaleString('ko-KR')}P
+                  </span>
+                </div>
+                <p className="mb-0 mt-2" style={{ fontSize: 11, color: '#9A9FA5' }}>
+                  게임 포인트가 우선 차감됩니다.
+                </p>
+              </>
+            )}
           </div>
         </div>
 
@@ -336,8 +397,12 @@ function PointMallProductContent() {
           disabled={outOfStock}
           onClick={() => {
             if (outOfStock) return;
-            if (totalPoints < product.pointPrice) {
-              alert('포인트가 부족합니다.');
+            if (payablePoints < product.pointPrice) {
+              alert(
+                isBaitProduct
+                  ? '커뮤니티 포인트가 부족합니다. 댓글 등 커뮤니티 활동으로 포인트를 모아 주세요.'
+                  : '포인트가 부족합니다.'
+              );
               return;
             }
             setConfirmOpen(true);
@@ -345,9 +410,10 @@ function PointMallProductContent() {
         >
           {outOfStock ? '품절' : '포인트로 구매하기'}
         </button>
-        {!outOfStock && totalPoints < product.pointPrice && (
+        {!outOfStock && payablePoints < product.pointPrice && (
           <p className="text-center mb-0" style={{ fontSize: 12, color: '#FF3B30' }}>
-            포인트가 {(product.pointPrice - totalPoints).toLocaleString('ko-KR')}P 부족합니다.
+            {isBaitProduct ? '커뮤니티 ' : ''}포인트가{' '}
+            {(product.pointPrice - payablePoints).toLocaleString('ko-KR')}P 부족합니다.
           </p>
         )}
       </div>
@@ -383,8 +449,16 @@ function PointMallProductContent() {
           </span>
         </div>
         <p className="mt-2 mb-0" style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT }}>
-          구매 후 보유 포인트: {(totalPoints - product.pointPrice).toLocaleString('ko-KR')}P
+          구매 후 보유 포인트:{' '}
+          {isBaitProduct
+            ? `커뮤니티 ${(communityPoints - product.pointPrice).toLocaleString('ko-KR')}P`
+            : `${(totalPoints - product.pointPrice).toLocaleString('ko-KR')}P`}
         </p>
+        {isBaitProduct && (product.baitAmount ?? 0) > 0 && (
+          <p className="mt-1 mb-0" style={{ fontSize: 12, color: '#2E7D32', fontFamily: FONT }}>
+            구매 시 미끼 {product.baitAmount}개가 지급됩니다.
+          </p>
+        )}
       </OhgoModal>
     </SubPageFrame>
   );

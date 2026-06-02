@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  BackHandler,
   Linking,
   Platform,
   StyleSheet,
@@ -36,6 +38,7 @@ export function AppWebView({ initialPath = '/' }: AppWebViewProps) {
   const [loading, setLoading] = useState(true);
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [gameImmersive, setGameImmersive] = useState(false);
+  const canGoBackRef = useRef(false);
   const baseUrl = getWebBaseUrl();
   const initialUri = `${baseUrl}${initialPath.startsWith('/') ? initialPath : `/${initialPath}`}`;
 
@@ -50,6 +53,27 @@ export function AppWebView({ initialPath = '/' }: AppWebViewProps) {
   const injectSafeArea = useCallback(() => {
     webRef.current?.injectJavaScript(buildSafeAreaInjectScript(insets.top, insets.bottom));
   }, [insets.top, insets.bottom]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (canGoBackRef.current) {
+        webRef.current?.goBack();
+        return true;
+      }
+      Alert.alert(
+        '앱 종료',
+        '앱을 닫으시겠습니까?',
+        [
+          { text: '취소', style: 'cancel' },
+          { text: '종료', style: 'destructive', onPress: () => BackHandler.exitApp() },
+        ],
+        { cancelable: true },
+      );
+      return true;
+    });
+    return () => handler.remove();
+  }, []);
 
   useEffect(() => {
     if (!loading) {
@@ -144,6 +168,9 @@ export function AppWebView({ initialPath = '/' }: AppWebViewProps) {
         ref={webRef}
         source={{ uri: initialUri }}
         style={styles.webview}
+        onNavigationStateChange={navState => {
+          canGoBackRef.current = navState.canGoBack;
+        }}
         onLoadEnd={() => {
           setLoading(false);
           injectSafeArea();

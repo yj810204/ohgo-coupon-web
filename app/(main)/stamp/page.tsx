@@ -213,23 +213,25 @@ function StampPageContent() {
         open={modalVisible && !!selectedStampInfo}
         onClose={() => setModalVisible(false)}
         title="스탬프 정보"
+        footer={
+          fromAdmin && selectedStampInfo?.value ? (
+            <OhgoModalButton
+              variant="danger"
+              onClick={async () => {
+                await deleteStamp(user!.uuid!, selectedStampInfo.value!, user!.name!, user!.dob!);
+                await fetchStamps();
+                setModalVisible(false);
+              }}
+            >
+              스탬프 회수
+            </OhgoModalButton>
+          ) : undefined
+        }
       >
         {selectedStampInfo && (
           <>
             <OhgoModalField label="적립일" value={selectedStampInfo.date} />
             <OhgoModalField label="적립 방법" value={selectedStampInfo.method} />
-            {fromAdmin && selectedStampInfo.value && (
-              <OhgoModalButton
-                variant="danger"
-                onClick={async () => {
-                  await deleteStamp(user!.uuid!, selectedStampInfo.value!, user!.name!, user!.dob!);
-                  await fetchStamps();
-                  setModalVisible(false);
-                }}
-              >
-                스탬프 회수
-              </OhgoModalButton>
-            )}
           </>
         )}
       </OhgoModal>

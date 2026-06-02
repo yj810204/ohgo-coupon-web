@@ -26,6 +26,8 @@ const EMPTY: PointMallProductInput = {
   stock: -1,
   isActive: true,
   order: 0,
+  isBaitProduct: false,
+  baitAmount: 1,
 };
 
 function ProductImagePreviewGrid({
@@ -122,6 +124,8 @@ function PointMallFormContent() {
           stock: p.stock,
           isActive: p.isActive,
           order: p.order,
+          isBaitProduct: p.isBaitProduct === true,
+          baitAmount: p.baitAmount ?? 1,
         });
       } finally {
         setLoadingProduct(false);
@@ -192,6 +196,10 @@ function PointMallFormContent() {
       alert('구매 포인트는 1 이상이어야 합니다.');
       return;
     }
+    if (form.isBaitProduct && (!form.baitAmount || form.baitAmount < 1)) {
+      alert('미끼 지급 수량은 1 이상이어야 합니다.');
+      return;
+    }
     setSaving(true);
     try {
       const payload: PointMallProductInput = {
@@ -202,6 +210,8 @@ function PointMallFormContent() {
         order: Number(form.order) || 0,
         isActive: form.isActive,
         imageUrls: imageUrls,
+        isBaitProduct: form.isBaitProduct === true,
+        baitAmount: form.isBaitProduct ? Math.max(1, Number(form.baitAmount) || 1) : 0,
       };
       if (editId) {
         await updatePointMallProduct(editId, payload);
@@ -327,6 +337,54 @@ function PointMallFormContent() {
             />
           </div>
         </div>
+        <div
+          className="d-flex align-items-center justify-content-between px-3 py-2 mb-3"
+          style={{ backgroundColor: '#F7F8FA', borderRadius: 10, border: '1px solid #EFEFEF' }}
+        >
+          <div>
+            <span style={{ fontFamily: OHGO_FONT, fontSize: 14, fontWeight: 600, color: '#1A1D1F' }}>
+              미끼 상품
+            </span>
+            <small
+              className="d-block mt-1"
+              style={{ fontSize: 11, color: '#9A9FA5', fontFamily: OHGO_FONT }}
+            >
+              커뮤니티 포인트 전용 · 구매 시 미끼 지급
+            </small>
+          </div>
+          <div className="form-check form-switch m-0">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              id="isBaitProduct"
+              checked={!!form.isBaitProduct}
+              onChange={e => {
+                const checked = e.target.checked;
+                setForm(f => ({
+                  ...f,
+                  isBaitProduct: checked,
+                  baitAmount: checked ? Math.max(1, f.baitAmount || 1) : f.baitAmount,
+                }));
+              }}
+            />
+          </div>
+        </div>
+        {form.isBaitProduct && (
+          <div className="mb-3">
+            <label style={FORM_LABEL}>구매 시 지급 미끼 수 *</label>
+            <input
+              type="number"
+              min={1}
+              value={form.baitAmount || ''}
+              onChange={e =>
+                setField('baitAmount', e.target.value === '' ? 0 : Number(e.target.value))
+              }
+              className="form-control"
+              style={OHGO_INPUT}
+              placeholder="1"
+            />
+          </div>
+        )}
         <div
           className="d-flex align-items-center justify-content-between px-3 py-2"
           style={{ backgroundColor: '#F7F8FA', borderRadius: 10, border: '1px solid #EFEFEF' }}

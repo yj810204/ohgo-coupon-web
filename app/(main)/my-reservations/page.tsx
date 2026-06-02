@@ -227,9 +227,6 @@ export default function MyReservationsPage() {
         title="예약 취소"
         footer={
           <>
-            <OhgoModalButton variant="secondary" onClick={() => setCancelTarget(null)}>
-              닫기
-            </OhgoModalButton>
             <OhgoModalButton variant="danger" disabled={cancelling} onClick={() => void handleCancel()}>
               {cancelling ? '처리 중...' : '취소하기'}
             </OhgoModalButton>
@@ -251,9 +248,6 @@ export default function MyReservationsPage() {
         title="내역 삭제"
         footer={
           <>
-            <OhgoModalButton variant="secondary" onClick={() => setDeleteTarget(null)}>
-              닫기
-            </OhgoModalButton>
             <OhgoModalButton variant="danger" disabled={deleting} onClick={() => void handleDelete()}>
               {deleting ? '처리 중...' : '삭제하기'}
             </OhgoModalButton>

@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getUser } from '@/lib/storage';
 import SubPageFrame from '@/components/SubPageFrame';
 import ProductGridCard from '@/components/home/ProductGridCard';
@@ -20,8 +20,10 @@ import {
 
 const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
 
-export default function PointMallPage() {
+function PointMallPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const baitFilter = searchParams.get('filter') === 'bait';
   const [ready, setReady] = useState(false);
   const [uuid, setUuid] = useState('');
   const [products, setProducts] = useState<PointMallProduct[]>([]);
@@ -73,9 +75,12 @@ export default function PointMallPage() {
   }
 
   const totalPoints = gamePoints + communityPoints;
+  const displayProducts = baitFilter
+    ? products.filter(p => p.isBaitProduct === true)
+    : products;
 
   return (
-    <SubPageFrame title="Oh~Go! 포인트몰">
+    <SubPageFrame title={baitFilter ? '미끼 구매' : 'Oh~Go! 포인트몰'}>
       <div className="point-mall-balance" style={{ fontFamily: FONT }}>
         <div className="point-mall-balance__row">
           <div className="point-mall-balance__points">
@@ -105,23 +110,30 @@ export default function PointMallPage() {
         </div>
       </div>
 
-      <p className="mb-3" style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>
-        미니게임·커뮤니티 활동으로 적립한 포인트로 상품을 구매할 수 있습니다.
-      </p>
+      {baitFilter ? (
+        <p className="mb-3" style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>
+          커뮤니티 포인트로 미끼를 구매한 뒤 미니게임을 플레이할 수 있습니다. 게임 포인트는 사용할 수
+          없습니다.
+        </p>
+      ) : (
+        <p className="mb-3" style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>
+          미니게임·커뮤니티 활동으로 적립한 포인트로 상품을 구매할 수 있습니다.
+        </p>
+      )}
 
       {loading ? (
         <div className="py-5 text-center">
           <div className="spinner-border text-primary" role="status" />
         </div>
-      ) : products.length === 0 ? (
+      ) : displayProducts.length === 0 ? (
         <EmptyState
           icon={IoStorefrontOutline}
-          message="등록된 상품이 없습니다."
+          message={baitFilter ? '등록된 미끼 상품이 없습니다.' : '등록된 상품이 없습니다.'}
           style={{ backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
         />
       ) : (
         <div className="row g-3">
-          {products.map(product => {
+          {displayProducts.map(product => {
             const outOfStock = product.stock === 0;
             return (
               <div key={product.id} className="col-6">
@@ -143,5 +155,22 @@ export default function PointMallPage() {
         </div>
       )}
     </SubPageFrame>
+  );
+}
+
+export default function PointMallPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          className="min-vh-100 d-flex align-items-center justify-content-center"
+          style={{ backgroundColor: '#F7F8FA' }}
+        >
+          <div className="spinner-border text-primary" role="status" />
+        </div>
+      }
+    >
+      <PointMallPageContent />
+    </Suspense>
   );
 }

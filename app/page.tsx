@@ -11,24 +11,22 @@ export default function Home() {
   useEffect(() => {
     const checkUser = async () => {
       const localUser = await getUser();
-      console.log('🧪 localStorage user:', localUser);
 
       if (!localUser?.uuid) {
-        console.log('🛑 localUser 없음 → 로그인 화면으로 이동');
-        router.replace('/login');
+        // 온보딩 완료 여부 확인
+        let onboarded = false;
+        try { onboarded = !!localStorage.getItem('ohgo_onboarded'); } catch {}
+        router.replace(onboarded ? '/login' : '/onboarding');
         return;
       }
 
       const remoteUser = await getUserByUUID(localUser.uuid);
-      console.log('🧪 Firestore user:', remoteUser);
-
       if (remoteUser) {
-        console.log('✅ 자동 로그인 성공 →', remoteUser.isAdmin ? '/admin-main' : '/main');
-        const route = remoteUser.isAdmin ? '/admin-main' : '/main';
-        router.replace(route);
+        router.replace(remoteUser.isAdmin ? '/admin-main' : '/main');
       } else {
-        console.log('🛑 Firestore에 사용자 없음 → 로그인 화면으로 이동');
-        router.replace('/login');
+        let onboarded = false;
+        try { onboarded = !!localStorage.getItem('ohgo_onboarded'); } catch {}
+        router.replace(onboarded ? '/login' : '/onboarding');
       }
     };
 
@@ -36,10 +34,9 @@ export default function Home() {
   }, [router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600">자동 로그인 중...</p>
+    <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F7F8FA' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div className="spinner-border text-primary" role="status" />
       </div>
     </div>
   );

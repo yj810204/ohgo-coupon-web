@@ -5,13 +5,20 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { getStamps, getCouponCount, addStamp, addStampBatch, deleteUser } from '@/utils/stamp-service';
+import { getStamps, getCouponCount, addStampBatch, removeStampBatch, deleteUser } from '@/utils/stamp-service';
 import { sendPushToUser } from '@/utils/send-push';
 import SubPageFrame from '@/components/SubPageFrame';
-import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import OhgoModal from '@/components/OhgoModal';
 import MemberListAvatar from '@/components/MemberListAvatar';
 import { getMemberProfileImageUrl } from '@/lib/member-profile';
-import { OHGO_CARD, OHGO_CONFIRM_BTN_CLASS, OHGO_FONT, OHGO_PRIMARY_BTN, OhgoPageLoading } from '@/lib/page-styles';
+import {
+  OHGO_CARD,
+  OHGO_CONFIRM_BTN_CLASS,
+  OHGO_FONT,
+  OHGO_INPUT,
+  OHGO_PRIMARY_BTN,
+  OhgoPageLoading,
+} from '@/lib/page-styles';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import type { IconType } from 'react-icons';
 import { 
@@ -19,7 +26,6 @@ import {
   IoCalendarOutline, 
   IoTimeOutline,
   IoPricetagOutline,
-  IoAddCircleOutline,
   IoDocumentTextOutline,
   IoListOutline,
   IoTrashOutline,
@@ -130,6 +136,110 @@ function DetailMenuRow({
   );
 }
 
+const ADMIN_QTY_RADIUS = 18;
+
+const ADMIN_QTY_SIDE_BTN: CSSProperties = {
+  flex: '0 0 48px',
+  width: 48,
+  height: 48,
+  padding: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: ADMIN_QTY_RADIUS,
+  border: 'none',
+  fontSize: 22,
+  fontWeight: 600,
+  lineHeight: 1,
+  fontFamily: OHGO_FONT,
+};
+
+function AdminQtyStepperRow({
+  currentCount,
+  onMinus,
+  onPlus,
+  disabled,
+  minusDisabled,
+  plusDisabled,
+  minusAriaLabel,
+  plusAriaLabel,
+  minusStyle,
+  plusStyle,
+  accentColor = '#1A1D1F',
+  hideMinus,
+}: {
+  currentCount: number;
+  onMinus: () => void;
+  onPlus: () => void;
+  disabled?: boolean;
+  minusDisabled?: boolean;
+  plusDisabled?: boolean;
+  minusAriaLabel: string;
+  plusAriaLabel: string;
+  minusStyle?: CSSProperties;
+  plusStyle?: CSSProperties;
+  accentColor?: string;
+  hideMinus?: boolean;
+}) {
+  return (
+    <div className="d-flex align-items-center gap-2">
+      {!hideMinus && (
+        <button
+          type="button"
+          className="btn"
+          style={{
+            ...ADMIN_QTY_SIDE_BTN,
+            backgroundColor: '#F2F3F5',
+            color: '#6F767E',
+            ...minusStyle,
+          }}
+          onClick={onMinus}
+          disabled={disabled || minusDisabled}
+          aria-label={minusAriaLabel}
+        >
+          −
+        </button>
+      )}
+      <input
+        type="text"
+        readOnly
+        className="form-control text-center"
+        style={{
+          ...OHGO_INPUT,
+          flex: 1,
+          minWidth: 0,
+          padding: '12px 10px',
+          fontWeight: 600,
+          fontSize: 15,
+          borderRadius: ADMIN_QTY_RADIUS,
+          backgroundColor: '#F7F8FA',
+          color: accentColor,
+          cursor: 'default',
+        }}
+        value={`${currentCount}개`}
+        disabled={disabled}
+        aria-label={`현재 수량 ${currentCount}개`}
+        aria-readonly
+      />
+      <button
+        type="button"
+        className="btn text-white"
+        style={{
+          ...ADMIN_QTY_SIDE_BTN,
+          backgroundColor: '#1B6FF5',
+          boxShadow: '0 4px 12px rgba(27,111,245,0.25)',
+          ...plusStyle,
+        }}
+        onClick={onPlus}
+        disabled={disabled || plusDisabled}
+        aria-label={plusAriaLabel}
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
 function MemberDetailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -142,8 +252,7 @@ function MemberDetailContent() {
   const [couponCount, setCouponCount] = useState(0);
   const [points, setPoints] = useState(0);
   const [baitCoupons, setBaitCoupons] = useState(0);
-  const [isLoadingOne, setIsLoadingOne] = useState(false);
-  const [isLoadingFive, setIsLoadingFive] = useState(false);
+  const [isLoadingStamp, setIsLoadingStamp] = useState(false);
   const [isLoadingBait, setIsLoadingBait] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isResettingPoints, setIsResettingPoints] = useState(false);
@@ -225,51 +334,54 @@ function MemberDetailContent() {
     await loadTargetUserInfo();
   });
 
-  const handleAddStamp = async () => {
-    if (!confirm(`${name}님에게 스탬프 1개를 적립하시겠습니까?`)) return;
+  const ADMIN_ADJUST_AMOUNT = 1;
 
-    setIsLoadingOne(true);
+  const handleGrantStamp = async () => {
+    const count = ADMIN_ADJUST_AMOUNT;
+    if (!confirm(`${name}님에게 스탬프 ${count}개를 적립하시겠습니까?`)) return;
+
+    setIsLoadingStamp(true);
     try {
-      await addStamp(uuid, 'ADMIN');
+      await addStampBatch(uuid, count);
       await loadCounts();
 
-      if (stampCount + 1 >= 10) {
-        alert('쿠폰 발급: ' + name + '님에게 쿠폰이 1개 발급되었습니다.');
+      const newTotal = stampCount + count;
+      if (Math.floor(stampCount / 10) < Math.floor(newTotal / 10)) {
+        alert('쿠폰 발급: ' + name + '님에게 쿠폰이 발급되었을 수 있습니다. 스탬프 화면에서 확인해 주세요.');
       }
 
       await sendPushToUser({
         uuid,
         title: '스탬프가 적립되었어요~!',
-        body: `${name}님, 스탬프가 1개 적립되었습니다~! ✨`,
+        body: `${name}님, 스탬프가 ${count}개 적립되었습니다~! ✨`,
         data: { screen: 'stamp', uuid, name, dob },
       });
+
+      alert(`완료: 스탬프 ${count}개가 적립되었습니다.`);
     } catch (err: any) {
       alert('스탬프 적립 실패: ' + err.message);
     } finally {
-      setIsLoadingOne(false);
+      setIsLoadingStamp(false);
     }
   };
 
-  const handleAddStampFive = async () => {
-    if (!confirm(`${name}님에게 스탬프 5개를 적립하시겠습니까?`)) return;
+  const handleDeductStamp = async () => {
+    const count = ADMIN_ADJUST_AMOUNT;
+    if (stampCount < count) {
+      alert(`보유 스탬프(${stampCount}개)보다 많이 회수할 수 없습니다.`);
+      return;
+    }
+    if (!confirm(`${name}님의 스탬프 ${count}개를 회수하시겠습니까?`)) return;
 
-    setIsLoadingFive(true);
+    setIsLoadingStamp(true);
     try {
-      await addStampBatch(uuid, 5);
+      await removeStampBatch(uuid, count);
       await loadCounts();
-
-      await sendPushToUser({
-        uuid,
-        title: '스탬프 5개가 적립되었어요~!',
-        body: `${name}님, 스탬프가 5개 적립되었습니다~! 🎉`,
-        data: { screen: 'stamp', uuid, name, dob },
-      });
-
-      alert('완료: 스탬프 5개가 적립되었습니다.');
+      alert(`완료: 스탬프 ${count}개가 회수되었습니다.`);
     } catch (err: any) {
-      alert('실패: ' + err.message);
+      alert('스탬프 회수 실패: ' + err.message);
     } finally {
-      setIsLoadingFive(false);
+      setIsLoadingStamp(false);
     }
   };
 
@@ -293,37 +405,50 @@ function MemberDetailContent() {
   const updateBaitCoupons = async (increment: number) => {
     if (increment === 0) return;
 
-    const message = increment > 0
-      ? `${name}님의 미끼 교환권을 1개 추가하시겠습니까?`
-      : `${name}님의 미끼 교환권을 1개 차감하시겠습니까?`;
+    const amount = Math.abs(increment);
+    const message =
+      increment > 0
+        ? `${name}님에게 미끼 ${amount}개를 지급하시겠습니까?`
+        : `${name}님의 미끼 ${amount}개를 차감하시겠습니까?`;
 
     if (!confirm(message)) return;
 
     setIsLoadingBait(true);
     try {
+      const next = Math.max(0, baitCoupons + increment);
       const userRef = doc(db, 'users', uuid);
-      await updateDoc(userRef, {
-        baitCoupons: (baitCoupons + increment) >= 0 ? baitCoupons + increment : 0
-      });
+      await updateDoc(userRef, { baitCoupons: next });
 
-      setBaitCoupons(prev => (prev + increment >= 0 ? prev + increment : 0));
+      setBaitCoupons(next);
 
-      const actionText = increment > 0 ? '추가' : '차감';
-      alert('완료: 미끼 교환권이 1개 ' + actionText + '되었습니다.');
+      const actionText = increment > 0 ? '지급' : '차감';
+      alert(`완료: 미끼 ${amount}개가 ${actionText}되었습니다.`);
 
       if (increment > 0) {
         await sendPushToUser({
           uuid,
-          title: '미끼 교환권 업데이트',
-          body: `${name}님, 미끼 교환권이 1개 추가되었습니다.`,
-          data: { screen: 'fishing', uuid, name, dob },
+          title: '미끼가 지급되었어요',
+          body: `${name}님, 미끼 ${amount}개가 추가되었습니다.`,
+          data: { screen: 'mini-games', uuid, name, dob },
         });
       }
     } catch (err: any) {
-      alert('미끼 교환권 업데이트 실패: ' + err.message);
+      alert('미끼 업데이트 실패: ' + err.message);
     } finally {
       setIsLoadingBait(false);
     }
+  };
+
+  const handleGrantBait = () => {
+    void updateBaitCoupons(ADMIN_ADJUST_AMOUNT);
+  };
+
+  const handleDeductBait = () => {
+    if (baitCoupons < ADMIN_ADJUST_AMOUNT) {
+      alert(`보유 미끼(${baitCoupons}개)보다 많이 차감할 수 없습니다.`);
+      return;
+    }
+    void updateBaitCoupons(-ADMIN_ADJUST_AMOUNT);
   };
 
   const handleDeleteUser = async () => {
@@ -376,9 +501,9 @@ function MemberDetailContent() {
         router.push(`/coupons?uuid=${uuid}&name=${name}&dob=${dob}&fromAdmin=true`),
     },
     {
-      label: '교환권',
+      label: '미끼',
       value: baitCoupons,
-      valueColor: '#1A1D1F',
+      valueColor: '#2E7D32',
       onClick: () => setBaitModalVisible(true),
     },
   ];
@@ -483,52 +608,49 @@ function MemberDetailContent() {
           />
         </div>
 
-        <div className="row g-2 mb-3">
-          <div className="col-6">
-            <button
-              type="button"
-              className={`btn w-100 d-flex align-items-center justify-content-center gap-2 ${OHGO_CONFIRM_BTN_CLASS}`}
-              onClick={handleAddStamp}
-              disabled={isLoadingOne || isLoadingFive}
-              style={OHGO_PRIMARY_BTN}
-            >
-              {isLoadingOne ? (
-                <>
-                  <span className="spinner-border spinner-border-sm text-white" />
-                  <span>적립 중...</span>
-                </>
-              ) : (
-                <>
-                  <IoAddCircleOutline size={18} className="flex-shrink-0" />
-                  <span>스탬프 +1</span>
-                </>
-              )}
-            </button>
+        <div className="mb-3" style={{ ...OHGO_CARD, padding: 14 }}>
+          <div className="mb-3 pb-3" style={{ borderBottom: '1px solid #F7F8FA' }}>
+            <span style={{ ...DETAIL_LABEL, display: 'block', marginBottom: 10 }}>스탬프 적립</span>
+            <AdminQtyStepperRow
+              currentCount={stampCount}
+              accentColor="#1B6FF5"
+              disabled={isLoadingStamp || isLoadingBait}
+              minusDisabled={isLoadingStamp || stampCount < 1}
+              plusDisabled={isLoadingStamp}
+              minusAriaLabel="스탬프 1개 회수"
+              plusAriaLabel="스탬프 1개 적립"
+              onMinus={() => void handleDeductStamp()}
+              onPlus={() => void handleGrantStamp()}
+            />
+            {isLoadingStamp && (
+              <p className="mb-0 mt-2 text-center" style={{ fontSize: 13, color: '#6F767E', fontFamily: OHGO_FONT }}>
+                적립 중...
+              </p>
+            )}
           </div>
-          <div className="col-6">
-            <button
-              type="button"
-              className="btn w-100 d-flex align-items-center justify-content-center gap-2 text-white"
-              onClick={handleAddStampFive}
-              disabled={isLoadingOne || isLoadingFive}
-              style={{
-                ...OHGO_PRIMARY_BTN,
-                backgroundColor: '#6F767E',
-                boxShadow: '0 4px 12px rgba(111,118,126,0.25)',
+
+          <div>
+            <span style={{ ...DETAIL_LABEL, display: 'block', marginBottom: 10 }}>미끼 조정</span>
+            <AdminQtyStepperRow
+              currentCount={baitCoupons}
+              accentColor="#2E7D32"
+              disabled={isLoadingStamp || isLoadingBait}
+              minusDisabled={isLoadingBait || baitCoupons < 1}
+              plusDisabled={isLoadingBait}
+              minusAriaLabel="미끼 1개 차감"
+              plusAriaLabel="미끼 1개 지급"
+              onMinus={() => handleDeductBait()}
+              onPlus={() => handleGrantBait()}
+              plusStyle={{
+                backgroundColor: '#2E7D32',
+                boxShadow: '0 4px 12px rgba(46,125,50,0.3)',
               }}
-            >
-              {isLoadingFive ? (
-                <>
-                  <span className="spinner-border spinner-border-sm text-white" />
-                  <span>적립 중...</span>
-                </>
-              ) : (
-                <>
-                  <IoAddCircleOutline size={18} className="flex-shrink-0" />
-                  <span>스탬프 +5</span>
-                </>
-              )}
-            </button>
+            />
+            {isLoadingBait && (
+              <p className="mb-0 mt-2 text-center" style={{ fontSize: 13, color: '#6F767E', fontFamily: OHGO_FONT }}>
+                처리 중...
+              </p>
+            )}
           </div>
         </div>
 
@@ -588,11 +710,6 @@ function MemberDetailContent() {
         onClose={() => setModalVisible(false)}
         title={`${name}님의 명부 정보`}
         bodyPadding={false}
-        footer={
-          <OhgoModalButton variant="secondary" onClick={() => setModalVisible(false)}>
-            닫기
-          </OhgoModalButton>
-        }
       >
         {rosterData && (
           <div style={{ ...OHGO_CARD, borderRadius: 0, boxShadow: 'none' }}>
@@ -621,43 +738,25 @@ function MemberDetailContent() {
       <OhgoModal
         open={baitModalVisible}
         onClose={() => setBaitModalVisible(false)}
-        title={`${name}님의 교환권`}
-        footer={
-          <OhgoModalButton variant="secondary" onClick={() => setBaitModalVisible(false)}>
-            닫기
-          </OhgoModalButton>
-        }
+        title={`${name}님의 미끼`}
       >
-        <div className="d-flex align-items-center justify-content-center py-2">
-          <button
-            type="button"
-            className="btn btn-success rounded-circle d-flex align-items-center justify-content-center"
-            style={{ width: 56, height: 56, fontSize: '1.5rem', border: 'none' }}
-            onClick={() => updateBaitCoupons(1)}
-            disabled={isLoadingBait}
-          >
-            +
-          </button>
-          <div
-            className="fw-bold text-center mx-3"
-            style={{ minWidth: 72, fontSize: 28, color: '#1A1D1F', fontFamily: OHGO_FONT }}
-          >
-            {baitCoupons}
-          </div>
-          {baitCoupons > 0 && (
-            <button
-              type="button"
-              className="btn btn-danger rounded-circle d-flex align-items-center justify-content-center"
-              style={{ width: 56, height: 56, fontSize: '1.5rem', border: 'none' }}
-              onClick={() => updateBaitCoupons(-1)}
-              disabled={isLoadingBait}
-            >
-              −
-            </button>
-          )}
-        </div>
+        <AdminQtyStepperRow
+          currentCount={baitCoupons}
+          accentColor="#2E7D32"
+          disabled={isLoadingBait}
+          minusDisabled={isLoadingBait || baitCoupons < 1}
+          plusDisabled={isLoadingBait}
+          minusAriaLabel="미끼 1개 차감"
+          plusAriaLabel="미끼 1개 지급"
+          onMinus={() => handleDeductBait()}
+          onPlus={() => handleGrantBait()}
+          plusStyle={{
+            backgroundColor: '#2E7D32',
+            boxShadow: '0 4px 12px rgba(46,125,50,0.3)',
+          }}
+        />
         {isLoadingBait && (
-          <div className="text-center pb-2">
+          <div className="text-center mt-3">
             <div className="spinner-border spinner-border-sm text-primary" />
           </div>
         )}

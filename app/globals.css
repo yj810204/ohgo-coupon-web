@@ -155,6 +155,7 @@ button:focus-visible,
 .ohgo-subpage {
   background-color: #f7f8fa;
   font-family: var(--font-urbanist), 'Urbanist', sans-serif;
+  overflow-x: hidden;
 }
 
 /* 출조 안내 — 지난 일정 */

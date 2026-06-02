@@ -243,13 +243,62 @@
     letter-spacing: -0.3px;
 }
 
+/* ── 미끼 보유 ── */
+.game-start-modal .game-bait-info {
+    background: linear-gradient(135deg, #ebf1fe 0%, #f5f8ff 100%);
+    border: 1px solid #d6e4ff;
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 20px;
+}
+
+.game-start-modal .game-bait-info__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.game-start-modal .game-bait-info__label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #6f767e;
+}
+
+.game-start-modal .game-bait-info__count {
+    font-size: 32px;
+    font-weight: 800;
+    color: #1b6ff5;
+    line-height: 1;
+    letter-spacing: -0.5px;
+}
+
+.game-start-modal .game-bait-info__unit {
+    font-size: 17px;
+    font-weight: 700;
+    margin-left: 2px;
+}
+
+.game-start-modal .game-bait-info--empty {
+    background: linear-gradient(135deg, #fff0f0 0%, #fff8f8 100%);
+    border-color: #ffd0d0;
+}
+
+.game-start-modal .game-bait-info__count--zero {
+    color: #ff3b30;
+}
+
+.game-start-modal .game-bait-info__count--zero .game-bait-info__unit {
+    color: #ff3b30;
+}
+
 /* ── 설명 / 점수 텍스트 ── */
 .game-start-modal .game-description {
     color: #1a1d1f;
     font-size: 17px;
     font-weight: 500;
     line-height: 1.6;
-    margin: 0 0 28px 0;
+    margin: 0 0 24px 0;
 }
 
 .game-end-modal .final-score {

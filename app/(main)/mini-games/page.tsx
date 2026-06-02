@@ -4,7 +4,7 @@ import { useEffect, useCallback, useState } from 'react';
 import { getUser } from '@/lib/storage';
 import { useNavigation } from '@/hooks/useNavigation';
 import SubPageFrame from '@/components/SubPageFrame';
-import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import OhgoModal from '@/components/OhgoModal';
 import EmptyState from '@/components/EmptyState';
 import { getActiveGames, Game, getGlobalGameSettings } from '@/lib/game-service';
 import { IoGameControllerOutline, IoNotificationsOutline, IoTrophyOutline } from 'react-icons/io5';
@@ -137,11 +137,6 @@ export default function MiniGamesPage() {
           open={noticeModalVisible}
           onClose={() => setNoticeModalVisible(false)}
           title="게임 공지사항"
-          footer={
-            <OhgoModalButton variant="secondary" onClick={() => setNoticeModalVisible(false)}>
-              닫기
-            </OhgoModalButton>
-          }
         >
           <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, color: '#1A1D1F', fontFamily: FONT, fontSize: 14 }}>
             {gameNotice}

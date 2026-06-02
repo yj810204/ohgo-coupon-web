@@ -679,11 +679,6 @@ export default function AdminTripGuidePage() {
           setRejectTarget(null);
         }}
         title={reserveModalTrip ? `${reserveModalTrip.destination} 예약자` : '예약자'}
-        footer={
-          <OhgoModalButton variant="secondary" onClick={() => setReserveModalTrip(null)}>
-            닫기
-          </OhgoModalButton>
-        }
       >
         {reserveLoading ? (
           <div className="py-4 text-center">
@@ -767,9 +762,6 @@ export default function AdminTripGuidePage() {
         title="예약 거절"
         footer={
           <>
-            <OhgoModalButton variant="secondary" onClick={() => setRejectTarget(null)}>
-              닫기
-            </OhgoModalButton>
             <OhgoModalButton
               variant="danger"
               disabled={acting}

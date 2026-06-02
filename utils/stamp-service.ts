@@ -260,6 +260,46 @@ export async function addStampBatch(uuid: string, count: number): Promise<void> 
   }
 }
 
+/** 관리자: 최근 적립 스탬프 N개 회수 */
+export async function removeStampBatch(uuid: string, count: number): Promise<void> {
+  if (count < 1) return;
+
+  const stampRef = collection(db, `users/${uuid}/stamps`);
+  const allSnap = await getDocs(stampRef);
+  const sorted = allSnap.docs.sort(
+    (a, b) => (b.data().timestamp?.seconds ?? 0) - (a.data().timestamp?.seconds ?? 0)
+  );
+
+  if (sorted.length < count) {
+    throw new Error(`보유 스탬프(${sorted.length}개)보다 많이 회수할 수 없습니다.`);
+  }
+
+  const toRemove = sorted.slice(0, count);
+  const historyRef = collection(db, `users/${uuid}/stampHistory`);
+
+  for (const d of toRemove) {
+    const data = d.data();
+    await deleteDoc(d.ref);
+    await addDoc(historyRef, {
+      action: 'recall',
+      stampId: d.id,
+      date: data.date,
+      method: data.method,
+      timestamp: Timestamp.now(),
+      message: 'ADMIN 방식으로 스탬프 회수',
+    });
+  }
+
+  await logAction(uuid, '스탬프 회수', `ADMIN 방식으로 ${count}개 회수`);
+
+  await sendPushToUser({
+    uuid,
+    title: '스탬프가 회수되었습니다.',
+    body: `스탬프 ${count}개가 관리자에 의해 회수되었습니다.`,
+    data: { screen: 'stamp', uuid },
+  });
+}
+
 /** 스탬프 목록 조회 */
 export async function getStamps(uuid: string): Promise<string[]> {
   const stampRef = collection(db, `users/${uuid}/stamps`);
