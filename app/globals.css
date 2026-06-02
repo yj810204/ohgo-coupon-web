@@ -587,9 +587,16 @@ button:focus-visible,
 .ohgo-modal__btn.ohgo-btn-dismiss,
 .ohgo-modal__btn.ohgo-modal__btn--secondary,
 .ohgo-modal__btn.ohgo-btn-confirm,
-.ohgo-modal__btn.ohgo-modal__btn--primary {
+.ohgo-modal__btn.ohgo-modal__btn--primary,
+.ohgo-modal__btn.ohgo-modal__btn--danger,
+.ohgo-modal__btn.ohgo-modal__btn--success,
+.ohgo-modal__btn.ohgo-modal__btn--warning {
   border-radius: 1000px !important;
   padding: 16px !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.2px !important;
+  line-height: 1.6 !important;
 }
 
 /* 확인·저장·OK — Travelia OK Button (Figma 56517:32683) */
@@ -637,7 +644,7 @@ button:focus-visible,
   color: #1a6fe6 !important;
 }
 
-.ohgo-modal__footer.ohgo-modal__footer--row {
+.ohgo-modal .modal-footer.ohgo-modal__footer.ohgo-modal__footer--row {
   display: flex !important;
   flex-direction: row;
   flex-wrap: nowrap;
@@ -645,35 +652,47 @@ button:focus-visible,
   align-items: stretch;
 }
 
-.ohgo-modal__footer.ohgo-modal__footer--row > .ohgo-modal__btn,
-.ohgo-modal__footer.ohgo-modal__footer--row > .ohgo-modal__footer-actions {
+.ohgo-modal .modal-footer.ohgo-modal__footer.ohgo-modal__footer--row > .ohgo-modal__btn,
+.ohgo-modal .modal-footer.ohgo-modal__footer.ohgo-modal__footer--row > .ohgo-modal__footer-actions {
   flex: 1 1 0;
   min-width: 0;
 }
 
-.ohgo-modal__footer.ohgo-modal__footer--row .ohgo-modal__btn {
+.ohgo-modal .modal-footer.ohgo-modal__footer.ohgo-modal__footer--row .ohgo-modal__btn {
   width: auto !important;
 }
 
-.ohgo-modal__btn--success {
+.ohgo-modal__btn.ohgo-modal__btn--success {
   background-color: #34c759 !important;
   color: #ffffff !important;
-  border: 1.5px solid #2da44e !important;
-  box-shadow: 0 4px 12px rgba(52, 199, 89, 0.28) !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
-.ohgo-modal__btn--danger {
+.ohgo-modal__btn.ohgo-modal__btn--success:active {
+  background-color: #2da44e !important;
+}
+
+.ohgo-modal__btn.ohgo-modal__btn--danger {
   background-color: #ff3b30 !important;
   color: #ffffff !important;
   border: none !important;
-  box-shadow: 0 4px 12px rgba(255, 59, 48, 0.25) !important;
+  box-shadow: none !important;
 }
 
-.ohgo-modal__btn--warning {
+.ohgo-modal__btn.ohgo-modal__btn--danger:active {
+  background-color: #e6352b !important;
+}
+
+.ohgo-modal__btn.ohgo-modal__btn--warning {
   background-color: #ff9500 !important;
   color: #ffffff !important;
   border: none !important;
-  box-shadow: 0 4px 12px rgba(255, 149, 0, 0.28) !important;
+  box-shadow: none !important;
+}
+
+.ohgo-modal__btn.ohgo-modal__btn--warning:active {
+  background-color: #e68600 !important;
 }
 
 .ohgo-modal__field {
@@ -1012,4 +1031,64 @@ html body .btn:not(.ohgo-modal__btn):not([class*="btn-outline-"]):not(.btn-prima
   border: 0 !important;
   border-width: 0 !important;
   border-color: transparent !important;
+}
+
+/* 출조 예약 완료 화면 */
+@keyframes trip-reservation-check-pop {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.trip-reservation-success__icon {
+  animation: trip-reservation-check-pop 0.45s ease-out forwards;
+}
+
+.trip-reservation-stepper__circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.trip-reservation-stepper__line {
+  flex: 1;
+  height: 2px;
+  min-width: 24px;
+}
+
+.trip-reservation-boarding-card__edit {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  padding: 4px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #237fff;
+  font-family: var(--font-urbanist), 'Urbanist', sans-serif;
+}
+
+.trip-reservation-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+  padding-bottom: 8px;
+}
+
+.trip-reservation-actions--row {
+  flex-direction: row;
 }

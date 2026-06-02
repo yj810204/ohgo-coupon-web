@@ -6,6 +6,8 @@ import {
   getTripsInDateRange,
   getWeekRange,
   isPastTripDate,
+  isPastTripSchedule,
+  sortTripsByNearestDeparture,
   TripGuide,
   tripDateToStr,
   tripWeekdayLabelColor,
@@ -16,18 +18,51 @@ import { IoTimeOutline, IoChevronForwardOutline, IoBoatOutline } from 'react-ico
 const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 const MAX_VISIBLE = 3;
-/** 오늘 강조 — 토(파랑)·일(빨강)과 구분되는 주황 톤 */
-const TODAY_ACCENT = '#E65100';
-const TODAY_BG = '#FFF3E0';
+const TODAY_ACCENT = '#1B6FF5';
 
+type TripDayGroup = { date: string; trips: TripGuide[] };
 
 /** 메인 노출: 오늘 포함 이후 일정 우선, 없으면 가장 가까운 일정부터 */
 function pickVisibleTrips(trips: TripGuide[], limit: number): TripGuide[] {
-  const sorted = [...trips].sort((a, b) => a.date.localeCompare(b.date));
   const today = tripDateToStr();
+  const sorted = sortTripsByNearestDeparture(trips);
   const fromToday = sorted.filter(t => t.date >= today);
   const pool = fromToday.length > 0 ? fromToday : sorted;
   return pool.slice(0, limit);
+}
+
+function groupTripsByDate(trips: TripGuide[]): TripDayGroup[] {
+  const groups: TripDayGroup[] = [];
+  for (const trip of trips) {
+    const last = groups[groups.length - 1];
+    if (last?.date === trip.date) {
+      last.trips.push(trip);
+    } else {
+      groups.push({ date: trip.date, trips: [trip] });
+    }
+  }
+  return groups.map(g => ({
+    date: g.date,
+    trips: sortTripsByNearestDeparture(g.trips),
+  }));
+}
+
+function tripSubtitle(trip: TripGuide) {
+  return [
+    trip.departureTime && `${trip.departureTime} 출발`,
+    trip.species,
+    trip.price ? `${trip.price.toLocaleString()}원` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function dayDividerColor(dayIdx: number, isPast: boolean, isToday: boolean): string {
+  if (isPast) return '#EFEFEF';
+  if (isToday) return '#C7D9FD';
+  if (dayIdx === 0) return '#FFD6D4';
+  if (dayIdx === 6) return '#C7D9FD';
+  return '#EFEFEF';
 }
 
 interface Props {
@@ -77,6 +112,7 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
   const isDummy = trips.length === 0;
   const allTrips = isDummy ? DUMMY_TRIPS : trips;
   const visibleTrips = pickVisibleTrips(allTrips, MAX_VISIBLE);
+  const visibleGroups = groupTripsByDate(visibleTrips);
   const hiddenCount = Math.max(0, allTrips.length - visibleTrips.length);
 
   return (
@@ -108,134 +144,181 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
           overflow: 'hidden',
         }}
       >
-        {visibleTrips.map((trip, index) => {
-          const isToday = !isDummy && trip.date === todayStr;
-          const isPast = !isDummy && !isToday && isPastTripDate(trip.date, todayStr);
-          const dayIdx = new Date(`${trip.date}T00:00:00`).getDay();
+        {visibleGroups.map((group, groupIndex) => {
+          const isToday = !isDummy && group.date === todayStr;
+          const isPast = !isDummy && !isToday && isPastTripDate(group.date, todayStr);
+          const dayIdx = new Date(`${group.date}T00:00:00`).getDay();
           const dayLabelColor = tripWeekdayLabelColor(dayIdx, isPast);
           const dayNumberColor = tripWeekdayNumberColor(dayIdx, isPast);
-          const subtitle = [
-            trip.departureTime && `${trip.departureTime} 출발`,
-            trip.species,
-            trip.price ? `${trip.price.toLocaleString()}원` : null,
-          ]
-            .filter(Boolean)
-            .join(' · ');
-
           const isSun = dayIdx === 0;
           const isSat = dayIdx === 6;
-          const isWeekend = isSun || isSat;
 
-          // 숫자만 동그라미 배경
           let numBg = 'transparent';
           let numColor = dayNumberColor;
-          if (isToday) { numBg = TODAY_ACCENT; numColor = '#FFFFFF'; }
-          else if (isSun) { numBg = '#FFF0F0'; }
-          else if (isSat) { numBg = '#EDF5FF'; }
+          if (isToday) {
+            numBg = TODAY_ACCENT;
+            numColor = '#FFFFFF';
+          } else if (isSun) {
+            numBg = '#FFF0F0';
+          } else if (isSat) {
+            numBg = '#EDF5FF';
+          }
+
+          const groupBg = isPast ? '#F7F8FA' : '#FFFFFF';
 
           return (
-            <div key={trip.id}>
-              {index > 0 && (
-                <div style={{ height: 1, backgroundColor: '#E8EAED' }} />
-              )}
-            <button
-              type="button"
-              onClick={isDummy ? undefined : onViewAll}
-              className="btn w-100 text-start d-flex align-items-center gap-3 px-3"
-              style={{
-                backgroundColor: isToday ? TODAY_BG : isPast ? '#F7F8FA' : '#FFFFFF',
-                border: 'none',
-                borderRadius: 0,
-                cursor: isDummy ? 'default' : 'pointer',
-                opacity: isPast ? 0.92 : 1,
-                paddingTop: 14,
-                paddingBottom: 14,
-              }}
-            >
-              {/* 날짜 열 — 요일 텍스트 + 숫자 동그라미 */}
-              <div className="flex-shrink-0 d-flex flex-column align-items-center" style={{ width: 36, gap: 2 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: dayLabelColor, fontFamily: FONT, lineHeight: 1 }}>
-                  {DAY_LABELS[dayIdx]}
-                </span>
+            <div key={group.date}>
+              {groupIndex > 0 && <div style={{ height: 1, backgroundColor: '#E8EAED' }} />}
+              <div
+                className="d-flex align-items-stretch gap-2"
+                style={{ backgroundColor: groupBg, opacity: isPast ? 0.92 : 1 }}
+              >
                 <div
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: '50%',
-                    backgroundColor: numBg,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
+                  className="flex-shrink-0 d-flex flex-column align-items-center justify-content-center"
+                  style={{ width: 44, paddingTop: 14, paddingBottom: 14, paddingLeft: 8 }}
                 >
                   <span
+                    style={{ fontSize: 10, fontWeight: 700, color: dayLabelColor, fontFamily: FONT, lineHeight: 1 }}
+                  >
+                    {DAY_LABELS[dayIdx]}
+                  </span>
+                  <div
                     style={{
-                      fontSize: 16,
-                      fontWeight: 800,
-                      color: numColor,
-                      fontFamily: FONT,
-                      lineHeight: 1,
+                      width: 30,
+                      height: 30,
+                      borderRadius: '50%',
+                      backgroundColor: numBg,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginTop: 4,
                     }}
                   >
-                    {parseInt(trip.date.split('-')[2], 10)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex-grow-1 overflow-hidden min-w-0">
-                <div className="d-flex align-items-center gap-1">
-                  {isPast && (
                     <span
-                      className="badge rounded-pill flex-shrink-0"
                       style={{
-                        backgroundColor: '#E8EAED',
-                        color: '#6F767E',
-                        fontSize: 10,
+                        fontSize: 16,
+                        fontWeight: 800,
+                        color: numColor,
                         fontFamily: FONT,
-                        fontWeight: 600,
-                        padding: '2px 6px',
+                        lineHeight: 1,
                       }}
                     >
-                      지난
+                      {parseInt(group.date.split('-')[2], 10)}
                     </span>
-                  )}
-                  <span
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: isPast ? '#6F767E' : '#1A1D1F',
-                      fontFamily: FONT,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {trip.destination}
-                  </span>
-                </div>
-                {subtitle && (
-                  <div
-                    className="d-flex align-items-center gap-1"
-                    style={{
-                      fontSize: 12,
-                      color: isPast ? '#9A9FA5' : '#6F767E',
-                      fontFamily: FONT,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      marginTop: 2,
-                    }}
-                  >
-                    <IoTimeOutline size={12} className="flex-shrink-0" />
-                    {subtitle}
                   </div>
-                )}
+                </div>
+                <div
+                  style={{
+                    width: 1,
+                    alignSelf: 'stretch',
+                    flexShrink: 0,
+                    paddingTop: 10,
+                    paddingBottom: 10,
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                >
+                  <div
+                    style={{
+                      flex: 1,
+                      backgroundColor: dayDividerColor(dayIdx, isPast, isToday),
+                      borderRadius: 2,
+                    }}
+                  />
+                </div>
+                <div className="flex-grow-1 min-w-0 d-flex flex-column">
+                  {group.trips.map((trip, tripIndex) => {
+                    const subtitle = tripSubtitle(trip);
+                    const tripPast =
+                      !isDummy &&
+                      (isPast || (isToday && isPastTripSchedule(trip.date, trip.departureTime)));
+                    return (
+                      <div key={trip.id} className="min-w-0">
+                        {tripIndex > 0 && (
+                          <div style={{ height: 1, backgroundColor: 'rgba(232, 234, 237, 0.9)' }} />
+                        )}
+                        <button
+                          type="button"
+                          onClick={isDummy ? undefined : onViewAll}
+                          className="btn w-100 text-start d-flex align-items-center gap-2 pe-3"
+                          style={{
+                            backgroundColor: 'transparent',
+                            border: 'none',
+                            borderRadius: 0,
+                            cursor: isDummy ? 'default' : 'pointer',
+                            paddingTop: 12,
+                            paddingBottom: 12,
+                            paddingLeft: 0,
+                            opacity: tripPast ? 0.7 : 1,
+                          }}
+                        >
+                          <div className="flex-grow-1 overflow-hidden min-w-0">
+                            <div className="d-flex align-items-center gap-1">
+                              {tripPast && (
+                                <span
+                                  className="badge rounded-pill flex-shrink-0"
+                                  style={{
+                                    backgroundColor: '#E8EAED',
+                                    color: '#6F767E',
+                                    fontSize: 10,
+                                    fontFamily: FONT,
+                                    fontWeight: 600,
+                                    padding: '2px 6px',
+                                  }}
+                                >
+                                  지난
+                                </span>
+                              )}
+                              <span
+                                style={{
+                                  fontSize: 14,
+                                  fontWeight: 700,
+                                  color: tripPast ? '#6F767E' : '#1A1D1F',
+                                  fontFamily: FONT,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {trip.destination}
+                              </span>
+                            </div>
+                            {subtitle ? (
+                              <div
+                                className="d-flex align-items-center gap-1"
+                                style={{
+                                  fontSize: 12,
+                                  color: tripPast ? '#9A9FA5' : '#6F767E',
+                                  fontFamily: FONT,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  marginTop: 2,
+                                }}
+                              >
+                                <IoTimeOutline
+                                  size={12}
+                                  className="flex-shrink-0"
+                                  color={tripPast ? '#9A9FA5' : '#6F767E'}
+                                />
+                                {subtitle}
+                              </div>
+                            ) : null}
+                          </div>
+                          {!isDummy && (
+                            <IoChevronForwardOutline
+                              size={16}
+                              color={tripPast ? '#C5C8CD' : '#ABABAB'}
+                              className="flex-shrink-0"
+                            />
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-
-              {!isDummy && (
-                <IoChevronForwardOutline size={16} color="#C5C8CD" className="flex-shrink-0" />
-              )}
-            </button>
             </div>
           );
         })}

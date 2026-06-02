@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   query,
   orderBy,
@@ -30,6 +31,13 @@ export type TripGuideInput = Omit<TripGuide, 'id' | 'createdAt'>;
 
 const COL = 'tripGuides';
 
+/** Firestore는 undefined 값을 허용하지 않음 */
+function omitUndefinedFields<T extends object>(data: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(data).filter(([, value]) => value !== undefined),
+  ) as Partial<T>;
+}
+
 /** 특정 연월의 출조 목록 가져오기 (YYYY-MM prefix) */
 export async function getTripsByMonth(yearMonth: string): Promise<TripGuide[]> {
   const start = `${yearMonth}-01`;
@@ -51,10 +59,17 @@ export async function getAllTrips(): Promise<TripGuide[]> {
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as TripGuide));
 }
 
+/** 출조 단건 조회 */
+export async function getTripById(id: string): Promise<TripGuide | null> {
+  const snap = await getDoc(doc(db, COL, id));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as TripGuide;
+}
+
 /** 출조 등록 */
 export async function addTrip(input: TripGuideInput): Promise<string> {
   const ref = await addDoc(collection(db, COL), {
-    ...input,
+    ...omitUndefinedFields(input),
     createdAt: Timestamp.now(),
   });
   return ref.id;
@@ -62,7 +77,9 @@ export async function addTrip(input: TripGuideInput): Promise<string> {
 
 /** 출조 수정 */
 export async function updateTrip(id: string, input: Partial<TripGuideInput>): Promise<void> {
-  await updateDoc(doc(db, COL, id), input);
+  const data = omitUndefinedFields(input);
+  if (Object.keys(data).length === 0) return;
+  await updateDoc(doc(db, COL, id), data);
 }
 
 /** 출조 삭제 */
@@ -75,9 +92,62 @@ export function tripDateToStr(d: Date = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** 출조일이 오늘 이전이면 true */
+/** 출조일이 오늘 이전이면 true (날짜만, 출항 시각 미반영) */
 export function isPastTripDate(dateStr: string, todayStr = tripDateToStr()): boolean {
   return dateStr < todayStr;
+}
+
+/** HH:mm → 해당 출조일 출항 시각 (로컬) */
+export function tripDepartureDateTime(dateStr: string, departureTime: string): Date | null {
+  const m = departureTime.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const hours = parseInt(m[1], 10);
+  const minutes = parseInt(m[2], 10);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setHours(hours, minutes, 0, 0);
+  return d;
+}
+
+/**
+ * 지난 출조 일정 여부
+ * - 출조일이 오늘 이전이거나
+ * - 오늘이고 현재 시각이 출항 시각 이후
+ */
+/** 출항 시각 타임스탬프 (정렬용, 파싱 실패 시 맨 뒤) */
+export function tripDepartureTimestamp(trip: Pick<TripGuide, 'date' | 'departureTime'>): number {
+  const d = tripDepartureDateTime(trip.date, trip.departureTime);
+  return d?.getTime() ?? Number.MAX_SAFE_INTEGER;
+}
+
+/** 날짜 순 → 같은 날은 현재 시각과 출항 시각이 가까운 순 */
+export function sortTripsByNearestDeparture<T extends Pick<TripGuide, 'date' | 'departureTime'>>(
+  trips: T[],
+  now: Date = new Date(),
+): T[] {
+  const nowMs = now.getTime();
+  return [...trips].sort((a, b) => {
+    const byDate = a.date.localeCompare(b.date);
+    if (byDate !== 0) return byDate;
+    const diff =
+      Math.abs(tripDepartureTimestamp(a) - nowMs) - Math.abs(tripDepartureTimestamp(b) - nowMs);
+    if (diff !== 0) return diff;
+    return tripDepartureTimestamp(a) - tripDepartureTimestamp(b);
+  });
+}
+
+export function isPastTripSchedule(
+  dateStr: string,
+  departureTime?: string,
+  todayStr = tripDateToStr(),
+  now: Date = new Date(),
+): boolean {
+  if (dateStr < todayStr) return true;
+  if (dateStr > todayStr) return false;
+  if (!departureTime?.trim()) return false;
+  const dep = tripDepartureDateTime(dateStr, departureTime);
+  if (!dep) return false;
+  return now.getTime() >= dep.getTime();
 }
 
 /** 월요일 00:00 ~ 일요일 23:59:59 (로컬, anchor가 속한 주) */
@@ -151,9 +221,10 @@ export type TripScheduleDateBadgeVariant = 'past' | 'today' | 'future';
 /** 출조 일정 제목 옆 날짜 배지 (지난 일정 / 오늘 / 내일 / 모레 / +3~+5일, +6일 이후 없음) */
 export function getTripScheduleDateBadge(
   dateStr: string,
-  todayStr = tripDateToStr()
+  todayStr = tripDateToStr(),
+  departureTime?: string,
 ): { label: string; variant: TripScheduleDateBadgeVariant } | null {
-  if (dateStr < todayStr) {
+  if (isPastTripSchedule(dateStr, departureTime, todayStr)) {
     return { label: '지난 일정', variant: 'past' };
   }
   const diff = daysFromToday(dateStr, todayStr);

@@ -3,13 +3,22 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { getUser } from '@/lib/storage';
+import {
+  getReservationCount,
+  getReservationSettings,
+  hasBoardingInfo,
+  hasUserReserved,
+  type TripReservation,
+} from '@/utils/reservation-service';
 import { format } from 'date-fns';
 import {
   getTripsByMonth,
   getTripScheduleDateBadge,
   isPastTripDate,
+  isPastTripSchedule,
   isTripDateViewable,
   TripGuide,
+  sortTripsByNearestDeparture,
   tripDateToStr,
 } from '@/utils/trip-guide-service';
 import { OHGO_CARD, OHGO_FONT } from '@/lib/page-styles';
@@ -23,7 +32,12 @@ import {
   IoInformationCircleOutline,
 } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
-import OhgoModal, { OhgoModalButton, OhgoModalInfoList, OhgoModalInfoRow } from '@/components/OhgoModal';
+import OhgoModal, {
+  OhgoModalActions,
+  OhgoModalButton,
+  OhgoModalInfoList,
+  OhgoModalInfoRow,
+} from '@/components/OhgoModal';
 import EmptyState from '@/components/EmptyState';
 
 const FONT = OHGO_FONT;
@@ -58,14 +72,41 @@ export default function TripGuidePage() {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [modalTrip, setModalTrip] = useState<TripGuide | null>(null);
+  const [reservationEnabled, setReservationEnabled] = useState(false);
+  const [modalReservation, setModalReservation] = useState<TripReservation | null>(null);
+  const [modalReserveCount, setModalReserveCount] = useState(0);
+  const [hasBoarding, setHasBoarding] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
       const user = await getUser();
       if (!user?.uuid) { router.replace('/login'); return; }
+      const settings = await getReservationSettings();
+      setReservationEnabled(settings.enabled);
     };
     checkAuth();
   }, [router]);
+
+  useEffect(() => {
+    if (!modalTrip) {
+      setModalReservation(null);
+      setModalReserveCount(0);
+      return;
+    }
+    const loadReserveMeta = async () => {
+      const user = await getUser();
+      if (!user?.uuid) return;
+      const [reserved, count, boarding] = await Promise.all([
+        hasUserReserved(modalTrip.id, user.uuid),
+        getReservationCount(modalTrip.id),
+        hasBoardingInfo(user.uuid),
+      ]);
+      setModalReservation(reserved);
+      setModalReserveCount(count);
+      setHasBoarding(boarding);
+    };
+    void loadReserveMeta();
+  }, [modalTrip]);
 
   const loadTrips = useCallback(async () => {
     setLoading(true);
@@ -119,16 +160,54 @@ export default function TripGuidePage() {
     if (!tripMap[t.date]) tripMap[t.date] = [];
     tripMap[t.date].push(t);
   });
+  Object.keys(tripMap).forEach(date => {
+    tripMap[date] = sortTripsByNearestDeparture(tripMap[date]);
+  });
 
   const getDateStr = (day: number) =>
     `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
   const selectedTrips = tripMap[selectedDate] || [];
-  const selectedIsPast = isPastTripDate(selectedDate, todayStr);
+  const selectedIsPast =
+    isPastTripDate(selectedDate, todayStr) ||
+    (selectedDate === todayStr &&
+      selectedTrips.length > 0 &&
+      selectedTrips.every(t => isPastTripSchedule(t.date, t.departureTime)));
   const selectedIsViewable = isTripDateViewable(selectedDate, todayStr);
   const selectedIsClosed = !selectedIsViewable;
-  const selectedDateBadge = getTripScheduleDateBadge(selectedDate, todayStr);
+  const selectedDateBadge = selectedIsPast
+    ? { label: '지난 일정', variant: 'past' as const }
+    : getTripScheduleDateBadge(selectedDate, todayStr);
   const currentMonthDate = useMemo(() => new Date(year, month, 1), [year, month]);
+
+  const canShowReserveButton =
+    reservationEnabled &&
+    modalTrip &&
+    isTripDateViewable(modalTrip.date, todayStr) &&
+    !isPastTripSchedule(modalTrip.date, modalTrip.departureTime);
+
+  const isTripFull =
+    modalTrip?.capacity != null &&
+    modalTrip.capacity > 0 &&
+    modalReserveCount >= modalTrip.capacity;
+
+  const handleReserveClick = async () => {
+    if (!modalTrip) return;
+    const user = await getUser();
+    if (!user?.uuid) {
+      router.replace('/login');
+      return;
+    }
+    if (!hasBoarding) {
+      if (confirm('승선정보가 등록되어 있어야 예약할 수 있습니다. 승선정보 작성 페이지로 이동할까요?')) {
+        router.push('/boarding-form');
+      }
+      return;
+    }
+    if (modalReservation) return;
+    if (isTripFull) return;
+    router.push(`/trip-reservation?tripId=${encodeURIComponent(modalTrip.id)}`);
+  };
 
   const dateBadgeStyle = selectedDateBadge
     ? selectedDateBadge.variant === 'past'
@@ -215,7 +294,11 @@ export default function TripGuidePage() {
                 const dayTrips = tripMap[dateStr] || [];
                 const tripCount = dayTrips.length;
                 const isToday = dateStr === todayStr;
-                const isPast = isPastTripDate(dateStr, todayStr);
+                const isPast =
+                  isPastTripDate(dateStr, todayStr) ||
+                  (dateStr === todayStr &&
+                    dayTrips.length > 0 &&
+                    dayTrips.every(t => isPastTripSchedule(t.date, t.departureTime)));
                 const isClosed = !isTripDateViewable(dateStr, todayStr);
                 const isSelected = dateStr === selectedDate;
                 const isSun = col === 0;
@@ -371,7 +454,7 @@ export default function TripGuidePage() {
             ) : (
               <div className="d-flex flex-column gap-3">
                 {selectedTrips.map(trip => {
-                  const isPast = selectedIsPast;
+                  const isPast = isPastTripSchedule(trip.date, trip.departureTime);
                   return (
                   <button
                     key={trip.id}
@@ -464,14 +547,29 @@ export default function TripGuidePage() {
         onClose={() => setModalTrip(null)}
         title={modalTrip?.destination ?? '출조 정보'}
         footer={
-          <OhgoModalButton variant="secondary" onClick={() => setModalTrip(null)}>
-            닫기
-          </OhgoModalButton>
+          <OhgoModalActions>
+            <OhgoModalButton variant="secondary" onClick={() => setModalTrip(null)}>
+              닫기
+            </OhgoModalButton>
+            {canShowReserveButton && (
+              <OhgoModalButton
+                variant="primary"
+                disabled={!!modalReservation || isTripFull}
+                onClick={() => void handleReserveClick()}
+              >
+                {modalReservation
+                  ? '예약 완료'
+                  : isTripFull
+                    ? '정원 마감'
+                    : '예약'}
+              </OhgoModalButton>
+            )}
+          </OhgoModalActions>
         }
       >
         {modalTrip && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            {isPastTripDate(modalTrip.date, todayStr) && (
+            {isPastTripSchedule(modalTrip.date, modalTrip.departureTime) && (
               <div
                 className="px-3 py-2 rounded-3"
                 style={{ backgroundColor: '#F2F3F5', fontSize: 13, color: '#6F767E', fontFamily: FONT, fontWeight: 600 }}

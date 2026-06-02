@@ -129,6 +129,15 @@ const MENU_SECTIONS: MenuSection[] = [
         bg: '#EBF1FE',
       },
       {
+        id: 'reservations',
+        label: '출조 예약 관리',
+        desc: '예약 승인·거절 및 예약자 목록',
+        path: '/admin-reservations',
+        icon: IoCalendarOutline,
+        color: '#237FFF',
+        bg: '#EDF5FF',
+      },
+      {
         id: 'point-mall',
         label: '포인트몰 관리',
         desc: '상품 등록, 포인트 가격·재고 설정',

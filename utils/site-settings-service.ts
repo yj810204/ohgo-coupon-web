@@ -11,10 +11,16 @@ export interface MenuItem {
   isActive: boolean;
 }
 
+export type ReservationApprovalMode = 'auto' | 'manual';
+
 export interface SiteSettings {
   siteName: string;
   userMenuItems: MenuItem[];
   bottomTabMenuIds?: string[]; // 하단 탭 메뉴에 표시할 메뉴 항목 ID 배열 (최대 5개)
+  /** 출조 예약 기능 사용 여부 */
+  reservationEnabled?: boolean;
+  /** 예약 승인 방식: auto=즉시 확정, manual=관리자 승인 */
+  reservationApprovalMode?: ReservationApprovalMode;
   updatedAt: Timestamp | Date;
 }
 
@@ -51,6 +57,8 @@ export async function getSiteSettings(): Promise<SiteSettings> {
         siteName: data.siteName || DEFAULT_SITE_NAME,
         userMenuItems: data.userMenuItems || DEFAULT_MENU_ITEMS,
         bottomTabMenuIds: data.bottomTabMenuIds || [],
+        reservationEnabled: Boolean(data.reservationEnabled),
+        reservationApprovalMode: data.reservationApprovalMode === 'auto' ? 'auto' : 'manual',
         updatedAt: data.updatedAt?.toDate?.() || data.updatedAt || new Date(),
       } as SiteSettings;
     }
@@ -60,6 +68,8 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       siteName: DEFAULT_SITE_NAME,
       userMenuItems: DEFAULT_MENU_ITEMS,
       bottomTabMenuIds: [],
+      reservationEnabled: false,
+      reservationApprovalMode: 'manual',
       updatedAt: new Date(),
     };
   } catch (error) {
@@ -69,6 +79,8 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       siteName: DEFAULT_SITE_NAME,
       userMenuItems: DEFAULT_MENU_ITEMS,
       bottomTabMenuIds: [],
+      reservationEnabled: false,
+      reservationApprovalMode: 'manual',
       updatedAt: new Date(),
     };
   }

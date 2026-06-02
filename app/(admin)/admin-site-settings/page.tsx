@@ -4,7 +4,12 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { getUser } from '@/lib/storage';
 import { getUserByUUID } from '@/lib/firebase-auth';
-import { getSiteSettings, saveSiteSettings, MenuItem, SiteSettings } from '@/utils/site-settings-service';
+import {
+  getSiteSettings,
+  saveSiteSettings,
+  MenuItem,
+  type ReservationApprovalMode,
+} from '@/utils/site-settings-service';
 import { getIconComponent } from '@/utils/icon-mapper';
 import {
   IoChevronUpOutline,
@@ -18,6 +23,7 @@ import {
   IoEyeOutline,
   IoEyeOffOutline,
   IoCheckmarkCircle,
+  IoBoatOutline,
 } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import {
@@ -118,6 +124,9 @@ function AdminSiteSettingsContent() {
   const [siteName, setSiteName] = useState('');
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [bottomTabMenuIds, setBottomTabMenuIds] = useState<string[]>([]);
+  const [reservationEnabled, setReservationEnabled] = useState(false);
+  const [reservationApprovalMode, setReservationApprovalMode] =
+    useState<ReservationApprovalMode>('manual');
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -145,6 +154,8 @@ function AdminSiteSettingsContent() {
       setSiteName(settings.siteName);
       setMenuItems(settings.userMenuItems.sort((a, b) => a.order - b.order));
       setBottomTabMenuIds(settings.bottomTabMenuIds || []);
+      setReservationEnabled(Boolean(settings.reservationEnabled));
+      setReservationApprovalMode(settings.reservationApprovalMode ?? 'manual');
     } catch (error) {
       console.error('Error loading settings:', error);
       alert('설정을 불러오는 중 오류가 발생했습니다.');
@@ -758,6 +769,73 @@ function AdminSiteSettingsContent() {
               </button>
             </>
           )}
+        </div>
+
+        <div className="p-4 mb-4" style={CARD}>
+          <SectionHeader icon={IoBoatOutline} title="출조 예약" />
+          <div className="form-check form-switch mb-3">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              role="switch"
+              id="reservation-enabled"
+              checked={reservationEnabled}
+              onChange={e => setReservationEnabled(e.target.checked)}
+              disabled={saving}
+            />
+            <label className="form-check-label" htmlFor="reservation-enabled" style={{ fontFamily: OHGO_FONT, fontSize: 14 }}>
+              예약 기능 사용
+            </label>
+          </div>
+          <p className="mb-3" style={HINT}>
+            켜면 출조 안내에서 회원이 온라인 예약할 수 있습니다. 결제는 없으며 예약·승인만 처리됩니다.
+          </p>
+          <label style={LABEL}>승인 방식</label>
+          <div className="d-flex flex-column gap-2 mb-3">
+            <label className="d-flex align-items-center gap-2" style={{ fontFamily: OHGO_FONT, fontSize: 14 }}>
+              <input
+                type="radio"
+                name="approval-mode"
+                checked={reservationApprovalMode === 'manual'}
+                onChange={() => setReservationApprovalMode('manual')}
+                disabled={saving || !reservationEnabled}
+              />
+              수동 승인 (관리자 확인 후 확정)
+            </label>
+            <label className="d-flex align-items-center gap-2" style={{ fontFamily: OHGO_FONT, fontSize: 14 }}>
+              <input
+                type="radio"
+                name="approval-mode"
+                checked={reservationApprovalMode === 'auto'}
+                onChange={() => setReservationApprovalMode('auto')}
+                disabled={saving || !reservationEnabled}
+              />
+              자동 확정 (정원 내 즉시 확정)
+            </label>
+          </div>
+          <button
+            type="button"
+            className={`btn w-100 fw-semibold ${OHGO_CONFIRM_BTN_CLASS}`}
+            onClick={async () => {
+              try {
+                setSaving(true);
+                await saveSiteSettings({
+                  reservationEnabled,
+                  reservationApprovalMode,
+                });
+                alert('출조 예약 설정이 저장되었습니다.');
+              } catch (error: unknown) {
+                console.error(error);
+                alert('저장 중 오류가 발생했습니다.');
+              } finally {
+                setSaving(false);
+              }
+            }}
+            disabled={saving}
+            style={OHGO_PRIMARY_BTN}
+          >
+            {saving ? '저장 중...' : '예약 설정 저장'}
+          </button>
         </div>
 
     </SubPageFrame>

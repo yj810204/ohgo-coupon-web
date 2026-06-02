@@ -15,8 +15,10 @@ import {
   IoGameControllerOutline,
   IoChatbubblesOutline,
   IoBoatOutline,
+  IoCalendarOutline,
   IoChevronForwardOutline,
 } from 'react-icons/io5';
+import { getReservationSettings } from '@/utils/reservation-service';
 
 const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
 const CARD: React.CSSProperties = {
@@ -32,6 +34,7 @@ export default function MyPage() {
   const [userInfo, setUserInfo] = useState<{ name: string; dob: string; uuid: string } | null>(null);
   const [gamePoints, setGamePoints] = useState(0);
   const [communityPoints, setCommunityPoints] = useState(0);
+  const [reservationEnabled, setReservationEnabled] = useState(false);
 
   const loadUser = useCallback(async () => {
     const user = await getUser();
@@ -45,6 +48,8 @@ export default function MyPage() {
       if (userSnap.exists()) setGamePoints(userSnap.data().totalPoint || 0);
       const cp = await getCommunityPoints(user.uuid);
       setCommunityPoints(cp);
+      const resSettings = await getReservationSettings();
+      setReservationEnabled(resSettings.enabled);
     } catch (err) { console.error(err); }
   }, [router]);
 
@@ -182,6 +187,9 @@ export default function MyPage() {
         <div className="mb-4" style={CARD}>
           {[
             { icon: IoBoatOutline, color: '#007AFF', label: '승선명부 작성', path: '/boarding-form' },
+            ...(reservationEnabled
+              ? [{ icon: IoCalendarOutline, color: '#237FFF', label: '나의 예약', path: '/my-reservations' }]
+              : []),
             { icon: IoNotificationsOutline, color: '#FF9500', label: '알림 내역', path: '/notification-history' },
           ].map(({ icon: Icon, color, label, path }, idx, arr) => (
             <button

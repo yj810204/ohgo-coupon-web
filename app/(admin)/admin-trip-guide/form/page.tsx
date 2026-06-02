@@ -30,6 +30,7 @@ const EMPTY: TripGuideInput = {
   departureTime: '',
   returnTime: '',
   species: '',
+  capacity: undefined,
   price: undefined,
   notes: '',
   contact: '',
@@ -136,13 +137,30 @@ const TEXT_FIELDS_AFTER_TIME: {
   placeholder?: string;
 }[] = [
   { label: '목표 어종', key: 'species', type: 'text', placeholder: '예: 참돔, 광어' },
+  { label: '정원 (명)', key: 'capacity', type: 'number', placeholder: '미입력 시 제한 없음' },
   { label: '1인 요금 (원)', key: 'price', type: 'number', placeholder: '0' },
   { label: '예약 문의 (연락처)', key: 'contact', type: 'text', placeholder: '010-0000-0000' },
 ];
 
 function toPayload(form: TripGuideInput): TripGuideInput {
-  const { capacity: _omit, ...rest } = form;
-  return rest;
+  const payload: TripGuideInput = {
+    date: form.date,
+    destination: form.destination.trim(),
+    departureTime: form.departureTime,
+    returnTime: form.returnTime?.trim() || undefined,
+    species: form.species?.trim() || undefined,
+    notes: form.notes?.trim() || undefined,
+    contact: form.contact?.trim() || undefined,
+  };
+  const capacity = form.capacity;
+  if (typeof capacity === 'number' && !Number.isNaN(capacity) && capacity > 0) {
+    payload.capacity = capacity;
+  }
+  const price = form.price;
+  if (typeof price === 'number' && !Number.isNaN(price) && price > 0) {
+    payload.price = price;
+  }
+  return payload;
 }
 
 function TripGuideFormContent() {
@@ -176,6 +194,7 @@ function TripGuideFormContent() {
           departureTime: t.departureTime,
           returnTime: t.returnTime || '',
           species: t.species || '',
+          capacity: t.capacity,
           price: t.price,
           notes: t.notes || '',
           contact: t.contact || '',
@@ -252,7 +271,13 @@ function TripGuideFormContent() {
             value={(form[key] as string | number | undefined) ?? ''}
             onChange={e => {
               const v =
-                type === 'number' ? (e.target.value === '' ? undefined : Number(e.target.value)) : e.target.value;
+                type === 'number'
+                  ? (() => {
+                      if (e.target.value === '') return undefined;
+                      const n = Number(e.target.value);
+                      return Number.isNaN(n) ? undefined : n;
+                    })()
+                  : e.target.value;
               setField(key, v as TripGuideInput[typeof key]);
             }}
             placeholder={placeholder}
