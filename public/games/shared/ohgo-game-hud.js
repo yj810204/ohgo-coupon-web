@@ -24,19 +24,24 @@
     return Number.isFinite(value) ? value : 0;
   }
 
+  function isNativeApp() {
+    if (typeof document === 'undefined') return false;
+    if (document.documentElement.classList.contains('ohgo-native')) return true;
+    return typeof global !== 'undefined' && !!global.__OHGO_NATIVE_APP__;
+  }
+
   function readSafeAreaInsets(host) {
     let top = 0;
     let bottom = 0;
     if (typeof document !== 'undefined') {
       const style = getComputedStyle(document.documentElement);
-      top = Math.max(
-        parseInsetPx(style, '--ohgo-game-safe-top'),
-        parseInsetPx(style, '--ohgo-safe-area-top')
-      );
-      bottom = Math.max(
-        parseInsetPx(style, '--ohgo-game-safe-bottom'),
-        parseInsetPx(style, '--ohgo-safe-area-bottom')
-      );
+      if (isNativeApp()) {
+        top = parseInsetPx(style, '--ohgo-safe-area-top');
+        bottom = parseInsetPx(style, '--ohgo-safe-area-bottom');
+      } else {
+        top = parseInsetPx(style, '--ohgo-game-safe-top');
+        bottom = parseInsetPx(style, '--ohgo-game-safe-bottom');
+      }
       if (typeof global !== 'undefined') {
         if (typeof global.__OHGO_SAFE_AREA_TOP__ === 'number') {
           top = Math.max(top, global.__OHGO_SAFE_AREA_TOP__);
@@ -51,10 +56,26 @@
     return { top, bottom };
   }
 
+  function layoutTopHud(host, canvasWidth, scale) {
+    const panelPadding = Math.max(10 * scale, 8);
+    const panelHeight = Math.max(60 * scale, 50);
+    const panelY = panelPadding;
+    return {
+      safeTop: 0,
+      panelPadding,
+      panelHeight,
+      panelY,
+      cardCenterY: panelY + panelHeight / 2,
+      panelWidth: Math.max(canvasWidth - panelPadding * 2, 280 * scale),
+      panelX: panelPadding,
+      uiPanelBottom: panelY + panelHeight,
+    };
+  }
+
   function computeScale(canvasWidth, canvasHeight) {
     const baseWidth = 600;
     const baseHeight = 700;
-    return Math.min(canvasWidth / baseWidth, canvasHeight / baseHeight, 1.0);
+    return Math.min(canvasWidth / baseWidth, canvasHeight / baseHeight);
   }
 
   function createStatCard(scene, baseDepth, opts) {
@@ -122,29 +143,29 @@
       options.timeMode === 'remaining' ? '남은 시간' : '경과 시간';
 
     const scale = computeScale(canvasWidth, canvasHeight);
-    const panelPadding = Math.max(12 * scale, 10);
-    const panelHeight = Math.max(56 * scale, 48);
-    const panelWidth = canvasWidth - panelPadding * 2;
-    const panelX = panelPadding;
-    const panelY = (host.safeAreaTop || 0) + Math.max(8 * scale, 6);
+    const hud = layoutTopHud(host, canvasWidth, scale);
+    const panelPadding = hud.panelPadding;
+    const panelWidth = hud.panelWidth;
+    const panelX = hud.panelX;
     const cardGap = Math.max(8 * scale, 6);
     const innerPad = Math.max(10 * scale, 8);
     const cardCount = showLives ? 3 : 2;
     const available = panelWidth - innerPad * 2 - cardGap * (cardCount - 1);
     const cardWidth = available / cardCount;
-    const cardHeight = panelHeight - innerPad * 2;
-    const cardY = panelY + panelHeight / 2;
+    const cardHeight = hud.panelHeight - innerPad * 2;
+    const cardY = hud.cardCenterY;
+
 
     host.uiPanelBg = scene.add.rectangle(
       panelX + panelWidth / 2,
-      panelY + panelHeight / 2,
+      hud.cardCenterY,
       panelWidth,
-      panelHeight,
+      hud.panelHeight,
       THEME.barFill
     );
     host.uiPanelBg.setAlpha(THEME.barAlpha);
     host.uiPanelBg.setDepth(baseDepth);
-    host.uiPanelBottom = panelY + panelHeight;
+    host.uiPanelBottom = hud.uiPanelBottom;
     host._hudScale = scale;
     host._hudCards = {};
 
@@ -207,8 +228,8 @@
 
     return {
       scale,
-      panelY,
-      panelHeight,
+      panelY: hud.panelY,
+      panelHeight: hud.panelHeight,
       panelWidth,
       uiPanelBottom: host.uiPanelBottom,
     };
@@ -233,7 +254,9 @@
 
   global.OhgoGameHud = {
     THEME,
+    isNativeApp,
     readSafeAreaInsets,
+    layoutTopHud,
     computeScale,
     buildHud,
     applyTimeStyle,

@@ -1133,6 +1133,12 @@ body[data-game-playing='true'] {
   );
 }
 
+/* 네이티브 WebView: safe area는 JS 주입값만 사용 (env와 이중 적용 방지) */
+html.ohgo-native body[data-game-playing='true'] {
+  --ohgo-game-safe-top: var(--ohgo-safe-area-top, 0px);
+  --ohgo-game-safe-bottom: var(--ohgo-safe-area-bottom, 0px);
+}
+
 body[data-game-playing='true'] #ohgo-bottom-tab-bar,
 body[data-game-playing='true'] .ohgo-page-header,
 body[data-game-playing='true'] .ohgo-page-header-spacer {
@@ -1160,13 +1166,17 @@ body[data-game-playing='true'] #game-container {
   min-height: 0;
   border-radius: 0 !important;
   box-shadow: none !important;
+  display: block;
 }
 
 .ohgo-game-play-surface canvas,
 body[data-game-playing='true'] #game-container canvas,
 body[data-game-playing='true'] #game-canvas canvas {
   display: block !important;
-  max-width: 100% !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
   border-radius: 0 !important;
 }
 

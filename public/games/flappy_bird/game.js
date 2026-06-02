@@ -253,7 +253,7 @@ class FlappyBirdGame {
             },
             scale: {
                 mode: Phaser.Scale.NONE,
-                autoCenter: Phaser.Scale.CENTER_BOTH,
+                autoCenter: Phaser.Scale.NO_CENTER,
                 width: this.canvasWidth,
                 height: this.canvasHeight
             }
@@ -471,11 +471,9 @@ class FlappyBirdGame {
         // 게임 설정 로드 (어드민 설정)
         this.loadGameConfig();
         
-        // 배경 생성 (다음 프레임에서 실행하여 게임이 완전히 초기화된 후에 배경 추가)
-        this.scene.time.delayedCall(0, () => {
-            this.createBackground();
-        });
-        
+        // 배경 생성 (depth 0 → UI보다 먼저 생성해야 HUD가 위에 렌더링됨)
+        this.createBackground();
+
         // UI 생성 (먼저 생성하여 패널 높이 확인)
         this.createUI();
         
@@ -717,8 +715,9 @@ class FlappyBirdGame {
             ceilingY,
             this.canvasWidth,
             ceilingHeight,
-            0x4682B4
+            0x000000
         );
+        this.ceiling.setAlpha(0); // 투명 — 물리 경계만 유지
         this.ceiling.setDepth(5);
         
         // 물리 바디 추가
@@ -736,14 +735,16 @@ class FlappyBirdGame {
                 const value = parseFloat(raw);
                 return Number.isFinite(value) ? value : 0;
             };
-            top = Math.max(
-                parseInset('--ohgo-game-safe-top'),
-                parseInset('--ohgo-safe-area-top')
-            );
-            bottom = Math.max(
-                parseInset('--ohgo-game-safe-bottom'),
-                parseInset('--ohgo-safe-area-bottom')
-            );
+            const isNative =
+                document.documentElement.classList.contains('ohgo-native') ||
+                (typeof window !== 'undefined' && window.__OHGO_NATIVE_APP__);
+            if (isNative) {
+                top = parseInset('--ohgo-safe-area-top');
+                bottom = parseInset('--ohgo-safe-area-bottom');
+            } else {
+                top = parseInset('--ohgo-game-safe-top');
+                bottom = parseInset('--ohgo-game-safe-bottom');
+            }
             if (typeof window !== 'undefined') {
                 if (typeof window.__OHGO_SAFE_AREA_TOP__ === 'number') {
                     top = Math.max(top, window.__OHGO_SAFE_AREA_TOP__);
@@ -758,9 +759,7 @@ class FlappyBirdGame {
     }
 
     getPlayableTop() {
-        const ceilingHeight = 70;
-        const fromCeiling = (this.safeAreaTop || 0) + ceilingHeight;
-        return Math.max(fromCeiling, this.uiPanelBottom || 0);
+        return this.uiPanelBottom || 0;
     }
 
     /**
@@ -779,12 +778,13 @@ class FlappyBirdGame {
         const panelWidth = Math.max(this.canvasWidth - panelPadding * 2, 280 * scale);
         const panelHeight = Math.max(60 * scale, 50);
         const panelX = panelPadding;
-        const panelY = (this.safeAreaTop || 0);
+        const panelY = panelPadding;
+        const cardCenterY = panelY + panelHeight / 2;
 
         const labelFontSize = Math.max(12 * scale, 10);
         const valueFontSize = Math.max(24 * scale, 18);
 
-        this.uiPanelBg = this.scene.add.rectangle(panelX + panelWidth/2, panelY + panelHeight/2, panelWidth, panelHeight, 0xffffff);
+        this.uiPanelBg = this.scene.add.rectangle(panelX + panelWidth / 2, cardCenterY, panelWidth, panelHeight, 0xffffff);
         this.uiPanelBg.setAlpha(0.95);
         this.uiPanelBg.setStrokeStyle(2, 0x4CAF50, 1);
         this.uiPanelBg.setDepth(10);
@@ -795,7 +795,7 @@ class FlappyBirdGame {
         const scoreCardWidth = Math.max(120 * scale, 100);
         const scoreCardHeight = Math.max(48 * scale, 40);
         const scoreCardX = panelX + Math.max(15 * scale, 10);
-        const scoreCardY = panelY + panelHeight/2;
+        const scoreCardY = cardCenterY;
 
         this.scoreCardBg = this.scene.add.rectangle(scoreCardX + scoreCardWidth/2, scoreCardY, scoreCardWidth, scoreCardHeight, 0x2196F3);
         this.scoreCardBg.setAlpha(0.9);
@@ -816,7 +816,7 @@ class FlappyBirdGame {
         const timeCardWidth = Math.max(120 * scale, 100);
         const timeCardHeight = Math.max(48 * scale, 40);
         const timeCardX = panelX + panelWidth - timeCardWidth - Math.max(15 * scale, 10);
-        const timeCardY = panelY + panelHeight/2;
+        const timeCardY = cardCenterY;
 
         this.timeCardBg = this.scene.add.rectangle(timeCardX + timeCardWidth/2, timeCardY, timeCardWidth, timeCardHeight, 0xFF6B35);
         this.timeCardBg.setAlpha(0.95);
@@ -839,7 +839,7 @@ class FlappyBirdGame {
         const livesCardWidth = Math.max(120 * scale, 100);
         const livesCardHeight = Math.max(48 * scale, 40);
         const livesCardX = panelX + panelWidth / 2 - livesCardWidth / 2;
-        const livesCardY = panelY + panelHeight / 2;
+        const livesCardY = cardCenterY;
 
         this.livesCardBg = this.scene.add.rectangle(livesCardX + livesCardWidth / 2, livesCardY, livesCardWidth, livesCardHeight, 0xFF1744);
         this.livesCardBg.setAlpha(0.95);
@@ -988,9 +988,8 @@ class FlappyBirdGame {
             playableBottom - this.pipeGap / 2 - 20 // 지면 위 여유 공간
         );
         
-        // 위쪽 파이프: 천장부터 gapY - pipeGap/2까지 (입체감을 위해 천장 위로 약간 겹치게)
-        const overlapAmount = 0; // 천장/바닥과 겹치는 정도 (픽셀)
-        const topPipeTop = playableTop - overlapAmount; // 천장 위로 약간 겹치게
+        // 위쪽 파이프: 화면 상단(y=0)에서 내려옴 — HUD 아래에서 파이프 끝(갭 위쪽)이 보임
+        const topPipeTop = 0; // 화면 최상단에서 시작 (score panel 뒤에 숨겨짐)
         const topPipeBottom = gapY - this.pipeGap / 2;
         const topPipeHeight = topPipeBottom - topPipeTop;
         const topPipeY = topPipeTop + topPipeHeight / 2;
@@ -1551,7 +1550,6 @@ class FlappyBirdGame {
         modal.className = 'game-start-modal';
         modal.innerHTML = `
             <div class="modal-content">
-                <h2>플래피 버드</h2>
                 <p class="game-description">화면을 클릭하거나 터치하여 새를 조종하세요!</p>
                 <div class="modal-buttons">
                     <button class="btn-start" onclick="window.gameLoader.gameInstance.startGame()">게임 시작</button>
@@ -1845,9 +1843,9 @@ class FlappyBirdGame {
         modal.innerHTML = `
             <div class="modal-content">
                 <h2>게임 종료!</h2>
-                <p class="final-score">최종 점수: ${this.score.toLocaleString()}</p>
-                <p class="combo-info">통과한 파이프: ${this.pipesPassed}개</p>
-                <p class="combo-info">최종 레벨: ${this.currentLevel}</p>
+                <p class="final-score">${this.score.toLocaleString()}</p>
+                <p class="final-score-label">최종 점수</p>
+                <p class="combo-info">통과한 파이프 ${this.pipesPassed}개 · Lv.${this.currentLevel}</p>
                 <div class="modal-buttons">
                     <button class="btn-restart" onclick="window.gameLoader.gameInstance.restartGame()">다시 하기</button>
                     <button class="btn-exit" onclick="window.gameLoader.gameInstance.exitGame()">나가기</button>

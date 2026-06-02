@@ -247,7 +247,11 @@ class Match3Game {
             this.canvasHeight = parseInt(deviceConfig.canvas_height) || this.canvasHeight;
         }
 
-        // 캔버스 크기 설정
+        // 미니게임 전체화면: 컨테이너 크기에 맞춘 캔버스(비율 왜곡 없음, CSS로 늘리지 않음)
+        const surface = this._resolvePlaySurfaceSize(containerId);
+        this.canvasWidth = surface.width;
+        this.canvasHeight = surface.height;
+
         const canvasWidth = this.canvasWidth;
         const canvasHeight = this.canvasHeight;
         
@@ -276,7 +280,7 @@ class Match3Game {
             },
             scale: {
                 mode: Phaser.Scale.NONE,
-                autoCenter: Phaser.Scale.CENTER_BOTH,
+                autoCenter: Phaser.Scale.NO_CENTER,
                 width: canvasWidth,
                 height: canvasHeight
             }
@@ -944,6 +948,16 @@ class Match3Game {
         return false;
     }
 
+    _resolvePlaySurfaceSize(containerId) {
+        const el = typeof document !== 'undefined' ? document.getElementById(containerId) : null;
+        const w = el ? el.clientWidth : 0;
+        const h = el ? el.clientHeight : 0;
+        return {
+            width: Math.max(1, Math.floor(w || window.innerWidth)),
+            height: Math.max(1, Math.floor(h || window.innerHeight)),
+        };
+    }
+
     readSafeAreaInsets() {
         let top = 0;
         let bottom = 0;
@@ -954,8 +968,16 @@ class Match3Game {
                 const value = parseFloat(raw);
                 return Number.isFinite(value) ? value : 0;
             };
-            top = Math.max(parseInset('--ohgo-game-safe-top'), parseInset('--ohgo-safe-area-top'));
-            bottom = Math.max(parseInset('--ohgo-game-safe-bottom'), parseInset('--ohgo-safe-area-bottom'));
+            const isNative =
+                document.documentElement.classList.contains('ohgo-native') ||
+                (typeof window !== 'undefined' && window.__OHGO_NATIVE_APP__);
+            if (isNative) {
+                top = parseInset('--ohgo-safe-area-top');
+                bottom = parseInset('--ohgo-safe-area-bottom');
+            } else {
+                top = parseInset('--ohgo-game-safe-top');
+                bottom = parseInset('--ohgo-game-safe-bottom');
+            }
             if (typeof window !== 'undefined') {
                 if (typeof window.__OHGO_SAFE_AREA_TOP__ === 'number') top = Math.max(top, window.__OHGO_SAFE_AREA_TOP__);
                 if (typeof window.__OHGO_SAFE_AREA_BOTTOM__ === 'number') bottom = Math.max(bottom, window.__OHGO_SAFE_AREA_BOTTOM__);
@@ -974,26 +996,27 @@ class Match3Game {
         const baseHeight = 700;
         const scaleX = this.canvasWidth / baseWidth;
         const scaleY = this.canvasHeight / baseHeight;
-        const scale = Math.min(scaleX, scaleY, 1.0);
+        const scale = Math.min(scaleX, scaleY);
 
         const panelPadding = 10;
         const panelWidth = Math.max(this.canvasWidth - panelPadding * 2, 280 * scale);
         const panelHeight = Math.max(60 * scale, 50);
         const panelX = panelPadding;
-        const panelY = (this.safeAreaTop || 0) + 10;
+        const panelY = panelPadding;
+        const cardCenterY = panelY + panelHeight / 2;
 
         const labelFontSize = Math.max(12 * scale, 10);
         const valueFontSize = Math.max(24 * scale, 18);
         const comboFontSize = Math.max(40 * scale, 32);
 
-        this.uiPanelBg = this.scene.add.rectangle(panelX + panelWidth/2, panelY + panelHeight/2, panelWidth, panelHeight, 0xffffff);
+        this.uiPanelBg = this.scene.add.rectangle(panelX + panelWidth/2, cardCenterY, panelWidth, panelHeight, 0xffffff);
         this.uiPanelBg.setAlpha(0.95);
         this.uiPanelBg.setStrokeStyle(2, 0x4CAF50, 1);
         this.uiPanelBg.setDepth(5);
 
         this.uiPanelBottom = panelY + panelHeight;
 
-        this.uiPanelShadow = this.scene.add.rectangle(panelX + panelWidth/2 + 2, panelY + panelHeight/2 + 2, panelWidth, panelHeight, 0x000000);
+        this.uiPanelShadow = this.scene.add.rectangle(panelX + panelWidth/2 + 2, cardCenterY + 2, panelWidth, panelHeight, 0x000000);
         this.uiPanelShadow.setAlpha(0.2);
         this.uiPanelShadow.setDepth(4);
 
@@ -1001,7 +1024,7 @@ class Match3Game {
         const scoreCardWidth = Math.max(120 * scale, 100);
         const scoreCardHeight = Math.max(48 * scale, 40);
         const scoreCardX = panelX + Math.max(15 * scale, 10);
-        const scoreCardY = panelY + panelHeight/2;
+        const scoreCardY = cardCenterY;
         const scoreLabelPadding = Math.max(10 * scale, 8);
 
         this.scoreCardBg = this.scene.add.rectangle(scoreCardX + scoreCardWidth/2, scoreCardY, scoreCardWidth, scoreCardHeight, 0x2196F3);
@@ -1023,7 +1046,7 @@ class Match3Game {
         const timeCardWidth = Math.max(120 * scale, 100);
         const timeCardHeight = Math.max(48 * scale, 40);
         const timeCardX = panelX + panelWidth - timeCardWidth - Math.max(15 * scale, 10);
-        const timeCardY = panelY + panelHeight/2;
+        const timeCardY = cardCenterY;
         const timeLabelPadding = Math.max(10 * scale, 8);
 
         this.timeCardBg = this.scene.add.rectangle(timeCardX + timeCardWidth/2, timeCardY, timeCardWidth, timeCardHeight, 0xFF6B35);
@@ -2074,7 +2097,6 @@ class Match3Game {
         modal.className = 'game-start-modal';
         modal.innerHTML = `
             <div class="modal-content">
-                <h2>게임 준비 완료!</h2>
                 <p class="game-description">블록을 맞춰서 점수를 획득하세요!</p>
                 <div class="modal-buttons">
                     <button class="btn-start" onclick="window.gameLoader.gameInstance.startGame()">게임 시작</button>
@@ -2109,8 +2131,9 @@ class Match3Game {
         modal.innerHTML = `
             <div class="modal-content">
                 <h2>게임 종료!</h2>
-                <p class="final-score">최종 점수: ${this.score.toLocaleString()}</p>
-                <p class="combo-info">최대 콤보: ${this.maxCombo}X</p>
+                <p class="final-score">${this.score.toLocaleString()}</p>
+                <p class="final-score-label">최종 점수</p>
+                <p class="combo-info">최대 콤보 ${this.maxCombo}X</p>
                 <div class="modal-buttons">
                     <button class="btn-restart" onclick="window.gameLoader.gameInstance.restartGame()">다시 하기</button>
                     <button class="btn-exit" onclick="window.gameLoader.gameInstance.exitGame()">나가기</button>

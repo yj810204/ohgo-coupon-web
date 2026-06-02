@@ -260,6 +260,10 @@ class BubbleShooterGame {
             this.canvasHeight = parseInt(deviceConfig.canvas_height) || this.canvasHeight;
         }
 
+        const surface = this._resolvePlaySurfaceSize(containerId);
+        this.canvasWidth = surface.width;
+        this.canvasHeight = surface.height;
+
         const phaserConfig = {
             type: Phaser.AUTO,
             width: this.canvasWidth,
@@ -286,7 +290,7 @@ class BubbleShooterGame {
             },
             scale: {
                 mode: Phaser.Scale.NONE,
-                autoCenter: Phaser.Scale.CENTER_BOTH,
+                autoCenter: Phaser.Scale.NO_CENTER,
                 width: this.canvasWidth,
                 height: this.canvasHeight
             }
@@ -390,6 +394,16 @@ class BubbleShooterGame {
         this.showGameStartModal();
     }
 
+    _resolvePlaySurfaceSize(containerId) {
+        const el = typeof document !== 'undefined' ? document.getElementById(containerId) : null;
+        const w = el ? el.clientWidth : 0;
+        const h = el ? el.clientHeight : 0;
+        return {
+            width: Math.max(1, Math.floor(w || window.innerWidth)),
+            height: Math.max(1, Math.floor(h || window.innerHeight)),
+        };
+    }
+
     readSafeAreaInsets() {
         let top = 0;
         let bottom = 0;
@@ -400,8 +414,16 @@ class BubbleShooterGame {
                 const value = parseFloat(raw);
                 return Number.isFinite(value) ? value : 0;
             };
-            top = Math.max(parseInset('--ohgo-game-safe-top'), parseInset('--ohgo-safe-area-top'));
-            bottom = Math.max(parseInset('--ohgo-game-safe-bottom'), parseInset('--ohgo-safe-area-bottom'));
+            const isNative =
+                document.documentElement.classList.contains('ohgo-native') ||
+                (typeof window !== 'undefined' && window.__OHGO_NATIVE_APP__);
+            if (isNative) {
+                top = parseInset('--ohgo-safe-area-top');
+                bottom = parseInset('--ohgo-safe-area-bottom');
+            } else {
+                top = parseInset('--ohgo-game-safe-top');
+                bottom = parseInset('--ohgo-game-safe-bottom');
+            }
             if (typeof window !== 'undefined') {
                 if (typeof window.__OHGO_SAFE_AREA_TOP__ === 'number') top = Math.max(top, window.__OHGO_SAFE_AREA_TOP__);
                 if (typeof window.__OHGO_SAFE_AREA_BOTTOM__ === 'number') bottom = Math.max(bottom, window.__OHGO_SAFE_AREA_BOTTOM__);
@@ -420,18 +442,19 @@ class BubbleShooterGame {
         const baseHeight = 700;
         const scaleX = this.canvasWidth / baseWidth;
         const scaleY = this.canvasHeight / baseHeight;
-        const scale = Math.min(scaleX, scaleY, 1.0);
+        const scale = Math.min(scaleX, scaleY);
 
         const panelPadding = 10;
         const panelWidth = Math.max(this.canvasWidth - panelPadding * 2, 280 * scale);
         const panelHeight = Math.max(60 * scale, 50);
         const panelX = panelPadding;
-        const panelY = (this.safeAreaTop || 0) + 10;
+        const panelY = panelPadding;
+        const cardCenterY = panelY + panelHeight / 2;
 
         const labelFontSize = Math.max(12 * scale, 10);
         const valueFontSize = Math.max(24 * scale, 18);
 
-        this.uiPanelBg = this.scene.add.rectangle(panelX + panelWidth/2, panelY + panelHeight/2, panelWidth, panelHeight, 0xffffff);
+        this.uiPanelBg = this.scene.add.rectangle(panelX + panelWidth/2, cardCenterY, panelWidth, panelHeight, 0xffffff);
         this.uiPanelBg.setAlpha(0.95);
         this.uiPanelBg.setStrokeStyle(2, 0x4CAF50, 1);
         this.uiPanelBg.setDepth(5);
@@ -442,7 +465,7 @@ class BubbleShooterGame {
         const scoreCardWidth = Math.max(120 * scale, 100);
         const scoreCardHeight = Math.max(48 * scale, 40);
         const scoreCardX = panelX + Math.max(15 * scale, 10);
-        const scoreCardY = panelY + panelHeight/2;
+        const scoreCardY = cardCenterY;
 
         this.scoreCardBg = this.scene.add.rectangle(scoreCardX + scoreCardWidth/2, scoreCardY, scoreCardWidth, scoreCardHeight, 0x2196F3);
         this.scoreCardBg.setAlpha(0.9);
@@ -463,7 +486,7 @@ class BubbleShooterGame {
         const timeCardWidth = Math.max(120 * scale, 100);
         const timeCardHeight = Math.max(48 * scale, 40);
         const timeCardX = panelX + panelWidth - timeCardWidth - Math.max(15 * scale, 10);
-        const timeCardY = panelY + panelHeight/2;
+        const timeCardY = cardCenterY;
 
         this.timeCardBg = this.scene.add.rectangle(timeCardX + timeCardWidth/2, timeCardY, timeCardWidth, timeCardHeight, 0xFF6B35);
         this.timeCardBg.setAlpha(0.95);
@@ -625,9 +648,10 @@ class BubbleShooterGame {
         
         this.gridBorders.push(borderGraphics);
         
-        // 마지막 그리드 위에 위험선 표시
-        const bottomRow = this.gridRows - 1;
-        const dangerLineY = startY + bottomRow * hexHeight - hexHeight / 2; // 맨 아래줄 위
+        // 위험선: 발사대 조준 화살 끝단 높이에 동적으로 맞춤
+        // shooterY = canvasHeight - 80, aimLine lineLength = 200 → 끝단보다 약간 위
+        const shooterBaseY = this.canvasHeight - 80;
+        const dangerLineY = shooterBaseY - 230;
         const dangerLineGraphics = this.scene.add.graphics();
         dangerLineGraphics.lineStyle(3, 0xFF0000, 1); // 빨간색, 두께 3px
         dangerLineGraphics.setDepth(4); // 버블보다 앞, UI보다 뒤
@@ -2234,7 +2258,6 @@ class BubbleShooterGame {
         modal.className = 'game-start-modal';
         modal.innerHTML = `
             <div class="modal-content">
-                <h2>게임 준비 완료!</h2>
                 <p class="game-description">버블을 쏘아 올려 같은 색깔 3개 이상을 매치하세요!</p>
                 <div class="modal-buttons">
                     <button class="btn-start" onclick="window.gameLoader.gameInstance.startGame()">게임 시작</button>
@@ -2280,7 +2303,8 @@ class BubbleShooterGame {
         modal.innerHTML = `
             <div class="modal-content">
                 <h2>게임 종료!</h2>
-                <p class="final-score">최종 점수: ${this.score.toLocaleString()}</p>
+                <p class="final-score">${this.score.toLocaleString()}</p>
+                <p class="final-score-label">최종 점수</p>
                 <div class="modal-buttons">
                     <button class="btn-restart" onclick="window.gameLoader.gameInstance.restartGame()">다시 하기</button>
                     <button class="btn-exit" onclick="window.gameLoader.gameInstance.exitGame()">나가기</button>

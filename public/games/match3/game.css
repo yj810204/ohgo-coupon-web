@@ -22,7 +22,6 @@
     color: #ffffff;
     margin: 0;
     font-size: 20px;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
     flex: 1;
     min-width: 120px;
 }
@@ -201,167 +200,148 @@
     background: #e68900;
 }
 
-/* 게임 종료 모달 스타일 */
+/* ── 공통 모달 오버레이 ── */
+.game-start-modal,
 .game-end-modal {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.7);
+    inset: 0;
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 10000;
-    backdrop-filter: blur(5px);
+    background: rgba(26, 29, 31, 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 
+/* ── 공통 카드 ── */
+.game-start-modal .modal-content,
 .game-end-modal .modal-content {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 25px 20px;
-    border-radius: 15px;
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 32px 24px 28px;
     text-align: center;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.18);
     max-width: 320px;
     width: 90%;
-    animation: modalSlideIn 0.3s ease-out;
+    font-family: 'Urbanist', system-ui, -apple-system, sans-serif;
+    animation: modalScaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+@keyframes modalScaleIn {
+    from { opacity: 0; transform: scale(0.88) translateY(12px); }
+    to   { opacity: 1; transform: scale(1)    translateY(0);    }
+}
+
+/* ── 제목 ── */
+.game-start-modal h2,
 .game-end-modal h2 {
-    color: white;
-    font-size: 24px;
-    margin: 0 0 12px 0;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    color: #1a1d1f;
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 10px 0;
+    letter-spacing: -0.3px;
+}
+
+/* ── 설명 / 점수 텍스트 ── */
+.game-start-modal .game-description {
+    color: #1a1d1f;
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.6;
+    margin: 0 0 28px 0;
 }
 
 .game-end-modal .final-score {
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 18px;
-    margin: 12px 0;
-    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    color: #1b6ff5;
+    font-size: 28px;
+    font-weight: 700;
+    margin: 8px 0 4px;
+    letter-spacing: -0.5px;
+}
+
+.game-end-modal .final-score-label {
+    color: #9a9fa5;
+    font-size: 12px;
+    margin: 0 0 16px 0;
 }
 
 .game-end-modal .combo-info {
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 14px;
-    margin: 8px 0;
+    color: #6f767e;
+    font-size: 13px;
+    margin: 4px 0 20px;
 }
 
+/* ── 버튼 영역 ── */
+.game-start-modal .modal-buttons,
 .game-end-modal .modal-buttons {
-    margin-top: 20px;
     display: flex;
+    flex-direction: column;
     gap: 10px;
-    justify-content: center;
+    margin-top: 4px;
 }
 
-.game-end-modal .btn-restart,
-.game-end-modal .btn-exit {
-    padding: 10px 24px;
-    font-size: 14px;
-    border: none;
-    border-radius: 50px;
-    cursor: pointer;
-    transition: all 0.3s;
-    color: white;
-    font-weight: bold;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
-
-.game-end-modal .btn-restart {
-    background: #4CAF50;
-    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
-}
-
-.game-end-modal .btn-restart:hover {
-    background: #45a049;
-    transform: scale(1.05);
-    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.6);
-}
-
-.game-end-modal .btn-exit {
-    background: #888;
-    box-shadow: 0 4px 15px rgba(136, 136, 136, 0.4);
-}
-
-.game-end-modal .btn-exit:hover {
-    background: #666;
-    transform: scale(1.05);
-    box-shadow: 0 6px 20px rgba(102, 102, 102, 0.6);
-}
-
-/* 게임 시작 모달 */
-.game-start-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.3);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 10000;
-    backdrop-filter: blur(5px);
-}
-
-.game-start-modal .modal-content {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 30px 25px;
-    border-radius: 15px;
-    text-align: center;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-    max-width: 320px;
-    width: 90%;
-    animation: modalSlideIn 0.3s ease-out;
-}
-
-@keyframes modalSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.game-start-modal h2 {
-    color: white;
-    font-size: 24px;
-    margin: 0 0 12px 0;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.game-start-modal .game-description {
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 14px;
-    margin: 0 0 20px 0;
-    line-height: 1.4;
-}
-
-.game-start-modal .modal-buttons {
-    display: flex;
-    gap: 15px;
-    justify-content: center;
-}
-
+/* ── 게임 시작 버튼 ── */
 .game-start-modal .btn-start {
-    padding: 15px 40px;
-    font-size: 18px;
+    width: 100%;
+    padding: 15px 24px;
+    font-size: 16px;
+    font-weight: 700;
+    font-family: inherit;
     border: none;
     border-radius: 50px;
     cursor: pointer;
-    transition: all 0.3s;
-    color: white;
-    font-weight: bold;
-    background: #4CAF50;
-    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+    color: #ffffff;
+    background: #1b6ff5;
+    transition: background 0.2s, transform 0.15s;
+    letter-spacing: 0.1px;
 }
 
-.game-start-modal .btn-start:hover {
-    background: #45a049;
-    transform: scale(1.05);
-    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.6);
+.game-start-modal .btn-start:hover,
+.game-start-modal .btn-start:active {
+    background: #155fc7;
+    transform: scale(1.02);
+}
+
+/* ── 재시작 버튼 ── */
+.game-end-modal .btn-restart {
+    width: 100%;
+    padding: 14px 24px;
+    font-size: 15px;
+    font-weight: 700;
+    font-family: inherit;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    color: #ffffff;
+    background: #1b6ff5;
+    transition: background 0.2s, transform 0.15s;
+}
+
+.game-end-modal .btn-restart:hover,
+.game-end-modal .btn-restart:active {
+    background: #155fc7;
+    transform: scale(1.02);
+}
+
+/* ── 나가기 버튼 ── */
+.game-end-modal .btn-exit {
+    width: 100%;
+    padding: 14px 24px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    color: #6f767e;
+    background: #f2f3f5;
+    transition: background 0.2s, transform 0.15s;
+}
+
+.game-end-modal .btn-exit:hover,
+.game-end-modal .btn-exit:active {
+    background: #e4e5e8;
+    transform: scale(1.02);
 }
 
