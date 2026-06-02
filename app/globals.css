@@ -12,6 +12,10 @@
   --ohgo-page-header-height: 56px;
   /* fixed 헤더(spacer) 아래 콘텐츠 상단 여백 — 예전 container 80px − 헤더 56px */
   --ohgo-page-content-padding-top: 24px;
+  --ohgo-safe-area-top: 0px;
+  --ohgo-safe-area-bottom: 0px;
+  --ohgo-game-safe-top: env(safe-area-inset-top, 0px);
+  --ohgo-game-safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @theme inline {
@@ -261,6 +265,133 @@ button:focus-visible,
   .point-mall-balance__orders-btn span {
     letter-spacing: -0.02em;
   }
+}
+
+/* 포인트몰 상품 상세 — 이미지 스와이프 */
+.ohgo-subpage > .container:has(.point-mall-product-detail) {
+  padding-top: 12px !important;
+}
+
+.point-mall-product-detail {
+  gap: 16px !important;
+}
+
+.point-mall-product-gallery {
+  margin-left: -0.75rem;
+  margin-right: -0.75rem;
+  width: calc(100% + 1.5rem);
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.point-mall-product-gallery__viewport {
+  position: relative;
+}
+
+.point-mall-product-gallery__track {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  cursor: grab;
+  touch-action: pan-x;
+}
+
+.point-mall-product-gallery__track--dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  scroll-behavior: auto;
+  user-select: none;
+}
+
+.point-mall-product-gallery__track::-webkit-scrollbar {
+  display: none;
+}
+
+.point-mall-product-gallery__nav {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.92);
+  color: #1a1d1f;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  padding: 0;
+}
+
+.point-mall-product-gallery__nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.point-mall-product-gallery__nav--prev {
+  left: 8px;
+}
+
+.point-mall-product-gallery__nav--next {
+  right: 8px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .point-mall-product-gallery__track {
+    cursor: grab;
+  }
+}
+
+.point-mall-product-gallery__slide {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 240px;
+  background-color: #f7f8fa;
+}
+
+.point-mall-product-gallery__slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.point-mall-product-gallery__empty {
+  min-height: 160px;
+  background-color: #f7f8fa;
+  color: #b0b8c4;
+}
+
+.point-mall-product-gallery__dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 0 2px;
+}
+
+.point-mall-product-gallery__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #d0d5dd;
+  transition: width 0.2s ease, background-color 0.2s ease;
+}
+
+.point-mall-product-gallery__dot--active {
+  width: 18px;
+  border-radius: 3px;
+  background-color: #1b6ff5;
 }
 
 @media (max-width: 320px) {
@@ -986,11 +1117,94 @@ body[data-page="login"] {
   letter-spacing: -0.02em;
 }
 
-/* 미니게임 전체화면 닫기 — 상단 점수·타이머와 겹치지 않음 */
+/* 미니게임 — 전체화면 (헤더·하단 탭 없음) */
+body[data-game-playing='true'] {
+  overflow: hidden;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  background: #000;
+  --ohgo-game-safe-top: max(
+    env(safe-area-inset-top, 0px),
+    var(--ohgo-safe-area-top, 0px)
+  );
+  --ohgo-game-safe-bottom: max(
+    env(safe-area-inset-bottom, 0px),
+    var(--ohgo-safe-area-bottom, 0px)
+  );
+}
+
+body[data-game-playing='true'] #ohgo-bottom-tab-bar,
+body[data-game-playing='true'] .ohgo-page-header,
+body[data-game-playing='true'] .ohgo-page-header-spacer {
+  display: none !important;
+}
+
+body[data-game-playing='true'] .container-fluid {
+  background: #000 !important;
+  min-height: 100dvh;
+}
+
+.ohgo-game-play-surface,
+body[data-game-playing='true'] #game-container {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #000;
+  z-index: 9998;
+  max-width: none;
+  min-height: 0;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.ohgo-game-play-surface canvas,
+body[data-game-playing='true'] #game-container canvas,
+body[data-game-playing='true'] #game-canvas canvas {
+  display: block !important;
+  max-width: 100% !important;
+  border-radius: 0 !important;
+}
+
+.ohgo-game-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  color: #e5e7eb;
+}
+
+.ohgo-game-loading-overlay .text-muted {
+  color: #9ca3af !important;
+}
+
+.ohgo-game-saving-toast {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10001;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+}
+
+/* 미니게임 닫기 — 전체화면 우하단 */
 .ohgo-game-close-btn {
   position: fixed;
   z-index: 10001;
-  bottom: calc(var(--ohgo-tab-bar-height) + env(safe-area-inset-bottom, 0px) + 12px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
   right: max(12px, env(safe-area-inset-right, 0px) + 12px);
   width: 44px;
   height: 44px;

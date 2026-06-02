@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation';
 import { getUser } from '@/lib/storage';
 import { getUserByUUID } from '@/lib/firebase-auth';
 import { getAllGames, toggleGameActive, Game } from '@/lib/game-service';
+import { ADMIN_EDIT_ICON } from '@/lib/admin-icons';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import {
   IoGameControllerOutline,
   IoImageOutline,
-  IoPencilOutline,
   IoPlayOutline,
   IoPauseOutline,
   IoRefreshOutline,
@@ -735,7 +735,7 @@ export default function AdminGameSettingsPage() {
                         title="수정"
                         style={{ width: 32, height: 32, backgroundColor: '#EBF1FE', border: 'none' }}
                       >
-                        <IoPencilOutline size={16} color="#1B6FF5" />
+                        <ADMIN_EDIT_ICON size={16} color="#1B6FF5" />
                       </button>
                     </div>
                   </div>

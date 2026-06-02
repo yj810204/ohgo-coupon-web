@@ -16,7 +16,6 @@ import {
   IoChevronDownOutline,
   IoAddOutline,
   IoTrashOutline,
-  IoPencilOutline,
   IoSettingsOutline,
   IoMenuOutline,
   IoPhonePortraitOutline,
@@ -25,6 +24,7 @@ import {
   IoCheckmarkCircle,
   IoBoatOutline,
 } from 'react-icons/io5';
+import { ADMIN_EDIT_ICON } from '@/lib/admin-icons';
 import SubPageFrame from '@/components/SubPageFrame';
 import {
   OhgoPageLoading,
@@ -505,7 +505,7 @@ function AdminSiteSettingsContent() {
                         title="수정"
                         style={{ width: 28, height: 28, backgroundColor: '#EBF1FE', border: 'none' }}
                       >
-                        <IoPencilOutline size={14} color="#1B6FF5" />
+                        <ADMIN_EDIT_ICON size={14} color="#1B6FF5" />
                       </button>
                       <button
                         type="button"

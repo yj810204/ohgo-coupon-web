@@ -4,16 +4,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getUser } from '@/lib/storage';
 import SubPageFrame from '@/components/SubPageFrame';
-import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
 import ProductGridCard from '@/components/home/ProductGridCard';
 import EmptyState from '@/components/EmptyState';
-import {
-  getPointMallProducts,
-  getUserPointBalance,
-  purchaseProduct,
-} from '@/utils/point-mall-service';
+import { getPointMallProducts, getUserPointBalance } from '@/utils/point-mall-service';
 import type { PointMallProduct } from '@/constants/point-mall';
-import { formatPointPrice } from '@/constants/point-mall';
+import { formatPointPrice, getProductPrimaryImageUrl } from '@/constants/point-mall';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import {
   IoGameControllerOutline,
@@ -25,23 +20,6 @@ import {
 
 const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
 
-function purchaseErrorMessage(
-  code: 'USER_NOT_FOUND' | 'PRODUCT_NOT_FOUND' | 'PRODUCT_INACTIVE' | 'OUT_OF_STOCK' | 'INSUFFICIENT_POINTS' | 'UNKNOWN'
-): string {
-  switch (code) {
-    case 'INSUFFICIENT_POINTS':
-      return '포인트가 부족합니다.';
-    case 'OUT_OF_STOCK':
-      return '재고가 없습니다.';
-    case 'PRODUCT_INACTIVE':
-      return '판매 중지된 상품입니다.';
-    case 'PRODUCT_NOT_FOUND':
-      return '상품을 찾을 수 없습니다.';
-    default:
-      return '구매 중 오류가 발생했습니다.';
-  }
-}
-
 export default function PointMallPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -50,8 +28,6 @@ export default function PointMallPage() {
   const [loading, setLoading] = useState(true);
   const [gamePoints, setGamePoints] = useState(0);
   const [communityPoints, setCommunityPoints] = useState(0);
-  const [selected, setSelected] = useState<PointMallProduct | null>(null);
-  const [purchasing, setPurchasing] = useState(false);
 
   const loadData = useCallback(async (userUuid: string) => {
     setLoading(true);
@@ -87,23 +63,6 @@ export default function PointMallPage() {
   useNativePullToRefresh(async () => {
     if (uuid) await loadData(uuid);
   });
-
-  const handlePurchase = async () => {
-    if (!selected || !uuid) return;
-    setPurchasing(true);
-    try {
-      const result = await purchaseProduct(uuid, selected.id);
-      if (result.ok) {
-        alert('구매가 완료되었습니다.');
-        setSelected(null);
-        await loadData(uuid);
-      } else {
-        alert(purchaseErrorMessage(result.code));
-      }
-    } finally {
-      setPurchasing(false);
-    }
-  };
 
   if (!ready) {
     return (
@@ -171,71 +130,18 @@ export default function PointMallPage() {
                     id: product.id,
                     name: product.name,
                     price: outOfStock ? '품절' : formatPointPrice(product.pointPrice),
-                    imageUrl: product.imageUrl,
+                    imageUrl: getProductPrimaryImageUrl(product),
                     memberOnly: false,
                   }}
-                  onClick={() => {
-                    if (outOfStock) {
-                      alert('품절된 상품입니다.');
-                      return;
-                    }
-                    setSelected(product);
-                  }}
+                  onClick={() =>
+                    router.push(`/point-mall/product?id=${encodeURIComponent(product.id)}`)
+                  }
                 />
               </div>
             );
           })}
         </div>
       )}
-
-      <OhgoModal
-        open={!!selected}
-        onClose={() => {
-          if (!purchasing) setSelected(null);
-        }}
-        closeOnBackdrop
-        title="구매 확인"
-        titleTone="brand"
-        footerLayout="row"
-        footer={
-          selected ? (
-            <>
-              <OhgoModalButton variant="secondary" disabled={purchasing} onClick={() => setSelected(null)}>
-                취소
-              </OhgoModalButton>
-              <OhgoModalButton
-                disabled={purchasing || totalPoints < selected.pointPrice}
-                onClick={() => void handlePurchase()}
-              >
-                {purchasing ? '처리 중...' : '구매하기'}
-              </OhgoModalButton>
-            </>
-          ) : null
-        }
-      >
-        {selected && (
-          <>
-            <div style={{ fontSize: 17, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>{selected.name}</div>
-            {selected.description && (
-              <p style={{ fontSize: 14, color: '#6F767E', fontFamily: FONT, marginTop: 8, marginBottom: 0 }}>
-                {selected.description}
-              </p>
-            )}
-            <div
-              className="mt-3 p-3 rounded-3 d-flex justify-content-between align-items-center"
-              style={{ backgroundColor: '#EBF1FE' }}
-            >
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#1B6FF5', fontFamily: FONT }}>차감 포인트</span>
-              <span style={{ fontSize: 20, fontWeight: 800, color: '#1B6FF5', fontFamily: FONT }}>
-                {formatPointPrice(selected.pointPrice)}
-              </span>
-            </div>
-            <p className="mt-2 mb-0" style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT }}>
-              보유: {totalPoints.toLocaleString('ko-KR')}P (게임 포인트 우선 차감)
-            </p>
-          </>
-        )}
-      </OhgoModal>
     </SubPageFrame>
   );
 }

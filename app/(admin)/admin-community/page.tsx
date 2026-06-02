@@ -26,7 +26,8 @@ import {
   EmojiPack,
   Emoji
 } from '@/utils/emoji-pack-service';
-import { IoTrashOutline, IoAddOutline, IoSettingsOutline, IoChevronUpOutline, IoChevronDownOutline, IoHappyOutline, IoPencilOutline } from 'react-icons/io5';
+import { IoTrashOutline, IoAddOutline, IoSettingsOutline, IoChevronUpOutline, IoChevronDownOutline, IoHappyOutline } from 'react-icons/io5';
+import { ADMIN_EDIT_ICON } from '@/lib/admin-icons';
 import type { IconType } from 'react-icons';
 import SubPageFrame from '@/components/SubPageFrame';
 import {
@@ -1316,7 +1317,7 @@ function AdminCommunityContent() {
                   <div className="d-flex gap-1 flex-shrink-0">
                     <IconActionButton
                       title="수정"
-                      icon={IoPencilOutline}
+                      icon={ADMIN_EDIT_ICON}
                       color="#1B6FF5"
                       bg="#EBF1FE"
                       onClick={() =>
@@ -1434,7 +1435,7 @@ function AdminCommunityContent() {
                   <div className="d-flex gap-1 flex-shrink-0">
                     <IconActionButton
                       title="수정"
-                      icon={IoPencilOutline}
+                      icon={ADMIN_EDIT_ICON}
                       color="#1B6FF5"
                       bg="#EBF1FE"
                       onClick={() => handleEditEmojiPack(pack)}

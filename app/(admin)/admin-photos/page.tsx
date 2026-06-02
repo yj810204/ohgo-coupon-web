@@ -12,7 +12,8 @@ import {
   CommunityTemplate,
   TemplateField,
 } from '@/utils/community-template-service';
-import { IoImageOutline, IoTrashOutline, IoAddOutline, IoPencilOutline } from 'react-icons/io5';
+import { IoImageOutline, IoTrashOutline, IoAddOutline } from 'react-icons/io5';
+import { ADMIN_EDIT_ICON } from '@/lib/admin-icons';
 import CKEditorComponent from '@/components/CKEditor';
 import TemplateFieldInput from '@/components/TemplateFieldInput';
 import ImageEditor from '@/components/ImageEditor';
@@ -1040,7 +1041,7 @@ function AdminPhotosContent() {
                       title="수정"
                       style={{ width: 28, height: 28, backgroundColor: '#EBF1FE', border: 'none' }}
                     >
-                      <IoPencilOutline size={14} color="#1B6FF5" />
+                      <ADMIN_EDIT_ICON size={14} color="#1B6FF5" />
                     </button>
                     <button
                       type="button"

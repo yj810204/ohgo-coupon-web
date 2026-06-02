@@ -74,30 +74,46 @@ export class GameLoader {
             });
             config.block_types = blockTypes;
           } else if (gameId === 'flappy_bird') {
-            // 플래피 버드 이미지 URL 설정
-            if (assetUrls['bird_0']) {
-              config.bird_image_path = assetUrls['bird_0'];
-            }
-            if (assetUrls['coin_0']) {
-              config.coin_image_path = assetUrls['coin_0'];
-            }
-            if (assetUrls['pipe_0']) {
-              config.pipe_image_path = assetUrls['pipe_0'];
-            }
-            if (assetUrls['pipe_top_0']) {
-              config.pipe_top_image_path = assetUrls['pipe_top_0'];
-            }
-            if (assetUrls['pipe_bottom_0']) {
-              config.pipe_bottom_image_path = assetUrls['pipe_bottom_0'];
-            }
-            if (assetUrls['background_0']) {
-              config.background_image_path = assetUrls['background_0'];
+            const base = config.game_path || `/${gamePath}`;
+            const assetMap: Record<string, string> = {
+              bird_image_path: 'bird_0',
+              coin_image_path: 'coin_0',
+              pipe_image_path: 'pipe_0',
+              pipe_top_image_path: 'pipe_top_0',
+              pipe_bottom_image_path: 'pipe_bottom_0',
+              background_image_path: 'background_0',
+            };
+            for (const [configKey, assetKey] of Object.entries(assetMap)) {
+              const fromFirestore = assetUrls[assetKey];
+              if (fromFirestore) {
+                config[configKey] = fromFirestore;
+              } else if (!config[configKey]) {
+                config[configKey] = `${base}/assets/${assetKey}.png`;
+              }
             }
           }
         }
       } catch (error) {
         console.warn('Failed to load asset URLs from Firestore:', error);
         // 에러가 발생해도 게임은 계속 진행
+      }
+
+      // Firestore 미사용 시 플래피 버드 기본 로컬 에셋 경로 보장
+      if (gameId === 'flappy_bird') {
+        const base = config.game_path || `/${gamePath}`;
+        const assetMap: Record<string, string> = {
+          bird_image_path: 'bird_0',
+          coin_image_path: 'coin_0',
+          pipe_image_path: 'pipe_0',
+          pipe_top_image_path: 'pipe_top_0',
+          pipe_bottom_image_path: 'pipe_bottom_0',
+          background_image_path: 'background_0',
+        };
+        for (const [configKey, assetKey] of Object.entries(assetMap)) {
+          if (!config[configKey]) {
+            config[configKey] = `${base}/assets/${assetKey}.png`;
+          }
+        }
       }
 
       // 게임 스타일 로드

@@ -4,7 +4,8 @@ export type NativeBridgeMessageType =
   | 'NAVIGATION'
   | 'HAPTIC_FEEDBACK'
   | 'SHARE'
-  | 'NATIVE_READY';
+  | 'NATIVE_READY'
+  | 'GAME_IMMERSIVE';
 
 export interface NativeBridgeMessage<T = unknown> {
   type: NativeBridgeMessageType;

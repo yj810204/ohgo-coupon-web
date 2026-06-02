@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -32,6 +33,9 @@ function mapProductDoc(id: string, data: Record<string, unknown>): PointMallProd
     description: (data.description as string) || '',
     pointPrice: Number(data.pointPrice) || 0,
     imageUrl: data.imageUrl as string | undefined,
+    imageUrls: Array.isArray(data.imageUrls)
+      ? (data.imageUrls as string[]).filter(u => typeof u === 'string' && u.trim())
+      : undefined,
     stock: data.stock !== undefined ? Number(data.stock) : -1,
     isActive: data.isActive !== false,
     order: Number(data.order) || 0,
@@ -57,9 +61,20 @@ function buildProductWriteData(
   if (input.isActive !== undefined) data.isActive = input.isActive;
   if (input.order !== undefined) data.order = Number(input.order) || 0;
 
-  const imageUrl = input.imageUrl?.trim();
-  if (imageUrl) {
-    data.imageUrl = imageUrl;
+  if (input.imageUrls !== undefined) {
+    const urls = input.imageUrls.map(u => u.trim()).filter(Boolean);
+    if (urls.length > 0) {
+      data.imageUrl = urls[0];
+      data.imageUrls = urls;
+    } else {
+      data.imageUrl = deleteField();
+      data.imageUrls = deleteField();
+    }
+  } else {
+    const imageUrl = input.imageUrl?.trim();
+    if (imageUrl) {
+      data.imageUrl = imageUrl;
+    }
   }
 
   if (options?.includeCreatedAt) {
@@ -67,6 +82,15 @@ function buildProductWriteData(
   }
 
   return data;
+}
+
+/** 상품 단건 조회 (회원용, 활성 상품만) */
+export async function getPointMallProductById(id: string): Promise<PointMallProduct | null> {
+  const snap = await getDoc(doc(db, COL, id));
+  if (!snap.exists()) return null;
+  const product = mapProductDoc(snap.id, snap.data());
+  if (!product.isActive) return null;
+  return product;
 }
 
 /** 활성 상품 목록 (회원용) */
@@ -95,6 +119,7 @@ export async function addPointMallProduct(input: PointMallProductInput): Promise
       stock: input.stock ?? -1,
       isActive: input.isActive !== false,
       order: input.order ?? 0,
+      imageUrls: input.imageUrls,
       imageUrl: input.imageUrl,
     },
     { includeCreatedAt: true }

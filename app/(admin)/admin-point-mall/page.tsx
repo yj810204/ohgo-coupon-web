@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getUser } from '@/lib/storage';
 import { getUserByUUID } from '@/lib/firebase-auth';
 import type { PointMallProduct } from '@/constants/point-mall';
-import { formatPointPrice } from '@/constants/point-mall';
+import { formatPointPrice, getProductPrimaryImageUrl } from '@/constants/point-mall';
 import {
   getAllPointMallProducts,
   updatePointMallProduct,
@@ -14,13 +14,13 @@ import {
 import {
   IoAddOutline,
   IoTrashOutline,
-  IoPencilOutline,
   IoStorefrontOutline,
   IoImageOutline,
 } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
+import { ADMIN_EDIT_ICON } from '@/lib/admin-icons';
 import { OHGO_CARD, OHGO_CONFIRM_BTN_CLASS, OHGO_FONT, OHGO_INPUT, OHGO_PRIMARY_BTN } from '@/lib/page-styles';
 
 const FONT = OHGO_FONT;
@@ -129,6 +129,7 @@ export default function AdminPointMallPage() {
         >
           {products.map((product, index) => {
             const outOfStock = product.stock === 0;
+            const thumbUrl = getProductPrimaryImageUrl(product);
 
             return (
               <div
@@ -147,13 +148,19 @@ export default function AdminPointMallPage() {
                       width: 64,
                       height: 64,
                       borderRadius: 12,
-                      background: product.imageUrl
-                        ? `url(${product.imageUrl}) center/cover`
-                        : '#F2F3F5',
+                      backgroundColor: '#F7F8FA',
                       border: '1px solid #EFEFEF',
                     }}
                   >
-                    {!product.imageUrl && <IoImageOutline size={24} color="#B0B8C4" />}
+                    {thumbUrl ? (
+                      <img
+                        src={thumbUrl}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                      />
+                    ) : (
+                      <IoImageOutline size={24} color="#B0B8C4" />
+                    )}
                   </div>
 
                   <div className="flex-grow-1 min-w-0">
@@ -234,7 +241,7 @@ export default function AdminPointMallPage() {
                       title="수정"
                       style={{ width: 28, height: 28, backgroundColor: '#EBF1FE', border: 'none' }}
                     >
-                      <IoPencilOutline size={14} color="#1B6FF5" />
+                      <ADMIN_EDIT_ICON size={14} color="#1B6FF5" />
                     </button>
                     <button
                       type="button"

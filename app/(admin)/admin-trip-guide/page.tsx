@@ -24,7 +24,8 @@ import {
   reservationStatusLabel,
   type TripReservation,
 } from '@/utils/reservation-service';
-import { IoAddOutline, IoTrashOutline, IoPencilOutline, IoBoatOutline, IoCopyOutline, IoPeopleOutline, IoChevronBackOutline, IoChevronForwardOutline } from 'react-icons/io5';
+import { IoAddOutline, IoTrashOutline, IoBoatOutline, IoCopyOutline, IoPeopleOutline, IoChevronBackOutline, IoChevronForwardOutline } from 'react-icons/io5';
+import { ADMIN_EDIT_ICON } from '@/lib/admin-icons';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
@@ -547,7 +548,7 @@ export default function AdminTripGuidePage() {
                                 className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
                                 style={{ width: 28, height: 28, backgroundColor: '#EBF1FE', border: 'none' }}
                               >
-                                <IoPencilOutline size={14} color="#1B6FF5" />
+                                <ADMIN_EDIT_ICON size={14} color="#1B6FF5" />
                               </button>
                               <button
                                 type="button"

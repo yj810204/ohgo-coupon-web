@@ -16,15 +16,20 @@ export default function ProductGridCard({ product, onClick }: ProductGridCardPro
       style={{ borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
     >
       <div
-        className="w-100 d-flex align-items-center justify-content-center"
+        className="w-100 d-flex align-items-center justify-content-center overflow-hidden"
         style={{
           aspectRatio: '1',
-          background: product.imageUrl
-            ? `url(${product.imageUrl}) center/cover no-repeat`
-            : '#F2F3F5',
+          backgroundColor: '#F7F8FA',
         }}
       >
-        {!product.imageUrl && (
+        {product.imageUrl ? (
+          <img
+            src={product.imageUrl}
+            alt=""
+            className="w-100 h-100"
+            style={{ objectFit: 'contain', display: 'block' }}
+          />
+        ) : (
           <span style={{ fontSize: '12px', color: '#B0B8C4', letterSpacing: '-0.2px' }}>
             이미지 준비중
           </span>

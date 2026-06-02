@@ -10,7 +10,8 @@ export type BridgeMessageType =
   | 'OPEN_SETTINGS'
   | 'QR_SCAN_REQUEST'
   | 'QR_SCAN_RESULT'
-  | 'QR_SCAN_CANCEL';
+  | 'QR_SCAN_CANCEL'
+  | 'GAME_IMMERSIVE';
 
 export interface BridgeMessage<T = unknown> {
   type: BridgeMessageType;
@@ -53,11 +54,17 @@ export const NATIVE_INJECT_SCRIPT = `
 true;
 `;
 
-/** 네이티브 앱 플래그 주입 */
-export function buildSafeAreaInjectScript(_top: number, _bottom: number): string {
+/** 네이티브 safe area → CSS 변수 (게임 HUD 등) */
+export function buildSafeAreaInjectScript(top: number, bottom: number): string {
+  const safeTop = Math.max(0, Math.round(top));
+  const safeBottom = Math.max(0, Math.round(bottom));
   return `
 (function() {
   document.documentElement.classList.add('ohgo-native');
+  document.documentElement.style.setProperty('--ohgo-safe-area-top', '${safeTop}px');
+  document.documentElement.style.setProperty('--ohgo-safe-area-bottom', '${safeBottom}px');
+  window.__OHGO_SAFE_AREA_TOP__ = ${safeTop};
+  window.__OHGO_SAFE_AREA_BOTTOM__ = ${safeBottom};
   if (document.body) document.body.setAttribute('data-native-app', 'true');
 })();
 true;

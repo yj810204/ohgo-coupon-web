@@ -16,7 +16,7 @@ import FeaturedCard from '@/components/home/FeaturedCard';
 import ProductGridCard from '@/components/home/ProductGridCard';
 import WeeklyTripSummary from '@/components/home/WeeklyTripSummary';
 import { getPointMallProducts } from '@/utils/point-mall-service';
-import { formatPointPrice } from '@/constants/point-mall';
+import { formatPointPrice, getProductPrimaryImageUrl } from '@/constants/point-mall';
 import type { PointMallProduct } from '@/constants/point-mall';
 import { format } from 'date-fns';
 import { IoGameControllerOutline, IoStorefrontOutline } from 'react-icons/io5';
@@ -149,12 +149,25 @@ export default function MainPage() {
 
   return (
     <div className="min-vh-100 pb-4" style={{ backgroundColor: '#F7F8FA' }}>
-      <div className="px-3 pt-2" style={{ maxWidth: 480, margin: '0 auto' }}>
-        <AvatarHeader
-          userName={user.name || '회원'}
-          onMyPage={() => navigate('/my-page')}
-        />
 
+      {/* 흰색 헤더 영역 */}
+      <div
+        style={{
+          backgroundColor: '#ffffff',
+          paddingBottom: 32,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+        }}
+      >
+        <div className="px-3 pt-2" style={{ maxWidth: 480, margin: '0 auto' }}>
+          <AvatarHeader
+            userName={user.name || '회원'}
+            onMyPage={() => navigate('/my-page')}
+          />
+        </div>
+      </div>
+
+      {/* 카드가 헤더 위로 -24px 겹침 */}
+      <div className="px-3" style={{ maxWidth: 480, margin: '0 auto', marginTop: -24 }}>
         <div className="mb-4">
           <StampCouponSummary
             stampCount={stampCount}
@@ -251,10 +264,10 @@ export default function MainPage() {
                       id: product.id,
                       name: product.name,
                       price: product.stock === 0 ? '품절' : formatPointPrice(product.pointPrice),
-                      imageUrl: product.imageUrl,
+                      imageUrl: getProductPrimaryImageUrl(product),
                       memberOnly: false,
                     }}
-                    onClick={() => navigate('/point-mall')}
+                    onClick={() => navigate(`/point-mall/product?id=${encodeURIComponent(product.id)}`)}
                   />
                 </div>
               ))}

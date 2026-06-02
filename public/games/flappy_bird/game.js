@@ -11,28 +11,7 @@
 (function() {
     'use strict';
     
-    // 1. 도메인 체크
-    const allowedDomains = [
-        'localhost',
-        '127.0.0.1',
-        // 운영 도메인을 여기에 추가하세요
-        'codejaka01.cafe24.com',
-        // 'www.yourdomain.com'
-    ];
-    
-    function checkDomain() {
-        const currentDomain = window.location.hostname;
-        const isAllowed = allowedDomains.some(domain => {
-            return currentDomain === domain || currentDomain.endsWith('.' + domain);
-        });
-        
-        if (!isAllowed) {
-            document.body.innerHTML = '<div style="padding: 50px; text-align: center;"><h1>접근이 제한되었습니다</h1><p>이 게임은 인증된 도메인에서만 실행할 수 있습니다.</p></div>';
-            throw new Error('Domain verification failed');
-        }
-    }
-    
-    // 2. 안티 디버깅 (개발자 도구 감지)
+    // 1. 안티 디버깅 (개발자 도구 감지)
     let devtoolsOpen = false;
     const threshold = 160;
     
@@ -69,33 +48,11 @@
         }
     }
     
-    // 5. 무결성 검증 (코드 변조 감지)
-    const codeFingerprint = Date.now().toString(36);
-    window.__gameIntegrity = codeFingerprint;
-    
-    function verifyIntegrity() {
-        if (window.__gameIntegrity !== codeFingerprint) {
-            throw new Error('Code has been tampered');
-        }
-    }
-    
     // 초기화
     try {
-        checkDomain();
-        
-        // 개발자 도구 감지 (주기적 체크)
         setInterval(detectDevTools, 1000);
-        
-        // 이벤트 리스너 등록 (선택적)
-        // document.addEventListener('contextmenu', preventContextMenu);
-        // document.addEventListener('keydown', preventShortcuts);
-        
-        // 무결성 검증 (주기적 체크)
-        setInterval(verifyIntegrity, 5000);
-        
     } catch (error) {
-        // 보안 초기화 실패 시에도 게임은 계속 로드되도록 함
-        // throw error;
+        // 초기화 실패해도 게임은 계속 로드
     }
 })();
 
@@ -147,6 +104,7 @@ class FlappyBirdGame {
         
         // 배경 이미지 설정
         this.backgroundImagePath = null; // 배경 이미지 경로
+        this.applyImagePaths(config);
         
         // 게임 오브젝트
         this.bird = null;
@@ -164,9 +122,24 @@ class FlappyBirdGame {
         this.lastPipeX = 0;
         this.pipesPassed = 0;
         this.uiPanelBottom = 0;
+        this.safeAreaTop = 0;
+        this.safeAreaBottom = 0;
         this.levelText = null; // 레벨업 애니메이션용 텍스트
         this.pipeCount = 0; // 파이프 생성 카운터 (코인 생성용)
         this.isMobileDevice = false; // 모바일 장치 여부
+    }
+
+    /**
+     * config / game_config_json 에서 이미지 경로 반영
+     */
+    applyImagePaths(source) {
+        if (!source || typeof source !== 'object') return;
+        if (source.bird_image_path) this.birdImagePath = source.bird_image_path;
+        if (source.coin_image_path) this.coinImagePath = source.coin_image_path;
+        if (source.pipe_image_path) this.pipeImagePath = source.pipe_image_path;
+        if (source.pipe_top_image_path) this.pipeTopImagePath = source.pipe_top_image_path;
+        if (source.pipe_bottom_image_path) this.pipeBottomImagePath = source.pipe_bottom_image_path;
+        if (source.background_image_path) this.backgroundImagePath = source.background_image_path;
     }
 
     /**
@@ -176,6 +149,9 @@ class FlappyBirdGame {
         // 화면 크기 감지 및 기기별 설정 적용
         let deviceConfig = null;
         const screenWidth = window.innerWidth;
+        const containerEl = typeof document !== 'undefined' ? document.getElementById(containerId) : null;
+        const containerWidth = containerEl?.clientWidth > 0 ? containerEl.clientWidth : screenWidth;
+        const containerHeight = containerEl?.clientHeight > 0 ? containerEl.clientHeight : window.innerHeight;
         
         let gameConfig = null;
         if (this.config.game_config_json) {
@@ -203,29 +179,38 @@ class FlappyBirdGame {
             }
         }
         
-        if (screenWidth < 768) {
-            if (gameConfig && gameConfig.mobile) {
-                deviceConfig = gameConfig.mobile;
+        const useFixedCanvas = !!(gameConfig && gameConfig.use_fixed_size);
+
+        if (useFixedCanvas) {
+            if (screenWidth < 768) {
+                if (gameConfig && gameConfig.mobile) {
+                    deviceConfig = gameConfig.mobile;
+                } else {
+                    deviceConfig = { canvas_width: 400, canvas_height: 600 };
+                }
+            } else if (screenWidth < 1024) {
+                if (gameConfig && gameConfig.tablet) {
+                    deviceConfig = gameConfig.tablet;
+                } else {
+                    deviceConfig = { canvas_width: 500, canvas_height: 700 };
+                }
             } else {
-                deviceConfig = { canvas_width: 400, canvas_height: 600 };
-            }
-        } else if (screenWidth < 1024) {
-            if (gameConfig && gameConfig.tablet) {
-                deviceConfig = gameConfig.tablet;
-            } else {
-                deviceConfig = { canvas_width: 500, canvas_height: 700 };
+                if (gameConfig && gameConfig.desktop) {
+                    deviceConfig = gameConfig.desktop;
+                } else if (gameConfig && gameConfig.canvas_width) {
+                    deviceConfig = {
+                        canvas_width: parseInt(gameConfig.canvas_width) || 600,
+                        canvas_height: parseInt(gameConfig.canvas_height) || 700
+                    };
+                } else {
+                    deviceConfig = { canvas_width: 600, canvas_height: 700 };
+                }
             }
         } else {
-            if (gameConfig && gameConfig.desktop) {
-                deviceConfig = gameConfig.desktop;
-            } else if (gameConfig && gameConfig.canvas_width) {
-                deviceConfig = {
-                    canvas_width: parseInt(gameConfig.canvas_width) || 600,
-                    canvas_height: parseInt(gameConfig.canvas_height) || 700
-                };
-            } else {
-                deviceConfig = { canvas_width: 600, canvas_height: 700 };
-            }
+            deviceConfig = {
+                canvas_width: containerWidth,
+                canvas_height: containerHeight
+            };
         }
         
         if (deviceConfig) {
@@ -234,18 +219,12 @@ class FlappyBirdGame {
         }
         
         // 게임 설정에서 이미지 경로 로드 (preload 전에 설정되어야 함)
+        this.applyImagePaths(this.config);
         if (gameConfig && typeof gameConfig === 'object') {
-            if (gameConfig.bird_image_path) {
-                this.birdImagePath = gameConfig.bird_image_path;
+            this.applyImagePaths(gameConfig);
+            if (gameConfig.coin_bonus_score !== undefined) {
+                this.coinBonusScore = parseInt(gameConfig.coin_bonus_score) || this.coinBonusScore;
             }
-            if (gameConfig.coin_image_path) this.coinImagePath = gameConfig.coin_image_path;
-            if (gameConfig.pipe_image_path) this.pipeImagePath = gameConfig.pipe_image_path;
-            if (gameConfig.pipe_top_image_path) this.pipeTopImagePath = gameConfig.pipe_top_image_path;
-            if (gameConfig.pipe_bottom_image_path) this.pipeBottomImagePath = gameConfig.pipe_bottom_image_path;
-            if (gameConfig.background_image_path) {
-                this.backgroundImagePath = gameConfig.background_image_path;
-            }
-            if (gameConfig.coin_bonus_score !== undefined) this.coinBonusScore = parseInt(gameConfig.coin_bonus_score) || this.coinBonusScore;
         }
 
         const phaserConfig = {
@@ -731,7 +710,7 @@ class FlappyBirdGame {
      */
     createCeiling() {
         const ceilingHeight = 70;
-        const ceilingY = ceilingHeight / 2;
+        const ceilingY = (this.safeAreaTop || 0) + ceilingHeight / 2;
         
         this.ceiling = this.scene.add.rectangle(
             this.canvasWidth / 2,
@@ -747,147 +726,158 @@ class FlappyBirdGame {
         this.ceiling.body.setSize(this.canvasWidth, ceilingHeight);
     }
 
+    readSafeAreaInsets() {
+        let top = 0;
+        let bottom = 0;
+        if (typeof document !== 'undefined') {
+            const style = getComputedStyle(document.documentElement);
+            const parseInset = (name) => {
+                const raw = style.getPropertyValue(name).trim();
+                const value = parseFloat(raw);
+                return Number.isFinite(value) ? value : 0;
+            };
+            top = Math.max(
+                parseInset('--ohgo-game-safe-top'),
+                parseInset('--ohgo-safe-area-top')
+            );
+            bottom = Math.max(
+                parseInset('--ohgo-game-safe-bottom'),
+                parseInset('--ohgo-safe-area-bottom')
+            );
+            if (typeof window !== 'undefined') {
+                if (typeof window.__OHGO_SAFE_AREA_TOP__ === 'number') {
+                    top = Math.max(top, window.__OHGO_SAFE_AREA_TOP__);
+                }
+                if (typeof window.__OHGO_SAFE_AREA_BOTTOM__ === 'number') {
+                    bottom = Math.max(bottom, window.__OHGO_SAFE_AREA_BOTTOM__);
+                }
+            }
+        }
+        this.safeAreaTop = top;
+        this.safeAreaBottom = bottom;
+    }
+
+    getPlayableTop() {
+        const ceilingHeight = 70;
+        const fromCeiling = (this.safeAreaTop || 0) + ceilingHeight;
+        return Math.max(fromCeiling, this.uiPanelBottom || 0);
+    }
+
     /**
      * UI 생성
      */
     createUI() {
+        this.readSafeAreaInsets();
+
         const baseWidth = 600;
         const baseHeight = 700;
         const scaleX = this.canvasWidth / baseWidth;
         const scaleY = this.canvasHeight / baseHeight;
         const scale = Math.min(scaleX, scaleY, 1.0);
-        
+
         const panelPadding = 10;
         const panelWidth = Math.max(this.canvasWidth - panelPadding * 2, 280 * scale);
         const panelHeight = Math.max(60 * scale, 50);
         const panelX = panelPadding;
-        const panelY = 10;
-        
+        const panelY = (this.safeAreaTop || 0);
+
         const labelFontSize = Math.max(12 * scale, 10);
         const valueFontSize = Math.max(24 * scale, 18);
-        
-        // UI 패널 배경
+
         this.uiPanelBg = this.scene.add.rectangle(panelX + panelWidth/2, panelY + panelHeight/2, panelWidth, panelHeight, 0xffffff);
         this.uiPanelBg.setAlpha(0.95);
         this.uiPanelBg.setStrokeStyle(2, 0x4CAF50, 1);
-        this.uiPanelBg.setDepth(10); // 천장(depth 5)보다 앞에 표시
-        
+        this.uiPanelBg.setDepth(10);
+
         this.uiPanelBottom = panelY + panelHeight;
-        
+
         // 점수 UI
         const scoreCardWidth = Math.max(120 * scale, 100);
         const scoreCardHeight = Math.max(48 * scale, 40);
         const scoreCardX = panelX + Math.max(15 * scale, 10);
         const scoreCardY = panelY + panelHeight/2;
-        
+
         this.scoreCardBg = this.scene.add.rectangle(scoreCardX + scoreCardWidth/2, scoreCardY, scoreCardWidth, scoreCardHeight, 0x2196F3);
         this.scoreCardBg.setAlpha(0.9);
-        this.scoreCardBg.setDepth(11); // UI 패널 배경(depth 10)보다 앞에 표시
+        this.scoreCardBg.setDepth(11);
         this.scoreCardBg.setStrokeStyle(2, 0x1976D2, 1);
-        
+
         this.scoreLabel = this.scene.add.text(scoreCardX + Math.max(10 * scale, 8), scoreCardY - scoreCardHeight/3, '점수', {
-            fontSize: labelFontSize + 'px',
-            fill: '#ffffff',
-            fontFamily: 'Arial, sans-serif',
-            fontWeight: 'bold'
+            fontSize: labelFontSize + 'px', fill: '#ffffff', fontFamily: 'Arial, sans-serif', fontWeight: 'bold'
         });
-        this.scoreLabel.setDepth(12); // 점수 카드 배경(depth 11)보다 앞에 표시
-        
+        this.scoreLabel.setDepth(12);
+
         this.scoreText = this.scene.add.text(scoreCardX + Math.max(10 * scale, 8), scoreCardY - 5, '0', {
-            fontSize: valueFontSize + 'px',
-            fill: '#ffffff',
-            fontFamily: 'Arial, sans-serif',
-            fontWeight: 'bold'
+            fontSize: valueFontSize + 'px', fill: '#ffffff', fontFamily: 'Arial, sans-serif', fontWeight: 'bold'
         });
-        this.scoreText.setDepth(12); // 점수 카드 배경(depth 11)보다 앞에 표시
-        
+        this.scoreText.setDepth(12);
+
         // 경과 시간 UI
         const timeCardWidth = Math.max(120 * scale, 100);
         const timeCardHeight = Math.max(48 * scale, 40);
         const timeCardX = panelX + panelWidth - timeCardWidth - Math.max(15 * scale, 10);
         const timeCardY = panelY + panelHeight/2;
-        
+
         this.timeCardBg = this.scene.add.rectangle(timeCardX + timeCardWidth/2, timeCardY, timeCardWidth, timeCardHeight, 0xFF6B35);
         this.timeCardBg.setAlpha(0.95);
-        this.timeCardBg.setDepth(11); // UI 패널 배경(depth 10)보다 앞에 표시
+        this.timeCardBg.setDepth(11);
         this.timeCardBg.setStrokeStyle(2, 0xE55A2B, 1);
-        
+
         this.timeLabel = this.scene.add.text(timeCardX + Math.max(10 * scale, 8), timeCardY - timeCardHeight/3, '경과 시간', {
-            fontSize: labelFontSize + 'px',
-            fill: '#ffffff',
-            fontFamily: 'Arial, sans-serif',
-            fontWeight: 'bold'
+            fontSize: labelFontSize + 'px', fill: '#ffffff', fontFamily: 'Arial, sans-serif', fontWeight: 'bold'
         });
-        this.timeLabel.setDepth(12); // 시간 카드 배경(depth 11)보다 앞에 표시
-        
+        this.timeLabel.setDepth(12);
+
         this.timeText = this.scene.add.text(timeCardX + Math.max(10 * scale, 8), timeCardY - 5, '0:00', {
-            fontSize: valueFontSize + 'px',
-            fill: '#FFFFFF',
-            fontFamily: 'Arial, sans-serif',
-            fontWeight: 'bold'
+            fontSize: valueFontSize + 'px', fill: '#FFFFFF', fontFamily: 'Arial, sans-serif', fontWeight: 'bold'
         });
-        this.timeText.setDepth(12); // 시간 카드 배경(depth 11)보다 앞에 표시
-        
+        this.timeText.setDepth(12);
+
         this.updateElapsedTimeDisplay();
-        
-        // 생명 게이지 UI (중앙에 배치) - 3칸 아이콘
+
+        // 생명 UI
         const livesCardWidth = Math.max(120 * scale, 100);
         const livesCardHeight = Math.max(48 * scale, 40);
         const livesCardX = panelX + panelWidth / 2 - livesCardWidth / 2;
         const livesCardY = panelY + panelHeight / 2;
-        
+
         this.livesCardBg = this.scene.add.rectangle(livesCardX + livesCardWidth / 2, livesCardY, livesCardWidth, livesCardHeight, 0xFF1744);
         this.livesCardBg.setAlpha(0.95);
-        this.livesCardBg.setDepth(11); // UI 패널 배경(depth 10)보다 앞에 표시
+        this.livesCardBg.setDepth(11);
         this.livesCardBg.setStrokeStyle(2, 0xD50000, 1);
-        
+
         this.livesLabel = this.scene.add.text(livesCardX + Math.max(10 * scale, 8), livesCardY - livesCardHeight / 3, '생명', {
-            fontSize: labelFontSize + 'px',
-            fill: '#ffffff',
-            fontFamily: 'Arial, sans-serif',
-            fontWeight: 'bold'
+            fontSize: labelFontSize + 'px', fill: '#ffffff', fontFamily: 'Arial, sans-serif', fontWeight: 'bold'
         });
-        this.livesLabel.setDepth(12); // 생명 카드 배경(depth 11)보다 앞에 표시
-        
-        // 생명 아이콘 배열 (3개) - 꽉 찬 사각형 (글자 아래에 배치, '생' 자와 X 위치 일치)
+        this.livesLabel.setDepth(12);
+
         this.livesIcons = [];
-        
-        // 생명 값이 없으면 기본값 3으로 설정
-        if (this.lives === undefined || this.lives === null) {
-            this.lives = 3;
-        }
-        
+        if (this.lives === undefined || this.lives === null) this.lives = 3;
+
         const iconSize = Math.max(14 * scale, 10);
         const iconSpacing = Math.max(18 * scale, 14);
-        const iconStartX = livesCardX + Math.max(10 * scale, 8) + 5; // '생' 자와 동일한 X 위치 + 왼쪽 패딩 5
-        const iconY = livesCardY + 8; // 글자 아래로 이동
-        
+        const iconStartX = livesCardX + Math.max(10 * scale, 8) + 5;
+        const iconY = livesCardY + 8;
+
         for (let i = 0; i < 3; i++) {
-            // 꽉 찬 사각형 아이콘
             const icon = this.scene.add.rectangle(iconStartX + i * iconSpacing, iconY, iconSize, iconSize, 0xffffff);
             icon.setStrokeStyle(2, 0xffffff, 1);
-            icon.setFillStyle(0xffffff, 1); // 꽉 찬 사각형
+            icon.setFillStyle(0xffffff, 1);
             icon.setDepth(12);
             this.livesIcons.push(icon);
         }
-        
+
         this.updateLivesDisplay();
-        
-        // 레벨업 애니메이션용 텍스트 (화면 중앙)
+
+        // 레벨업 텍스트
         const levelFontSize = Math.max(48 * scale, 36);
-        const levelX = this.canvasWidth / 2;
-        const levelY = this.canvasHeight / 2;
-        this.levelText = this.scene.add.text(levelX, levelY, '', {
-            fontSize: levelFontSize + 'px',
-            fill: '#FFD700',
-            fontFamily: 'Arial, sans-serif',
-            fontWeight: 'bold',
-            stroke: '#000000',
-            strokeThickness: 4
+        this.levelText = this.scene.add.text(this.canvasWidth / 2, this.canvasHeight / 2, '', {
+            fontSize: levelFontSize + 'px', fill: '#FFD700', fontFamily: 'Arial, sans-serif', fontWeight: 'bold',
+            stroke: '#000000', strokeThickness: 4
         });
         this.levelText.setVisible(false);
         this.levelText.setOrigin(0.5);
-        this.levelText.setDepth(1000); // 항상 최상위에 표시
+        this.levelText.setDepth(1000);
     }
 
     /**
@@ -987,10 +977,9 @@ class FlappyBirdGame {
     createPipe() {
         const pipeX = this.canvasWidth;
         
-        // 지면과 천장 높이 고려 (지면 50픽셀, 천장 70픽셀)
+        // 지면과 천장·상단 UI(safe area) 고려
         const groundHeight = 50;
-        const ceilingHeight = 70;
-        const playableTop = ceilingHeight; // 플레이 가능한 영역 상단
+        const playableTop = this.getPlayableTop();
         const playableBottom = this.canvasHeight - groundHeight; // 플레이 가능한 영역 하단
         
         // gapY는 플레이 가능한 영역 내에서만 생성 (천장과 지면 제외)

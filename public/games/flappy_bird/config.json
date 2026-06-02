@@ -12,5 +12,11 @@
     "pipe_speed": 120,
     "pipe_gap": 230,
     "pipe_width": 60,
-    "bird_size": 60
+    "bird_size": 60,
+    "bird_image_path": "assets/bird_0.png",
+    "coin_image_path": "assets/coin_0.png",
+    "pipe_image_path": "assets/pipe_0.png",
+    "pipe_top_image_path": "assets/pipe_top_0.png",
+    "pipe_bottom_image_path": "assets/pipe_bottom_0.png",
+    "background_image_path": "assets/background_0.png"
 }

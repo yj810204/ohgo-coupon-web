@@ -4,11 +4,32 @@ export interface PointMallProduct {
   name: string;
   description: string;
   pointPrice: number;
+  /** 대표 이미지 (하위 호환, imageUrls[0]과 동일) */
   imageUrl?: string;
+  /** 상품 이미지 목록 */
+  imageUrls?: string[];
   stock: number;
   isActive: boolean;
   order: number;
   createdAt?: Date;
+}
+
+/** 상품 이미지 URL 목록 (imageUrls 우선, 없으면 imageUrl) */
+export function getProductImageUrls(
+  product: Pick<PointMallProduct, 'imageUrl' | 'imageUrls'>
+): string[] {
+  if (product.imageUrls?.length) {
+    return product.imageUrls.filter(u => !!u?.trim());
+  }
+  const single = product.imageUrl?.trim();
+  return single ? [single] : [];
+}
+
+/** 목록·카드용 대표 이미지 */
+export function getProductPrimaryImageUrl(
+  product: Pick<PointMallProduct, 'imageUrl' | 'imageUrls'>
+): string | undefined {
+  return getProductImageUrls(product)[0];
 }
 
 export type PointMallProductInput = Omit<PointMallProduct, 'id' | 'createdAt'>;
@@ -51,4 +72,33 @@ export const DEFAULT_POINT_MALL_SEED: PointMallProductInput[] = [
 
 export function formatPointPrice(points: number): string {
   return `${points.toLocaleString('ko-KR')}P`;
+}
+
+export function formatProductStock(stock: number): string {
+  if (stock === 0) return '품절';
+  if (stock < 0) return '재고 무제한';
+  return `재고 ${stock.toLocaleString('ko-KR')}개`;
+}
+
+export function purchaseErrorMessage(
+  code:
+    | 'USER_NOT_FOUND'
+    | 'PRODUCT_NOT_FOUND'
+    | 'PRODUCT_INACTIVE'
+    | 'OUT_OF_STOCK'
+    | 'INSUFFICIENT_POINTS'
+    | 'UNKNOWN'
+): string {
+  switch (code) {
+    case 'INSUFFICIENT_POINTS':
+      return '포인트가 부족합니다.';
+    case 'OUT_OF_STOCK':
+      return '재고가 없습니다.';
+    case 'PRODUCT_INACTIVE':
+      return '판매 중지된 상품입니다.';
+    case 'PRODUCT_NOT_FOUND':
+      return '상품을 찾을 수 없습니다.';
+    default:
+      return '구매 중 오류가 발생했습니다.';
+  }
 }

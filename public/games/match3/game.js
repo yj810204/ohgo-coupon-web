@@ -11,7 +11,7 @@
 (function() {
     'use strict';
     
-    // 2. 안티 디버깅 (개발자 도구 감지)
+    // 1. 안티 디버깅 (개발자 도구 감지)
     let devtoolsOpen = false;
     const threshold = 160;
     
@@ -62,53 +62,11 @@
         }
     }
     
-    // 5. 무결성 검증 (코드 변조 감지)
-    // 개발 환경에서는 무결성 검증을 완화 (Next.js Turbopack과의 호환성을 위해)
-    const isDevelopment = window.location.hostname === 'localhost' || 
-                          window.location.hostname === '127.0.0.1' ||
-                          window.location.hostname.includes('vercel.app') ||
-                          window.location.hostname.includes('localhost:');
-    
-    const codeFingerprint = Date.now().toString(36);
-    
-    // 개발 환경이 아니거나 기존 값이 없을 때만 설정
-    if (!window.__gameIntegrity || isDevelopment) {
-    window.__gameIntegrity = codeFingerprint;
-    }
-    
-    function verifyIntegrity() {
-        // 개발 환경에서는 무결성 검증을 건너뜀
-        if (isDevelopment) {
-            return;
-        }
-        
-        // 프로덕션 환경에서만 검증
-        if (window.__gameIntegrity && window.__gameIntegrity !== codeFingerprint) {
-            console.warn('Code integrity verification warning (non-fatal)');
-            // 에러를 throw하지 않고 경고만 표시
-        }
-    }
-    
     // 초기화
     try {
-        // 개발자 도구 감지 (주기적 체크)
         setInterval(detectDevTools, 1000);
-        
-        // 이벤트 리스너 등록 (선택적)
-        // document.addEventListener('contextmenu', preventContextMenu);
-        // document.addEventListener('keydown', preventShortcuts);
-        
-        // 무결성 검증 (주기적 체크) - 개발 환경에서는 비활성화
-        if (!isDevelopment) {
-        setInterval(verifyIntegrity, 5000);
-        }
-        
     } catch (error) {
-        console.error('Security initialization failed:', error);
-        // 개발 환경에서는 에러를 throw하지 않음
-        if (!isDevelopment) {
-        throw error;
-        }
+        // 초기화 실패해도 게임은 계속 로드
     }
 })();
 
@@ -205,11 +163,6 @@ class Match3Game {
             }
         }
 
-        // config에서 직접 block_types 확인 (Firebase Storage URL이 설정된 경우, 우선순위 높음)
-        if (this.config.block_types && Array.isArray(this.config.block_types)) {
-            this.blockTypes = this.config.block_types;
-        }
-
         // 기본 블록 타입 설정
         if (!this.blockTypes || this.blockTypes.length === 0) {
             this.blockTypes = [
@@ -222,14 +175,9 @@ class Match3Game {
             ];
         }
 
-        // 화면 크기 감지 및 자동 리사이징 설정
-        const container = document.getElementById(containerId);
-        const screenWidth = window.innerWidth;
-        const screenHeight = window.innerHeight;
-        
-        // 컨테이너의 실제 크기 사용 (자동 리사이징)
-        let useAutoResize = true;
+        // 화면 크기 감지 및 기기별 설정 적용
         let deviceConfig = null;
+        const screenWidth = window.innerWidth;
         
         // 게임 설정에서 기기별 설정 가져오기
         let gameConfig = null;
@@ -258,67 +206,45 @@ class Match3Game {
             }
         }
         
-        // 관리자 설정에서 고정 크기를 사용할지 확인
-        if (gameConfig && gameConfig.use_fixed_size === true) {
-            useAutoResize = false;
-            // 고정 크기 사용
+        // 화면 크기에 따라 기기 타입 결정 및 설정 적용
         if (screenWidth < 768) {
-                if (gameConfig.mobile) {
+            // 모바일
+            if (gameConfig && gameConfig.mobile) {
                 deviceConfig = gameConfig.mobile;
             } else {
+                // 기본값
                 deviceConfig = { board_size: 5, canvas_width: 400, canvas_height: 600 };
             }
         } else if (screenWidth < 1024) {
-                if (gameConfig.tablet) {
+            // 태블릿
+            if (gameConfig && gameConfig.tablet) {
                 deviceConfig = gameConfig.tablet;
             } else {
+                // 기본값
                 deviceConfig = { board_size: 6, canvas_width: 500, canvas_height: 700 };
             }
         } else {
-                if (gameConfig.desktop) {
+            // PC
+            if (gameConfig && gameConfig.desktop) {
                 deviceConfig = gameConfig.desktop;
-                } else if (gameConfig.board_size) {
+            } else if (gameConfig && gameConfig.board_size) {
+                // 기존 단일 설정 사용 (호환성)
                 deviceConfig = {
                     board_size: parseInt(gameConfig.board_size) || 7,
                     canvas_width: parseInt(gameConfig.canvas_width) || 600,
                     canvas_height: parseInt(gameConfig.canvas_height) || 700
                 };
             } else {
+                // 기본값
                 deviceConfig = { board_size: 7, canvas_width: 600, canvas_height: 700 };
             }
         }
         
+        // 기기별 설정 적용
         if (deviceConfig) {
             this.boardSize = parseInt(deviceConfig.board_size) || this.boardSize;
             this.canvasWidth = parseInt(deviceConfig.canvas_width) || this.canvasWidth;
             this.canvasHeight = parseInt(deviceConfig.canvas_height) || this.canvasHeight;
-            }
-        } else {
-            // 자동 리사이징: 컨테이너의 실제 크기 사용
-            if (container) {
-                this.canvasWidth = container.offsetWidth || screenWidth;
-                this.canvasHeight = container.offsetHeight || screenHeight;
-            } else {
-                this.canvasWidth = screenWidth;
-                this.canvasHeight = screenHeight;
-            }
-            
-            // match3 게임의 경우, 자동 리사이징 모드에서도 보드 크기는 설정에서 가져오기
-            if (gameConfig) {
-                if (screenWidth < 768) {
-                    if (gameConfig.mobile && gameConfig.mobile.board_size) {
-                        this.boardSize = parseInt(gameConfig.mobile.board_size) || this.boardSize;
-                    }
-                } else if (screenWidth < 1024) {
-                    if (gameConfig.tablet && gameConfig.tablet.board_size) {
-                        this.boardSize = parseInt(gameConfig.tablet.board_size) || this.boardSize;
-                    }
-                } else {
-                    if (gameConfig.desktop && gameConfig.desktop.board_size) {
-                        this.boardSize = parseInt(gameConfig.desktop.board_size) || this.boardSize;
-                    }
-                }
-            }
         }
 
         // 캔버스 크기 설정
@@ -349,21 +275,36 @@ class Match3Game {
                 maxTextures: 16
             },
             scale: {
-                mode: useAutoResize ? Phaser.Scale.RESIZE : Phaser.Scale.NONE,
+                mode: Phaser.Scale.NONE,
                 autoCenter: Phaser.Scale.CENTER_BOTH,
                 width: canvasWidth,
-                height: canvasHeight,
-                resizeInterval: useAutoResize ? 500 : undefined
+                height: canvasHeight
             }
         };
 
         this.game = new Phaser.Game(phaserConfig);
     }
 
+    _applyFirestoreImagePaths() {
+        if (this.config && this.config.block_types && Array.isArray(this.config.block_types)) {
+            const configTypes = this.config.block_types;
+            const base = this.blockTypes && this.blockTypes.length > 0 ? this.blockTypes : configTypes;
+            this.blockTypes = base.map((bt, idx) => {
+                const configBt = configTypes[idx];
+                return {
+                    ...bt,
+                    image_path: (configBt && configBt.image_path) ? configBt.image_path : (bt.image_path || ''),
+                };
+            });
+        }
+    }
+
     /**
      * 리소스 로드
      */
     preload() {
+        this._applyFirestoreImagePaths();
+
         // 텍스처 매니저 설정 - 모든 텍스처에 안티앨리어싱 적용
         if (this.game.scene.scenes[0].textures) {
             const textureManager = this.game.scene.scenes[0].textures;
@@ -492,6 +433,7 @@ class Match3Game {
             this.comboText.y = this.startY + (this.tileSize * 0.5); // 게임판 첫 번째 행 중앙
         }
         
+        this._applyFirestoreImagePaths();
         this.createBoard();
         this.updateTimeDisplay(); // UI 생성 후 시간 표시 업데이트
         
@@ -1002,127 +944,112 @@ class Match3Game {
         return false;
     }
 
+    readSafeAreaInsets() {
+        let top = 0;
+        let bottom = 0;
+        if (typeof document !== 'undefined') {
+            const style = getComputedStyle(document.documentElement);
+            const parseInset = (name) => {
+                const raw = style.getPropertyValue(name).trim();
+                const value = parseFloat(raw);
+                return Number.isFinite(value) ? value : 0;
+            };
+            top = Math.max(parseInset('--ohgo-game-safe-top'), parseInset('--ohgo-safe-area-top'));
+            bottom = Math.max(parseInset('--ohgo-game-safe-bottom'), parseInset('--ohgo-safe-area-bottom'));
+            if (typeof window !== 'undefined') {
+                if (typeof window.__OHGO_SAFE_AREA_TOP__ === 'number') top = Math.max(top, window.__OHGO_SAFE_AREA_TOP__);
+                if (typeof window.__OHGO_SAFE_AREA_BOTTOM__ === 'number') bottom = Math.max(bottom, window.__OHGO_SAFE_AREA_BOTTOM__);
+            }
+        }
+        this.safeAreaTop = top;
+        this.safeAreaBottom = bottom;
+    }
+
     /**
      * UI 생성
      */
     createUI() {
-        // 캔버스 크기에 비례하여 UI 크기 계산 (기준: 600x700)
+        this.readSafeAreaInsets();
         const baseWidth = 600;
         const baseHeight = 700;
         const scaleX = this.canvasWidth / baseWidth;
         const scaleY = this.canvasHeight / baseHeight;
-        const scale = Math.min(scaleX, scaleY, 1.0); // 최대 1.0으로 제한 (작은 화면에서만 축소)
-        
-        // 반응형 UI 크기
-        const panelPadding = 10; // 패널 좌우 여백
+        const scale = Math.min(scaleX, scaleY, 1.0);
+
+        const panelPadding = 10;
         const panelWidth = Math.max(this.canvasWidth - panelPadding * 2, 280 * scale);
         const panelHeight = Math.max(60 * scale, 50);
-        const panelX = panelPadding; // 좌측 여백
-        const panelY = 10;
-        
-        // 반응형 폰트 크기
+        const panelX = panelPadding;
+        const panelY = (this.safeAreaTop || 0) + 10;
+
         const labelFontSize = Math.max(12 * scale, 10);
         const valueFontSize = Math.max(24 * scale, 18);
         const comboFontSize = Math.max(40 * scale, 32);
-        
-        // 패널 배경 (게임판과 겹치지 않도록 낮은 depth)
+
         this.uiPanelBg = this.scene.add.rectangle(panelX + panelWidth/2, panelY + panelHeight/2, panelWidth, panelHeight, 0xffffff);
         this.uiPanelBg.setAlpha(0.95);
         this.uiPanelBg.setStrokeStyle(2, 0x4CAF50, 1);
-        this.uiPanelBg.setDepth(5); // 게임 블록(10)보다 낮게
-        
-        // 패널 하단 위치 저장 (나중에 게임판 위치 계산에 사용)
+        this.uiPanelBg.setDepth(5);
+
         this.uiPanelBottom = panelY + panelHeight;
-        
-        // 그림자 효과
+
         this.uiPanelShadow = this.scene.add.rectangle(panelX + panelWidth/2 + 2, panelY + panelHeight/2 + 2, panelWidth, panelHeight, 0x000000);
         this.uiPanelShadow.setAlpha(0.2);
-        this.uiPanelShadow.setDepth(4); // 패널보다 낮게
-        
-        // 점수 UI 카드 (반응형)
+        this.uiPanelShadow.setDepth(4);
+
+        // 점수 UI
         const scoreCardWidth = Math.max(120 * scale, 100);
         const scoreCardHeight = Math.max(48 * scale, 40);
         const scoreCardX = panelX + Math.max(15 * scale, 10);
         const scoreCardY = panelY + panelHeight/2;
-        
-        // 점수 카드 배경
+        const scoreLabelPadding = Math.max(10 * scale, 8);
+
         this.scoreCardBg = this.scene.add.rectangle(scoreCardX + scoreCardWidth/2, scoreCardY, scoreCardWidth, scoreCardHeight, 0x2196F3);
         this.scoreCardBg.setAlpha(0.9);
-        this.scoreCardBg.setDepth(6); // 패널 위에 표시
+        this.scoreCardBg.setDepth(6);
         this.scoreCardBg.setStrokeStyle(2, 0x1976D2, 1);
-        
-        // 점수 라벨
-        const scoreLabelPadding = Math.max(10 * scale, 8);
+
         this.scoreLabel = this.scene.add.text(scoreCardX + scoreLabelPadding, scoreCardY - scoreCardHeight/3, '점수', {
-            fontSize: labelFontSize + 'px',
-            fill: '#ffffff',
-            fontFamily: 'Arial, sans-serif',
-            fontWeight: 'bold'
+            fontSize: labelFontSize + 'px', fill: '#ffffff', fontFamily: 'Arial, sans-serif', fontWeight: 'bold'
         });
         this.scoreLabel.setDepth(7);
-        
-        // 점수 값
+
         this.scoreText = this.scene.add.text(scoreCardX + scoreLabelPadding, scoreCardY - 5, '0', {
-            fontSize: valueFontSize + 'px',
-            fill: '#ffffff',
-            fontFamily: 'Arial, sans-serif',
-            fontWeight: 'bold'
+            fontSize: valueFontSize + 'px', fill: '#ffffff', fontFamily: 'Arial, sans-serif', fontWeight: 'bold'
         });
         this.scoreText.setDepth(7);
-        
-        // 시간 UI 카드 (반응형)
+
+        // 시간 UI
         const timeCardWidth = Math.max(120 * scale, 100);
         const timeCardHeight = Math.max(48 * scale, 40);
         const timeCardX = panelX + panelWidth - timeCardWidth - Math.max(15 * scale, 10);
         const timeCardY = panelY + panelHeight/2;
-        
-        // 시간 카드 배경
+        const timeLabelPadding = Math.max(10 * scale, 8);
+
         this.timeCardBg = this.scene.add.rectangle(timeCardX + timeCardWidth/2, timeCardY, timeCardWidth, timeCardHeight, 0xFF6B35);
         this.timeCardBg.setAlpha(0.95);
-        this.timeCardBg.setDepth(6); // 패널 위에 표시
+        this.timeCardBg.setDepth(6);
         this.timeCardBg.setStrokeStyle(2, 0xE55A2B, 1);
-        
-        // 시간 라벨
-        const timeLabelPadding = Math.max(10 * scale, 8);
+
         this.timeLabel = this.scene.add.text(timeCardX + timeLabelPadding, timeCardY - timeCardHeight/3, '남은 시간', {
-            fontSize: labelFontSize + 'px',
-            fill: '#ffffff',
-            fontFamily: 'Arial, sans-serif',
-            fontWeight: 'bold'
+            fontSize: labelFontSize + 'px', fill: '#ffffff', fontFamily: 'Arial, sans-serif', fontWeight: 'bold'
         });
         this.timeLabel.setDepth(7);
-        
-        // 시간 값
+
         this.timeText = this.scene.add.text(timeCardX + timeLabelPadding, timeCardY - 5, '0:00', {
-            fontSize: valueFontSize + 'px',
-            fill: '#FFFFFF',
-            fontFamily: 'Arial, sans-serif',
-            fontWeight: 'bold'
+            fontSize: valueFontSize + 'px', fill: '#FFFFFF', fontFamily: 'Arial, sans-serif', fontWeight: 'bold'
         });
         this.timeText.setDepth(7);
-        
-        // 콤보 텍스트를 게임판 중앙 상단에 배치 (위치는 createBoard 후에 업데이트됨)
-        const comboX = this.canvasWidth / 2; // 게임판 중앙
-        const comboY = 200; // 임시 위치 (나중에 업데이트됨)
-        this.comboText = this.scene.add.text(comboX, comboY, '', {
-            fontSize: comboFontSize + 'px',
-            fill: '#FFD700',
-            fontFamily: 'Arial, sans-serif',
-            fontWeight: 'bold',
-            stroke: '#000',
-            strokeThickness: 6,
-            shadow: {
-                offsetX: 3,
-                offsetY: 3,
-                color: '#000',
-                blur: 6,
-                stroke: true,
-                fill: true
-            }
+
+        // 콤보 텍스트
+        this.comboText = this.scene.add.text(this.canvasWidth / 2, 200, '', {
+            fontSize: comboFontSize + 'px', fill: '#FFD700', fontFamily: 'Arial, sans-serif', fontWeight: 'bold',
+            stroke: '#000', strokeThickness: 6,
+            shadow: { offsetX: 3, offsetY: 3, color: '#000', blur: 6, stroke: true, fill: true }
         });
         this.comboText.setVisible(false);
         this.comboText.setOrigin(0.5);
-        this.comboText.setDepth(1000); // 블록보다 위에 표시
+        this.comboText.setDepth(1000);
     }
 
     /**
@@ -1157,14 +1084,11 @@ class Match3Game {
         
         this.timeText.setText(timeStr);
         
-        // 시간이 10초 이하일 때 경고 효과
         if (this.timeRemaining <= 10) {
             this.timeText.setFill('#FFFFFF');
-            this.timeText.setStroke('', 0); // border 제거
+            this.timeText.setStroke('', 0);
             this.timeCardBg.setFillStyle(0xF44336, 0.95);
             this.timeCardBg.setStrokeStyle(2, 0xD32F2F, 1);
-            
-            // 깜빡이는 효과
             if (this.timeRemaining % 2 === 0) {
                 this.timeText.setAlpha(0.8);
             } else {
@@ -1172,13 +1096,13 @@ class Match3Game {
             }
         } else if (this.timeRemaining <= 30) {
             this.timeText.setFill('#FFFFFF');
-            this.timeText.setStroke('', 0); // border 제거
+            this.timeText.setStroke('', 0);
             this.timeCardBg.setFillStyle(0xFF6B35, 0.95);
             this.timeCardBg.setStrokeStyle(2, 0xE55A2B, 1);
             this.timeText.setAlpha(1);
         } else {
             this.timeText.setFill('#FFFFFF');
-            this.timeText.setStroke('', 0); // border 제거
+            this.timeText.setStroke('', 0);
             this.timeCardBg.setFillStyle(0xFF6B35, 0.95);
             this.timeCardBg.setStrokeStyle(2, 0xE55A2B, 1);
             this.timeText.setAlpha(1);
@@ -2148,48 +2072,17 @@ class Match3Game {
     showGameStartModal() {
         const modal = document.createElement('div');
         modal.className = 'game-start-modal';
-        const self = this; // this 컨텍스트 보존
         modal.innerHTML = `
             <div class="modal-content">
                 <h2>게임 준비 완료!</h2>
                 <p class="game-description">블록을 맞춰서 점수를 획득하세요!</p>
                 <div class="modal-buttons">
-                    <button class="btn-start" id="game-start-btn">게임 시작</button>
+                    <button class="btn-start" onclick="window.gameLoader.gameInstance.startGame()">게임 시작</button>
                 </div>
             </div>
         `;
         document.body.appendChild(modal);
         this.gameStartModal = modal;
-        
-        // 버튼 클릭 이벤트 직접 등록 (onclick 대신)
-        setTimeout(() => {
-            const startButton = modal.querySelector('#game-start-btn');
-            if (startButton) {
-                console.log('Registering click event for start button');
-                console.log('hasGameLoader:', !!window.gameLoader);
-                console.log('hasGameInstance:', !!(window.gameLoader?.gameInstance));
-                console.log('hasSelf:', !!self);
-                
-                startButton.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('Start button clicked!');
-                    
-                    if (window.gameLoader && window.gameLoader.gameInstance) {
-                        console.log('Using window.gameLoader.gameInstance.startGame()');
-                        window.gameLoader.gameInstance.startGame();
-                    } else if (self && typeof self.startGame === 'function') {
-                        console.log('Using self.startGame()');
-                        self.startGame();
-                    } else {
-                        console.error('Game instance not found');
-                        alert('게임을 시작할 수 없습니다. 페이지를 새로고침해주세요.');
-                    }
-                }, { once: true });
-            } else {
-                console.error('Start button not found in modal');
-            }
-        }, 100);
     }
 
     /**
@@ -2412,10 +2305,6 @@ class Match3Game {
         }
         if (this.comboResetTimer) {
             this.scene.time.removeEvent(this.comboResetTimer);
-        }
-        if (this.gameStartModal) {
-            this.gameStartModal.remove();
-            this.gameStartModal = null;
         }
         if (this.gameEndModal) {
             this.gameEndModal.remove();

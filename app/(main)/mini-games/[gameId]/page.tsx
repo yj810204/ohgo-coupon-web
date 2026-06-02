@@ -6,6 +6,7 @@ import { getUser } from '@/lib/storage';
 import { getGame, Game } from '@/lib/game-service';
 import { GameLoader } from '@/lib/game-loader';
 import PageHeader from '@/components/PageHeader';
+import { isNativeApp, postToNative } from '@/lib/native-bridge';
 
 function GamePlayContent() {
   const router = useRouter();
@@ -137,8 +138,6 @@ function GamePlayContent() {
             // 먼저 컨테이너를 보이게 한 다음, 잠시 후 게임 시작
             gameContainerRef.current.style.display = 'block';
             gameContainerRef.current.style.visibility = 'visible';
-            gameContainerRef.current.style.width = '100vw';
-            gameContainerRef.current.style.height = '100vh';
             
             // 컨테이너가 렌더링될 시간을 주기 위해 약간의 지연
             setTimeout(() => {
@@ -146,7 +145,17 @@ function GamePlayContent() {
               if (gameStarted) {
                 return;
               }
-              
+
+              // 네이티브 safe area 주입 직후 HUD 배치를 위해 짧게 대기
+              if (isNativeApp()) {
+                requestAnimationFrame(() => {
+                  requestAnimationFrame(() => startPhaserGame());
+                });
+                return;
+              }
+              startPhaserGame();
+
+              function startPhaserGame() {
               // 게임 시작
               try {
                 console.log('Starting game with container:', containerId);
@@ -165,6 +174,7 @@ function GamePlayContent() {
                 console.error('Auto start game error:', err);
                 setError(`게임 시작 중 오류가 발생했습니다: ${err.message}`);
                 gameStartAttemptedRef.current = false; // 실패 시 재시도 가능하도록
+              }
               }
             }, 100);
           } else if (retryCount < maxRetries) {
@@ -249,6 +259,26 @@ function GamePlayContent() {
     };
   }, [gameId, router, saveScore]);
 
+  useEffect(() => {
+    if (error) {
+      document.body.removeAttribute('data-game-playing');
+      if (isNativeApp()) {
+        postToNative('GAME_IMMERSIVE', { enabled: false });
+      }
+      return;
+    }
+    document.body.setAttribute('data-game-playing', 'true');
+    if (isNativeApp()) {
+      postToNative('GAME_IMMERSIVE', { enabled: true });
+    }
+    return () => {
+      document.body.removeAttribute('data-game-playing');
+      if (isNativeApp()) {
+        postToNative('GAME_IMMERSIVE', { enabled: false });
+      }
+    };
+  }, [error]);
+
   const loadPhaser = (): Promise<void> => {
     return new Promise((resolve, reject) => {
       if ((window as any).Phaser) {
@@ -267,13 +297,21 @@ function GamePlayContent() {
 
   if (loading) {
     return (
-      <div className="min-vh-100 d-flex align-items-center justify-content-center" style={{ backgroundColor: '#F7F8FA' }}>
+      <div className="ohgo-game-loading-overlay">
         <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
+          <div className="spinner-border text-light mb-3" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
-          <p className="text-muted">게임을 불러오는 중...</p>
+          <p className="text-muted mb-0">게임을 불러오는 중...</p>
         </div>
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="ohgo-game-close-btn"
+          aria-label="게임 종료"
+        >
+          ✕
+        </button>
       </div>
     );
   }
@@ -300,89 +338,37 @@ function GamePlayContent() {
     return null;
   }
 
-  // 게임이 시작되면 전체화면으로 표시
-  if (gameStarted) {
-    return (
-      <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, overflow: 'hidden' }}>
-        <div
-          id="game-container"
-          ref={gameContainerRef}
-          style={{
-            width: '100%',
-            height: '100%',
-            display: 'block',
-          }}
-        />
-        {/* 게임 종료 — 상단 점수/타이머 HUD와 겹치지 않게 하단 우측 */}
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="ohgo-game-close-btn"
-          aria-label="게임 종료"
-        >
-          ✕
-        </button>
-        {savingScore && (
-          <div style={{
-            position: 'fixed',
-            top: '20px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 10000,
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            color: 'white',
-            padding: '10px 20px',
-            borderRadius: '8px',
-          }}>
-            <div className="spinner-border spinner-border-sm me-2" role="status"></div>
-            <span>점수 저장 중...</span>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // 게임 컨테이너는 항상 렌더링 (ref 연결을 위해)
-  // 초기에는 숨김 상태로 두고, 게임 시작 시 보이게 함
-  // 게임이 시작되지 않았고 로딩 중이 아니고 에러도 없으면 아무것도 렌더링하지 않음
-  // 단, ref를 위해 컨테이너는 항상 렌더링되어야 하므로 조건부 렌더링은 하지 않음
-  // 대신 로딩 화면만 조건부로 표시
-  if (!gameStarted && !loading && !error && !game) {
-    return null;
-  }
-
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, overflow: 'hidden' }}>
+    <>
       <div
         id="game-container"
         ref={gameContainerRef}
-        style={{
-          width: '100vw',
-          height: '100vh',
-          display: gameStarted ? 'block' : 'none',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          visibility: gameStarted ? 'visible' : 'hidden',
-        }}
+        className="ohgo-game-play-surface"
+        style={{ display: gameStarted ? 'block' : 'none' }}
       />
-      {loading && !gameStarted && !error && (
-        <div style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          zIndex: 10000,
-          color: 'white',
-          textAlign: 'center',
-        }}>
-          <div className="spinner-border text-white mb-3" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p>게임을 불러오는 중...</p>
+      <button
+        type="button"
+        onClick={() => router.back()}
+        className="ohgo-game-close-btn"
+        aria-label="게임 종료"
+      >
+        ✕
+      </button>
+      {gameStarted && savingScore && (
+        <div className="ohgo-game-saving-toast">
+          <div className="spinner-border spinner-border-sm me-2" role="status" />
+          <span>점수 저장 중...</span>
         </div>
       )}
-    </div>
+      {!gameStarted && !error && (
+        <div className="ohgo-game-loading-overlay">
+          <div className="spinner-border text-light mb-3" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="text-muted mb-0">게임을 시작하는 중...</p>
+        </div>
+      )}
+    </>
   );
 }
 

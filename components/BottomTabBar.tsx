@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useNavigation } from '@/hooks/useNavigation';
 import { getBottomTabMenuItems, type MenuItem } from '@/utils/site-settings-service';
 import { getIconComponent } from '@/utils/icon-mapper';
+import { isMiniGamePlayRoute } from '@/lib/mini-game-routes';
 
 export const TAB_BAR_HEIGHT = 60;
 
@@ -26,7 +27,11 @@ export default function BottomTabBar() {
       try {
         const items = await getBottomTabMenuItems();
         setMenuItems(items);
-        if (items.length > 0 && pathname !== '/login') {
+        if (
+          items.length > 0 &&
+          pathname !== '/login' &&
+          !isMiniGamePlayRoute(pathname)
+        ) {
           document.body.setAttribute('data-has-bottom-tab', 'true');
         } else {
           document.body.removeAttribute('data-has-bottom-tab');
@@ -41,7 +46,9 @@ export default function BottomTabBar() {
     return () => { document.body.removeAttribute('data-has-bottom-tab'); };
   }, [pathname]);
 
-  if (!mounted || pathname === '/login') return null;
+  if (!mounted || pathname === '/login' || isMiniGamePlayRoute(pathname)) {
+    return null;
+  }
 
   const handleTabClick = (path: string) => {
     if (pathname !== path) navigate(path);

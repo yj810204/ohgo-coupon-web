@@ -6,7 +6,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
 import { useCameraPermissions } from 'expo-camera';
@@ -35,6 +35,7 @@ export function AppWebView({ initialPath = '/' }: AppWebViewProps) {
   const pushTokenRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showQRScanner, setShowQRScanner] = useState(false);
+  const [gameImmersive, setGameImmersive] = useState(false);
   const baseUrl = getWebBaseUrl();
   const initialUri = `${baseUrl}${initialPath.startsWith('/') ? initialPath : `/${initialPath}`}`;
 
@@ -54,7 +55,7 @@ export function AppWebView({ initialPath = '/' }: AppWebViewProps) {
     if (!loading) {
       injectSafeArea();
     }
-  }, [loading, injectSafeArea]);
+  }, [loading, injectSafeArea, gameImmersive, insets.top, insets.bottom]);
 
   const sendToWeb = useCallback((type: string, payload?: unknown) => {
     const script = `(function(){
@@ -92,11 +93,17 @@ export function AppWebView({ initialPath = '/' }: AppWebViewProps) {
           await Linking.openSettings();
           break;
         }
+        case 'GAME_IMMERSIVE': {
+          const enabled = !!(msg.payload as { enabled?: boolean } | undefined)?.enabled;
+          setGameImmersive(enabled);
+          setTimeout(() => injectSafeArea(), 0);
+          break;
+        }
         default:
           break;
       }
     },
-    [sendToWeb, requestCameraPermission],
+    [sendToWeb, requestCameraPermission, injectSafeArea],
   );
 
   const handleQRResult = useCallback(

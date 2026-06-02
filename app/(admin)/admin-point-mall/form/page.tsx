@@ -3,27 +3,92 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { PointMallProductInput } from '@/constants/point-mall';
+import { getProductImageUrls } from '@/constants/point-mall';
 import {
   getAllPointMallProducts,
   addPointMallProduct,
   updatePointMallProduct,
   uploadProductImage,
 } from '@/utils/point-mall-service';
-import { IoImageOutline } from 'react-icons/io5';
+import { IoImageOutline, IoTrashOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import { FormActions, FormSection, FORM_LABEL } from '@/components/SubPageForm';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { OHGO_FONT, OHGO_INPUT, OhgoPageLoading } from '@/lib/page-styles';
 
+const MAX_PRODUCT_IMAGES = 10;
+
 const EMPTY: PointMallProductInput = {
   name: '',
   description: '',
   pointPrice: 0,
-  imageUrl: '',
+  imageUrls: [],
   stock: -1,
   isActive: true,
   order: 0,
 };
+
+function ProductImagePreviewGrid({
+  urls,
+  disabled,
+  onRemove,
+}: {
+  urls: string[];
+  disabled?: boolean;
+  onRemove: (index: number) => void;
+}) {
+  if (urls.length === 0) return null;
+  return (
+    <div
+      className="mb-3"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: 8,
+      }}
+    >
+      {urls.map((url, index) => (
+        <div key={`${url}-${index}`} className="position-relative">
+          <div
+            className="w-100 overflow-hidden d-flex align-items-center justify-content-center"
+            style={{
+              aspectRatio: '1',
+              borderRadius: 12,
+              border: '1px solid #EFEFEF',
+              backgroundColor: '#F7F8FA',
+            }}
+          >
+            <img
+              src={url}
+              alt={`상품 이미지 ${index + 1}`}
+              className="w-100 h-100"
+              style={{ objectFit: 'contain', display: 'block' }}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn p-0 position-absolute d-flex align-items-center justify-content-center rounded-circle"
+            style={{
+              top: 6,
+              right: 6,
+              width: 28,
+              height: 28,
+              backgroundColor: 'rgba(255,255,255,0.95)',
+              border: 'none',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+              zIndex: 10,
+            }}
+            onClick={() => onRemove(index)}
+            disabled={disabled}
+            aria-label="이미지 삭제"
+          >
+            <IoTrashOutline size={14} color="#FF3B30" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function PointMallFormContent() {
   const router = useRouter();
@@ -34,6 +99,8 @@ function PointMallFormContent() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loadingProduct, setLoadingProduct] = useState(!!editId);
+
+  const imageUrls = form.imageUrls ?? [];
 
   useEffect(() => {
     if (!ready || !editId) return;
@@ -51,7 +118,7 @@ function PointMallFormContent() {
           name: p.name,
           description: p.description,
           pointPrice: p.pointPrice,
-          imageUrl: p.imageUrl || '',
+          imageUrls: getProductImageUrls(p),
           stock: p.stock,
           isActive: p.isActive,
           order: p.order,
@@ -77,12 +144,29 @@ function PointMallFormContent() {
   };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files?.length) return;
+
+    const remaining = MAX_PRODUCT_IMAGES - imageUrls.length;
+    if (remaining <= 0) {
+      alert(`이미지는 최대 ${MAX_PRODUCT_IMAGES}장까지 등록할 수 있습니다.`);
+      e.target.value = '';
+      return;
+    }
+
+    const toUpload = Array.from(files).slice(0, remaining);
+    if (files.length > remaining) {
+      alert(`이미지는 최대 ${MAX_PRODUCT_IMAGES}장까지 등록할 수 있습니다. ${remaining}장만 추가됩니다.`);
+    }
+
     setUploading(true);
     try {
-      const url = await uploadProductImage(file);
-      setField('imageUrl', url);
+      const newUrls: string[] = [];
+      for (const file of toUpload) {
+        const url = await uploadProductImage(file);
+        newUrls.push(url);
+      }
+      setField('imageUrls', [...imageUrls, ...newUrls]);
     } catch (err) {
       console.error(err);
       alert('이미지 업로드에 실패했습니다.');
@@ -90,6 +174,13 @@ function PointMallFormContent() {
       setUploading(false);
       e.target.value = '';
     }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setField(
+      'imageUrls',
+      imageUrls.filter((_, i) => i !== index)
+    );
   };
 
   const handleSave = async () => {
@@ -110,7 +201,7 @@ function PointMallFormContent() {
         stock: form.stock === undefined || form.stock === null ? -1 : Number(form.stock),
         order: Number(form.order) || 0,
         isActive: form.isActive,
-        ...(form.imageUrl?.trim() ? { imageUrl: form.imageUrl.trim() } : {}),
+        imageUrls: imageUrls,
       };
       if (editId) {
         await updatePointMallProduct(editId, payload);
@@ -129,6 +220,8 @@ function PointMallFormContent() {
   if (!ready || loadingProduct) {
     return <OhgoPageLoading />;
   }
+
+  const atImageLimit = imageUrls.length >= MAX_PRODUCT_IMAGES;
 
   return (
     <SubPageFrame title={editId ? '상품 수정' : '새 상품 등록'}>
@@ -170,35 +263,42 @@ function PointMallFormContent() {
       </FormSection>
 
       <FormSection title="상품 이미지">
-        {form.imageUrl ? (
-          <div
-            className="mb-3 overflow-hidden"
-            style={{
-              width: '100%',
-              height: 140,
-              borderRadius: 12,
-              background: `url(${form.imageUrl}) center/cover`,
-              border: '1px solid #EFEFEF',
-            }}
-          />
-        ) : null}
+        <ProductImagePreviewGrid urls={imageUrls} disabled={uploading} onRemove={handleRemoveImage} />
         <label
           className="btn w-100 d-flex align-items-center justify-content-center gap-2 mb-0"
           style={{
             backgroundColor: '#F7F8FA',
-            color: '#1A1D1F',
+            color: atImageLimit ? '#9A9FA5' : '#1A1D1F',
             borderRadius: 10,
             padding: 12,
             border: '2px dashed #D0D5DD',
             fontFamily: OHGO_FONT,
             fontSize: 14,
             fontWeight: 600,
+            opacity: uploading || atImageLimit ? 0.6 : 1,
+            pointerEvents: uploading || atImageLimit ? 'none' : undefined,
           }}
         >
           <IoImageOutline size={18} aria-hidden />
-          {uploading ? '업로드 중...' : form.imageUrl ? '이미지 변경' : '이미지 선택'}
-          <input type="file" accept="image/*" className="d-none" onChange={e => void handleImageChange(e)} disabled={uploading} />
+          {uploading
+            ? '업로드 중...'
+            : imageUrls.length > 0
+              ? `이미지 추가 (${imageUrls.length}/${MAX_PRODUCT_IMAGES})`
+              : '이미지 선택'}
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            className="d-none"
+            onChange={e => void handleImageChange(e)}
+            disabled={uploading || atImageLimit}
+          />
         </label>
+        {imageUrls.length > 0 && (
+          <small style={{ fontSize: 11, color: '#9A9FA5', fontFamily: OHGO_FONT, marginTop: 8, display: 'block' }}>
+            첫 번째 이미지가 목록 대표 이미지로 사용됩니다.
+          </small>
+        )}
       </FormSection>
 
       <FormSection title="판매 설정">
