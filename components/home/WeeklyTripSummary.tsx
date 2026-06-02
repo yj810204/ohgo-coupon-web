@@ -81,24 +81,14 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
 
   return (
     <section className="mb-3">
-      <div className="d-flex align-items-start justify-content-between mb-2">
-        <div>
-          <div className="d-flex align-items-center gap-2">
-            <span style={{ fontSize: 17, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
-              이번 주 출조
-            </span>
-            {!isDummy && trips.length > 0 && (
-              <span
-                className="badge rounded-pill"
-                style={{ backgroundColor: '#EBF1FE', color: '#1B6FF5', fontSize: 11, fontFamily: FONT }}
-              >
-                {trips.length}건
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 2 }}>
-            {weekLabel}
-          </div>
+      <div className="d-flex align-items-center justify-content-between mb-2">
+        <div className="d-flex align-items-baseline gap-2 flex-wrap" style={{ gap: '6px 8px' }}>
+          <span style={{ fontSize: 17, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
+            이번 주 출조
+          </span>
+          <span style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT, fontWeight: 500 }}>
+            ({weekLabel})
+          </span>
         </div>
         <button
           type="button"
@@ -111,7 +101,6 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
       </div>
 
       <div
-        className="d-flex flex-column gap-1"
         style={{
           backgroundColor: '#FFFFFF',
           borderRadius: 14,
@@ -133,55 +122,68 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
             .filter(Boolean)
             .join(' · ');
 
+          const isSun = dayIdx === 0;
+          const isSat = dayIdx === 6;
+          const isWeekend = isSun || isSat;
+
+          // 숫자만 동그라미 배경
+          let numBg = 'transparent';
+          let numColor = dayNumberColor;
+          if (isToday) { numBg = TODAY_ACCENT; numColor = '#FFFFFF'; }
+          else if (isSun) { numBg = '#FFF0F0'; }
+          else if (isSat) { numBg = '#EDF5FF'; }
+
           return (
+            <div key={trip.id}>
+              {index > 0 && (
+                <div style={{ height: 1, backgroundColor: '#E8EAED' }} />
+              )}
             <button
-              key={trip.id}
               type="button"
               onClick={isDummy ? undefined : onViewAll}
-              className="btn w-100 text-start d-flex align-items-center gap-2 px-3 py-2"
+              className="btn w-100 text-start d-flex align-items-center gap-3 px-3"
               style={{
                 backgroundColor: isToday ? TODAY_BG : isPast ? '#F7F8FA' : '#FFFFFF',
                 border: 'none',
-                borderBottom: index < visibleTrips.length - 1 || hiddenCount > 0 ? '1px solid #F7F8FA' : 'none',
                 borderRadius: 0,
                 cursor: isDummy ? 'default' : 'pointer',
                 opacity: isPast ? 0.92 : 1,
+                paddingTop: 14,
+                paddingBottom: 14,
               }}
             >
-              <div className="text-center flex-shrink-0" style={{ width: 32 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: dayLabelColor, fontFamily: FONT }}>
+              {/* 날짜 열 — 요일 텍스트 + 숫자 동그라미 */}
+              <div className="flex-shrink-0 d-flex flex-column align-items-center" style={{ width: 36, gap: 2 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: dayLabelColor, fontFamily: FONT, lineHeight: 1 }}>
                   {DAY_LABELS[dayIdx]}
-                </div>
+                </span>
                 <div
                   style={{
-                    fontSize: 17,
-                    fontWeight: 800,
-                    color: dayNumberColor,
-                    fontFamily: FONT,
-                    lineHeight: 1.1,
+                    width: 30,
+                    height: 30,
+                    borderRadius: '50%',
+                    backgroundColor: numBg,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
                 >
-                  {parseInt(trip.date.split('-')[2], 10)}
+                  <span
+                    style={{
+                      fontSize: 16,
+                      fontWeight: 800,
+                      color: numColor,
+                      fontFamily: FONT,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {parseInt(trip.date.split('-')[2], 10)}
+                  </span>
                 </div>
               </div>
 
               <div className="flex-grow-1 overflow-hidden min-w-0">
                 <div className="d-flex align-items-center gap-1">
-                  {isToday && (
-                    <span
-                      className="badge rounded-pill flex-shrink-0"
-                      style={{
-                        backgroundColor: TODAY_ACCENT,
-                        color: '#FFFFFF',
-                        fontSize: 10,
-                        fontFamily: FONT,
-                        fontWeight: 700,
-                        padding: '3px 8px',
-                      }}
-                    >
-                      오늘
-                    </span>
-                  )}
                   {isPast && (
                     <span
                       className="badge rounded-pill flex-shrink-0"
@@ -213,14 +215,15 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
                 </div>
                 {subtitle && (
                   <div
-                    className="d-flex align-items-center gap-1 mt-0"
+                    className="d-flex align-items-center gap-1"
                     style={{
-                      fontSize: 11,
+                      fontSize: 12,
                       color: isPast ? '#9A9FA5' : '#6F767E',
                       fontFamily: FONT,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
+                      marginTop: 2,
                     }}
                   >
                     <IoTimeOutline size={12} className="flex-shrink-0" />
@@ -233,6 +236,7 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
                 <IoChevronForwardOutline size={16} color="#C5C8CD" className="flex-shrink-0" />
               )}
             </button>
+            </div>
           );
         })}
 
@@ -240,14 +244,17 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
           <button
             type="button"
             onClick={onViewAll}
-            className="btn w-100 py-2 d-flex align-items-center justify-content-center gap-1"
+            className="btn w-100 d-flex align-items-center justify-content-center gap-1"
             style={{
               border: 'none',
-              backgroundColor: '#F7F8FA',
-              color: '#1B6FF5',
+              borderTop: '1px solid #E8EAED',
+              backgroundColor: '#FAFAFA',
+              color: '#237FFF',
               fontSize: 13,
               fontFamily: FONT,
               fontWeight: 600,
+              paddingTop: 14,
+              paddingBottom: 14,
             }}
           >
             외 {hiddenCount}건 더보기
