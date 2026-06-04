@@ -2,8 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
-import { getUser } from '@/lib/storage';
-import { getUserByUUID } from '@/lib/firebase-auth';
+import { resolveAppUser } from '@/lib/auth-session';
 import {
   getSiteSettings,
   saveSiteSettings,
@@ -130,14 +129,13 @@ function AdminSiteSettingsContent() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const user = await getUser();
-      if (!user?.uuid) {
+      const appUser = await resolveAppUser();
+      if (!appUser) {
         router.replace('/login');
         return;
       }
 
-      const remoteUser = await getUserByUUID(user.uuid);
-      if (!remoteUser?.isAdmin) {
+      if (!appUser.isAdmin) {
         router.replace('/main');
         return;
       }

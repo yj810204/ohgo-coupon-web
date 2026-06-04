@@ -96,8 +96,7 @@ function GamePlayContent() {
         if (typeof window !== 'undefined') {
           (window as Window & { __OHGO_BAIT_COUNT__?: number }).__OHGO_BAIT_COUNT__ = 0;
         }
-        const instance = (window.gameLoader as { gameInstance?: { showGameStartModal?: () => void } })
-          ?.gameInstance;
+        const instance = (window.gameLoader as any)?.gameInstance;
         instance?.showGameStartModal?.();
       } else {
         alert(result.message || '미끼 사용에 실패했습니다.');
@@ -115,7 +114,7 @@ function GamePlayContent() {
   const handleGameStartRequest = useCallback(async () => {
     const ok = await consumeBait();
     if (!ok) return;
-    const instance = (window.gameLoader as { gameInstance?: { startGame?: () => void } })?.gameInstance;
+    const instance = (window.gameLoader as any)?.gameInstance;
     if (instance?.startGame) {
       instance.startGame();
     }
@@ -124,7 +123,7 @@ function GamePlayContent() {
   const handleGameRestartRequest = useCallback(async () => {
     const ok = await consumeBait();
     if (!ok) return;
-    const instance = (window.gameLoader as { gameInstance?: { restartGame?: () => void } })?.gameInstance;
+    const instance = (window.gameLoader as any)?.gameInstance;
     if (instance?.restartGame) {
       instance.restartGame();
     }

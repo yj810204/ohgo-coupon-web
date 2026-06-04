@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { deleteField, doc, updateDoc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { clearUser, getUser } from '@/lib/storage';
+import { getUser } from '@/lib/storage';
+import { signOutApp } from '@/lib/auth-session';
 import { isNativeApp, requestPushTokenFromNative, savePushTokenToUser } from '@/lib/native-bridge';
 import { getCommunityPoints } from '@/utils/community-point-service';
+import { getMemberProfile, saveExpoPushToken } from '@/utils/member-profile-service';
 import SubPageFrame from '@/components/SubPageFrame';
 import {
   IoPersonOutline,
@@ -43,9 +43,8 @@ export default function MyPage() {
     const token = localStorage.getItem('expoPushToken');
     setIsPushEnabled(!!token);
     try {
-      const userRef = doc(db, 'users', user.uuid);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) setGamePoints(userSnap.data().totalPoint || 0);
+      const profile = await getMemberProfile(user.uuid);
+      if (profile) setGamePoints(profile.totalPoint);
       const cp = await getCommunityPoints(user.uuid);
       setCommunityPoints(cp);
       const resSettings = await getReservationSettings();
@@ -59,7 +58,7 @@ export default function MyPage() {
     if (!userInfo?.uuid) return;
     if (isPushEnabled) {
       localStorage.removeItem('expoPushToken');
-      await updateDoc(doc(db, 'users', userInfo.uuid), { expoPushToken: deleteField() });
+      await saveExpoPushToken(userInfo.uuid, null);
       setIsPushEnabled(false);
     } else {
       if (isNativeApp()) {
@@ -74,16 +73,7 @@ export default function MyPage() {
 
   const handleLogout = async () => {
     try {
-      const uuid = userInfo?.uuid;
-      const token = localStorage.getItem('expoPushToken');
-      if (uuid && token) {
-        const ref = doc(db, 'users', uuid);
-        const snap = await getDoc(ref);
-        if (snap.exists()) await updateDoc(ref, { expoPushToken: deleteField() });
-        localStorage.removeItem('expoPushToken');
-      }
-      await clearUser();
-      localStorage.removeItem('notificationHistory');
+      await signOutApp({ uuid: userInfo?.uuid });
       router.replace('/login');
     } catch (e) {
       console.error(e);

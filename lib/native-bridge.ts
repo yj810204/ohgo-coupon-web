@@ -87,7 +87,6 @@ export async function savePushTokenToUser(uuid: string, token: string): Promise<
   if (typeof window === 'undefined') return;
   localStorage.setItem('expoPushToken', token);
 
-  const { doc, updateDoc } = await import('firebase/firestore');
-  const { db } = await import('@/lib/firebase');
-  await updateDoc(doc(db, 'users', uuid), { expoPushToken: token });
+  const { saveExpoPushToken } = await import('@/utils/member-profile-service');
+  await saveExpoPushToken(uuid, token);
 }

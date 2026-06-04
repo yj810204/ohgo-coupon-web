@@ -4,23 +4,13 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import SubPageFrame from '@/components/SubPageFrame';
 import { OhgoPageLoading } from '@/lib/page-styles';
-import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import html2canvas from 'html2canvas';
-
-type RosterItem = {
-  id: string;
-  name: string;
-  birth: string;
-  gender: string;
-  phone: string;
-  emergency: string;
-  address: string;
-  hasRoster: boolean;
-  isCaptain?: boolean;
-  isSailor?: boolean;
-  role?: string;
-};
+import {
+  getRosterConfig,
+  isTripConfirmed,
+  updateAttendanceLocationTime,
+  type RosterItem,
+} from '@/utils/roster-service';
 
 // A4 용지 비율에 맞는 크기 설정
 const A4_WIDTH = 794;
@@ -95,17 +85,11 @@ function LocationTimeSelectionContent() {
   const checkTripStatus = async () => {
     if (!date || !tripNumber) return false;
     try {
-      const tripsDocRef = doc(db, 'trips', String(date));
-      const tripsDocSnap = await getDoc(tripsDocRef);
-      const tripNum = parseInt(tripNumber) || 1;
-      if (tripsDocSnap.exists()) {
-        const tripKey = `trip${tripNum}`;
-        const tripData = tripsDocSnap.data()[tripKey];
-        if (tripData && tripData.confirmed) {
-          alert(`${dateDisplay} ${tripNum}항차는 이미 출항 확정되었습니다.`);
-          router.back();
-          return true;
-        }
+      const tripNumLocal = parseInt(tripNumber) || 1;
+      if (await isTripConfirmed(String(date), tripNumLocal)) {
+        alert(`${dateDisplay} ${tripNumLocal}항차는 이미 출항 확정되었습니다.`);
+        router.back();
+        return true;
       }
       return false;
     } catch (error) {
@@ -135,24 +119,14 @@ function LocationTimeSelectionContent() {
   const loadLocations = async () => {
     setLoading(true);
     try {
-      const configDocRef = doc(db, 'config', 'roster');
-      const configDocSnap = await getDoc(configDocRef);
-      if (configDocSnap.exists()) {
-        const data = configDocSnap.data();
-        const fallbackLocations = ['내만'];
-        const areas = data.areas && data.areas.length > 0 ? data.areas : fallbackLocations;
-        setLocations(areas);
-        setSelectedLocations([areas[0]]);
-        setShipName(data.ship_name || '');
-        setShipTon(data.ton || '');
-        setDesc01(data.desc01 || '');
-        setDesc02(data.desc02 || '');
-        setOnBoard(data.on_board !== undefined ? data.on_board : false);
-      } else {
-        const fallbackLocations = ['내만'];
-        setLocations(fallbackLocations);
-        setSelectedLocations([fallbackLocations[0]]);
-      }
+      const config = await getRosterConfig();
+      setLocations(config.areas);
+      setSelectedLocations([config.areas[0]]);
+      setShipName(config.shipName);
+      setShipTon(config.ton);
+      setDesc01(config.desc01);
+      setDesc02(config.desc02);
+      setOnBoard(config.onBoard);
     } catch (error) {
       console.error('Error loading data:', error);
       alert('데이터를 불러오는 중 오류가 발생했습니다.');
@@ -164,31 +138,18 @@ function LocationTimeSelectionContent() {
     }
   };
 
-  // Update attendance with location and time
   const updateAttendanceWithLocationAndTime = async () => {
     try {
       if (!date) {
         console.error('No date provided for attendance update');
         return false;
       }
-      const attendanceRef = doc(db, 'attendance', String(date));
-      const attendanceSnap = await getDoc(attendanceRef);
-      const tripNum = parseInt(tripNumber || '1');
-
-      if (attendanceSnap.exists()) {
-        await updateDoc(attendanceRef, {
-          location: selectedLocations,
-          arrivalTime: selectedTime,
-          tripNumber: tripNum,
-        });
-      } else {
-        await setDoc(attendanceRef, {
-          location: selectedLocations,
-          arrivalTime: selectedTime,
-          tripNumber: tripNum,
-          members: [],
-        });
-      }
+      await updateAttendanceLocationTime(
+        String(date),
+        selectedLocations,
+        selectedTime,
+        parseInt(tripNumber || '1')
+      );
       return true;
     } catch (error) {
       console.error('Error updating attendance:', error);

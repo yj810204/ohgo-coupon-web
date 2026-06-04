@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getUser } from '@/lib/storage';
-import { getUserByUUID } from '@/lib/firebase-auth';
-import { getAllGames, toggleGameActive, Game } from '@/lib/game-service';
+import { resolveAppUser } from '@/lib/auth-session';
+import { getAllGames, toggleGameActive, Game, getGlobalGameSettings, updateGlobalGameSettings, getTournamentSettings, updateTournamentSettings, getGameBaitConfig, updateGameBaitConfig } from '@/lib/game-service';
 import { ADMIN_EDIT_ICON } from '@/lib/admin-icons';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
@@ -15,8 +14,6 @@ import {
   IoPauseOutline,
   IoRefreshOutline,
 } from 'react-icons/io5';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import {
   OHGO_CARD,
   OHGO_FONT,
@@ -26,6 +23,28 @@ import {
   OHGO_SECONDARY_BTN,
   OhgoPageLoading,
 } from '@/lib/page-styles';
+
+function toDatetimeLocalValue(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0, 16);
+}
+
+function formatGameRegdate(regdate: Game['regdate']): string {
+  if (!regdate) return '-';
+  if (typeof regdate === 'string') {
+    const d = new Date(regdate);
+    return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString('ko-KR');
+  }
+  if (typeof regdate === 'object' && regdate !== null && 'seconds' in regdate) {
+    const seconds = Number((regdate as { seconds: number }).seconds);
+    if (!Number.isNaN(seconds)) {
+      return new Date(seconds * 1000).toLocaleDateString('ko-KR');
+    }
+  }
+  return '-';
+}
 
 const FONT = OHGO_FONT;
 const CARD: React.CSSProperties = { ...OHGO_CARD };
@@ -237,20 +256,19 @@ export default function AdminGameSettingsPage() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const user = await getUser();
-      if (!user?.uuid) {
+      const appUser = await resolveAppUser();
+      if (!appUser) {
         router.replace('/login');
         return;
       }
 
-      const remoteUser = await getUserByUUID(user.uuid);
-      if (!remoteUser?.isAdmin) {
+      if (!appUser.isAdmin) {
         router.replace('/main');
         return;
       }
 
       setLoading(false);
-      await Promise.all([loadGames(), loadGlobalSettings(), loadTicketSettings(), loadTournamentSettings()]);
+      await Promise.all([loadGames(), loadSettings()]);
     };
     checkAuth();
   }, [router]);
@@ -265,98 +283,59 @@ export default function AdminGameSettingsPage() {
     }
   };
 
-  const loadGlobalSettings = async () => {
+  const loadSettings = async () => {
     try {
-      const settingsRef = doc(db, 'gameSettings', 'global');
-      const settingsSnap = await getDoc(settingsRef);
-      if (settingsSnap.exists()) {
-        const data = settingsSnap.data();
-        setGlobalSettings({
-          tournament_enabled: data.tournament_enabled || false,
-          tournament_title: data.tournament_title || '',
-          tournament_description: data.tournament_description || '',
-          tournament_start_date: data.tournament_start_date || '',
-          tournament_end_date: data.tournament_end_date || '',
-          show_medals: data.show_medals !== undefined ? data.show_medals : true,
-          ranking_medal_count: data.ranking_medal_count ?? 3,
-        });
-      }
-    } catch (error) {
-      console.error('Error loading global settings:', error);
-    }
-  };
+      const [global, tournament, bait] = await Promise.all([
+        getGlobalGameSettings(),
+        getTournamentSettings(),
+        getGameBaitConfig(),
+      ]);
 
-  const loadTournamentSettings = async () => {
-    try {
-      const tournamentRef = doc(db, 'gameSettings', 'tournament');
-      const tournamentSnap = await getDoc(tournamentRef);
-      if (tournamentSnap.exists()) {
-        const data = tournamentSnap.data();
-        setGlobalSettings(prev => ({
-          ...prev,
-          tournament_title: data.title || '',
-          tournament_description: data.description || '',
-          tournament_enabled: !!data.title && !!data.startDate && !!data.endDate,
-        }));
-        
-        // 날짜 변환
-        if (data.startDate) {
-          const startDate = data.startDate.toDate ? data.startDate.toDate() : new Date(data.startDate);
-          const startDateString = startDate.toISOString().slice(0, 16);
-          setGlobalSettings(prev => ({ ...prev, tournament_start_date: startDateString }));
-        }
-        if (data.endDate) {
-          const endDate = data.endDate.toDate ? data.endDate.toDate() : new Date(data.endDate);
-          const endDateString = endDate.toISOString().slice(0, 16);
-          setGlobalSettings(prev => ({ ...prev, tournament_end_date: endDateString }));
-        }
-      }
-    } catch (error) {
-      console.error('Error loading tournament settings:', error);
-    }
-  };
+      const hasTournamentDates = Boolean(tournament?.title && tournament?.startDate && tournament?.endDate);
 
-  const loadTicketSettings = async () => {
-    try {
-      const baitRef = doc(db, 'config', 'bait');
-      const baitSnap = await getDoc(baitRef);
-      if (baitSnap.exists()) {
-        const data = baitSnap.data();
-        setTicketSettings({
-          daily_limit: data.dailyLimit?.toString() || '',
-          ticket_per_coupon: data.baitPerCoupon?.toString() || '5',
-        });
-      }
+      setGlobalSettings({
+        tournament_enabled: global?.tournament_enabled ?? hasTournamentDates,
+        tournament_title: tournament?.title ?? '',
+        tournament_description: tournament?.description ?? '',
+        tournament_start_date: toDatetimeLocalValue(tournament?.startDate),
+        tournament_end_date: toDatetimeLocalValue(tournament?.endDate),
+        show_medals: global?.show_medals !== undefined ? global.show_medals : true,
+        ranking_medal_count: (global?.ranking_medal_count ?? 3) as 1 | 2 | 3,
+      });
+
+      setTicketSettings({
+        daily_limit: bait?.dailyLimit != null ? String(bait.dailyLimit) : '',
+        ticket_per_coupon: bait?.baitPerCoupon != null ? String(bait.baitPerCoupon) : '5',
+      });
     } catch (error) {
-      console.error('Error loading ticket settings:', error);
+      console.error('Error loading game settings:', error);
     }
   };
 
   const handleSaveGlobalSettings = async () => {
     try {
       setSaving(true);
-      
-      // gameSettings/global 저장
-      const settingsRef = doc(db, 'gameSettings', 'global');
-      await setDoc(settingsRef, {
+
+      await updateGlobalGameSettings({
         tournament_enabled: globalSettings.tournament_enabled,
         show_medals: globalSettings.show_medals,
         ranking_medal_count: globalSettings.ranking_medal_count,
-        updatedAt: new Date(),
-      }, { merge: true });
+      });
 
-      // gameSettings/tournament 저장
-      if (globalSettings.tournament_enabled && globalSettings.tournament_title && globalSettings.tournament_start_date && globalSettings.tournament_end_date) {
-        const tournamentRef = doc(db, 'gameSettings', 'tournament');
-        await setDoc(tournamentRef, {
+      if (
+        globalSettings.tournament_enabled &&
+        globalSettings.tournament_title &&
+        globalSettings.tournament_start_date &&
+        globalSettings.tournament_end_date
+      ) {
+        await updateTournamentSettings({
           title: globalSettings.tournament_title,
           description: globalSettings.tournament_description || '',
-          startDate: new Date(globalSettings.tournament_start_date),
-          endDate: new Date(globalSettings.tournament_end_date),
-          updatedAt: new Date(),
-        }, { merge: true });
+          startDate: new Date(globalSettings.tournament_start_date).toISOString(),
+          endDate: new Date(globalSettings.tournament_end_date).toISOString(),
+        });
       }
-      
+
       alert('통합 설정이 저장되었습니다.');
     } catch (error) {
       console.error('Error saving global settings:', error);
@@ -380,11 +359,7 @@ export default function AdminGameSettingsPage() {
 
     try {
       setSavingTicketLimit(true);
-      const baitRef = doc(db, 'config', 'bait');
-      await setDoc(baitRef, {
-        dailyLimit: ticketLimitNumber,
-        updatedAt: new Date(),
-      }, { merge: true });
+      await updateGameBaitConfig({ dailyLimit: ticketLimitNumber });
       alert('일일 게임 티켓 수량이 저장되었습니다.');
     } catch (error) {
       console.error('Error saving daily ticket limit:', error);
@@ -408,11 +383,7 @@ export default function AdminGameSettingsPage() {
 
     try {
       setSavingTicketPerCoupon(true);
-      const baitRef = doc(db, 'config', 'bait');
-      await setDoc(baitRef, {
-        baitPerCoupon: ticketPerCouponNumber,
-        updatedAt: new Date(),
-      }, { merge: true });
+      await updateGameBaitConfig({ baitPerCoupon: ticketPerCouponNumber });
       alert('교환권 당 게임 티켓 수량이 저장되었습니다.');
     } catch (error) {
       console.error('Error saving ticket per coupon:', error);
@@ -477,10 +448,7 @@ export default function AdminGameSettingsPage() {
     return <OhgoPageLoading />;
   }
 
-  const formatGameDate = (game: Game) => {
-    if (!game.regdate) return '-';
-    return new Date(game.regdate.seconds * 1000).toLocaleDateString('ko-KR');
-  };
+  const formatGameDate = (game: Game) => formatGameRegdate(game.regdate);
 
   return (
     <SubPageFrame title="게임 설정">

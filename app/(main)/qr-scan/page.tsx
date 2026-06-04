@@ -3,9 +3,6 @@
 import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getUser } from '@/lib/storage';
-import { addStamp } from '@/utils/stamp-service';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { Html5Qrcode } from 'html5-qrcode';
 import { isNativeApp } from '@/lib/native-bridge';
 import { IoCameraOutline, IoCheckmarkCircleOutline, IoCloseCircleOutline } from 'react-icons/io5';
@@ -69,53 +66,33 @@ function QRScanPageContent() {
     };
 
     try {
-      // 특정 QR 코드 체크 (ohgo-coupon 참고)
-      if (qrData === 'OHGO-STAMP-BOAT19033326262005') {
-        try {
-          await addStamp(user.uuid, 'QR');
-          setMessage('스탬프가 적립되었습니다!');
-          setMessageColor('#4caf50');
-          
-          // 스캐너 중지
-          await stopScanner();
-          setIsScanning(false);
-          setScanning(false);
-          setIsProcessing(false);
+      const res = await fetch('/api/stamps/process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qrData, userId: user.uuid }),
+      });
+      const data = await res.json();
 
-          setTimeout(() => {
-            router.push(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
-          }, 1500);
-          return;
-        } catch (e: any) {
-          console.error('❗ 오류:', e.message);
-          // 이미 처리된 경우 팝업으로 표시
-          setErrorMessage(e.message || '적립 실패');
-          setShowErrorModal(true);
+      if (!res.ok || !data.ok) {
+        if (data.code === 'INVALID_QR') {
+          setMessage('유효하지 않은 QR 코드입니다.');
+          setMessageColor('#f44336');
           setIsScanning(false);
           setScanning(false);
           setIsProcessing(false);
           return;
         }
-      }
-
-      // Firestore의 qrCodes 컬렉션에서 QR 코드 검증
-      const qrRef = doc(db, 'qrCodes', qrData);
-      const qrSnap = await getDoc(qrRef);
-
-      if (!qrSnap.exists()) {
-        setMessage('유효하지 않은 QR 코드입니다.');
-        setMessageColor('#f44336');
+        setErrorMessage(data.message || '적립 실패');
+        setShowErrorModal(true);
         setIsScanning(false);
         setScanning(false);
         setIsProcessing(false);
         return;
       }
 
-      await addStamp(user.uuid, 'QR');
       setMessage('스탬프가 적립되었습니다!');
       setMessageColor('#4caf50');
-      
-      // 스캐너 중지
+
       await stopScanner();
       setIsScanning(false);
       setScanning(false);

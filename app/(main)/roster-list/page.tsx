@@ -5,27 +5,19 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal, { OhgoModalButton, OhgoModalField, OhgoModalText } from '@/components/OhgoModal';
 import { OhgoPageLoading } from '@/lib/page-styles';
-import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { getUser } from '@/lib/storage';
-import { findCaptains } from '@/utils/find-captains';
+import {
+  isTripConfirmed,
+  loadDailyRoster,
+  removeMemberFromDailyRoster,
+  type RosterItem,
+} from '@/utils/roster-service';
 import { IoChevronForwardOutline, IoAddOutline, IoArrowBackOutline, IoBoatOutline } from 'react-icons/io5';
 import EmptyState from '@/components/EmptyState';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 
-type RosterItem = {
-  id: string;
-  name: string;
-  birth: string;
-  gender: string;
-  phone: string;
-  emergency: string;
-  address: string;
-  hasRoster: boolean;
-  isCaptain?: boolean;
-  isSailor?: boolean;
-  role?: string;
-};
+
+type RosterListItem = RosterItem;
 
 function RosterListContent() {
   const router = useRouter();
@@ -38,10 +30,10 @@ function RosterListContent() {
   const tripNum = tripNumber ? parseInt(tripNumber) : 1;
 
   const [loading, setLoading] = useState(true);
-  const [rosterItems, setRosterItems] = useState<RosterItem[]>([]);
+  const [rosterItems, setRosterItems] = useState<RosterListItem[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [noRosterModalVisible, setNoRosterModalVisible] = useState(false);
-  const [selectedRoster, setSelectedRoster] = useState<RosterItem | null>(null);
+  const [selectedRoster, setSelectedRoster] = useState<RosterListItem | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -64,54 +56,18 @@ function RosterListContent() {
   }, [date, router, showPreview]);
 
   const checkTripStatus = async () => {
-    if (!date || !tripNumber) return;
+    if (!date || !tripNumber) return false;
 
     try {
-      const tripsDocRef = doc(db, 'trips', String(date));
-      const tripsDocSnap = await getDoc(tripsDocRef);
-
-      if (tripsDocSnap.exists()) {
-        const tripKey = `trip${tripNum}`;
-        const tripData = tripsDocSnap.data()[tripKey];
-
-        if (tripData && tripData.confirmed) {
-          alert(`${dateDisplay} ${tripNum}항차는 이미 출항 확정되었습니다.`);
-          router.back();
-          return true;
-        }
+      if (await isTripConfirmed(String(date), tripNum)) {
+        alert(`${dateDisplay} ${tripNum}항차는 이미 출항 확정되었습니다.`);
+        router.back();
+        return true;
       }
-
       return false;
     } catch (error) {
       console.error('Error checking trip status:', error);
       return false;
-    }
-  };
-
-  const updateAttendanceWithCaptains = async (dateStr: string, captainIds: string[], existingMemberIds: string[] = []) => {
-    try {
-      const attendanceRef = doc(db, 'attendance', dateStr);
-      const attendanceSnap = await getDoc(attendanceRef);
-
-      const uniqueMemberIds = new Set([...existingMemberIds, ...captainIds]);
-      const updatedMemberIds = Array.from(uniqueMemberIds);
-
-      if (attendanceSnap.exists()) {
-        await updateDoc(attendanceRef, {
-          members: updatedMemberIds,
-          tripNumber: tripNum
-        });
-      } else {
-        await setDoc(attendanceRef, {
-          members: updatedMemberIds,
-          tripNumber: tripNum
-        });
-      }
-
-      return updatedMemberIds;
-    } catch (error) {
-      console.error('Error updating attendance with captains:', error);
-      return existingMemberIds;
     }
   };
 
@@ -120,126 +76,8 @@ function RosterListContent() {
 
     setLoading(true);
     try {
-      const crewMembers = await findCaptains();
-      const crewIds = crewMembers.map(member => member.uuid);
-      const captainIds = crewMembers.filter(member => member.role === 'captain').map(captain => captain.uuid);
-      const sailorIds = crewMembers.filter(member => member.role === 'sailor').map(sailor => sailor.uuid);
-
-      const attendanceRef = doc(db, 'attendance', String(date));
-      const attendanceSnap = await getDoc(attendanceRef);
-
-      const rosterData: RosterItem[] = [];
-      let memberIds: string[] = attendanceSnap.exists() && attendanceSnap.data().members
-          ? attendanceSnap.data().members
-          : [];
-
-      if (captainIds.length > 0) {
-        memberIds = await updateAttendanceWithCaptains(String(date), captainIds, memberIds);
-      }
-
-      const formatDate = (dateStr: string): string => {
-        if (!dateStr || dateStr.length !== 8) return dateStr;
-        return `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
-      };
-
-      for (const crewMember of crewMembers) {
-        const userRef = doc(db, 'users', crewMember.uuid);
-        const userSnap = await getDoc(userRef);
-
-        if (userSnap.exists()) {
-          const userData = userSnap.data();
-          const boardingInfoRef = doc(db, 'users', crewMember.uuid, 'boarding', 'info');
-          const boardingInfoSnap = await getDoc(boardingInfoRef);
-
-          const hasRoster = boardingInfoSnap.exists();
-          const isCaptain = crewMember.role === 'captain';
-          const isSailor = crewMember.role === 'sailor';
-
-          let rosterInfo: RosterItem = {
-            id: crewMember.uuid,
-            name: userData.name || crewMember.name || '',
-            birth: formatDate(userData.dob),
-            gender: '',
-            phone: '',
-            emergency: '',
-            address: '',
-            hasRoster: hasRoster,
-            isCaptain: isCaptain,
-            isSailor: isSailor,
-            role: crewMember.role
-          };
-
-          if (hasRoster) {
-            const data = boardingInfoSnap.data();
-            rosterInfo = {
-              ...rosterInfo,
-              name: data.name || userData.displayName || '',
-              birth: formatDate(data.birth) || '',
-              gender: data.gender || '',
-              phone: data.phone || '',
-              emergency: data.emergency || '',
-              address: data.address || '',
-            };
-          }
-
-          rosterData.push(rosterInfo);
-        }
-      }
-
-      if (memberIds.length > 0) {
-        for (const memberId of memberIds) {
-          if (crewIds.includes(memberId)) continue;
-
-          const userRef = doc(db, 'users', memberId);
-          const userSnap = await getDoc(userRef);
-
-          if (userSnap.exists()) {
-            const userData = userSnap.data();
-            const boardingInfoRef = doc(db, 'users', memberId, 'boarding', 'info');
-            const boardingInfoSnap = await getDoc(boardingInfoRef);
-
-            const hasRoster = boardingInfoSnap.exists();
-
-            let rosterInfo: RosterItem = {
-              id: memberId,
-              name: userData.name || '',
-              birth: formatDate(userData.dob),
-              gender: '',
-              phone: '',
-              emergency: '',
-              address: '',
-              hasRoster: hasRoster,
-              isCaptain: false,
-              isSailor: false
-            };
-
-            if (hasRoster) {
-              const data = boardingInfoSnap.data();
-              rosterInfo = {
-                ...rosterInfo,
-                name: data.name || userData.displayName || '',
-                birth: formatDate(data.birth) || '',
-                gender: data.gender || '',
-                phone: data.phone || '',
-                emergency: data.emergency || '',
-                address: data.address || '',
-              };
-            }
-
-            rosterData.push(rosterInfo);
-          }
-        }
-      }
-
-      rosterData.sort((a, b) => {
-        if (a.isCaptain && !b.isCaptain) return -1;
-        if (!a.isCaptain && b.isCaptain) return 1;
-        if (a.isSailor && !b.isSailor) return -1;
-        if (!a.isSailor && b.isSailor) return 1;
-        return a.name.localeCompare(b.name);
-      });
-
-      setRosterItems(rosterData);
+      const items = await loadDailyRoster(String(date), tripNum);
+      setRosterItems(items);
     } catch (error) {
       console.error('Error loading roster data:', error);
     } finally {
@@ -249,30 +87,18 @@ function RosterListContent() {
 
   const removeMemberFromRoster = async (memberId: string) => {
     if (!date) return;
-    
+
     try {
-      const attendanceRef = doc(db, 'attendance', String(date));
-      const attendanceSnap = await getDoc(attendanceRef);
-      
-      if (attendanceSnap.exists()) {
-        const attendanceData = attendanceSnap.data();
-        const currentMembers = attendanceData.members || [];
-        const updatedMembers = currentMembers.filter((id: string) => id !== memberId);
-        
-        await updateDoc(attendanceRef, {
-          members: updatedMembers
-        });
-        
-        await loadRosterData();
-        alert('명부에서 삭제되었습니다.');
-      }
+      await removeMemberFromDailyRoster(String(date), memberId);
+      await loadRosterData();
+      alert('명부에서 삭제되었습니다.');
     } catch (error) {
       console.error('Error removing member from roster:', error);
       alert('명부에서 삭제하는 중 오류가 발생했습니다.');
     }
   };
 
-  const handleRosterItemPress = (item: RosterItem) => {
+  const handleRosterItemPress = (item: RosterListItem) => {
     if (item.hasRoster) {
       setSelectedRoster(item);
       setModalVisible(true);

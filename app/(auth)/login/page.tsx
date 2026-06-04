@@ -2,36 +2,29 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { loginOrRegisterUser, getUserByUUID } from '@/lib/firebase-auth';
-import { saveUser, getUser } from '@/lib/storage';
-import { isNativeApp, requestPushTokenFromNative, savePushTokenToUser } from '@/lib/native-bridge';
-import { notifyAllAdmins } from '@/utils/send-push';
-import { IoPersonOutline, IoCalendarOutline, IoDocumentTextOutline, IoCloseOutline } from 'react-icons/io5';
+import { isSupabaseConfigured } from '@/lib/supabase/client';
+import { signInWithGoogle, signInWithApple } from '@/lib/supabase-auth';
+import { resolveAppUser, getHomePathForUser } from '@/lib/auth-session';
+import { IoDocumentTextOutline } from 'react-icons/io5';
 import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
 
 export default function LoginPage() {
-  const [name, setName] = useState('');
-  const [dob, setDob] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const supabaseEnabled = isSupabaseConfigured();
   const router = useRouter();
 
   // 로그인 상태 확인 - 이미 로그인되어 있으면 리다이렉트
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const localUser = await getUser();
-        if (localUser?.uuid) {
-          // Firestore에서 사용자 정보 확인
-          const remoteUser = await getUserByUUID(localUser.uuid);
-          if (remoteUser) {
-            // 이미 로그인되어 있으면 적절한 페이지로 리다이렉트
-            const targetPath = remoteUser.isAdmin ? '/admin-main' : '/main';
-            router.replace(targetPath);
-            return;
-          }
+        const appUser = await resolveAppUser();
+        if (appUser) {
+          router.replace(getHomePathForUser(appUser));
+          return;
         }
       } catch (error) {
         console.error('Auth check error:', error);
@@ -41,6 +34,36 @@ export default function LoginPage() {
     };
     checkAuth();
   }, [router]);
+
+  const handleAppleLogin = async () => {
+    if (!agreed) {
+      alert('동의 필요: 개인정보처리방침에 동의하셔야 합니다.');
+      return;
+    }
+    setAppleLoading(true);
+    try {
+      await signInWithApple();
+    } catch (e) {
+      console.error('Apple 로그인 실패:', e);
+      alert('Apple 로그인에 실패했습니다.');
+      setAppleLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    if (!agreed) {
+      alert('동의 필요: 개인정보처리방침에 동의하셔야 합니다.');
+      return;
+    }
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      console.error('Google 로그인 실패:', e);
+      alert('Google 로그인에 실패했습니다.');
+      setGoogleLoading(false);
+    }
+  };
 
   const privacyHtml = `
     <!DOCTYPE html>
@@ -169,75 +192,6 @@ export default function LoginPage() {
     </html>
   `;
 
-  const handleLogin = async () => {
-    if (!name || !dob) {
-      alert('입력 오류: 이름과 생년월일을 모두 입력하세요.');
-      return;
-    }
-    
-    if (!agreed) {
-      alert('동의 필요: 개인정보처리방침에 동의하셔야 합니다.');
-      return;
-    }
-  
-    setIsLoading(true);
-  
-    try {
-      console.log('🔍 로그인 시도:', name, dob);
-
-      const user = await loginOrRegisterUser(name, dob);
-  
-      if ('name' in user && 'dob' in user && 'uuid' in user) {
-        console.log('🧾 로그인한 사용자:', user.name, user.uuid);
-  
-        // ✅ 1. 사용자 정보 저장
-        await saveUser({
-          name: user.name,
-          dob: user.dob,
-          uuid: user.uuid,
-          isAdmin: user.isAdmin || false
-        });
-
-        if (isNativeApp()) {
-          const pushToken = await requestPushTokenFromNative();
-          if (pushToken) {
-            await savePushTokenToUser(user.uuid, pushToken);
-          }
-        }
-  
-        // ✅ 2. 저장 확인
-        const storedUser = await import('@/lib/storage').then(m => m.getUser());
-        if (storedUser) {
-          console.log('✅ 저장 후 localStorage userInfo:', storedUser?.uuid);
-        }
-  
-        // ✅ 3. 신규 회원일 경우 관리자에게 알림
-        if (!user.isAdmin && user.isNew) {
-          await notifyAllAdmins(
-              `${user.name}님이 새로 가입했어요!`,
-              '회원 가입 알림',
-              'admin-main'
-          );
-        }
-  
-        // ✅ 4. 라우팅
-        const targetPath = user.isAdmin ? '/admin-main' : '/main';
-        router.push(targetPath);
-      } else {
-        throw new Error('Invalid user data');
-      }
-    } catch (e) {
-      console.error('❗ 로그인 에러:', e);
-      alert('로그인 실패: 서버 오류 또는 연결 실패\n(' + e + ')');
-      // 로그인 실패 시 localStorage 초기화
-      await import('@/lib/storage').then(m => m.clearUser());
-      console.log('✅ 로그인 실패로 localStorage 초기화 완료');
-      console.log('🔍 로그인 실패:', name, dob);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
   const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
 
   if (checkingAuth) {
@@ -335,77 +289,16 @@ export default function LoginPage() {
         <h2 style={{ fontSize: 20, fontWeight: 800, color: '#1A1D1F', margin: '0 0 4px', letterSpacing: -0.3 }}>
           로그인
         </h2>
-        <p style={{ fontSize: 13, color: '#9CA3AF', margin: '0 0 24px' }}>
-          이름과 생년월일로 간편하게 시작하세요
+        <p style={{ fontSize: 13, color: '#9CA3AF', margin: '0 0 20px' }}>
+          Google 또는 Apple 계정으로 시작하세요
         </p>
 
-        {/* 이름 */}
-        <div style={{ position: 'relative', marginBottom: 14 }}>
-          <IoPersonOutline
-            size={18}
-            color="#ABABAB"
-            style={{ position: 'absolute', top: '50%', left: 14, transform: 'translateY(-50%)', pointerEvents: 'none', zIndex: 10 }}
-          />
-          <input
-            type="text"
-            placeholder="이름"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            style={{
-              width: '100%',
-              fontSize: 15,
-              borderRadius: 14,
-              border: '2px solid #EFEFEF',
-              padding: '14px 16px 14px 42px',
-              fontFamily: FONT,
-              color: '#1A1D1F',
-              outline: 'none',
-              boxSizing: 'border-box',
-              backgroundColor: '#FAFAFA',
-            }}
-            onFocus={e => { e.target.style.borderColor = '#1B6FF5'; e.target.style.boxShadow = '0 0 0 3px rgba(27,111,245,0.10)'; e.target.style.backgroundColor = '#FFF'; }}
-            onBlur={e => { e.target.style.borderColor = '#EFEFEF'; e.target.style.boxShadow = 'none'; e.target.style.backgroundColor = '#FAFAFA'; }}
-          />
-        </div>
-
-        {/* 생년월일 */}
-        <div style={{ position: 'relative', marginBottom: 20 }}>
-          <IoCalendarOutline
-            size={18}
-            color="#ABABAB"
-            style={{ position: 'absolute', top: '50%', left: 14, transform: 'translateY(-50%)', pointerEvents: 'none', zIndex: 10 }}
-          />
-          <input
-            type="text"
-            placeholder="생년월일 (예: 720610)"
-            value={dob}
-            onChange={e => setDob(e.target.value)}
-            maxLength={6}
-            inputMode="numeric"
-            style={{
-              width: '100%',
-              fontSize: 15,
-              borderRadius: 14,
-              border: '2px solid #EFEFEF',
-              padding: '14px 16px 14px 42px',
-              fontFamily: FONT,
-              color: '#1A1D1F',
-              outline: 'none',
-              boxSizing: 'border-box',
-              backgroundColor: '#FAFAFA',
-            }}
-            onFocus={e => { e.target.style.borderColor = '#1B6FF5'; e.target.style.boxShadow = '0 0 0 3px rgba(27,111,245,0.10)'; e.target.style.backgroundColor = '#FFF'; }}
-            onBlur={e => { e.target.style.borderColor = '#EFEFEF'; e.target.style.boxShadow = 'none'; e.target.style.backgroundColor = '#FAFAFA'; }}
-          />
-        </div>
-
-        {/* 개인정보 동의 */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 10,
-            marginBottom: 24,
+            marginBottom: 20,
             padding: '12px 14px',
             borderRadius: 14,
             backgroundColor: '#F7F8FA',
@@ -441,34 +334,71 @@ export default function LoginPage() {
           </button>
         </div>
 
-        {/* 로그인 버튼 */}
-        <button
-          type="button"
-          onClick={handleLogin}
-          disabled={isLoading || !agreed}
-          style={{
-            width: '100%',
-            backgroundColor: '#1B6FF5',
-            color: '#fff',
-            borderRadius: 50,
-            padding: '16px',
-            border: 'none',
-            fontSize: 16,
-            fontWeight: 700,
-            fontFamily: FONT,
-            opacity: (isLoading || !agreed) ? 0.45 : 1,
-            cursor: (isLoading || !agreed) ? 'not-allowed' : 'pointer',
-            boxShadow: (isLoading || !agreed) ? 'none' : '0 8px 24px rgba(27,111,245,0.32)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-          }}
-        >
-          {isLoading ? (
-            <><span className="spinner-border spinner-border-sm" role="status" />로그인 중...</>
-          ) : '로그인'}
-        </button>
+        {supabaseEnabled ? (
+          <>
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={googleLoading || appleLoading || !agreed}
+              style={{
+                width: '100%',
+                backgroundColor: '#FFFFFF',
+                color: '#1A1D1F',
+                borderRadius: 50,
+                padding: '14px',
+                border: '2px solid #EFEFEF',
+                fontSize: 15,
+                fontWeight: 600,
+                fontFamily: FONT,
+                opacity: (googleLoading || appleLoading || !agreed) ? 0.45 : 1,
+                cursor: (googleLoading || appleLoading || !agreed) ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                marginBottom: 12,
+              }}
+            >
+              {googleLoading ? (
+                <><span className="spinner-border spinner-border-sm" role="status" />연결 중...</>
+              ) : (
+                <>Google로 계속하기</>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={handleAppleLogin}
+              disabled={googleLoading || appleLoading || !agreed}
+              style={{
+                width: '100%',
+                backgroundColor: '#1A1D1F',
+                color: '#FFFFFF',
+                borderRadius: 50,
+                padding: '14px',
+                border: 'none',
+                fontSize: 15,
+                fontWeight: 600,
+                fontFamily: FONT,
+                opacity: (googleLoading || appleLoading || !agreed) ? 0.45 : 1,
+                cursor: (googleLoading || appleLoading || !agreed) ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+              }}
+            >
+              {appleLoading ? (
+                <><span className="spinner-border spinner-border-sm" role="status" />연결 중...</>
+              ) : (
+                <>Apple로 계속하기</>
+              )}
+            </button>
+          </>
+        ) : (
+          <p style={{ fontSize: 14, color: '#EF4444', textAlign: 'center', padding: '16px 0' }}>
+            로그인 설정이 올바르지 않습니다. 관리자에게 문의해 주세요.
+          </p>
+        )}
       </div>
 
       {/* 개인정보 처리방침 모달 */}

@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getUser } from '@/lib/storage';
-import { getUserByUUID } from '@/lib/firebase-auth';
+import { resolveAppUser } from '@/lib/auth-session';
 
 export function useRequireAdmin() {
   const router = useRouter();
@@ -12,17 +11,16 @@ export function useRequireAdmin() {
 
   useEffect(() => {
     const check = async () => {
-      const u = await getUser();
-      if (!u?.uuid) {
+      const appUser = await resolveAppUser();
+      if (!appUser) {
         router.replace('/login');
         return;
       }
-      const remote = await getUserByUUID(u.uuid);
-      if (!remote?.isAdmin) {
+      if (!appUser.isAdmin) {
         router.replace('/main');
         return;
       }
-      setUser({ uuid: u.uuid, name: u.name || remote.name || '관리자' });
+      setUser({ uuid: appUser.uuid, name: appUser.name || '관리자' });
       setReady(true);
     };
     void check();

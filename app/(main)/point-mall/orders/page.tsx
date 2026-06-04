@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { getUser } from '@/lib/storage';
 import SubPageFrame from '@/components/SubPageFrame';
@@ -21,12 +20,7 @@ const CARD: React.CSSProperties = {
 
 function orderDate(order: PointMallOrder): string {
   const at = order.purchasedAt;
-  const date =
-    at instanceof Timestamp
-      ? at.toDate()
-      : at instanceof Date
-        ? at
-        : new Date(String(at));
+  const date = at instanceof Date ? at : new Date(String(at));
   return format(date, 'yyyy.MM.dd HH:mm');
 }
 

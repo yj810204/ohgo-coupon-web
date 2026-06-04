@@ -1,14 +1,70 @@
 'use client';
 
-import { useEffect, useState, Suspense, useCallback } from 'react';
+import { useEffect, useState, Suspense, useCallback, useRef, type CSSProperties } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getUser } from '@/lib/storage';
-import { getDoc, setDoc, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { resolveAppUser } from '@/lib/auth-session';
+import { getBoardingForm, saveBoardingForm } from '@/utils/boarding-service';
 import { IoCheckboxOutline, IoSquareOutline, IoSearchOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
 import { OHGO_CARD, OHGO_FONT, OhgoPageLoading } from '@/lib/page-styles';
+
+const PILL_RADIUS = 9999;
+
+const segmentInactiveStyle: CSSProperties = {
+  backgroundColor: '#F7F8FA',
+  color: '#6F767E',
+  border: '1.5px solid #C2C6CE',
+};
+
+const segmentActiveStyle: CSSProperties = {
+  backgroundColor: '#1B6FF5',
+  color: '#FFFFFF',
+  border: '1.5px solid #1B6FF5',
+};
+
+const pillFieldStyle: CSSProperties = {
+  borderRadius: PILL_RADIUS,
+  border: '1.5px solid #C2C6CE',
+  padding: '10px 16px',
+  fontFamily: OHGO_FONT,
+  fontSize: 14,
+  color: '#1A1D1F',
+  outline: 'none',
+  boxShadow: 'none',
+  boxSizing: 'border-box',
+  width: '100%',
+};
+
+function SegmentButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="flex-fill"
+      style={{
+        ...(active ? segmentActiveStyle : segmentInactiveStyle),
+        borderRadius: PILL_RADIUS,
+        padding: '10px 12px',
+        fontFamily: OHGO_FONT,
+        fontSize: 14,
+        fontWeight: 600,
+        cursor: 'pointer',
+      }}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
 
 // 다음 우편번호 API 타입 선언
 declare global {
@@ -99,6 +155,7 @@ function BoardingFormContent() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showThirdPartyModal, setShowThirdPartyModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const addressDetailRef = useRef<HTMLInputElement>(null);
 
   // 다음 우편번호 스크립트 로드
   useEffect(() => {
@@ -125,6 +182,7 @@ function BoardingFormContent() {
         }
         setAddress(fullAddress);
         setAddressDetail('');
+        window.setTimeout(() => addressDetailRef.current?.focus(), 150);
       },
     }).open();
   }, []);
@@ -138,50 +196,30 @@ function BoardingFormContent() {
 
         let userUuid = '';
 
-        // Check if logged-in user is admin
-        const loggedInUser = await getUser();
-        if (loggedInUser?.uuid) {
-          const loggedInUserDoc = await getDoc(doc(db, 'users', loggedInUser.uuid));
-          if (loggedInUserDoc.exists()) {
-            const loggedInUserData = loggedInUserDoc.data();
-            setIsAdmin(!!loggedInUserData.isAdmin);
-          }
+        const appUser = await resolveAppUser();
+        if (appUser?.isAdmin) {
+          setIsAdmin(true);
         }
 
-        // Load user data if UUID is provided
         if (uuid) {
           userUuid = uuid.toString();
-          const snap = await getDoc(doc(db, 'users', userUuid, 'boarding', 'info'));
-          if (snap.exists()) {
-            const data = snap.data();
-            setName(data.name || paramName || '');
-            setBirth(data.birth || dob || '');
-            setGender(data.gender || '');
-            setPhone(data.phone || '');
-            setEmergency(data.emergency || '');
-            setAddress(data.address || '');
-            setAgreed(!!data.agreed);
-            setAgreedThirdParty(!!data.agreedThirdParty);
-            setRole(data.role || '');
-          }
-        } else {
-          // If no UUID provided, load logged-in user's data
-      const user = await getUser();
-          if (user?.uuid) {
-            userUuid = user.uuid;
-            const snap = await getDoc(doc(db, 'users', userUuid, 'boarding', 'info'));
-            if (snap.exists()) {
-              const data = snap.data();
-              setName(data.name || '');
-              setBirth(data.birth || '');
-              setGender(data.gender || '');
-              setPhone(data.phone || '');
-              setEmergency(data.emergency || '');
-              setAddress(data.address || '');
-              setAgreed(!!data.agreed);
-              setAgreedThirdParty(!!data.agreedThirdParty);
-              setRole(data.role || '');
-            }
+        } else if (appUser?.uuid) {
+          userUuid = appUser.uuid;
+        }
+
+        if (userUuid) {
+          const record = await getBoardingForm(userUuid);
+          if (record) {
+            setName(record.name || paramName || '');
+            setBirth(record.birth || dob || '');
+            setGender(record.gender || '');
+            setPhone(record.phone || '');
+            setEmergency(record.emergency || '');
+            setAddress(record.address || '');
+            setAddressDetail(record.addressDetail || '');
+            setAgreed(record.agreed);
+            setAgreedThirdParty(record.agreedThirdParty);
+            setRole(record.tripRole || '');
           }
         }
       } catch (e) {
@@ -255,42 +293,22 @@ function BoardingFormContent() {
         userUuid = user.uuid;
       }
 
-      // Prepare boarding info data
-      const boardingData: {
-        name: string;
-        birth: string;
-        gender: string;
-        phone: string;
-        emergency: string;
-        address: string;
-        agreed: boolean;
-        agreedThirdParty: boolean;
-        role?: string;
-      } = {
-        name,
-        birth,
-        gender,
-        phone,
-        emergency,
-        address: addressDetail ? `${address} ${addressDetail}` : address,
-        agreed,
-        agreedThirdParty,
-      };
-
-      // Add role field only if it's not 'none'
-      if (isAdmin && role && role !== 'none') {
-        boardingData.role = role;
-      }
-
-      await setDoc(doc(db, 'users', userUuid, 'boarding', 'info'), boardingData);
-
-      // If user is admin and role is selected (and not 'none'), update the main user document with the role
-      if (isAdmin && role && role !== 'none') {
-        await setDoc(doc(db, 'users', userUuid), { role }, { merge: true });
-      } else if (isAdmin && role === 'none') {
-        // If 'none' is selected, remove the role field from the main user document
-        await setDoc(doc(db, 'users', userUuid), { role: null }, { merge: true });
-      }
+      await saveBoardingForm(
+        userUuid,
+        {
+          name,
+          birth,
+          gender,
+          phone,
+          emergency,
+          address,
+          addressDetail: addressDetail.trim() || undefined,
+          agreed,
+          agreedThirdParty,
+          tripRole: isAdmin && role ? role : undefined,
+        },
+        { updateProfileRole: true, isAdmin },
+      );
 
       alert('승선 정보가 저장되었습니다.');
 
@@ -342,20 +360,8 @@ function BoardingFormContent() {
             <div className="mb-3">
               <label className="form-label">성별 *</label>
               <div className="d-flex gap-2">
-                <button
-                  type="button"
-                  className={`btn flex-fill ${gender === '남' ? 'btn-primary' : 'btn-outline-secondary'}`}
-                  onClick={() => setGender('남')}
-                >
-                  남
-                </button>
-                <button
-                  type="button"
-                  className={`btn flex-fill ${gender === '여' ? 'btn-primary' : 'btn-outline-secondary'}`}
-                  onClick={() => setGender('여')}
-                >
-                  여
-                </button>
+                <SegmentButton label="남" active={gender === '남'} onClick={() => setGender('남')} />
+                <SegmentButton label="여" active={gender === '여'} onClick={() => setGender('여')} />
               </div>
             </div>
 
@@ -383,70 +389,60 @@ function BoardingFormContent() {
 
             <div className="mb-3">
               <label className="form-label">주소 *</label>
-              <div className="d-flex gap-2 mb-2">
+              <div className="d-flex gap-2 mb-2 align-items-stretch">
                 <input
                   type="text"
-                  className="form-control"
                   placeholder="주소 검색 버튼을 눌러주세요"
                   value={address}
                   readOnly
-                  style={{ backgroundColor: address ? '#fff' : '#F7F8FA', cursor: 'default' }}
+                  className="flex-grow-1 min-w-0"
+                  style={{
+                    ...pillFieldStyle,
+                    backgroundColor: address ? '#FFFFFF' : '#F7F8FA',
+                    cursor: 'default',
+                  }}
                 />
                 <button
                   type="button"
                   onClick={openAddressSearch}
-                  className="btn d-flex align-items-center gap-1 flex-shrink-0 fw-semibold"
+                  className="d-flex align-items-center justify-content-center gap-1 flex-shrink-0"
                   style={{
-                    backgroundColor: '#1B6FF5',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: 10,
-                    padding: '8px 14px',
-                    fontSize: 13,
+                    ...segmentActiveStyle,
+                    borderRadius: PILL_RADIUS,
+                    padding: '10px 18px',
+                    fontSize: 14,
+                    fontWeight: 600,
                     whiteSpace: 'nowrap',
-                    fontFamily: "'Urbanist', var(--font-urbanist), sans-serif",
+                    fontFamily: OHGO_FONT,
+                    cursor: 'pointer',
                   }}
                 >
-                  <IoSearchOutline size={15} />
+                  <IoSearchOutline size={16} />
                   검색
                 </button>
               </div>
-              {address && (
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="상세 주소 입력 (동/호수 등)"
-                  value={addressDetail}
-                  onChange={(e) => setAddressDetail(e.target.value)}
-                />
-              )}
+              <input
+                ref={addressDetailRef}
+                type="text"
+                placeholder={address ? '상세 주소 입력 (동/호수 등)' : '주소 검색 후 상세 주소를 입력하세요'}
+                value={addressDetail}
+                onChange={(e) => setAddressDetail(e.target.value)}
+                autoComplete="address-line2"
+                className="form-control w-100"
+                style={{
+                  ...pillFieldStyle,
+                  backgroundColor: '#FFFFFF',
+                }}
+              />
             </div>
 
             {isAdmin && (
               <div className="mb-3">
                 <label className="form-label">역할</label>
                 <div className="d-flex gap-2">
-                  <button
-                    type="button"
-                    className={`btn flex-fill ${role === 'captain' ? 'btn-primary' : 'btn-outline-secondary'}`}
-                    onClick={() => setRole('captain')}
-                  >
-                    선장
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn flex-fill ${role === 'sailor' ? 'btn-primary' : 'btn-outline-secondary'}`}
-                    onClick={() => setRole('sailor')}
-                  >
-                    선원
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn flex-fill ${role === 'none' ? 'btn-primary' : 'btn-outline-secondary'}`}
-                    onClick={() => setRole('none')}
-                  >
-                    없음
-                  </button>
+                  <SegmentButton label="선장" active={role === 'captain'} onClick={() => setRole('captain')} />
+                  <SegmentButton label="선원" active={role === 'sailor'} onClick={() => setRole('sailor')} />
+                  <SegmentButton label="없음" active={role === 'none'} onClick={() => setRole('none')} />
                 </div>
               </div>
             )}

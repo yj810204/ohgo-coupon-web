@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getUser } from '@/lib/storage';
-import { getUserByUUID } from '@/lib/firebase-auth';
+import { resolveAppUser } from '@/lib/auth-session';
 import {
   IoPeopleOutline,
   IoCalendarOutline,
@@ -17,6 +16,7 @@ import {
   IoChevronForwardOutline,
   IoHomeOutline,
   IoShieldCheckmarkOutline,
+  IoFishOutline,
 } from 'react-icons/io5';
 import { useNavigation } from '@/hooks/useNavigation';
 import SubPageFrame from '@/components/SubPageFrame';
@@ -99,8 +99,17 @@ const MENU_SECTIONS: MenuSection[] = [
   },
   {
     id: 'content',
-    title: '콘텐츠 · 몰',
+    title: '1차 산업 · 콘텐츠',
     items: [
+      {
+        id: 'fishing-log',
+        label: '조업일지',
+        desc: '출항·어획·매출 기록 및 월별 통계',
+        path: '/admin-fishing-log',
+        icon: IoFishOutline,
+        color: '#00796B',
+        bg: '#E0F2F1',
+      },
       {
         id: 'photos',
         label: '조황사진 관리',
@@ -165,26 +174,39 @@ const MENU_SECTIONS: MenuSection[] = [
   },
 ];
 
+const CAPTAIN_MENU_IDS = new Set(['roster', 'fishing-log', 'photos', 'trip-guide', 'mini-games']);
+
+function menuSectionsForUser(isAdmin: boolean): MenuSection[] {
+  if (isAdmin) return MENU_SECTIONS;
+  return MENU_SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => CAPTAIN_MENU_IDS.has(item.id)),
+  })).filter((section) => section.items.length > 0);
+}
+
 export default function AdminMainPage() {
   const { navigateReplace, navigate } = useNavigation();
   const [loading, setLoading] = useState(true);
   const [adminName, setAdminName] = useState('');
+  const [isAdmin, setIsAdmin] = useState(true);
+  const [menuSections, setMenuSections] = useState(MENU_SECTIONS);
 
   useEffect(() => {
     const checkAuth = async () => {
-      const user = await getUser();
-      if (!user?.uuid) {
+      const appUser = await resolveAppUser();
+      if (!appUser) {
         navigateReplace('/login');
         return;
       }
 
-      const remoteUser = await getUserByUUID(user.uuid);
-      if (!remoteUser?.isAdmin) {
+      if (!appUser.isAdmin && !appUser.isCaptain) {
         navigateReplace('/main');
         return;
       }
 
-      setAdminName(user.name || '관리자');
+      setIsAdmin(appUser.isAdmin);
+      setMenuSections(menuSectionsForUser(appUser.isAdmin));
+      setAdminName(appUser.name || (appUser.isAdmin ? '관리자' : '선장'));
       setLoading(false);
     };
     void checkAuth();
@@ -202,7 +224,7 @@ export default function AdminMainPage() {
   }
 
   return (
-    <SubPageFrame title="관리자" showBackButton={false} showMyPage={false}>
+    <SubPageFrame title={isAdmin ? '관리자' : '선장'} showBackButton={false} showMyPage={false}>
       <div
         className="mb-4 p-4"
         style={{
@@ -219,18 +241,22 @@ export default function AdminMainPage() {
             <IoShieldCheckmarkOutline size={28} color="#fff" />
           </div>
           <div>
-            <div style={{ fontSize: 13, opacity: 0.9, fontFamily: FONT }}>관리자 모드</div>
+            <div style={{ fontSize: 13, opacity: 0.9, fontFamily: FONT }}>
+              {isAdmin ? '관리자 모드' : '선장 모드'}
+            </div>
             <div style={{ fontSize: 20, fontWeight: 800, fontFamily: FONT, marginTop: 2 }}>
               {adminName}님
             </div>
             <div style={{ fontSize: 12, opacity: 0.85, fontFamily: FONT, marginTop: 4 }}>
-              회원·콘텐츠·게임·포인트몰을 관리할 수 있습니다.
+              {isAdmin
+                ? '회원·콘텐츠·게임·포인트몰을 관리할 수 있습니다.'
+                : '승선명부·조업일지·조황 콘텐츠를 관리할 수 있습니다.'}
             </div>
           </div>
         </div>
       </div>
 
-      {MENU_SECTIONS.map(section => (
+      {menuSections.map(section => (
         <div key={section.id} className="mb-4">
           <div className="mb-2 px-1">
             <span style={{ fontSize: 15, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>

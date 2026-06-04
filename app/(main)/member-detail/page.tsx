@@ -3,14 +3,17 @@
 import { useEffect, useState, Suspense, type CSSProperties, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { getStamps, getCouponCount, addStampBatch, removeStampBatch, deleteUser } from '@/utils/stamp-service';
+import {
+  getMemberProfile,
+  resetTotalPoint,
+  updateBaitCoupons as saveBaitCouponsCount,
+} from '@/utils/member-profile-service';
+import { getBoardingForm } from '@/utils/boarding-service';
 import { sendPushToUser } from '@/utils/send-push';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal from '@/components/OhgoModal';
 import MemberListAvatar from '@/components/MemberListAvatar';
-import { getMemberProfileImageUrl } from '@/lib/member-profile';
 import {
   OHGO_CARD,
   OHGO_CONFIRM_BTN_CLASS,
@@ -29,7 +32,8 @@ import {
   IoDocumentTextOutline,
   IoListOutline,
   IoTrashOutline,
-  IoChevronForwardOutline
+  IoChevronForwardOutline,
+  IoLinkOutline,
 } from 'react-icons/io5';
 
 const DETAIL_LABEL: CSSProperties = {
@@ -269,6 +273,14 @@ function MemberDetailContent() {
   } | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [profileImageUrl, setProfileImageUrl] = useState<string | undefined>();
+  const [guestSearchPhone, setGuestSearchPhone] = useState('');
+  const [guestSearchName, setGuestSearchName] = useState('');
+  const [guestResults, setGuestResults] = useState<
+    { id: string; name: string; dob: string; phone: string | null }[]
+  >([]);
+  const [guestSearchLoading, setGuestSearchLoading] = useState(false);
+  const [guestMergeLoading, setGuestMergeLoading] = useState(false);
+  const [legacyUuid, setLegacyUuid] = useState<string | null>(null);
 
   const loadCounts = async () => {
     const stamps = await getStamps(uuid);
@@ -279,17 +291,16 @@ function MemberDetailContent() {
 
   const loadTargetUserInfo = async () => {
     try {
-      const snap = await getDoc(doc(db, 'users', uuid));
-      if (snap.exists()) {
-        const data = snap.data();
-        setProfileImageUrl(getMemberProfileImageUrl(data));
-        setTargetUserIsAdmin(!!data.isAdmin);
-        if (data.createdAt) {
-          const ts = typeof data.createdAt === 'string' ? new Date(data.createdAt) : data.createdAt.toDate();
-          setCreatedAt(format(ts, 'yy-MM-dd'));
+      const profile = await getMemberProfile(uuid);
+      if (profile) {
+        setProfileImageUrl(profile.profileImageUrl);
+        setTargetUserIsAdmin(profile.isAdmin);
+        if (profile.createdAt) {
+          setCreatedAt(format(profile.createdAt, 'yy-MM-dd'));
         }
-        setPoints(data.totalPoint || 0);
-        setBaitCoupons(data.baitCoupons || 0);
+        setPoints(profile.totalPoint);
+        setBaitCoupons(profile.baitCoupons);
+        if (profile.legacyUuid) setLegacyUuid(profile.legacyUuid);
       }
 
       const stamps = await getStamps(uuid);
@@ -305,15 +316,23 @@ function MemberDetailContent() {
 
   const loadRosterData = async () => {
     try {
-      const rosterSnap = await getDoc(doc(db, 'users', uuid, 'boarding', 'info'));
-      if (rosterSnap.exists()) {
-        const data = rosterSnap.data();
-        setRosterData(data as typeof rosterData);
+      const boarding = await getBoardingForm(uuid);
+      if (boarding) {
+        const address = boarding.addressDetail
+          ? `${boarding.address} ${boarding.addressDetail}`.trim()
+          : boarding.address;
+        setRosterData({
+          name: boarding.name,
+          birth: boarding.birth,
+          gender: boarding.gender,
+          phone: boarding.phone,
+          emergency: boarding.emergency,
+          address,
+        });
         return true;
-      } else {
-        setRosterData(null);
-        return false;
       }
+      setRosterData(null);
+      return false;
     } catch (err) {
       console.warn('명부 정보 로딩 실패:', err);
       setRosterData(null);
@@ -390,8 +409,7 @@ function MemberDetailContent() {
 
     setIsResettingPoints(true);
     try {
-      const userRef = doc(db, 'users', uuid);
-      await updateDoc(userRef, { totalPoint: 0 });
+      await resetTotalPoint(uuid);
       setPoints(0);
       alert('포인트 초기화 완료: ' + name + '님의 포인트가 0으로 초기화되었습니다.');
     } catch (err: any) {
@@ -416,8 +434,7 @@ function MemberDetailContent() {
     setIsLoadingBait(true);
     try {
       const next = Math.max(0, baitCoupons + increment);
-      const userRef = doc(db, 'users', uuid);
-      await updateDoc(userRef, { baitCoupons: next });
+      await saveBaitCouponsCount(uuid, next);
 
       setBaitCoupons(next);
 
@@ -449,6 +466,68 @@ function MemberDetailContent() {
       return;
     }
     void updateBaitCoupons(-ADMIN_ADJUST_AMOUNT);
+  };
+
+  const searchGuests = async () => {
+    if (!guestSearchPhone.trim() && !guestSearchName.trim()) {
+      alert('전화번호 또는 이름을 입력해 주세요.');
+      return;
+    }
+    setGuestSearchLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (guestSearchPhone.trim()) params.set('phone', guestSearchPhone.trim());
+      else params.set('name', guestSearchName.trim());
+      const res = await fetch(`/api/auth/merge-legacy/manual?${params}`);
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        alert(data.message || '검색 실패');
+        return;
+      }
+      setGuestResults(data.guests ?? []);
+      if ((data.guests ?? []).length === 0) {
+        alert('일치하는 게스트가 없습니다.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('검색 중 오류가 발생했습니다.');
+    } finally {
+      setGuestSearchLoading(false);
+    }
+  };
+
+  const mergeGuest = async (guestLegacyId: string, guestName: string, guestPhone: string | null) => {
+    const phoneHint =
+      rosterData?.phone && guestPhone && rosterData.phone.replace(/\D/g, '') === guestPhone.replace(/\D/g, '')
+        ? '\n(전화번호 일치)'
+        : guestPhone
+          ? `\n게스트 전화: ${guestPhone}`
+          : '';
+    if (!confirm(`${guestName} 게스트 계정을 ${name}님과 연결할까요?${phoneHint}`)) return;
+
+    setGuestMergeLoading(true);
+    try {
+      const res = await fetch('/api/auth/merge-legacy/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guestLegacyId, targetUserId: uuid }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        alert(data.message || '연결 실패');
+        return;
+      }
+      alert('게스트 계정이 연결되었습니다.');
+      setLegacyUuid(guestLegacyId);
+      setGuestResults([]);
+      await loadRosterData();
+      await loadTargetUserInfo();
+    } catch (e) {
+      console.error(e);
+      alert('연결 중 오류가 발생했습니다.');
+    } finally {
+      setGuestMergeLoading(false);
+    }
   };
 
   const handleDeleteUser = async () => {
@@ -675,6 +754,96 @@ function MemberDetailContent() {
             isLast
           />
         </div>
+
+        {!legacyUuid && (
+          <div className="mb-3" style={{ ...OHGO_CARD, padding: 14 }}>
+            <div className="d-flex align-items-center gap-2 mb-2">
+              <IoLinkOutline size={18} color="#1B6FF5" aria-hidden />
+              <span style={{ ...DETAIL_MENU_LABEL, fontSize: 15 }}>게스트 계정 연결</span>
+            </div>
+            <p style={{ fontSize: 12, color: '#6F767E', margin: '0 0 12px', fontFamily: OHGO_FONT, lineHeight: 1.45 }}>
+              승선명부에만 등록된 비회원(uuidv5)을 이 OAuth 회원과 수동 연결합니다.
+              전화번호로 검색하면 일치 여부를 확인할 수 있습니다.
+            </p>
+            <div style={{ position: 'relative', marginBottom: 10 }}>
+              <input
+                type="text"
+                placeholder="전화번호 (예: 01012345678)"
+                value={guestSearchPhone}
+                onChange={(e) => setGuestSearchPhone(e.target.value)}
+                style={{ ...OHGO_INPUT, width: '100%' }}
+              />
+            </div>
+            <div style={{ position: 'relative', marginBottom: 12 }}>
+              <input
+                type="text"
+                placeholder="또는 이름 검색"
+                value={guestSearchName}
+                onChange={(e) => setGuestSearchName(e.target.value)}
+                style={{ ...OHGO_INPUT, width: '100%' }}
+              />
+            </div>
+            <button
+              type="button"
+              className="btn w-100"
+              onClick={() => void searchGuests()}
+              disabled={guestSearchLoading || guestMergeLoading}
+              style={{ ...OHGO_PRIMARY_BTN, marginBottom: guestResults.length ? 12 : 0 }}
+            >
+              {guestSearchLoading ? '검색 중...' : '게스트 검색'}
+            </button>
+            {guestResults.map((guest) => (
+              <div
+                key={guest.id}
+                className="d-flex align-items-center justify-content-between gap-2"
+                style={{
+                  padding: '10px 0',
+                  borderTop: '1px solid #F7F8FA',
+                }}
+              >
+                <div className="min-w-0">
+                  <div style={{ fontSize: 14, fontWeight: 600, fontFamily: OHGO_FONT }}>{guest.name}</div>
+                  <div style={{ fontSize: 11, color: '#6F767E', fontFamily: OHGO_FONT }}>
+                    {guest.dob}
+                    {guest.phone ? ` · ${guest.phone}` : ''}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={guestMergeLoading}
+                  onClick={() => void mergeGuest(guest.id, guest.name, guest.phone)}
+                  style={{
+                    backgroundColor: '#EBF1FE',
+                    color: '#1B6FF5',
+                    borderRadius: 10,
+                    fontWeight: 600,
+                    fontFamily: OHGO_FONT,
+                    flexShrink: 0,
+                  }}
+                >
+                  연결
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {legacyUuid && (
+          <div className="mb-3" style={{ ...OHGO_CARD, padding: 14 }}>
+            <span style={{ ...DETAIL_LABEL, display: 'block', marginBottom: 4 }}>연결된 게스트 UUID</span>
+            <span
+              style={{
+                fontSize: 12,
+                fontFamily: 'ui-monospace, monospace',
+                wordBreak: 'break-all',
+                color: '#1A1D1F',
+              }}
+            >
+              {legacyUuid}
+            </span>
+          </div>
+        )}
 
         <button
           type="button"

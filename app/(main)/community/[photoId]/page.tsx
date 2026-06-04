@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Timestamp } from 'firebase/firestore';
 import { getUser } from '@/lib/storage';
 import { getPhoto, addComment, getComments, updateCommentPoints, deleteComment, CommunityPhoto, Comment } from '@/utils/community-service';
 import { awardCommentPoints, getRemainingPoints, getPointRules as getPointRulesAsync, getCommunityPoints, deductCommentPoints } from '@/utils/community-point-service';
@@ -222,9 +221,9 @@ function PhotoDetailContent() {
     }
   };
 
-  const formatDate = (date: Date | Timestamp | undefined): string => {
+  const formatDate = (date: Date | string | undefined): string => {
     if (!date) return '';
-    const d = date instanceof Date ? date : date.toDate();
+    const d = typeof date === 'string' ? new Date(date) : date;
     return new Intl.DateTimeFormat('ko-KR', {
       year: 'numeric',
       month: 'long',

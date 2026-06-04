@@ -41,7 +41,7 @@ export class GameLoader {
         config.asset_base_path = `/${gamePath}`;
       }
 
-      // Firestore에서 게임 정보와 에셋 URL 가져오기
+      // DB에 저장된 에셋 URL이 있으면 config에 주입 (레거시 호환)
       try {
         const { getGame } = await import('./game-service');
         const gameData = await getGame(gameId);
@@ -94,11 +94,11 @@ export class GameLoader {
           }
         }
       } catch (error) {
-        console.warn('Failed to load asset URLs from Firestore:', error);
+        console.warn('Failed to load asset URLs from game service:', error);
         // 에러가 발생해도 게임은 계속 진행
       }
 
-      // Firestore 미사용 시 플래피 버드 기본 로컬 에셋 경로 보장
+      // DB 미사용 시 플래피 버드 기본 로컬 에셋 경로 보장
       if (gameId === 'flappy_bird') {
         const base = config.game_path || `/${gamePath}`;
         const assetMap: Record<string, string> = {

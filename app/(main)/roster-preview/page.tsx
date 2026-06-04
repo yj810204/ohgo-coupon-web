@@ -3,9 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { IoCloseOutline, IoDownloadOutline, IoCheckmarkCircleOutline } from 'react-icons/io5';
-import { doc, getDoc, updateDoc, setDoc, deleteField } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '@/lib/firebase';
+import { confirmTripDeparture, isTripConfirmed } from '@/utils/roster-service';
 
 function RosterPreviewContent() {
   const router = useRouter();
@@ -39,16 +37,8 @@ function RosterPreviewContent() {
       try {
         const dateStr = date as string;
         const tripNum = parseInt(tripNumber as string, 10);
-        const tripKey = `trip${tripNum}` as `trip${number}`;
-
-        const tripsDocRef = doc(db, 'trips', dateStr);
-        const tripsDocSnap = await getDoc(tripsDocRef);
-
-        if (tripsDocSnap.exists()) {
-          const data = tripsDocSnap.data();
-          if (data[tripKey] && data[tripKey].confirmed === true) {
-            setIsConfirmed(true);
-          }
+        if (await isTripConfirmed(dateStr, tripNum)) {
+          setIsConfirmed(true);
         }
       } catch (error) {
         console.error('Error checking confirmation status:', error);
@@ -149,76 +139,15 @@ function RosterPreviewContent() {
     try {
       setSavingImage(true);
 
-      // Upload image to Firebase Storage
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      const dateStr = date as string;
+      const tripNum = parseInt(tripNumber as string, 10);
+
       try {
-        const response = await fetch(imageUri);
-        const blob = await response.blob();
-
-        const dateStr = date as string;
-        const tripNum = parseInt(tripNumber as string, 10);
-        const imagePath = `rosters/${dateStr}/trip${tripNum}.jpg`;
-        const storageRef = ref(storage, imagePath);
-
-        await uploadBytes(storageRef, blob);
-        const downloadURL = await getDownloadURL(storageRef);
-        console.log('Image uploaded to Firebase Storage successfully:', downloadURL);
-
-        // Store confirmation in Firestore
-        const tripsDocRef = doc(db, 'trips', dateStr);
-        const tripsDocSnap = await getDoc(tripsDocRef);
-        const tripKey = `trip${tripNum}` as `trip${number}`;
-
-        interface TripData {
-          confirmed: boolean;
-          confirmedAt: string;
-          rosterImagePath?: string;
-          rosterImageUrl?: string;
-        }
-
-        interface TripsDocData {
-          [key: `trip${number}`]: TripData;
-        }
-
-        if (tripsDocSnap.exists()) {
-          const updatedData: Partial<TripsDocData> = {
-            [tripKey]: {
-              confirmed: true,
-              confirmedAt: new Date().toISOString(),
-              rosterImagePath: imagePath,
-              rosterImageUrl: downloadURL
-            }
-          };
-          await updateDoc(tripsDocRef, updatedData);
-        } else {
-          const newData: TripsDocData = {
-            [tripKey]: {
-              confirmed: true,
-              confirmedAt: new Date().toISOString(),
-              rosterImagePath: imagePath,
-              rosterImageUrl: downloadURL
-            }
-          };
-          await setDoc(tripsDocRef, newData);
-        }
+        await confirmTripDeparture(dateStr, tripNum, blob);
       } catch (error) {
-        console.error('Error uploading image to Firebase Storage:', error);
-        // Continue with confirmation even if image upload fails
-      }
-
-      // Delete members field from attendance document
-      try {
-        const dateStr = date as string;
-        const attendanceRef = doc(db, 'attendance', dateStr);
-        const attendanceSnap = await getDoc(attendanceRef);
-
-        if (attendanceSnap.exists()) {
-          await updateDoc(attendanceRef, {
-            members: deleteField()
-          });
-          console.log('Members field deleted from attendance document for date:', dateStr);
-        }
-      } catch (error) {
-        console.error('Error deleting members field from attendance document:', error);
+        console.error('Error uploading roster image:', error);
       }
 
       alert('출항이 확정되었습니다. 승선명부 이미지가 서버에 저장되었습니다.');

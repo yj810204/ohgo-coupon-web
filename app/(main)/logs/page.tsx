@@ -3,8 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
-import { collection, getDocs, query, orderBy, deleteDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getUserActionLogs, clearUserActionLogs } from '@/utils/user-action-log-service';
 import SubPageFrame from '@/components/SubPageFrame';
 import SubPageActionBar from '@/components/SubPageActionBar';
 import EmptyState from '@/components/EmptyState';
@@ -13,26 +12,15 @@ import { IoListOutline } from 'react-icons/io5';
 import { OHGO_CARD, OHGO_FONT, OhgoPageLoading } from '@/lib/page-styles';
 
 function LogsPageContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const uuid = searchParams.get('uuid') || '';
   const name = searchParams.get('name') || '';
 
-  const [logs, setLogs] = useState<any[]>([]);
+  const [logs, setLogs] = useState<Awaited<ReturnType<typeof getUserActionLogs>>>([]);
 
   const loadLogs = async () => {
-    const logRef = collection(db, `users/${uuid}/logs`);
-    const q = query(logRef, orderBy('timestamp', 'desc'));
-    const snap = await getDocs(q);
-    const items = snap.docs.map(doc => {
-      const { action, detail, timestamp } = doc.data();
-      return {
-        id: doc.id,
-        action,
-        detail,
-        timestamp: timestamp?.toDate?.() || new Date(),
-      };
-    });
+    if (!uuid) return;
+    const items = await getUserActionLogs(uuid);
     setLogs(items);
   };
 
@@ -47,12 +35,9 @@ function LogsPageContent() {
   const clearLogs = async () => {
     if (!confirm('정말로 이 회원의 모든 로그를 삭제하시겠습니까?')) return;
     try {
-      const logRef = collection(db, `users/${uuid}/logs`);
-      const snap = await getDocs(logRef);
-      const batchDeletes = snap.docs.map(docSnap => deleteDoc(docSnap.ref));
-      await Promise.all(batchDeletes);
+      await clearUserActionLogs(uuid);
       setLogs([]);
-    } catch (e) {
+    } catch {
       alert('삭제 실패: 삭제 중 오류가 발생했습니다.');
     }
   };
@@ -107,4 +92,3 @@ export default function LogsPage() {
     </Suspense>
   );
 }
-

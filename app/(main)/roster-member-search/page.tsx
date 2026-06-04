@@ -2,11 +2,14 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import {
+  searchMembersByName,
+  addMemberToDailyRoster,
+  createGuestMember,
+  guestMemberExists,
+} from '@/utils/roster-service';
 import { getUser } from '@/lib/storage';
-import { v5 as uuidv5 } from 'uuid';
-import { UUID_NAMESPACE } from '@/lib/firebase-auth';
+import { computeLegacyUuid } from '@/lib/legacy-uuid';
 import { IoSearchOutline, IoAddOutline, IoArrowBackOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import { OhgoPageLoading } from '@/lib/page-styles';
@@ -50,34 +53,8 @@ function RosterMemberSearchContent() {
 
     setIsLoading(true);
     try {
-      const usersRef = collection(db, 'users');
-      const snapshot = await getDocs(usersRef);
-      
-      const searchTextLower = searchText.toLowerCase();
-      const filteredUsers: UserData[] = snapshot.docs
-        .map(doc => ({
-          id: doc.id,
-          uuid: doc.data().uuid || doc.id,
-          ...doc.data()
-        } as UserData))
-        .filter(user => 
-          user.name && user.name.toLowerCase().includes(searchTextLower)
-        );
-      
-      const usersWithDetails = await Promise.all(
-        filteredUsers.map(async (user) => {
-          const boardingInfoRef = doc(db, 'users', user.uuid, 'boarding', 'info');
-          const boardingInfoSnap = await getDoc(boardingInfoRef);
-          const hasBoarding = boardingInfoSnap.exists();
-          
-          return {
-            ...user,
-            hasBoarding
-          };
-        })
-      );
-      
-      setSearchResults(usersWithDetails);
+      const results = await searchMembersByName(searchText);
+      setSearchResults(results);
     } catch (error) {
       console.error('Error searching members:', error);
       alert('회원 검색 중 오류가 발생했습니다.');
@@ -118,31 +95,16 @@ function RosterMemberSearchContent() {
 
     setIsLoading(true);
     try {
-      const attendanceRef = doc(db, 'attendance', String(date));
-      const attendanceSnap = await getDoc(attendanceRef);
+      const added = await addMemberToDailyRoster(
+        String(date),
+        member.uuid,
+        parseInt(tripNumber) || 1
+      );
 
-      let memberIds: string[] = attendanceSnap.exists() && attendanceSnap.data().members
-        ? attendanceSnap.data().members
-        : [];
-
-      if (memberIds.includes(member.uuid)) {
+      if (!added) {
         alert(`${member.name}님은 이미 명부에 추가되어 있습니다.`);
         setIsLoading(false);
         return;
-      }
-
-      memberIds.push(member.uuid);
-
-      if (attendanceSnap.exists()) {
-        await updateDoc(attendanceRef, {
-          members: memberIds,
-          tripNumber: parseInt(tripNumber) || 1
-        });
-      } else {
-        await setDoc(attendanceRef, {
-          members: memberIds,
-          tripNumber: parseInt(tripNumber) || 1
-        });
       }
 
       alert(`${member.name}님이 명부에 추가되었습니다.`);
@@ -190,59 +152,25 @@ function RosterMemberSearchContent() {
     try {
       // Generate UUID for new member (using name-dob combination, same as login logic)
       const normalizedDob = newMemberDob.length === 8 ? newMemberDob : newMemberDob;
-      const memberUuid = uuidv5(`${newMemberName}-${normalizedDob}`, UUID_NAMESPACE);
+      const memberUuid = computeLegacyUuid(newMemberName, normalizedDob);
 
-      // Check if user already exists by UUID
-      const userRef = doc(db, 'users', memberUuid);
-      const userSnap = await getDoc(userRef);
-
-      if (userSnap.exists()) {
+      if (await guestMemberExists(memberUuid)) {
         alert('이미 존재하는 회원입니다. 기존 회원을 검색해주세요.');
         setIsSubmitting(false);
         return;
       }
 
-      // Create user document with UUID
-      await setDoc(userRef, {
+      await createGuestMember({
         uuid: memberUuid,
         name: newMemberName,
         dob: newMemberDob,
         phone: newMemberPhone,
-        createdAt: new Date().toISOString()
-      });
-
-      // Create boarding info
-      const boardingInfoRef = doc(db, 'users', memberUuid, 'boarding', 'info');
-      await setDoc(boardingInfoRef, {
-        name: newMemberName,
-        birth: newMemberDob,
         gender: newMemberGender,
-        phone: newMemberPhone,
         emergency: newMemberEmergency,
-        address: newMemberAddress
+        address: newMemberAddress,
       });
 
-      // Add to roster
-      const attendanceRef = doc(db, 'attendance', String(date));
-      const attendanceSnap = await getDoc(attendanceRef);
-
-      let memberIds: string[] = attendanceSnap.exists() && attendanceSnap.data().members
-        ? attendanceSnap.data().members
-        : [];
-
-      memberIds.push(memberUuid);
-
-      if (attendanceSnap.exists()) {
-        await updateDoc(attendanceRef, {
-          members: memberIds,
-          tripNumber: parseInt(tripNumber || '1')
-        });
-      } else {
-        await setDoc(attendanceRef, {
-          members: memberIds,
-          tripNumber: parseInt(tripNumber || '1')
-        });
-      }
+      await addMemberToDailyRoster(String(date), memberUuid, parseInt(tripNumber || '1'));
 
       alert(`${newMemberName}님이 등록되고 명부에 추가되었습니다.`);
       router.push(`/roster-list?date=${date}&dateDisplay=${encodeURIComponent(dateDisplay || '')}&tripNumber=${tripNumber}`);

@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { getUser } from '@/lib/storage';
-import { getUserByUUID } from '@/lib/firebase-auth';
+import { resolveAppUser } from '@/lib/auth-session';
 import {
   TripGuide,
   TripGuideInput,
@@ -168,10 +167,9 @@ export default function AdminTripGuidePage() {
 
   useEffect(() => {
     const checkAdmin = async () => {
-      const user = await getUser();
-      if (!user?.uuid) { router.replace('/login'); return; }
-      const remote = await getUserByUUID(user.uuid);
-      if (!remote?.isAdmin) { router.replace('/main'); return; }
+      const appUser = await resolveAppUser();
+      if (!appUser) { router.replace('/login'); return; }
+      if (!appUser.isAdmin) { router.replace('/main'); return; }
       loadTrips();
     };
     checkAdmin();

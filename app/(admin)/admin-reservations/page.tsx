@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getUser } from '@/lib/storage';
-import { getUserByUUID } from '@/lib/firebase-auth';
+import { resolveAppUser } from '@/lib/auth-session';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
@@ -74,13 +73,12 @@ export default function AdminReservationsPage() {
 
   useEffect(() => {
     const check = async () => {
-      const user = await getUser();
-      if (!user?.uuid) {
+      const appUser = await resolveAppUser();
+      if (!appUser) {
         router.replace('/login');
         return;
       }
-      const remote = await getUserByUUID(user.uuid);
-      if (!remote?.isAdmin) {
+      if (!appUser.isAdmin) {
         router.replace('/main');
         return;
       }

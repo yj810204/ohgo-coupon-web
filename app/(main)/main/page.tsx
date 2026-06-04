@@ -2,7 +2,7 @@
 
 import { useEffect, useCallback, useState } from 'react';
 import { getUser } from '@/lib/storage';
-import { getUserByUUID } from '@/lib/firebase-auth';
+import { resolveAppUser, getHomePathForUser } from '@/lib/auth-session';
 import { getStamps, getCouponCount } from '@/utils/stamp-service';
 import { getPhotos, type CommunityPhoto } from '@/utils/community-service';
 import { getActiveGames, type Game } from '@/lib/game-service';
@@ -54,33 +54,31 @@ export default function MainPage() {
   const handleRefresh = useCallback(async () => {
     setLoading(true);
     try {
-      const localUser = await getUser();
-      if (!localUser?.uuid) {
+      const appUser = await resolveAppUser();
+      if (!appUser) {
         navigateReplace('/login');
         return;
       }
 
-      // 로컬 유저로 즉시 화면 표시 (Firestore 응답 대기 안 함)
+      if (appUser.needsProfileSetup) {
+        navigateReplace('/profile-setup');
+        return;
+      }
+
+      if (appUser.isAdmin || appUser.isCaptain) {
+        navigateReplace('/admin-main');
+        return;
+      }
+
+      const localUser = {
+        uuid: appUser.uuid,
+        name: appUser.name,
+        dob: appUser.dob,
+      };
       setUser(localUser);
       setLoading(false);
 
-      // 백그라운드에서 원격 유저 검증 및 데이터 로딩
-      void (async () => {
-        try {
-          const remoteUser = await getUserByUUID(localUser.uuid!);
-          if (!remoteUser) {
-            navigateReplace('/login');
-            return;
-          }
-          if (remoteUser.isAdmin) {
-            navigateReplace('/admin-main');
-            return;
-          }
-        } catch (err) {
-          console.warn('Remote user check failed:', err);
-        }
-        void loadRemoteData(localUser.uuid!);
-      })();
+      void loadRemoteData(appUser.uuid);
     } catch (error) {
       console.error('handleRefresh error:', error);
       setLoading(false);
@@ -108,12 +106,7 @@ export default function MainPage() {
 
   const photoDate = (photo: CommunityPhoto) => {
     const raw = photo.uploadedAt;
-    const d =
-      raw instanceof Date
-        ? raw
-        : raw && typeof (raw as { toDate?: () => Date }).toDate === 'function'
-          ? (raw as { toDate: () => Date }).toDate()
-          : new Date(String(raw));
+    const d = raw instanceof Date ? raw : new Date(String(raw));
     try {
       return format(d, 'MM.dd');
     } catch {

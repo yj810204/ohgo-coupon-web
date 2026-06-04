@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
-import { Timestamp } from 'firebase/firestore';
 import { getUser } from '@/lib/storage';
 import { getPhotos, CommunityPhoto } from '@/utils/community-service';
 import { IoChatbubblesOutline, IoImageOutline, IoAddOutline } from 'react-icons/io5';
@@ -37,12 +36,9 @@ function PhotosPageContent() {
     } finally { setLoading(false); }
   };
 
-  const formatDate = (date: Date | Timestamp | string | undefined): string => {
+  const formatDate = (date: Date | string | undefined): string => {
     if (!date) return '';
-    let d: Date;
-    if (date instanceof Timestamp) d = date.toDate();
-    else if (typeof date === 'string') d = new Date(date);
-    else d = date;
+    const d = typeof date === 'string' ? new Date(date) : date;
     return new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric' }).format(d);
   };
 

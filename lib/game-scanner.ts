@@ -1,6 +1,6 @@
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { db } from './firebase';
-import { Game } from './game-service';
+import { createAdminClient } from './supabase/admin';
+import { syncGameThumbnailFromLocal } from './game-thumbnail';
+import type { Game } from './game-service.shared';
 
 export interface ScanResult {
   registered: number;
@@ -8,74 +8,139 @@ export interface ScanResult {
   errors: string[];
 }
 
-/**
- * 게임 정보를 Firebase에 저장
- */
-async function registerGame(config: any, gameId: string, gamePath: string): Promise<void> {
-  const gameRef = doc(db, 'games', gameId);
-  
-  const gameData: Omit<Game, 'game_id'> = {
-    game_name: config.game_name || gameId,
-    game_type: config.game_type || 'puzzle',
-    game_description: config.game_description || config.description || '',
+const SKIP_DIRS = new Set(['shared', 'node_modules', '.', '..']);
+
+function buildGamePayload(
+  config: Record<string, unknown>,
+  gameId: string,
+  gamePath: string,
+  existing?: Partial<Game>,
+): Record<string, unknown> {
+  return {
+    game_name: (config.game_name as string) || gameId,
+    game_type: (config.game_type as string) || 'puzzle',
+    game_description:
+      (config.game_description as string) ||
+      (config.description as string) ||
+      '',
     game_path: gamePath,
-    thumbnail_path: config.thumbnail_path || `${gamePath}/thumbnail.png`,
+    config_data: existing?.config_data || JSON.stringify(config),
+    point_rate: existing?.point_rate ?? (config.point_rate as number) ?? 100,
+    is_active: existing?.is_active ?? true,
+  };
+}
+
+async function syncThumbnailAfterSave(
+  publicRoot: string,
+  gameId: string,
+  config: Record<string, unknown>,
+  existing?: { thumbnail_url?: string | null; thumbnail_path?: string | null },
+): Promise<void> {
+  const admin = createAdminClient();
+  const result = await syncGameThumbnailFromLocal({
+    admin,
+    publicRoot,
+    gameId,
+    config,
+    existing,
+    preserveExistingUrl: true,
+  });
+
+  if (!result.synced && !result.thumbnail_url) {
+    if (existing?.thumbnail_path && !existing?.thumbnail_url) {
+      const { error } = await admin
+        .from('games')
+        .update({ thumbnail_path: null, updated_at: new Date().toISOString() })
+        .eq('id', gameId);
+      if (error) throw error;
+    }
+    return;
+  }
+
+  const patch: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (result.thumbnail_path) patch.thumbnail_path = result.thumbnail_path;
+  if (result.thumbnail_url) patch.thumbnail_url = result.thumbnail_url;
+
+  const { error } = await admin.from('games').update(patch).eq('id', gameId);
+  if (error) throw error;
+}
+
+async function getGameSupabase(gameId: string) {
+  const admin = createAdminClient();
+  const { data, error } = await admin.from('games').select('*').eq('id', gameId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function registerGame(
+  config: Record<string, unknown>,
+  gameId: string,
+  gamePath: string,
+  displayOrder: number,
+  publicRoot: string,
+): Promise<void> {
+  const admin = createAdminClient();
+  const payload = buildGamePayload(config, gameId, gamePath);
+  const { error } = await admin.from('games').insert({
+    id: gameId,
+    ...payload,
+    display_order: displayOrder,
     is_active: true,
-    display_order: 0,
-    config_data: JSON.stringify(config),
-    point_rate: config.point_rate ?? 100, // 기본값: 100% (점수 그대로)
-    regdate: new Date(),
-    last_update: new Date(),
-  };
+  });
+  if (error) throw error;
 
-  await setDoc(gameRef, gameData);
+  await syncThumbnailAfterSave(publicRoot, gameId, config);
 }
 
-/**
- * 기존 게임 정보 업데이트
- */
-async function updateGame(config: any, gameId: string, gamePath: string): Promise<void> {
-  const gameRef = doc(db, 'games', gameId);
-  
-  // 기존 데이터 가져오기
-  const gameSnap = await getDoc(gameRef);
-  const existingData = gameSnap.data();
-  
-  const updateData: Partial<Game> = {
-    game_name: config.game_name || gameId,
-    game_type: config.game_type || 'puzzle',
-    game_description: config.game_description || config.description || '',
-    game_path: gamePath,
-    // 썸네일은 기존 것이 있으면 유지, 없으면 기본값 사용
-    thumbnail_path: existingData?.thumbnail_path || config.thumbnail_path || `${gamePath}/thumbnail.png`,
-    // config_data는 기존 것이 있으면 유지, 없으면 새로 설정
-    config_data: existingData?.config_data || JSON.stringify(config),
-    // point_rate는 기존 것이 있으면 유지, 없으면 기본값 사용
-    point_rate: existingData?.point_rate ?? config.point_rate ?? 100,
-    // asset_urls는 기존 것이 있으면 유지
-    asset_urls: existingData?.asset_urls || undefined,
-    last_update: new Date(),
-  };
+async function updateGame(
+  config: Record<string, unknown>,
+  gameId: string,
+  gamePath: string,
+  displayOrder: number | undefined,
+  publicRoot: string,
+): Promise<void> {
+  const admin = createAdminClient();
+  const existing = await getGameSupabase(gameId);
 
-  await setDoc(gameRef, updateData, { merge: true });
+  const payload = buildGamePayload(config, gameId, gamePath, existing ? {
+    config_data: existing.config_data ?? undefined,
+    point_rate: existing.point_rate ?? undefined,
+    is_active: existing.is_active ?? undefined,
+  } : undefined);
+
+  const { error } = await admin
+    .from('games')
+    .update({
+      ...payload,
+      asset_urls: existing?.asset_urls ?? null,
+      display_order: existing?.display_order ?? displayOrder ?? 0,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', gameId);
+  if (error) throw error;
+
+  await syncThumbnailAfterSave(publicRoot, gameId, config, existing ? {
+    thumbnail_url: existing.thumbnail_url,
+    thumbnail_path: existing.thumbnail_path,
+  } : undefined);
 }
 
-/**
- * public/games/ 폴더 스캔 (클라이언트 사이드에서는 사용 불가, API에서만 사용)
- * 이 함수는 서버 사이드에서만 동작합니다.
- */
+/** public/games/ 폴더 스캔 (서버 전용) */
 export async function scanGamesFolder(gamesPath: string): Promise<ScanResult> {
   const fs = await import('fs/promises');
   const path = await import('path');
-  
+
   const result: ScanResult = {
     registered: 0,
     updated: 0,
     errors: [],
   };
 
+  const publicRoot = path.join(gamesPath, '..');
+
   try {
-    // games 폴더 존재 확인
     try {
       await fs.access(gamesPath);
     } catch {
@@ -83,12 +148,11 @@ export async function scanGamesFolder(gamesPath: string): Promise<ScanResult> {
       return result;
     }
 
-    // 폴더 목록 읽기
     const entries = await fs.readdir(gamesPath, { withFileTypes: true });
     let displayOrder = 1;
 
     for (const entry of entries) {
-      if (!entry.isDirectory() || entry.name === '.' || entry.name === '..') {
+      if (!entry.isDirectory() || SKIP_DIRS.has(entry.name)) {
         continue;
       }
 
@@ -96,7 +160,6 @@ export async function scanGamesFolder(gamesPath: string): Promise<ScanResult> {
       const configFile = path.join(gameFolder, 'config.json');
 
       try {
-        // config.json 파일 확인
         await fs.access(configFile);
       } catch {
         result.errors.push(`${entry.name}: config.json 파일이 없습니다.`);
@@ -104,46 +167,31 @@ export async function scanGamesFolder(gamesPath: string): Promise<ScanResult> {
       }
 
       try {
-        // config.json 읽기 및 파싱
         const configContent = await fs.readFile(configFile, 'utf-8');
-        const config = JSON.parse(configContent);
+        const config = JSON.parse(configContent) as Record<string, unknown>;
 
-        // game_id는 폴더명 또는 config.json의 game_id 사용
-        const gameId = config.game_id || entry.name;
+        const gameId = (config.game_id as string) || entry.name;
         const gamePath = `games/${gameId}`;
+        const existing = await getGameSupabase(gameId);
 
-        // 기존 게임 확인
-        const gameRef = doc(db, 'games', gameId);
-        const gameSnap = await getDoc(gameRef);
-
-        if (gameSnap.exists()) {
-          // 기존 게임 업데이트
-          await updateGame(config, gameId, gamePath);
-          
-          // display_order 유지
-          const existingData = gameSnap.data();
-          if (existingData.display_order === undefined) {
-            await setDoc(gameRef, { display_order: displayOrder++ }, { merge: true });
-          }
-          
+        if (existing) {
+          await updateGame(config, gameId, gamePath, displayOrder, publicRoot);
           result.updated++;
         } else {
-          // 신규 게임 등록
-          await registerGame(config, gameId, gamePath);
-          
-          // display_order 설정
-          await setDoc(gameRef, { display_order: displayOrder++ }, { merge: true });
-          
+          await registerGame(config, gameId, gamePath, displayOrder, publicRoot);
           result.registered++;
         }
-      } catch (error: any) {
-        result.errors.push(`${entry.name}: ${error.message || '알 수 없는 오류'}`);
+
+        displayOrder++;
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : '알 수 없는 오류';
+        result.errors.push(`${entry.name}: ${message}`);
       }
     }
-  } catch (error: any) {
-    result.errors.push(`스캔 중 오류 발생: ${error.message || '알 수 없는 오류'}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : '알 수 없는 오류';
+    result.errors.push(`스캔 중 오류 발생: ${message}`);
   }
 
   return result;
 }
-

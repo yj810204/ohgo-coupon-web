@@ -2,8 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getUser } from '@/lib/storage';
-import { getUserByUUID } from '@/lib/firebase-auth';
+import { resolveAppUser } from '@/lib/auth-session';
 import { getPhotos, uploadPhoto, deletePhoto, updatePhoto, CommunityPhoto } from '@/utils/community-service';
 import { 
   getTemplates, 
@@ -258,19 +257,18 @@ function AdminPhotosContent() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const u = await getUser();
-      if (!u?.uuid) {
+      const appUser = await resolveAppUser();
+      if (!appUser) {
         router.replace('/login');
         return;
       }
 
-      const remoteUser = await getUserByUUID(u.uuid);
-      if (!remoteUser?.isAdmin) {
+      if (!appUser.isAdmin) {
         router.replace('/main');
         return;
       }
 
-      setUser({ uuid: u.uuid, name: u.name || remoteUser.name || '관리자' });
+      setUser({ uuid: appUser.uuid, name: appUser.name || '관리자' });
       await Promise.all([loadPhotos(), loadTemplates(), loadActiveTemplate()]);
     };
     checkAuth();

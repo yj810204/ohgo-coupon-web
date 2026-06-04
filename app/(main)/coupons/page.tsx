@@ -2,11 +2,15 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { collection, getDocs, doc, deleteDoc, updateDoc, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { getUser } from '@/lib/storage';
 import { sendPushToUser } from '@/utils/send-push';
-import { useCouponById as useCouponByIdFunc } from '@/utils/stamp-service';
+import {
+  getCoupons,
+  revokeCoupon,
+  useCouponById as useCouponByIdFunc,
+  type CouponItem,
+} from '@/utils/stamp-service';
+import { verifyUseCouponPassword } from '@/utils/use-coupon-password';
 import { IoGiftOutline, IoCheckmarkCircleOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal, { OhgoModalButton, OhgoModalField } from '@/components/OhgoModal';
@@ -15,22 +19,12 @@ import EmptyState from '@/components/EmptyState';
 const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
 const CARD: React.CSSProperties = { backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: 'none' };
 
-export async function checkPasswordFromFirestore(input: string): Promise<boolean> {
-  const { doc, getDoc } = await import('firebase/firestore');
-  const ref = doc(db, 'config', 'password');
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return false;
-  const data = snap.data();
-  if (data.type !== 'useCoupon') return false;
-  return input === data.value;
-}
-
 function CouponsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [coupons, setCoupons] = useState<any[]>([]);
+  const [coupons, setCoupons] = useState<CouponItem[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedCoupon, setSelectedCoupon] = useState<any>(null);
+  const [selectedCoupon, setSelectedCoupon] = useState<CouponItem | null>(null);
   const [password, setPassword] = useState('');
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
   const [user, setUser] = useState<{ uuid?: string; name?: string; dob?: string } | null>(null);
@@ -54,9 +48,7 @@ function CouponsPageContent() {
 
   const fetchCoupons = async () => {
     if (!user?.uuid) return;
-    const ref = collection(db, `users/${user.uuid}/coupons`);
-    const snapshot = await getDocs(ref);
-    let list: any[] = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    let list = await getCoupons(user.uuid);
     if (!fromAdmin) list = list.filter(c => !c.deleted);
     setCoupons(list);
   };
@@ -66,7 +58,7 @@ function CouponsPageContent() {
   const handleRevoke = async () => {
     if (!user?.uuid || !selectedCoupon) return;
     try {
-      await deleteDoc(doc(db, `users/${user.uuid}/coupons`, selectedCoupon.id));
+      await revokeCoupon(user.uuid, selectedCoupon.id);
       await fetchCoupons();
       await sendPushToUser({ uuid: user.uuid, title: '쿠폰 회수 알림', body: '선택한 쿠폰이 관리자에 의해 회수되었습니다.', data: { screen: 'coupons', uuid: user.uuid } });
     } catch { alert('회수 중 문제가 발생했습니다.'); }
@@ -77,7 +69,8 @@ function CouponsPageContent() {
     if (!selectedCoupon) return;
     const msgs: string[] = [];
     const issuedAt = selectedCoupon?.issuedAt;
-    const isTodayIssued = (issuedAt instanceof Timestamp && issuedAt.toDate().toDateString() === new Date().toDateString()) || (typeof issuedAt === 'string' && issuedAt === new Date().toISOString().split('T')[0]);
+    const isTodayIssued =
+      typeof issuedAt === 'string' && issuedAt === new Date().toISOString().split('T')[0];
     if (isTodayIssued) msgs.push('- 금일 생성된 쿠폰입니다.');
     if (selectedCoupon?.isHalf === 'Y') msgs.push('- 50% 쿠폰입니다.');
     if (msgs.length > 0 && !confirm(msgs.join('\n') + '\n\n그래도 사용하시겠습니까?')) return;
@@ -87,7 +80,7 @@ function CouponsPageContent() {
 
   const handlePasswordSubmit = async () => {
     if (!user?.uuid || !selectedCoupon) return;
-    const isValid = await checkPasswordFromFirestore(password);
+    const isValid = await verifyUseCouponPassword(password);
     if (!isValid) { alert('비밀번호가 올바르지 않습니다.'); return; }
     try {
       await useCouponByIdFunc(user.uuid, selectedCoupon.id);

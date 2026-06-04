@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getUser } from '@/lib/storage';
-import { getUserByUUID } from '@/lib/firebase-auth';
+import { resolveAppUser } from '@/lib/auth-session';
 import type { PointMallProduct } from '@/constants/point-mall';
 import { formatPointPrice, getProductPrimaryImageUrl } from '@/constants/point-mall';
 import {
@@ -34,13 +33,12 @@ export default function AdminPointMallPage() {
 
   useEffect(() => {
     const checkAdmin = async () => {
-      const user = await getUser();
-      if (!user?.uuid) {
+      const appUser = await resolveAppUser();
+      if (!appUser) {
         router.replace('/login');
         return;
       }
-      const remote = await getUserByUUID(user.uuid);
-      if (!remote?.isAdmin) {
+      if (!appUser.isAdmin) {
         router.replace('/main');
         return;
       }

@@ -1,40 +1,45 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
-import { collection, getDocs, deleteDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { getStampHistory } from '@/utils/stamp-service';
+import { getStampHistory, clearStampHistory } from '@/utils/stamp-service';
 import SubPageFrame from '@/components/SubPageFrame';
 import SubPageActionBar from '@/components/SubPageActionBar';
 import EmptyState from '@/components/EmptyState';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import { IoTimeOutline } from 'react-icons/io5';
-import { OHGO_CARD, OHGO_FONT, OHGO_INPUT, OHGO_SECONDARY_BTN, OhgoPageLoading } from '@/lib/page-styles';
+import { OHGO_CARD, OHGO_FONT, OHGO_SECONDARY_BTN, OhgoPageLoading } from '@/lib/page-styles';
 
 type StampHistoryItem = {
   id: string;
-  action: 'add' | 'recall' | 'remove';
-  method: string;
-  timestamp: any;
-  message: string;
+  action: 'add' | 'recall' | 'remove' | string;
+  method?: string;
+  timestamp: unknown;
+  message?: string;
   date?: string;
-  [key: string]: any;
 };
 
-async function clearStampHistory(uuid: string) {
-  const historyRef = collection(db, `users/${uuid}/stampHistory`);
-  const snap = await getDocs(historyRef);
-  const batchDeletes = snap.docs.map(docSnap => deleteDoc(docSnap.ref));
-  await Promise.all(batchDeletes);
+function formatHistoryTimestamp(timestamp: unknown): string {
+  if (!timestamp) return '-';
+  if (typeof timestamp === 'string') {
+    const d = new Date(timestamp);
+    return isNaN(d.getTime()) ? '-' : format(d, 'yyyy-MM-dd HH:mm');
+  }
+  if (
+    typeof timestamp === 'object' &&
+    timestamp &&
+    'toDate' in timestamp &&
+    typeof (timestamp as { toDate: () => Date }).toDate === 'function'
+  ) {
+    return format((timestamp as { toDate: () => Date }).toDate(), 'yyyy-MM-dd HH:mm');
+  }
+  return '-';
 }
 
 function StampHistoryPageContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const uuid = searchParams.get('uuid') || '';
-  const name = searchParams.get('name') || '';
 
   const [history, setHistory] = useState<StampHistoryItem[]>([]);
   const [startDate, setStartDate] = useState<Date | undefined>();
@@ -42,12 +47,13 @@ function StampHistoryPageContent() {
   const [action, setAction] = useState<'all' | 'add' | 'recall' | 'remove'>('all');
 
   const fetchHistory = async () => {
-    let result = await getStampHistory({
+    if (!uuid) return;
+    let result = (await getStampHistory({
       uuid,
       startDate,
       endDate,
-    }) as StampHistoryItem[];
-    if (action !== 'all') result = result.filter(x => x.action === action);
+    })) as StampHistoryItem[];
+    if (action !== 'all') result = result.filter((x) => x.action === action);
     setHistory(result);
   };
 
@@ -65,17 +71,17 @@ function StampHistoryPageContent() {
     setHistory([]);
   };
 
-  const getActionLabel = (action: string) => {
-    if (action === 'add') return '적립';
-    if (action === 'remove') return '삭제';
-    if (action === 'recall') return '회수';
-    return action;
+  const getActionLabel = (actionValue: string) => {
+    if (actionValue === 'add') return '적립';
+    if (actionValue === 'remove') return '삭제';
+    if (actionValue === 'recall') return '회수';
+    return actionValue;
   };
 
-  const getActionColor = (action: string) => {
-    if (action === 'add') return 'success';
-    if (action === 'remove') return 'danger';
-    if (action === 'recall') return 'warning';
+  const getActionColor = (actionValue: string) => {
+    if (actionValue === 'add') return 'success';
+    if (actionValue === 'remove') return 'danger';
+    if (actionValue === 'recall') return 'warning';
     return 'secondary';
   };
 
@@ -161,9 +167,7 @@ function StampHistoryPageContent() {
                     {getActionLabel(item.action)}
                   </span>
                   <small className="text-muted">
-                    {item.timestamp?.toDate
-                      ? format(item.timestamp.toDate(), 'yyyy-MM-dd HH:mm')
-                      : '-'}
+                    {formatHistoryTimestamp(item.timestamp)}
                   </small>
                 </div>
                 <p className="mb-1" style={{ fontSize: 14, color: '#1A1D1F', fontFamily: OHGO_FONT }}>{item.message}</p>
@@ -188,4 +192,3 @@ export default function StampHistoryPage() {
     </Suspense>
   );
 }
-

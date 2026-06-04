@@ -2,10 +2,13 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, getDocs, getDoc, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { getUser } from '@/lib/storage';
-import { getUserByUUID } from '@/lib/firebase-auth';
+import { resolveAppUser } from '@/lib/auth-session';
+import {
+  listAdminMembers,
+  listAdminGuests,
+  loadAdminMemberStats,
+  type AdminMember,
+} from '@/utils/admin-member-service';
 import {
   IoChevronDownOutline,
   IoChevronUpOutline,
@@ -16,9 +19,7 @@ import {
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import MemberListAvatar from '@/components/MemberListAvatar';
-import { getMemberProfileImageUrl } from '@/lib/member-profile';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
-import { OHGO_CARD, OHGO_FONT, OHGO_INPUT } from '@/lib/page-styles';
 
 const CARD: React.CSSProperties = { ...OHGO_CARD };
 
@@ -136,23 +137,9 @@ const STORAGE_KEY = 'collapsedSections';
 const MEMBERS_CACHE_KEY = 'cachedMembers';
 const CACHE_EXPIRY_TIME = 1000 * 60 * 30; // 30 minutes
 
-type Member = {
-  id: string;
-  uuid: string;
-  name: string;
-  dob: string;
-  createdAt: string;
-  profileImageUrl?: string;
-  lastStampTime?: { seconds: number };
-  gender?: string | null;
-  tripCount?: number;
-  couponCount?: number;
-  halfCouponCount?: number;
-  fullCouponCount?: number;
-  stampCount?: number;
-  hasMemo?: boolean;
-  hasBoarding?: boolean;
-};
+import { OHGO_CARD, OHGO_FONT, OHGO_INPUT } from '@/lib/page-styles';
+
+type Member = AdminMember;
 
 type Section = {
   title: string;
@@ -179,6 +166,8 @@ export default function AdminPage() {
   const [keyword, setKeyword] = useState('');
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [activeFilter, setActiveFilter] = useState<'all' | 'boarding' | 'coupon' | 'inactive'>('all');
+  const [memberViewMode, setMemberViewMode] = useState<'members' | 'guests'>('members');
+  const [guestMembers, setGuestMembers] = useState<Member[]>([]);
   const [inactivePeriod, setInactivePeriod] = useState<3 | 6 | 12>(6);
   const [filterSectionExpanded, setFilterSectionExpanded] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
@@ -190,14 +179,13 @@ export default function AdminPage() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const user = await getUser();
-      if (!user?.uuid) {
+      const appUser = await resolveAppUser();
+      if (!appUser) {
         router.replace('/login');
         return;
       }
 
-      const remoteUser = await getUserByUUID(user.uuid);
-      if (!remoteUser?.isAdmin) {
+      if (!appUser.isAdmin) {
         router.replace('/main');
         return;
       }
@@ -295,52 +283,31 @@ export default function AdminPage() {
         
         return (async () => {
           try {
-            // 병렬 요청으로 성능 개선
-            const [couponsRef, stampsRef, memoRef, boardingRef, userDoc] = await Promise.all([
-              getDocs(collection(db, `users/${uuid}/coupons`)),
-              getDocs(collection(db, `users/${uuid}/stamps`)),
-              getDocs(collection(db, `users/${uuid}/memo`)),
-              getDocs(collection(db, `users/${uuid}/boarding`)),
-              getDoc(doc(db, 'users', uuid)),
-            ]);
-            
-            const activeCoupons = couponsRef.docs.filter((couponDoc: any) => !couponDoc.data().used);
-            const halfCoupons = activeCoupons.filter((couponDoc: any) => couponDoc.data().isHalf === 'Y');
-            const fullCoupons = activeCoupons.filter((couponDoc: any) => couponDoc.data().isHalf !== 'Y');
-            const halfCouponCount = halfCoupons.length;
-            const fullCouponCount = fullCoupons.length;
-            const hasMemo = memoRef.docs.some((memoDoc: any) => !memoDoc.data().deleted);
-            const boardingInfoDoc = boardingRef.docs.find((boardingDoc: any) => boardingDoc.id === 'info');
-            const hasBoarding = !!boardingInfoDoc;
-            const gender = boardingInfoDoc?.data()?.gender || null;
-            const tripCount = userDoc.exists() ? (userDoc.data().tripCount !== undefined ? userDoc.data().tripCount : 0) : 0;
-            
+            const stats = await loadAdminMemberStats(uuid);
             statsLoadedRef.current.add(uuid);
             loadedCount++;
-            
-            // 진행률 업데이트는 배치 단위로만 (성능 개선)
+
             if (loadedCount % BATCH_SIZE === 0 || loadedCount === totalCount) {
-            setStatsLoadingProgress({ loaded: loadedCount, total: totalCount });
+              setStatsLoadingProgress({ loaded: loadedCount, total: totalCount });
             }
-            
-            setAllMembers(prev => {
-              return prev.map(member => {
-                if (member.uuid === uuid) {
-                  return {
-                    ...member,
-                    couponCount: activeCoupons.length,
-                    halfCouponCount,
-                    fullCouponCount,
-                    stampCount: stampsRef.docs.length,
-                    hasMemo,
-                    hasBoarding,
-                    gender,
-                    tripCount,
-                  };
-                }
-                return member;
-              });
-            });
+
+            setAllMembers((prev) =>
+              prev.map((member) =>
+                member.uuid === uuid
+                  ? {
+                      ...member,
+                      couponCount: stats.couponCount,
+                      halfCouponCount: stats.halfCouponCount,
+                      fullCouponCount: stats.fullCouponCount,
+                      stampCount: stats.stampCount,
+                      hasMemo: stats.hasMemo,
+                      hasBoarding: stats.hasBoarding,
+                      gender: stats.gender,
+                      tripCount: stats.tripCount,
+                    }
+                  : member
+              )
+            );
           } catch (error) {
             console.error(`❗ Error loading stats for ${uuid}:`, error);
             loadedCount++;
@@ -393,27 +360,9 @@ export default function AdminPage() {
     console.log('📥 Loading basic member info...');
     
     // 기본 회원 정보만 먼저 빠르게 로드
-    const snapshot = await getDocs(collection(db, 'users'));
-    const users: Member[] = snapshot.docs.map(docSnap => {
-      const data = docSnap.data();
-      return {
-      id: docSnap.id,
-      uuid: docSnap.id,
-      name: data.name,
-      dob: data.dob,
-      createdAt: data.createdAt,
-      profileImageUrl: getMemberProfileImageUrl(data),
-      lastStampTime: data.lastStampTime,
-      gender: undefined,
-      tripCount: undefined,
-      couponCount: undefined,
-      halfCouponCount: undefined,
-      fullCouponCount: undefined,
-      stampCount: undefined,
-      hasMemo: undefined,
-      hasBoarding: undefined,
-    };
-    });
+    const users = await listAdminMembers();
+    const guests = await listAdminGuests();
+    setGuestMembers(guests);
 
     const todayKST = new Date();
     todayKST.setHours(todayKST.getHours() + 9);
@@ -423,9 +372,9 @@ export default function AdminPage() {
       user.createdAt && toKSTDateStr(user.createdAt) === todayDateStr
     );
 
-    const stampedToday = users.filter(user => {
-      if (!user.lastStampTime?.seconds) return false;
-      const kst = new Date(user.lastStampTime.seconds * 1000);
+    const stampedToday = users.filter((user) => {
+      if (!user.lastStampTimeMs) return false;
+      const kst = new Date(user.lastStampTimeMs);
       kst.setHours(kst.getHours() + 9);
       const stampDate = kst.toISOString().split('T')[0];
       return stampDate === todayDateStr;
@@ -501,9 +450,9 @@ export default function AdminPage() {
       user.createdAt && toKSTDateStr(user.createdAt) === todayDateStr
     );
 
-    const stampedToday = allMembers.filter(user => {
-      if (!user.lastStampTime?.seconds) return false;
-      const kst = new Date(user.lastStampTime.seconds * 1000);
+    const stampedToday = allMembers.filter((user) => {
+      if (!user.lastStampTimeMs) return false;
+      const kst = new Date(user.lastStampTimeMs);
       kst.setHours(kst.getHours() + 9);
       const stampDate = kst.toISOString().split('T')[0];
       return stampDate === todayDateStr;
@@ -536,6 +485,15 @@ export default function AdminPage() {
 
   const handleSearch = (text: string) => {
     setKeyword(text);
+    if (memberViewMode === 'guests') {
+      const filtered = guestMembers.filter((m) =>
+        m.name.toLowerCase().includes(text.toLowerCase()) ||
+        (m.phone ?? '').includes(text) ||
+        m.uuid.includes(text)
+      );
+      setSections(filtered.length ? [{ title: '승선명부 비회원', data: filtered }] : []);
+      return;
+    }
     if (allMembers.length === 0) {
       setSections([]);
       return;
@@ -556,9 +514,9 @@ export default function AdminPage() {
     } else if (activeFilter === 'inactive') {
       const today = new Date();
       const inactiveDays = getDaysFromMonths(inactivePeriod);
-      filtered = filtered.filter(member => {
-        if (!member.lastStampTime?.seconds) return true;
-        const lastStampDate = new Date(member.lastStampTime.seconds * 1000);
+      filtered = filtered.filter((member) => {
+        if (!member.lastStampTimeMs) return true;
+        const lastStampDate = new Date(member.lastStampTimeMs);
         const daysDiff = Math.floor((today.getTime() - lastStampDate.getTime()) / (1000 * 60 * 60 * 24));
         return daysDiff >= inactiveDays;
       });
@@ -567,7 +525,47 @@ export default function AdminPage() {
     setSections(groupByInitial(filtered));
   };
   
+  const switchMemberView = (mode: 'members' | 'guests') => {
+    setMemberViewMode(mode);
+    setKeyword('');
+    if (mode === 'guests') {
+      setSections(
+        guestMembers.length
+          ? [{ title: '승선명부 비회원', data: guestMembers }]
+          : []
+      );
+      setActiveFilter('all');
+      return;
+    }
+    const todayKST = new Date();
+    todayKST.setHours(todayKST.getHours() + 9);
+    const todayDateStr = todayKST.toISOString().split('T')[0];
+    const joinedToday = allMembers.filter(
+      (user) => user.createdAt && toKSTDateStr(user.createdAt) === todayDateStr
+    );
+    const stampedToday = allMembers.filter((user) => {
+      if (!user.lastStampTimeMs) return false;
+      const kst = new Date(user.lastStampTimeMs);
+      kst.setHours(kst.getHours() + 9);
+      return kst.toISOString().split('T')[0] === todayDateStr;
+    });
+    const grouped = groupByInitial(
+      allMembers.filter((user) => !joinedToday.includes(user) && !stampedToday.includes(user))
+    );
+    const todaySections: Section[] = [];
+    if (joinedToday.length > 0) todaySections.push({ title: '오늘 가입한 회원', data: joinedToday });
+    if (stampedToday.length > 0) todaySections.push({ title: '오늘 스탬프 적립', data: stampedToday });
+    setSections([...todaySections, ...grouped]);
+  };
+
+  useEffect(() => {
+    if (memberViewMode === 'guests' && guestMembers.length > 0 && keyword.trim() === '') {
+      setSections([{ title: '승선명부 비회원', data: guestMembers }]);
+    }
+  }, [guestMembers, memberViewMode, keyword]);
+
   const applyFilter = (filterType: 'all' | 'boarding' | 'coupon' | 'inactive') => {
+    if (memberViewMode === 'guests') return;
     setActiveFilter(filterType);
     
     let filtered = allMembers.filter((m) =>
@@ -581,9 +579,9 @@ export default function AdminPage() {
     } else if (filterType === 'inactive') {
       const today = new Date();
       const inactiveDays = getDaysFromMonths(inactivePeriod);
-      filtered = filtered.filter(member => {
-        if (!member.lastStampTime?.seconds) return true;
-        const lastStampDate = new Date(member.lastStampTime.seconds * 1000);
+      filtered = filtered.filter((member) => {
+        if (!member.lastStampTimeMs) return true;
+        const lastStampDate = new Date(member.lastStampTimeMs);
         const daysDiff = Math.floor((today.getTime() - lastStampDate.getTime()) / (1000 * 60 * 60 * 24));
         return daysDiff >= inactiveDays;
       });
@@ -611,9 +609,9 @@ export default function AdminPage() {
     return {
       boarding: allMembers.filter(member => member.hasBoarding).length,
       coupon: allMembers.filter(member => member.couponCount && member.couponCount > 0).length,
-      inactive: allMembers.filter(member => {
-        if (!member.lastStampTime?.seconds) return true;
-        const lastStampDate = new Date(member.lastStampTime.seconds * 1000);
+      inactive: allMembers.filter((member) => {
+        if (!member.lastStampTimeMs) return true;
+        const lastStampDate = new Date(member.lastStampTimeMs);
         const daysDiff = Math.floor((today.getTime() - lastStampDate.getTime()) / (1000 * 60 * 60 * 24));
         return daysDiff >= inactiveDays;
       }).length,
@@ -635,9 +633,29 @@ export default function AdminPage() {
   // }
 
   const totalCount = sections.reduce((acc, sec) => acc + sec.data.length, 0);
+  const listCountLabel =
+    memberViewMode === 'guests' ? `${guestMembers.length}명 (비회원)` : `${totalCount}명`;
 
   return (
     <SubPageFrame title="회원 관리">
+        <div className="d-flex gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => switchMemberView('members')}
+            className={`btn btn-sm flex-fill ${memberViewMode === 'members' ? 'btn-primary' : 'btn-outline-secondary'}`}
+            style={{ fontFamily: OHGO_FONT, fontWeight: 600, borderRadius: 12 }}
+          >
+            OAuth 회원
+          </button>
+          <button
+            type="button"
+            onClick={() => switchMemberView('guests')}
+            className={`btn btn-sm flex-fill ${memberViewMode === 'guests' ? 'btn-primary' : 'btn-outline-secondary'}`}
+            style={{ fontFamily: OHGO_FONT, fontWeight: 600, borderRadius: 12 }}
+          >
+            비회원 {guestMembers.length > 0 ? guestMembers.length : ''}
+          </button>
+        </div>
         <div className="p-3 mb-4" style={CARD}>
           <button
             type="button"
@@ -646,8 +664,8 @@ export default function AdminPage() {
             style={{ border: 'none', background: 'none', fontFamily: OHGO_FONT }}
           >
             <span style={{ fontSize: 16, fontWeight: 700, color: '#1A1D1F' }}>
-              회원 검색{' '}
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#1B6FF5' }}>{totalCount}명</span>
+              {memberViewMode === 'guests' ? '비회원 검색' : '회원 검색'}{' '}
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#1B6FF5' }}>{listCountLabel}</span>
             </span>
             {filterSectionExpanded ? (
               <IoChevronUpOutline size={20} color="#6F767E" />
@@ -658,12 +676,12 @@ export default function AdminPage() {
           <input
             type="text"
             className="form-control mt-3"
-            placeholder="이름으로 검색"
+            placeholder={memberViewMode === 'guests' ? '이름·전화번호·UUID 검색' : '이름으로 검색'}
             value={keyword}
             onChange={e => handleSearch(e.target.value)}
             style={OHGO_INPUT}
           />
-          {filterSectionExpanded && (
+          {filterSectionExpanded && memberViewMode === 'members' && (
             <>
               <div className="ohgo-filter-group mt-3 pt-3" style={{ borderTop: '1px solid #F7F8FA' }}>
                 <button
@@ -764,8 +782,8 @@ export default function AdminPage() {
                     }}
                   >
                     {section.data.map((member, memberIndex) => {
-                      const lastStampDate = member.lastStampTime?.seconds
-                        ? new Date(member.lastStampTime.seconds * 1000)
+                      const lastStampDate = member.lastStampTimeMs
+                        ? new Date(member.lastStampTimeMs)
                         : null;
                       const today = new Date();
                       const daysDiff = lastStampDate
@@ -785,11 +803,18 @@ export default function AdminPage() {
                         <button
                           key={member.uuid}
                           type="button"
-                          onClick={() =>
+                          onClick={() => {
+                            if (member.isGuest) {
+                              const phoneLine = member.phone ? `\n전화: ${member.phone}` : '';
+                              alert(
+                                `승선명부 비회원 (OAuth 미가입)\n이름: ${member.name}${phoneLine}\nUUID: ${member.uuid}\n\nOAuth 회원 상세 → 게스트 계정 연결에서 수동 병합할 수 있습니다.`
+                              );
+                              return;
+                            }
                             router.push(
                               `/member-detail?uuid=${member.uuid}&name=${member.name}&dob=${member.dob}`
-                            )
-                          }
+                            );
+                          }}
                           className="btn w-100 text-start ohgo-list-row"
                         >
                           <div className="d-flex align-items-center gap-3 ohgo-list-row-inner">
@@ -812,6 +837,19 @@ export default function AdminPage() {
                                   >
                                     {member.name}
                                   </span>
+                                  {member.isGuest && (
+                                    <span
+                                      className="badge rounded-pill flex-shrink-0"
+                                      style={{
+                                        fontSize: 10,
+                                        fontWeight: 600,
+                                        backgroundColor: '#FFF3E0',
+                                        color: '#E65100',
+                                      }}
+                                    >
+                                      비회원
+                                    </span>
+                                  )}
                                   {member.hasMemo && (
                                     <IoChatbubbleEllipsesOutline size={14} color="#1B6FF5" className="flex-shrink-0" />
                                   )}
@@ -820,7 +858,9 @@ export default function AdminPage() {
                                 className="ohgo-member-row-line ohgo-member-row-line--meta"
                                 style={{ color: '#6F767E', fontFamily: OHGO_FONT }}
                               >
-                                {dobStr} · 가입 {toKSTDateStr(member.createdAt).slice(2)}
+                                {dobStr}
+                                {member.isGuest && member.phone ? ` · ${member.phone}` : ''}
+                                {!member.isGuest && ` · 가입 ${toKSTDateStr(member.createdAt).slice(2)}`}
                               </div>
                               <div
                                 className="ohgo-member-row-line ohgo-member-row-line--foot"
@@ -830,12 +870,18 @@ export default function AdminPage() {
                                   fontWeight: isInactive ? 600 : 400,
                                 }}
                               >
-                                {footLine}
+                                {member.isGuest
+                                  ? member.hasBoarding
+                                    ? '명부 정보 있음 · OAuth 가입 시 자동 연결'
+                                    : 'OAuth 가입 전'
+                                  : footLine}
                               </div>
                               </div>
-                              <MemberKeyStats member={member} />
+                              {!member.isGuest && <MemberKeyStats member={member} />}
                             </div>
+                            {!member.isGuest && (
                             <IoChevronForwardOutline size={16} color="#D0D5DD" className="flex-shrink-0" />
+                            )}
                           </div>
                         </button>
                       );
@@ -848,7 +894,11 @@ export default function AdminPage() {
         </div>
 
         {sections.length === 0 && (
-          <EmptyState icon={IoPeopleOutline} message="일치하는 회원이 없습니다." style={CARD} />
+          <EmptyState
+            icon={IoPeopleOutline}
+            message={memberViewMode === 'guests' ? '등록된 비회원이 없습니다.' : '일치하는 회원이 없습니다.'}
+            style={CARD}
+          />
         )}
 
         {statsLoadingProgress && statsLoadingProgress.loaded < statsLoadingProgress.total && (

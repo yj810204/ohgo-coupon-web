@@ -2,10 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, query, getDocs, where, doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { getUser } from '@/lib/storage';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, getDay, eachDayOfInterval } from 'date-fns';
+import {
+  getMonthRosterSummary,
+  getYearConfirmedTripCount,
+  getConfirmedTrip,
+} from '@/utils/roster-service';
 import {
   IoChevronBackOutline,
   IoChevronForwardOutline,
@@ -156,83 +159,19 @@ export default function TodayRosterPage() {
       
       const startDateStr = format(monthStart, 'yyyy-MM-dd');
       const endDateStr = format(monthEnd, 'yyyy-MM-dd');
-      const datesArray = eachDayOfInterval({ start: monthStart, end: monthEnd });
-      const datesWithRosterArray: string[] = [];
-      const confirmedTripsData: Record<string, number[]> = {};
-      
-      const attendanceQuery = query(
-        collection(db, 'attendance'),
-        where('__name__', '>=', startDateStr),
-        where('__name__', '<=', endDateStr)
-      );
-      const attendanceSnapshot = await getDocs(attendanceQuery);
-      
-      const attendanceDates = new Map();
-      attendanceSnapshot.forEach(doc => {
-        const data = doc.data();
-        if (data.members && data.members.length > 0) {
-          attendanceDates.set(doc.id, true);
-        }
-      });
-      
-      const tripsQuery = query(
-        collection(db, 'trips'),
-        where('__name__', '>=', startDateStr),
-        where('__name__', '<=', endDateStr)
-      );
-      const tripsSnapshot = await getDocs(tripsQuery);
-      
-      const tripsDates = new Map();
-      tripsSnapshot.forEach(doc => {
-        const tripsData = doc.data();
-        const confirmedForDate: number[] = [];
-        
-        interface TripData {
-          confirmed: boolean;
-          confirmedAt: string;
-        }
-        
-        interface TripsDocData {
-          [key: `trip${number}`]: TripData;
-        }
-        
-        const typedTripsData = tripsData as TripsDocData;
-        
-        for (let i = 1; i <= 3; i++) {
-          const tripKey = `trip${i}` as `trip${number}`;
-          if (typedTripsData[tripKey] && typedTripsData[tripKey].confirmed) {
-            confirmedForDate.push(i);
-          }
-        }
-        
-        if (confirmedForDate.length > 0) {
-          tripsDates.set(doc.id, confirmedForDate);
-        }
-      });
-      
-      for (const date of datesArray) {
-        const dateStr = format(date, 'yyyy-MM-dd');
-        
-        if (attendanceDates.has(dateStr)) {
-          datesWithRosterArray.push(dateStr);
-        }
-        
-        if (tripsDates.has(dateStr)) {
-          confirmedTripsData[dateStr] = tripsDates.get(dateStr);
-        }
-      }
-      
-      setDatesWithRoster(datesWithRosterArray);
-      setConfirmedTrips(confirmedTripsData);
-      
-      setCachedMonths(prev => {
+
+      const summary = await getMonthRosterSummary(startDateStr, endDateStr);
+      setDatesWithRoster(summary.datesWithRoster);
+      setConfirmedTrips(summary.confirmedTrips);
+
+      setCachedMonths((prev) => {
         const updatedCache = {
           ...prev,
           [monthKey]: {
-            datesWithRoster: datesWithRosterArray,
-            confirmedTrips: confirmedTripsData,
-            timestamp: Date.now()
-          }
+            datesWithRoster: summary.datesWithRoster,
+            confirmedTrips: summary.confirmedTrips,
+            timestamp: Date.now(),
+          },
         };
         return limitCacheSize(updatedCache);
       });
@@ -246,41 +185,7 @@ export default function TodayRosterPage() {
 
   const fetchTotalConfirmedTrips = async () => {
     try {
-      const viewYear = currentMonth.getFullYear();
-      const yearStart = `${viewYear}-01-01`;
-      const yearEnd = `${viewYear}-12-31`;
-      
-      const tripsQuery = query(
-        collection(db, 'trips'),
-        where('__name__', '>=', yearStart),
-        where('__name__', '<=', yearEnd)
-      );
-      const tripsSnapshot = await getDocs(tripsQuery);
-      
-      let totalCount = 0;
-      
-      tripsSnapshot.forEach(doc => {
-        const tripsData = doc.data();
-        
-        interface TripData {
-          confirmed: boolean;
-          confirmedAt: string;
-        }
-        
-        interface TripsDocData {
-          [key: `trip${number}`]: TripData;
-        }
-        
-        const typedTripsData = tripsData as TripsDocData;
-        
-        for (let i = 1; i <= 3; i++) {
-          const tripKey = `trip${i}` as `trip${number}`;
-          if (typedTripsData[tripKey] && typedTripsData[tripKey].confirmed) {
-            totalCount++;
-          }
-        }
-      });
-      
+      const totalCount = await getYearConfirmedTripCount(currentMonth.getFullYear());
       setTotalConfirmedTrips(totalCount);
     } catch (error) {
       console.error('Error fetching total confirmed trips:', error);
@@ -311,26 +216,22 @@ export default function TodayRosterPage() {
 
   const handleTripClick = async (tripNumber: number) => {
     if (!tempSelectedDate) return;
-    
+
     const dateStr = format(tempSelectedDate, 'yyyy-MM-dd');
     const confirmedForDate = confirmedTrips[dateStr] || [];
-    
+
     if (confirmedForDate.includes(tripNumber)) {
-      const tripsDocRef = doc(db, 'trips', dateStr);
-      const tripsDocSnap = await getDoc(tripsDocRef);
-      
-      if (tripsDocSnap.exists()) {
-        const tripData = tripsDocSnap.data()[`trip${tripNumber}`];
-        
-        if (tripData && tripData.rosterImageUrl) {
-          router.push(`/roster-preview?imageUri=${encodeURIComponent(tripData.rosterImageUrl)}&date=${dateStr}&tripNumber=${tripNumber}`);
-        } else {
-          const dateDisplay = format(tempSelectedDate, 'yyyy년 MM월 dd일');
-          router.push(`/roster-list?date=${dateStr}&dateDisplay=${encodeURIComponent(dateDisplay)}&tripNumber=${tripNumber}&showPreview=true`);
-        }
+      const tripData = await getConfirmedTrip(dateStr, tripNumber);
+
+      if (tripData?.rosterImageUrl) {
+        router.push(
+          `/roster-preview?imageUri=${encodeURIComponent(tripData.rosterImageUrl)}&date=${dateStr}&tripNumber=${tripNumber}`
+        );
       } else {
         const dateDisplay = format(tempSelectedDate, 'yyyy년 MM월 dd일');
-        router.push(`/roster-list?date=${dateStr}&dateDisplay=${encodeURIComponent(dateDisplay)}&tripNumber=${tripNumber}&showPreview=true`);
+        router.push(
+          `/roster-list?date=${dateStr}&dateDisplay=${encodeURIComponent(dateDisplay)}&tripNumber=${tripNumber}&showPreview=true`
+        );
       }
     } else {
       handleTripSelection(tripNumber);
