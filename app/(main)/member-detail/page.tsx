@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, Suspense, type CSSProperties, type ReactNode } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { getStamps, getCouponCount, addStampBatch, removeStampBatch, deleteUser } from '@/utils/stamp-service';
 import {
@@ -10,9 +10,15 @@ import {
   updateBaitCoupons as saveBaitCouponsCount,
 } from '@/utils/member-profile-service';
 import { getBoardingForm } from '@/utils/boarding-service';
+import {
+  adjustGuestLegacyCoupons,
+  adjustGuestLegacyStamps,
+  getAdminGuestDetail,
+} from '@/utils/admin-member-service';
 import { sendPushToUser } from '@/utils/send-push';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal from '@/components/OhgoModal';
+import BoardingInfoModal from '@/components/BoardingInfoModal';
 import MemberListAvatar from '@/components/MemberListAvatar';
 import {
   OHGO_CARD,
@@ -20,9 +26,13 @@ import {
   OHGO_FONT,
   OHGO_INPUT,
   OHGO_PRIMARY_BTN,
+  OHGO_LIST,
+  OHGO_LIST_DIVIDER,
   OhgoPageLoading,
 } from '@/lib/page-styles';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
+import { useNavigation } from '@/hooks/useNavigation';
+import { isFirebaseDataSource } from '@/lib/data-source';
 import type { IconType } from 'react-icons';
 import { 
   IoPersonCircleOutline, 
@@ -34,7 +44,9 @@ import {
   IoTrashOutline,
   IoChevronForwardOutline,
   IoLinkOutline,
+  IoWarningOutline,
 } from 'react-icons/io5';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 const DETAIL_LABEL: CSSProperties = {
   fontSize: 11,
@@ -68,38 +80,24 @@ const DETAIL_BANNER_VALUE: CSSProperties = {
   lineHeight: 1.3,
 };
 
-const DETAIL_MENU_LABEL: CSSProperties = {
-  fontSize: 14,
-  fontWeight: 600,
-  color: '#1A1D1F',
-  fontFamily: OHGO_FONT,
-};
-
 function DetailInfoRow({
   icon: Icon,
   label,
   value,
   valueStyle,
-  isLast,
 }: {
   icon: IconType;
   label: string;
   value: ReactNode;
   valueStyle?: CSSProperties;
-  isLast?: boolean;
 }) {
   return (
-    <div
-      style={{
-        padding: '12px 14px',
-        borderBottom: isLast ? undefined : '1px solid #F7F8FA',
-      }}
-    >
+    <div className="ohgo-info-list-row">
       <div className="d-flex align-items-center gap-2" style={{ marginBottom: 4 }}>
         <Icon size={16} color="#9CA3AF" aria-hidden />
-        <span style={DETAIL_LABEL}>{label}</span>
+        <span className="ohgo-info-list-row__label">{label}</span>
       </div>
-      <div style={{ ...DETAIL_VALUE, ...valueStyle }}>{value}</div>
+      <div className="ohgo-info-list-row__value" style={valueStyle}>{value}</div>
     </div>
   );
 }
@@ -109,33 +107,23 @@ function DetailMenuRow({
   iconColor,
   label,
   onClick,
-  isLast,
 }: {
   icon: IconType;
   iconColor: string;
   label: string;
   onClick: () => void;
-  isLast?: boolean;
 }) {
   return (
-    <button
-      type="button"
-      className="btn w-100 d-flex align-items-center justify-content-between"
-      onClick={onClick}
-      style={{
-        padding: '12px 14px',
-        borderRadius: 0,
-        border: 'none',
-        borderBottom: isLast ? undefined : '1px solid #F7F8FA',
-        background: 'none',
-        textAlign: 'left',
-      }}
-    >
-      <div className="d-flex align-items-center gap-2">
-        <Icon size={18} color={iconColor} aria-hidden />
-        <span style={DETAIL_MENU_LABEL}>{label}</span>
+    <button type="button" className="btn ohgo-menu-list-row" onClick={onClick}>
+      <div className="ohgo-menu-list-row__icon" style={{ backgroundColor: `${iconColor}18` }}>
+        <Icon size={OHGO_LIST.iconGlyph} color={iconColor} aria-hidden />
       </div>
-      <IoChevronForwardOutline size={18} color="#C4C8CC" aria-hidden />
+      <span className="ohgo-menu-list-row__title flex-grow-1">{label}</span>
+      <IoChevronForwardOutline
+        size={OHGO_LIST.chevronSize}
+        color={OHGO_LIST.chevronColor}
+        aria-hidden
+      />
     </button>
   );
 }
@@ -245,24 +233,31 @@ function AdminQtyStepperRow({
 }
 
 function MemberDetailContent() {
-  const router = useRouter();
+  const { navigate, navigateReplace, navigateBack } = useNavigation();
   const searchParams = useSearchParams();
   const uuid = searchParams.get('uuid') || '';
-  const name = searchParams.get('name') || '';
-  const dob = searchParams.get('dob') || '';
+  const nameParam = decodeURIComponent(searchParams.get('name') || '');
+  const dobParam = searchParams.get('dob') || '';
+  // firebase 공용 소스 모드에서는 회원/게스트 이원화 없음 (모두 Firestore users)
+  const isGuestMember =
+    !isFirebaseDataSource() && searchParams.get('guest') === '1';
 
+  const [displayName, setDisplayName] = useState(nameParam);
+  const [displayDob, setDisplayDob] = useState(dobParam);
   const [targetUserIsAdmin, setTargetUserIsAdmin] = useState(false);
   const [stampCount, setStampCount] = useState(0);
   const [couponCount, setCouponCount] = useState(0);
   const [points, setPoints] = useState(0);
   const [baitCoupons, setBaitCoupons] = useState(0);
   const [isLoadingStamp, setIsLoadingStamp] = useState(false);
+  const [isLoadingCoupon, setIsLoadingCoupon] = useState(false);
   const [isLoadingBait, setIsLoadingBait] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isResettingPoints, setIsResettingPoints] = useState(false);
   const [baitModalVisible, setBaitModalVisible] = useState(false);
   const [createdAt, setCreatedAt] = useState('');
   const [lastStampDate, setLastStampDate] = useState('');
+  const [guestPhone, setGuestPhone] = useState<string | null>(null);
   const [rosterData, setRosterData] = useState<{
     name: string;
     birth: string;
@@ -282,7 +277,18 @@ function MemberDetailContent() {
   const [guestMergeLoading, setGuestMergeLoading] = useState(false);
   const [legacyUuid, setLegacyUuid] = useState<string | null>(null);
 
+  const name = displayName || nameParam;
+  const dob = displayDob || dobParam;
+
   const loadCounts = async () => {
+    if (isGuestMember) {
+      const detail = await getAdminGuestDetail(uuid);
+      if (detail) {
+        setStampCount(detail.stampCount);
+        setCouponCount(detail.couponCount);
+      }
+      return;
+    }
     const stamps = await getStamps(uuid);
     const coupons = await getCouponCount(uuid);
     setStampCount(stamps.length);
@@ -290,6 +296,7 @@ function MemberDetailContent() {
   };
 
   const loadTargetUserInfo = async () => {
+    if (isGuestMember) return;
     try {
       const profile = await getMemberProfile(uuid);
       if (profile) {
@@ -314,7 +321,53 @@ function MemberDetailContent() {
     }
   };
 
+  const loadGuestDetail = async () => {
+    try {
+      const detail = await getAdminGuestDetail(uuid);
+      if (!detail) {
+        alert('기존 회원 정보를 찾을 수 없습니다.');
+        return;
+      }
+      if (detail.mergedTo) {
+        alert('이미 신규 회원과 연결된 기존 회원입니다. 신규 회원 상세로 이동합니다.');
+        navigateReplace(
+          `/member-detail?uuid=${detail.mergedTo}&name=${encodeURIComponent(detail.name)}&dob=${detail.dob}`
+        );
+        return;
+      }
+      setDisplayName(detail.name);
+      setDisplayDob(detail.dob);
+      setGuestPhone(detail.phone);
+      setStampCount(detail.stampCount);
+      setCouponCount(detail.couponCount);
+      if (detail.createdAt) {
+        setCreatedAt(format(new Date(detail.createdAt), 'yy-MM-dd'));
+      }
+      if (detail.boarding) {
+        const address = detail.boarding.addressDetail
+          ? `${detail.boarding.address ?? ''} ${detail.boarding.addressDetail}`.trim()
+          : detail.boarding.address ?? '';
+        setRosterData({
+          name: detail.boarding.name || detail.name,
+          birth: detail.boarding.birth || detail.dob,
+          gender: detail.boarding.gender || '',
+          phone: detail.boarding.phone || detail.phone || '',
+          emergency: detail.boarding.emergency || '',
+          address,
+        });
+      } else {
+        setRosterData(null);
+      }
+    } catch (err) {
+      console.warn('기존 회원 정보 로딩 실패:', err);
+    }
+  };
+
   const loadRosterData = async () => {
+    if (isGuestMember) {
+      await loadGuestDetail();
+      return Boolean(rosterData);
+    }
     try {
       const boarding = await getBoardingForm(uuid);
       if (boarding) {
@@ -341,14 +394,21 @@ function MemberDetailContent() {
   };
 
   useEffect(() => {
-    if (uuid) {
-      loadCounts();
-      loadTargetUserInfo();
-      loadRosterData();
+    if (!uuid) return;
+    if (isGuestMember) {
+      void loadGuestDetail();
+      return;
     }
-  }, [uuid]);
+    void loadCounts();
+    void loadTargetUserInfo();
+    void loadRosterData();
+  }, [uuid, isGuestMember]);
 
   useNativePullToRefresh(async () => {
+    if (isGuestMember) {
+      await loadGuestDetail();
+      return;
+    }
     await loadCounts();
     await loadTargetUserInfo();
   });
@@ -357,10 +417,17 @@ function MemberDetailContent() {
 
   const handleGrantStamp = async () => {
     const count = ADMIN_ADJUST_AMOUNT;
-    if (!confirm(`${name}님에게 스탬프 ${count}개를 적립하시겠습니까?`)) return;
+    if (!(await ohgoConfirm(`${name}님에게 스탬프 ${count}개를 적립하시겠습니까?`))) return;
 
     setIsLoadingStamp(true);
     try {
+      if (isGuestMember) {
+        await adjustGuestLegacyStamps(uuid, count);
+        await loadCounts();
+        alert(`완료: 기존 회원 staging에 스탬프 ${count}개가 적립되었습니다.\n(OAuth 연결 시 반영됩니다. 신원 데이터는 변경되지 않습니다.)`);
+        return;
+      }
+
       await addStampBatch(uuid, count);
       await loadCounts();
 
@@ -390,10 +457,16 @@ function MemberDetailContent() {
       alert(`보유 스탬프(${stampCount}개)보다 많이 회수할 수 없습니다.`);
       return;
     }
-    if (!confirm(`${name}님의 스탬프 ${count}개를 회수하시겠습니까?`)) return;
+    if (!(await ohgoConfirm(`${name}님의 스탬프 ${count}개를 회수하시겠습니까?`))) return;
 
     setIsLoadingStamp(true);
     try {
+      if (isGuestMember) {
+        await adjustGuestLegacyStamps(uuid, -count);
+        await loadCounts();
+        alert(`완료: 미반영 staging 스탬프 ${count}개가 회수되었습니다.`);
+        return;
+      }
       await removeStampBatch(uuid, count);
       await loadCounts();
       alert(`완료: 스탬프 ${count}개가 회수되었습니다.`);
@@ -404,8 +477,42 @@ function MemberDetailContent() {
     }
   };
 
+  const handleGrantCoupon = async () => {
+    if (!isGuestMember) return;
+    if (!(await ohgoConfirm(`${name}님에게 쿠폰 1개를 지급하시겠습니까?`))) return;
+    setIsLoadingCoupon(true);
+    try {
+      await adjustGuestLegacyCoupons(uuid, 1);
+      await loadCounts();
+      alert('완료: 기존 회원 staging에 쿠폰 1개가 지급되었습니다.');
+    } catch (err: any) {
+      alert('쿠폰 지급 실패: ' + err.message);
+    } finally {
+      setIsLoadingCoupon(false);
+    }
+  };
+
+  const handleDeductCoupon = async () => {
+    if (!isGuestMember) return;
+    if (couponCount < 1) {
+      alert('회수할 쿠폰이 없습니다.');
+      return;
+    }
+    if (!(await ohgoConfirm(`${name}님의 쿠폰 1개를 회수하시겠습니까?`))) return;
+    setIsLoadingCoupon(true);
+    try {
+      await adjustGuestLegacyCoupons(uuid, -1);
+      await loadCounts();
+      alert('완료: 미반영 staging 쿠폰 1개가 회수되었습니다.');
+    } catch (err: any) {
+      alert('쿠폰 회수 실패: ' + err.message);
+    } finally {
+      setIsLoadingCoupon(false);
+    }
+  };
+
   const resetPoints = async () => {
-    if (!confirm(`${name}님의 포인트를 0으로 초기화 하시겠습니까?`)) return;
+    if (!(await ohgoConfirm(`${name}님의 포인트를 0으로 초기화 하시겠습니까?`))) return;
 
     setIsResettingPoints(true);
     try {
@@ -429,7 +536,7 @@ function MemberDetailContent() {
         ? `${name}님에게 미끼 ${amount}개를 지급하시겠습니까?`
         : `${name}님의 미끼 ${amount}개를 차감하시겠습니까?`;
 
-    if (!confirm(message)) return;
+    if (!(await ohgoConfirm(message))) return;
 
     setIsLoadingBait(true);
     try {
@@ -503,7 +610,7 @@ function MemberDetailContent() {
         : guestPhone
           ? `\n게스트 전화: ${guestPhone}`
           : '';
-    if (!confirm(`${guestName} 게스트 계정을 ${name}님과 연결할까요?${phoneHint}`)) return;
+    if (!(await ohgoConfirm(`${guestName} 게스트 계정을 ${name}님과 연결할까요?${phoneHint}`))) return;
 
     setGuestMergeLoading(true);
     try {
@@ -531,18 +638,26 @@ function MemberDetailContent() {
   };
 
   const handleDeleteUser = async () => {
+    if (isGuestMember) {
+      alert('기존 회원 원본 데이터는 삭제할 수 없습니다.');
+      return;
+    }
     if (targetUserIsAdmin) {
       alert('삭제 불가: 관리자는 삭제할 수 없습니다.');
       return;
     }
+    if (legacyUuid) {
+      alert('구앱과 연결된 기존 회원은 삭제할 수 없습니다. (원본 데이터 보호)');
+      return;
+    }
 
-    if (!confirm(`${name}님의 모든 데이터가 삭제됩니다.\n진행할까요?`)) return;
+    if (!(await ohgoConfirm(`${name}님의 모든 데이터가 삭제됩니다.\n진행할까요?`))) return;
 
     setIsDeleting(true);
     try {
       await deleteUser(uuid);
       alert('삭제 완료: ' + name + '님의 정보가 삭제되었습니다.');
-      router.back();
+      navigateBack();
     } catch (err: any) {
       alert('삭제 실패: ' + err.message);
     } finally {
@@ -551,6 +666,14 @@ function MemberDetailContent() {
   };
 
   const handleNamePress = async () => {
+    if (isGuestMember) {
+      if (rosterData) {
+        setModalVisible(true);
+      } else {
+        alert('알림: ' + name + '님의 명부 정보가 없습니다.');
+      }
+      return;
+    }
     const hasRoster = await loadRosterData();
     if (hasRoster) {
       setModalVisible(true);
@@ -564,37 +687,77 @@ function MemberDetailContent() {
       ? `${dob.slice(2, 4)}-${dob.slice(4, 6)}-${dob.slice(6, 8)}`
       : dob;
 
-  const statItems = [
-    {
-      label: '스탬프',
-      value: stampCount,
-      valueColor: '#1B6FF5',
-      onClick: () =>
-        router.push(`/stamp?uuid=${uuid}&name=${name}&dob=${dob}&fromAdmin=true`),
-    },
-    {
-      label: '쿠폰',
-      value: couponCount,
-      valueColor: '#FF9500',
-      onClick: () =>
-        router.push(`/coupons?uuid=${uuid}&name=${name}&dob=${dob}&fromAdmin=true`),
-    },
-    {
-      label: '미끼',
-      value: baitCoupons,
-      valueColor: '#2E7D32',
-      onClick: () => setBaitModalVisible(true),
-    },
-  ];
+  const statItems: {
+    label: string;
+    value: number;
+    valueColor: string;
+    onClick?: () => void;
+  }[] = isGuestMember
+    ? [
+        { label: '스탬프', value: stampCount, valueColor: '#1B6FF5' },
+        { label: '쿠폰', value: couponCount, valueColor: '#FF9500' },
+      ]
+    : [
+        {
+          label: '스탬프',
+          value: stampCount,
+          valueColor: '#1B6FF5',
+          onClick: () =>
+            navigate(
+              `/stamp?uuid=${uuid}&name=${encodeURIComponent(name)}&dob=${dob}&fromAdmin=true`
+            ),
+        },
+        {
+          label: '쿠폰',
+          value: couponCount,
+          valueColor: '#FF9500',
+          onClick: () =>
+            navigate(
+              `/coupons?uuid=${uuid}&name=${encodeURIComponent(name)}&dob=${dob}&fromAdmin=true`
+            ),
+        },
+        {
+          label: '미끼',
+          value: baitCoupons,
+          valueColor: '#2E7D32',
+          onClick: () => setBaitModalVisible(true),
+        },
+      ];
 
   return (
-    <SubPageFrame title="회원 상세">
+    <SubPageFrame title={isGuestMember ? '기존 회원 상세' : '회원 상세'}>
+        {isGuestMember && (
+          <div
+            className="d-flex align-items-start gap-2 mb-3"
+            style={{
+              ...OHGO_CARD,
+              padding: 12,
+              backgroundColor: '#FFF8E1',
+              border: '1px solid #FFE082',
+            }}
+          >
+            <IoWarningOutline size={18} color="#F57C00" className="flex-shrink-0 mt-1" aria-hidden />
+            <p style={{ margin: 0, fontSize: 12, color: '#6D4C41', fontFamily: OHGO_FONT, lineHeight: 1.45 }}>
+              기존 회원 원본(이름·생년월일·명부)은 수정·삭제할 수 없습니다.
+              스탬프·쿠폰만 staging에 관리되며, OAuth 연결 시 반영됩니다.
+            </p>
+          </div>
+        )}
+
         <div className="ohgo-profile-banner mb-3">
           <div className="d-flex align-items-center gap-3 mb-3">
             <MemberListAvatar imageUrl={profileImageUrl} name={name} size={56} tone="light" />
             <div className="flex-grow-1 min-w-0">
               <div style={{ fontSize: 18, fontWeight: 800, fontFamily: OHGO_FONT, lineHeight: 1.25 }}>
                 {name}
+                {isGuestMember && (
+                  <span
+                    className="badge rounded-pill ms-2"
+                    style={{ fontSize: 10, fontWeight: 600, backgroundColor: 'rgba(255,255,255,0.2)', verticalAlign: 'middle' }}
+                  >
+                    기존
+                  </span>
+                )}
               </div>
               <button
                 type="button"
@@ -604,29 +767,36 @@ function MemberDetailContent() {
               >
                 명부 정보 보기
               </button>
+              {isGuestMember && guestPhone && (
+                <div style={{ fontSize: 12, opacity: 0.85, fontFamily: OHGO_FONT, marginTop: 4 }}>
+                  {guestPhone}
+                </div>
+              )}
             </div>
           </div>
           <div className="d-flex align-items-end justify-content-between gap-3">
-            <div>
-              <div style={DETAIL_BANNER_LABEL}>포인트</div>
-              <button
-                type="button"
-                onClick={resetPoints}
-                className="btn btn-link p-0 text-white"
-                disabled={isResettingPoints}
-                style={{
-                  ...DETAIL_BANNER_VALUE,
-                  fontSize: 18,
-                  textDecoration: 'none',
-                  lineHeight: 1.2,
-                }}
-              >
-                {points.toLocaleString()}
-                <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.85, marginLeft: 2 }}>P</span>
-              </button>
-            </div>
-            <div className="text-end">
-              <div style={DETAIL_BANNER_LABEL}>가입일</div>
+            {!isGuestMember && (
+              <div>
+                <div style={DETAIL_BANNER_LABEL}>포인트</div>
+                <button
+                  type="button"
+                  onClick={resetPoints}
+                  className="btn btn-link p-0 text-white"
+                  disabled={isResettingPoints}
+                  style={{
+                    ...DETAIL_BANNER_VALUE,
+                    fontSize: 18,
+                    textDecoration: 'none',
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {points.toLocaleString()}
+                  <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.85, marginLeft: 2 }}>P</span>
+                </button>
+              </div>
+            )}
+            <div className={isGuestMember ? '' : 'text-end'} style={isGuestMember ? { width: '100%' } : undefined}>
+              <div style={DETAIL_BANNER_LABEL}>{isGuestMember ? '등록일' : '가입일'}</div>
               <div style={DETAIL_BANNER_VALUE}>{createdAt || '—'}</div>
             </div>
           </div>
@@ -637,7 +807,7 @@ function MemberDetailContent() {
           style={{
             ...OHGO_CARD,
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr',
+            gridTemplateColumns: isGuestMember ? '1fr 1fr' : '1fr 1fr 1fr',
             padding: 0,
             overflow: 'hidden',
           }}
@@ -647,6 +817,7 @@ function MemberDetailContent() {
               key={item.label}
               type="button"
               onClick={item.onClick}
+              disabled={!item.onClick}
               className="btn d-flex flex-column align-items-center justify-content-center"
               style={{
                 border: 'none',
@@ -672,28 +843,50 @@ function MemberDetailContent() {
         </div>
 
         <div className="mb-3" style={{ ...OHGO_CARD, padding: 0, overflow: 'hidden' }}>
-          <DetailInfoRow icon={IoCalendarOutline} label="생년월일" value={formattedDob || '—'} />
-          <DetailInfoRow
-            icon={IoTimeOutline}
-            label="UUID"
-            value={uuid}
-            isLast
-            valueStyle={{
-              fontSize: 12,
-              fontWeight: 500,
-              fontFamily: 'ui-monospace, monospace',
-              wordBreak: 'break-all',
-            }}
-          />
+          {[
+            {
+              icon: IoCalendarOutline,
+              label: '생년월일',
+              value: formattedDob || '—',
+            },
+            {
+              icon: IoTimeOutline,
+              label: 'UUID',
+              value: uuid,
+              valueStyle: {
+                fontSize: 12,
+                fontWeight: 500,
+                fontFamily: 'ui-monospace, monospace',
+                wordBreak: 'break-all',
+              } as CSSProperties,
+            },
+          ].map((row, idx) => (
+            <div key={row.label}>
+              {idx > 0 && (
+                <div style={OHGO_LIST_DIVIDER} />
+              )}
+              <DetailInfoRow
+                icon={row.icon}
+                label={row.label}
+                value={row.value}
+                valueStyle={row.valueStyle}
+              />
+            </div>
+          ))}
         </div>
 
         <div className="mb-3" style={{ ...OHGO_CARD, padding: 14 }}>
-          <div className="mb-3 pb-3" style={{ borderBottom: '1px solid #F7F8FA' }}>
-            <span style={{ ...DETAIL_LABEL, display: 'block', marginBottom: 10 }}>스탬프 적립</span>
+          <div
+            className={isGuestMember ? 'mb-3 pb-3' : 'mb-3 pb-3'}
+            style={{ borderBottom: '1px solid #F7F8FA' }}
+          >
+            <span style={{ ...DETAIL_LABEL, display: 'block', marginBottom: 10 }}>
+              {isGuestMember ? '스탬프 조정' : '스탬프 적립'}
+            </span>
             <AdminQtyStepperRow
               currentCount={stampCount}
               accentColor="#1B6FF5"
-              disabled={isLoadingStamp || isLoadingBait}
+              disabled={isLoadingStamp || isLoadingBait || isLoadingCoupon}
               minusDisabled={isLoadingStamp || stampCount < 1}
               plusDisabled={isLoadingStamp}
               minusAriaLabel="스탬프 1개 회수"
@@ -703,63 +896,104 @@ function MemberDetailContent() {
             />
             {isLoadingStamp && (
               <p className="mb-0 mt-2 text-center" style={{ fontSize: 13, color: '#6F767E', fontFamily: OHGO_FONT }}>
-                적립 중...
-              </p>
-            )}
-          </div>
-
-          <div>
-            <span style={{ ...DETAIL_LABEL, display: 'block', marginBottom: 10 }}>미끼 조정</span>
-            <AdminQtyStepperRow
-              currentCount={baitCoupons}
-              accentColor="#2E7D32"
-              disabled={isLoadingStamp || isLoadingBait}
-              minusDisabled={isLoadingBait || baitCoupons < 1}
-              plusDisabled={isLoadingBait}
-              minusAriaLabel="미끼 1개 차감"
-              plusAriaLabel="미끼 1개 지급"
-              onMinus={() => handleDeductBait()}
-              onPlus={() => handleGrantBait()}
-              plusStyle={{
-                backgroundColor: '#2E7D32',
-                boxShadow: '0 4px 12px rgba(46,125,50,0.3)',
-              }}
-            />
-            {isLoadingBait && (
-              <p className="mb-0 mt-2 text-center" style={{ fontSize: 13, color: '#6F767E', fontFamily: OHGO_FONT }}>
                 처리 중...
               </p>
             )}
           </div>
+
+          {isGuestMember ? (
+            <div>
+              <span style={{ ...DETAIL_LABEL, display: 'block', marginBottom: 10 }}>쿠폰 조정</span>
+              <AdminQtyStepperRow
+                currentCount={couponCount}
+                accentColor="#FF9500"
+                disabled={isLoadingStamp || isLoadingCoupon}
+                minusDisabled={isLoadingCoupon || couponCount < 1}
+                plusDisabled={isLoadingCoupon}
+                minusAriaLabel="쿠폰 1개 회수"
+                plusAriaLabel="쿠폰 1개 지급"
+                onMinus={() => void handleDeductCoupon()}
+                onPlus={() => void handleGrantCoupon()}
+                plusStyle={{
+                  backgroundColor: '#FF9500',
+                  boxShadow: '0 4px 12px rgba(255,149,0,0.3)',
+                }}
+              />
+              {isLoadingCoupon && (
+                <p className="mb-0 mt-2 text-center" style={{ fontSize: 13, color: '#6F767E', fontFamily: OHGO_FONT }}>
+                  처리 중...
+                </p>
+              )}
+            </div>
+          ) : (
+            <div>
+              <span style={{ ...DETAIL_LABEL, display: 'block', marginBottom: 10 }}>미끼 조정</span>
+              <AdminQtyStepperRow
+                currentCount={baitCoupons}
+                accentColor="#2E7D32"
+                disabled={isLoadingStamp || isLoadingBait}
+                minusDisabled={isLoadingBait || baitCoupons < 1}
+                plusDisabled={isLoadingBait}
+                minusAriaLabel="미끼 1개 차감"
+                plusAriaLabel="미끼 1개 지급"
+                onMinus={() => handleDeductBait()}
+                onPlus={() => handleGrantBait()}
+                plusStyle={{
+                  backgroundColor: '#2E7D32',
+                  boxShadow: '0 4px 12px rgba(46,125,50,0.3)',
+                }}
+              />
+              {isLoadingBait && (
+                <p className="mb-0 mt-2 text-center" style={{ fontSize: 13, color: '#6F767E', fontFamily: OHGO_FONT }}>
+                  처리 중...
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
+        {!isGuestMember && (
         <div className="mb-3" style={{ ...OHGO_CARD, padding: 0, overflow: 'hidden' }}>
-          <DetailMenuRow
-            icon={IoDocumentTextOutline}
-            iconColor="#1B6FF5"
-            label="관리자 메모"
-            onClick={() => router.push(`/memo?uuid=${uuid}&name=${name}`)}
-          />
-          <DetailMenuRow
-            icon={IoListOutline}
-            iconColor="#00BCD4"
-            label="로그 보기"
-            onClick={() => router.push(`/logs?uuid=${uuid}&name=${name}`)}
-          />
-          <DetailMenuRow
-            icon={IoPricetagOutline}
-            iconColor="#34C759"
-            label="스탬프 이력"
-            onClick={() => router.push(`/stamp-history?uuid=${uuid}&name=${name}`)}
-            isLast
-          />
+          {[
+            {
+              icon: IoDocumentTextOutline,
+              iconColor: '#1B6FF5',
+              label: '관리자 메모',
+              onClick: () => navigate(`/memo?uuid=${uuid}&name=${encodeURIComponent(name)}`),
+            },
+            {
+              icon: IoListOutline,
+              iconColor: '#00BCD4',
+              label: '로그 보기',
+              onClick: () => navigate(`/logs?uuid=${uuid}&name=${encodeURIComponent(name)}`),
+            },
+            {
+              icon: IoPricetagOutline,
+              iconColor: '#34C759',
+              label: '스탬프 이력',
+              onClick: () => navigate(`/stamp-history?uuid=${uuid}&name=${encodeURIComponent(name)}`),
+            },
+          ].map((item, idx) => (
+            <div key={item.label}>
+              {idx > 0 && (
+                <div style={OHGO_LIST_DIVIDER} />
+              )}
+              <DetailMenuRow
+                icon={item.icon}
+                iconColor={item.iconColor}
+                label={item.label}
+                onClick={item.onClick}
+              />
+            </div>
+          ))}
         </div>
+        )}
 
-        {!legacyUuid && (
+        {!isGuestMember && !legacyUuid && (
           <div className="mb-3" style={{ ...OHGO_CARD, padding: 14 }}>
             <div className="d-flex align-items-center gap-2 mb-2">
               <IoLinkOutline size={18} color="#1B6FF5" aria-hidden />
-              <span style={{ ...DETAIL_MENU_LABEL, fontSize: 15 }}>게스트 계정 연결</span>
+              <span className="ohgo-menu-list-row__title">게스트 계정 연결</span>
             </div>
             <p style={{ fontSize: 12, color: '#6F767E', margin: '0 0 12px', fontFamily: OHGO_FONT, lineHeight: 1.45 }}>
               승선명부에만 등록된 비회원(uuidv5)을 이 OAuth 회원과 수동 연결합니다.
@@ -829,22 +1063,16 @@ function MemberDetailContent() {
           </div>
         )}
 
-        {legacyUuid && (
+        {isGuestMember && (
           <div className="mb-3" style={{ ...OHGO_CARD, padding: 14 }}>
-            <span style={{ ...DETAIL_LABEL, display: 'block', marginBottom: 4 }}>연결된 게스트 UUID</span>
-            <span
-              style={{
-                fontSize: 12,
-                fontFamily: 'ui-monospace, monospace',
-                wordBreak: 'break-all',
-                color: '#1A1D1F',
-              }}
-            >
-              {legacyUuid}
-            </span>
+            <p style={{ margin: 0, fontSize: 12, color: '#6F767E', fontFamily: OHGO_FONT, lineHeight: 1.45 }}>
+              신규 회원과 연결하려면 해당 신규 회원 상세의 「게스트 계정 연결」을 사용하세요.
+              기존 회원 원본 레코드는 연결 표시만 갱신되며, 이름·생년월일·명부 내용은 변경되지 않습니다.
+            </p>
           </div>
         )}
 
+        {!isGuestMember && !legacyUuid && (
         <button
           type="button"
           className="btn w-100 d-flex align-items-center justify-content-center gap-2 mb-3"
@@ -873,36 +1101,14 @@ function MemberDetailContent() {
             </>
             )}
           </button>
+        )}
 
-      <OhgoModal
+      <BoardingInfoModal
         open={modalVisible}
         onClose={() => setModalVisible(false)}
-        title={`${name}님의 명부 정보`}
-        bodyPadding={false}
-      >
-        {rosterData && (
-          <div style={{ ...OHGO_CARD, borderRadius: 0, boxShadow: 'none' }}>
-            {(
-              [
-                { icon: IoPersonCircleOutline, label: '이름', value: rosterData.name },
-                { icon: IoCalendarOutline, label: '생년월일', value: rosterData.birth },
-                { icon: IoPersonCircleOutline, label: '성별', value: rosterData.gender },
-                { icon: IoTimeOutline, label: '연락처', value: rosterData.phone },
-                { icon: IoTimeOutline, label: '비상 연락처', value: rosterData.emergency },
-                { icon: IoTimeOutline, label: '주소', value: rosterData.address },
-              ] as const
-            ).map((row, index, arr) => (
-              <DetailInfoRow
-                key={row.label}
-                icon={row.icon}
-                label={row.label}
-                value={row.value}
-                isLast={index === arr.length - 1}
-              />
-            ))}
-          </div>
-        )}
-      </OhgoModal>
+        personName={name}
+        data={rosterData}
+      />
 
       <OhgoModal
         open={baitModalVisible}

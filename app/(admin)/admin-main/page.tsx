@@ -20,8 +20,15 @@ import {
 } from 'react-icons/io5';
 import { useNavigation } from '@/hooks/useNavigation';
 import SubPageFrame from '@/components/SubPageFrame';
+import { OHGO_LIST, OHGO_LIST_DIVIDER } from '@/lib/page-styles';
 
-const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+const FONT = "var(--font-ohgo), sans-serif";
+const CARD: React.CSSProperties = {
+  backgroundColor: '#FFFFFF',
+  borderRadius: 16,
+  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+  border: 'none',
+};
 
 type MenuItem = {
   id: string;
@@ -99,7 +106,7 @@ const MENU_SECTIONS: MenuSection[] = [
   },
   {
     id: 'content',
-    title: '1차 산업 · 콘텐츠',
+    title: '콘텐츠',
     items: [
       {
         id: 'fishing-log',
@@ -113,7 +120,7 @@ const MENU_SECTIONS: MenuSection[] = [
       {
         id: 'photos',
         label: '조황사진 관리',
-        desc: '커뮤니티 조황 사진 관리',
+        desc: '선장 조황 업로드·승객 태깅, 커뮤니티 조황',
         path: '/admin-photos',
         icon: IoImageOutline,
         color: '#9C27B0',
@@ -162,6 +169,15 @@ const MENU_SECTIONS: MenuSection[] = [
     title: '설정',
     items: [
       {
+        id: 'departure-info',
+        label: '출항 정보',
+        desc: '월별·연간 출항 확정 횟수',
+        path: '/admin-departure-info',
+        icon: IoBoatOutline,
+        color: '#1B6FF5',
+        bg: '#EBF1FE',
+      },
+      {
         id: 'site',
         label: '사이트 설정',
         desc: '사이트명, 메뉴, 하단 탭 설정',
@@ -174,7 +190,16 @@ const MENU_SECTIONS: MenuSection[] = [
   },
 ];
 
-const CAPTAIN_MENU_IDS = new Set(['roster', 'fishing-log', 'photos', 'trip-guide', 'mini-games']);
+/** 전환기 선장 실운영에 필요한 메뉴(회원·스탬프·명부·푸시) 포함 */
+const CAPTAIN_MENU_IDS = new Set([
+  'admin',
+  'roster',
+  'push',
+  'fishing-log',
+  'photos',
+  'trip-guide',
+  'mini-games',
+]);
 
 function menuSectionsForUser(isAdmin: boolean): MenuSection[] {
   if (isAdmin) return MENU_SECTIONS;
@@ -263,42 +288,31 @@ export default function AdminMainPage() {
               {section.title}
             </span>
           </div>
-          <div className="d-flex flex-column gap-2">
-            {section.items.map(({ id, label, desc, path, icon: Icon, color, bg }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => navigate(path)}
-                className="btn w-100 text-start d-flex align-items-center gap-3 p-3"
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  borderRadius: 16,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                  border: 'none',
-                }}
-              >
-                <div
-                  className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                  style={{ width: 48, height: 48, backgroundColor: bg }}
+          <div style={CARD}>
+            {section.items.map(({ id, label, desc, path, icon: Icon, color, bg }, idx) => (
+              <div key={id}>
+                {idx > 0 && (
+                  <div style={OHGO_LIST_DIVIDER} />
+                )}
+                <button
+                  type="button"
+                  onClick={() => navigate(path)}
+                  className="btn ohgo-menu-list-row"
                 >
-                  <Icon size={24} color={color} />
-                </div>
-                <div className="flex-grow-1 min-w-0">
-                  <div
-                    className="text-truncate"
-                    style={{ fontSize: 15, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}
-                  >
-                    {label}
+                  <div className="ohgo-menu-list-row__icon" style={{ backgroundColor: bg }}>
+                    <Icon size={OHGO_LIST.iconGlyph} color={color} />
                   </div>
-                  <div
-                    className="text-truncate"
-                    style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 2 }}
-                  >
-                    {desc}
+                  <div className="flex-grow-1 min-w-0">
+                    <div className="ohgo-menu-list-row__title text-truncate">{label}</div>
+                    <div className="ohgo-menu-list-row__desc text-truncate">{desc}</div>
                   </div>
-                </div>
-                <IoChevronForwardOutline size={20} color="#ABABAB" className="flex-shrink-0" />
-              </button>
+                  <IoChevronForwardOutline
+                    size={OHGO_LIST.chevronSize}
+                    color={OHGO_LIST.chevronColor}
+                    className="flex-shrink-0"
+                  />
+                </button>
+              </div>
             ))}
           </div>
         </div>

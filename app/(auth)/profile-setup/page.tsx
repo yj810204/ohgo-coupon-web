@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { saveUser } from '@/lib/storage';
 import { getSupabaseSessionUser, getProfileByUserId } from '@/lib/supabase-auth';
 import { getHomePathForUser } from '@/lib/auth-session';
 import { requiresProfileSetup } from '@/lib/profile-complete';
 import { IoPersonOutline, IoCalendarOutline } from 'react-icons/io5';
 
-const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+const FONT = "var(--font-ohgo), sans-serif";
 
 export default function ProfileSetupPage() {
   const router = useRouter();

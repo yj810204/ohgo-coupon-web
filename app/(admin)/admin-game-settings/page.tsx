@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { resolveAppUser } from '@/lib/auth-session';
 import { getAllGames, toggleGameActive, Game, getGlobalGameSettings, updateGlobalGameSettings, getTournamentSettings, updateTournamentSettings, getGameBaitConfig, updateGameBaitConfig } from '@/lib/game-service';
 import { ADMIN_EDIT_ICON } from '@/lib/admin-icons';
@@ -21,8 +21,11 @@ import {
   OHGO_CONFIRM_BTN_CLASS,
   OHGO_PRIMARY_BTN,
   OHGO_SECONDARY_BTN,
+  OHGO_LIST,
+  OHGO_LIST_DIVIDER,
   OhgoPageLoading,
 } from '@/lib/page-styles';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 function toDatetimeLocalValue(iso?: string): string {
   if (!iso) return '';
@@ -394,7 +397,7 @@ export default function AdminGameSettingsPage() {
   };
 
   const handleScanGames = async () => {
-    if (!confirm('games 폴더를 스캔하여 게임을 등록하시겠습니까?')) {
+    if (!(await ohgoConfirm('games 폴더를 스캔하여 게임을 등록하시겠습니까?'))) {
       return;
     }
 
@@ -427,7 +430,7 @@ export default function AdminGameSettingsPage() {
   };
 
   const handleToggleGame = async (gameId: string, currentStatus: boolean) => {
-    if (!confirm(`게임을 ${currentStatus ? '비활성화' : '활성화'}하시겠습니까?`)) {
+    if (!(await ohgoConfirm(`게임을 ${currentStatus ? '비활성화' : '활성화'}하시겠습니까?`))) {
       return;
     }
 
@@ -606,11 +609,11 @@ export default function AdminGameSettingsPage() {
             {games.map((game, index) => {
               const thumb = gameThumbUrl(game);
               return (
+                <div key={game.game_id}>
+                  {index > 0 && <div style={OHGO_LIST_DIVIDER} />}
                 <div
-                  key={game.game_id}
-                  className="px-3 py-3"
+                  className="ohgo-data-list-row"
                   style={{
-                    borderBottom: index < games.length - 1 ? '1px solid #F7F8FA' : 'none',
                     backgroundColor: game.is_active ? '#FFFFFF' : '#FAFAFA',
                   }}
                 >
@@ -618,8 +621,8 @@ export default function AdminGameSettingsPage() {
                     <div
                       className="flex-shrink-0 overflow-hidden d-flex align-items-center justify-content-center"
                       style={{
-                        width: 64,
-                        height: 64,
+                        width: OHGO_LIST.thumbBox,
+                        height: OHGO_LIST.thumbBox,
                         borderRadius: 12,
                         background: thumb ? `url(${thumb}) center/cover` : '#F2F3F5',
                         border: '1px solid #EFEFEF',
@@ -644,8 +647,8 @@ export default function AdminGameSettingsPage() {
                         </span>
                         <span
                           style={{
-                            fontSize: 15,
-                            fontWeight: 700,
+                            fontSize: OHGO_LIST.titleSize,
+                            fontWeight: OHGO_LIST.titleWeight,
                             color: '#1A1D1F',
                             fontFamily: FONT,
                             overflow: 'hidden',
@@ -707,6 +710,7 @@ export default function AdminGameSettingsPage() {
                       </button>
                     </div>
                   </div>
+                </div>
                 </div>
               );
             })}

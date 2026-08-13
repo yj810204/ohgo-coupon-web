@@ -4,6 +4,56 @@
  * 동적으로 game.js와 game.css를 로드하여 게임 실행
  */
 
+declare global {
+  interface Window {
+    exec_json?: (
+      proc: string,
+      params?: Record<string, unknown>,
+      success?: (ret: unknown) => void,
+      fail?: (error: unknown) => void
+    ) => void;
+    GameFactory?: Record<string, new (config: unknown) => unknown>;
+    gameLoader?: GameLoader;
+  }
+}
+
+/** 구앱 Rhymix `exec_json('cj_game.procCj_gameSaveScore')` → 신앱 onScore 콜백 */
+function installLegacySaveScoreBridge() {
+  if (typeof window === 'undefined') return;
+  const existing = window.exec_json as
+    | (((...args: unknown[]) => unknown) & { __ohgoScoreBridge?: boolean })
+    | undefined;
+  if (existing?.__ohgoScoreBridge) return;
+
+  const previous = existing;
+  const bridge = ((
+    proc: string,
+    params: Record<string, unknown> = {},
+    success?: (ret: unknown) => void,
+    fail?: (error: unknown) => void
+  ) => {
+    const name = String(proc || '');
+    if (name.includes('SaveScore') || name.includes('saveScore')) {
+      try {
+        const score = Number(params.score) || 0;
+        const level = params.level != null ? Number(params.level) : undefined;
+        const moves = params.moves != null ? Number(params.moves) : undefined;
+        const time = params.time != null ? Number(params.time) : undefined;
+        window.gameLoader?.onScore?.(score, level, moves, time);
+        success?.({ success: true });
+      } catch (e) {
+        fail?.(e);
+      }
+      return;
+    }
+    if (typeof previous === 'function') {
+      previous(proc, params, success, fail);
+    }
+  }) as NonNullable<Window['exec_json']> & { __ohgoScoreBridge: boolean };
+  bridge.__ohgoScoreBridge = true;
+  window.exec_json = bridge;
+}
+
 export class GameLoader {
   private currentGame: string | null = null;
   private gameInstance: any = null;
@@ -18,6 +68,7 @@ export class GameLoader {
    */
   async loadGame(gameId: string, gamePath: string): Promise<any> {
     try {
+      installLegacySaveScoreBridge();
       // 기존 게임 인스턴스 정리
       if (this.gameInstance) {
         this.stopGame();
@@ -98,9 +149,9 @@ export class GameLoader {
         // 에러가 발생해도 게임은 계속 진행
       }
 
-      // DB 미사용 시 플래피 버드 기본 로컬 에셋 경로 보장
+      // DB 미사용·asset_urls 누락 시 로컬 에셋 경로 보장
+      const base = config.game_path || `/${gamePath}`;
       if (gameId === 'flappy_bird') {
-        const base = config.game_path || `/${gamePath}`;
         const assetMap: Record<string, string> = {
           bird_image_path: 'bird_0',
           coin_image_path: 'coin_0',
@@ -114,8 +165,47 @@ export class GameLoader {
             config[configKey] = `${base}/assets/${assetKey}.png`;
           }
         }
+      } else if (gameId === 'bubble_shooter') {
+        const bubbleTypes = config.bubble_types || [];
+        bubbleTypes.forEach((bubbleType: { image_path?: string }, index: number) => {
+          if (!bubbleType.image_path) {
+            bubbleType.image_path = `${base}/assets/block_${index}.png`;
+          }
+        });
+        config.bubble_types = bubbleTypes;
+      } else if (gameId === 'match3') {
+        const blockTypes = config.block_types || [];
+        blockTypes.forEach((blockType: { image_path?: string }, index: number) => {
+          if (!blockType.image_path) {
+            blockType.image_path = `${base}/assets/block_${index}.png`;
+          }
+        });
+        config.block_types = blockTypes;
       }
 
+      // game_config_json의 types에도 image_path 반영 (게임이 JSON으로 덮어쓸 때 빈 경로가 되지 않도록)
+      if (
+        (gameId === 'bubble_shooter' || gameId === 'match3') &&
+        config.game_config_json
+      ) {
+        try {
+          const parsed =
+            typeof config.game_config_json === 'string'
+              ? JSON.parse(config.game_config_json)
+              : { ...config.game_config_json };
+          const typesKey = gameId === 'bubble_shooter' ? 'bubble_types' : 'block_types';
+          const fromConfig = gameId === 'bubble_shooter' ? config.bubble_types : config.block_types;
+          if (Array.isArray(parsed[typesKey]) && Array.isArray(fromConfig)) {
+            parsed[typesKey] = parsed[typesKey].map((t: { image_path?: string }, i: number) => ({
+              ...t,
+              image_path: fromConfig[i]?.image_path || t.image_path || '',
+            }));
+            config.game_config_json = parsed;
+          }
+        } catch {
+          // ignore
+        }
+      }
       // 게임 스타일 로드
       this.loadCSS(`/${gamePath}/game.css`);
 
@@ -155,23 +245,12 @@ export class GameLoader {
       }
 
       if (GameClass) {
+        config.is_logged = true;
         console.log('Creating game instance with config:', config);
         this.gameInstance = new GameClass(config);
         this.currentGame = gameId;
-        
-        // 전역 변수 업데이트 (게임 스크립트에서 접근 가능하도록)
-        // window.gameLoader가 없으면 생성
-        if (!window.gameLoader) {
-          (window as any).gameLoader = this;
-          console.log('Created window.gameLoader');
-        }
-        // gameInstance를 확실히 설정
-        (window.gameLoader as any).gameInstance = this.gameInstance;
-        
-        // 게임 인스턴스에도 직접 참조 추가 (fallback)
-        if (this.gameInstance) {
-          (this.gameInstance as any).gameLoader = this;
-        }
+        window.gameLoader = this;
+        this.gameInstance.gameLoader = this;
         
         console.log('Game instance created:', this.gameInstance);
         console.log('window.gameLoader:', window.gameLoader);
@@ -406,14 +485,6 @@ export class GameLoader {
    */
   getCurrentGame(): string | null {
     return this.currentGame;
-  }
-}
-
-// 전역 인스턴스 (선택사항)
-declare global {
-  interface Window {
-    GameFactory?: any;
-    gameLoader?: GameLoader;
   }
 }
 

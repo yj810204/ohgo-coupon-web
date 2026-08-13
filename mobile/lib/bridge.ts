@@ -4,6 +4,11 @@ export type BridgeMessageType =
   | 'NAVIGATION'
   | 'HAPTIC_FEEDBACK'
   | 'SHARE'
+  | 'SAVE_IMAGE'
+  | 'SAVE_IMAGE_RESULT'
+  | 'JS_ALERT'
+  | 'JS_CONFIRM'
+  | 'JS_CONFIRM_RESULT'
   | 'NATIVE_READY'
   | 'CAMERA_PERMISSION_REQUEST'
   | 'CAMERA_PERMISSION_RESPONSE'
@@ -38,12 +43,42 @@ export function serializeBridgeMessage(message: BridgeMessage): string {
 export const NATIVE_INJECT_SCRIPT = `
 (function() {
   window.__OHGO_NATIVE_APP__ = true;
+  // WebView 기본 alert 제목(도메인) 방지 — React OhgoDialogHost 마운트 전 폴백
+  if (!window.__OHGO_ALERT_PATCHED__) {
+    window.__OHGO_ALERT_PATCHED__ = true;
+    window.alert = function(msg) {
+      try {
+        if (typeof window.__ohgoAlert === 'function') {
+          window.__ohgoAlert(String(msg == null ? '' : msg));
+          return;
+        }
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'JS_ALERT',
+            payload: { message: String(msg == null ? '' : msg) }
+          }));
+        }
+      } catch (e) {}
+    };
+  }
+  function lockViewportZoom() {
+    var content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+    var meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute('name', 'viewport');
+      (document.head || document.documentElement).appendChild(meta);
+    }
+    meta.setAttribute('content', content);
+  }
   function applyNative() {
     document.documentElement.classList.add('ohgo-native');
     if (document.body) {
       document.body.setAttribute('data-native-app', 'true');
     }
+    lockViewportZoom();
   }
+  lockViewportZoom();
   if (document.body) {
     applyNative();
   } else {

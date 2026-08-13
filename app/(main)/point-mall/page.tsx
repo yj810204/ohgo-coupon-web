@@ -1,7 +1,8 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
 import SubPageFrame from '@/components/SubPageFrame';
 import ProductGridCard from '@/components/home/ProductGridCard';
@@ -18,7 +19,7 @@ import {
   IoChevronForwardOutline,
 } from 'react-icons/io5';
 
-const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+const FONT = "var(--font-ohgo), sans-serif";
 
 function PointMallPageContent() {
   const router = useRouter();
@@ -100,20 +101,19 @@ function PointMallPageContent() {
           <button
             type="button"
             onClick={() => router.push('/point-mall/orders')}
-            className="btn border-0 point-mall-balance__orders-btn"
+            className="point-mall-balance__orders-btn"
             style={{ fontFamily: FONT }}
           >
-            <IoReceiptOutline size={20} aria-hidden className="flex-shrink-0" />
-            <span>내 구매 내역</span>
-            <IoChevronForwardOutline size={16} aria-hidden className="flex-shrink-0" />
+            <IoReceiptOutline size={18} aria-hidden className="point-mall-balance__orders-btn-icon" />
+            <span className="point-mall-balance__orders-btn-label">구매 내역</span>
+            <IoChevronForwardOutline size={14} aria-hidden className="point-mall-balance__orders-btn-chevron" />
           </button>
         </div>
       </div>
 
       {baitFilter ? (
         <p className="mb-3" style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>
-          커뮤니티 포인트로 미끼를 구매한 뒤 미니게임을 플레이할 수 있습니다. 게임 포인트는 사용할 수
-          없습니다.
+          게임·커뮤니티로 모은 포인트로 미끼를 구매한 뒤 미니게임을 플레이할 수 있습니다.
         </p>
       ) : (
         <p className="mb-3" style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>

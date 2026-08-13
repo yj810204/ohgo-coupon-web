@@ -1,7 +1,8 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { resolveAppUser } from '@/lib/auth-session';
 import { getProfileByUserId } from '@/lib/supabase-auth';
 import {

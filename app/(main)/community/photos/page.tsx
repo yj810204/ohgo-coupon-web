@@ -1,15 +1,15 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
-import { getPhotos, CommunityPhoto } from '@/utils/community-service';
+import { getPhotos, CommunityPhoto, COMMUNITY_POST_DELETED_MESSAGE } from '@/utils/community-service';
 import { IoChatbubblesOutline, IoImageOutline, IoAddOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import { useNavigation } from '@/hooks/useNavigation';
 
-const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+const FONT = "var(--font-ohgo), sans-serif";
 
 function PhotosPageContent() {
   const router = useRouter();
@@ -51,7 +51,11 @@ function PhotosPageContent() {
   }
 
   return (
-    <SubPageFrame title="조황 사진" onRefresh={loadPhotos}>
+    <SubPageFrame
+      title="조황 사진"
+      onRefresh={loadPhotos}
+      onBack={() => router.replace('/community')}
+    >
         {/* 툴바 */}
         <div className="d-flex align-items-center justify-content-between mb-3">
           <span style={{ fontSize: 14, color: '#6F767E', fontFamily: FONT }}>
@@ -59,12 +63,12 @@ function PhotosPageContent() {
           </span>
           <button
             type="button"
-            onClick={() => navigate('/community/photos/upload')}
+            onClick={() => router.push('/community/photos/upload')}
             className="btn d-flex align-items-center gap-1"
             style={{ backgroundColor: '#1B6FF5', borderRadius: 10, border: 'none', padding: '7px 14px', fontSize: 13, color: '#fff', fontFamily: FONT, fontWeight: 600 }}
           >
             <IoAddOutline size={15} />
-            등록하기
+            등록
           </button>
         </div>
 
@@ -85,12 +89,29 @@ function PhotosPageContent() {
                   className="btn w-100 p-0"
                   style={{ borderRadius: 14, overflow: 'hidden', backgroundColor: '#E0E0E0', border: 'none', position: 'relative', aspectRatio: '1 / 1', display: 'block' }}
                 >
-                  <img
-                    src={photo.imageUrl}
-                    alt={photo.title || '조황사진'}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                    loading="lazy"
-                  />
+                  {photo.isDeleted || !photo.imageUrl ? (
+                    <div
+                      className="d-flex align-items-center justify-content-center h-100 w-100"
+                      style={{
+                        backgroundColor: '#E8EAED',
+                        color: '#6F767E',
+                        fontFamily: FONT,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        padding: 12,
+                        textAlign: 'center',
+                      }}
+                    >
+                      {COMMUNITY_POST_DELETED_MESSAGE}
+                    </div>
+                  ) : (
+                    <img
+                      src={photo.imageUrl}
+                      alt={photo.title || '조황사진'}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      loading="lazy"
+                    />
+                  )}
                   {/* 하단 오버레이 */}
                   <div style={{
                     position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -98,11 +119,11 @@ function PhotosPageContent() {
                     padding: '20px 10px 8px',
                     textAlign: 'left',
                   }}>
-                    {photo.title && (
+                    {!photo.isDeleted && photo.title ? (
                       <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', fontFamily: FONT, lineHeight: 1.3, marginBottom: 3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                         {photo.title}
                       </div>
-                    )}
+                    ) : null}
                     <div className="d-flex align-items-center justify-content-between">
                       <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', fontFamily: FONT }}>{formatDate(photo.uploadedAt)}</span>
                       {photo.commentCount > 0 && (

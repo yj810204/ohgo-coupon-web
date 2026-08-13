@@ -4,6 +4,11 @@ export type NativeBridgeMessageType =
   | 'NAVIGATION'
   | 'HAPTIC_FEEDBACK'
   | 'SHARE'
+  | 'SAVE_IMAGE'
+  | 'SAVE_IMAGE_RESULT'
+  | 'JS_ALERT'
+  | 'JS_CONFIRM'
+  | 'JS_CONFIRM_RESULT'
   | 'NATIVE_READY'
   | 'GAME_IMMERSIVE';
 
@@ -80,6 +85,73 @@ export async function requestPushTokenFromNative(): Promise<string | null> {
     });
 
     postToNative('PUSH_TOKEN_REQUEST');
+  });
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = String(reader.result || '');
+      const comma = result.indexOf(',');
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(new Error('이미지를 읽지 못했습니다.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * 네이티브 앱에서 이미지를 기기 사진 앨범에 저장.
+ * WebView에서는 `<a download>`가 동작하지 않으므로 브리지를 사용한다.
+ */
+export async function saveImageToDevice(options: {
+  imageUri: string;
+  filename: string;
+}): Promise<void> {
+  if (!isNativeApp()) {
+    throw new Error('네이티브 앱에서만 사용할 수 있습니다.');
+  }
+
+  const { imageUri, filename } = options;
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      unsubscribe();
+      reject(new Error('이미지 저장 시간이 초과되었습니다.'));
+    }, 45000);
+
+    const unsubscribe = onNativeMessage((msg) => {
+      if (msg.type !== 'SAVE_IMAGE_RESULT') return;
+      clearTimeout(timeout);
+      unsubscribe();
+      const payload = msg.payload as { ok?: boolean; message?: string } | undefined;
+      if (payload?.ok) resolve();
+      else reject(new Error(payload?.message || '이미지 저장에 실패했습니다.'));
+    });
+
+    void (async () => {
+      try {
+        if (/^https?:\/\//i.test(imageUri)) {
+          postToNative('SAVE_IMAGE', { uri: imageUri, filename });
+          return;
+        }
+
+        const response = await fetch(imageUri);
+        if (!response.ok) throw new Error('이미지를 불러오지 못했습니다.');
+        const blob = await response.blob();
+        const base64 = await blobToBase64(blob);
+        postToNative('SAVE_IMAGE', {
+          base64,
+          filename,
+          mimeType: blob.type || 'image/jpeg',
+        });
+      } catch (error) {
+        clearTimeout(timeout);
+        unsubscribe();
+        reject(error instanceof Error ? error : new Error('이미지 저장에 실패했습니다.'));
+      }
+    })();
   });
 }
 

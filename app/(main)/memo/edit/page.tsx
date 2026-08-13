@@ -1,7 +1,8 @@
 'use client';
 
 import { Suspense, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { updateMemo } from '@/utils/memo-service';
 import { IoCheckmarkOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';

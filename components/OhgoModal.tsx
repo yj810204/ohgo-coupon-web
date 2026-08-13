@@ -116,8 +116,21 @@ export default function OhgoModal({
   );
 }
 
-export function OhgoModalActions({ children }: { children: ReactNode }) {
-  return <div className="ohgo-modal__footer-actions">{children}</div>;
+export function OhgoModalActions({
+  children,
+  direction = 'row',
+}: {
+  children: ReactNode;
+  /** row: 가로 균등 / stack: 세로 전체폭 (긴 라벨·다수 선택지용) */
+  direction?: 'row' | 'stack';
+}) {
+  return (
+    <div
+      className={`ohgo-modal__footer-actions${direction === 'stack' ? ' ohgo-modal__footer-actions--stack' : ''}`}
+    >
+      {children}
+    </div>
+  );
 }
 
 type OhgoModalButtonProps = {

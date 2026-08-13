@@ -1,10 +1,21 @@
 'use client';
 
 import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
-import { Html5Qrcode } from 'html5-qrcode';
 import { isNativeApp } from '@/lib/native-bridge';
+import { invalidateCache } from '@/lib/query-cache';
+
+type Html5QrcodeClass = typeof import('html5-qrcode').Html5Qrcode;
+
+let html5QrcodePromise: Promise<Html5QrcodeClass> | null = null;
+function loadHtml5Qrcode(): Promise<Html5QrcodeClass> {
+  if (!html5QrcodePromise) {
+    html5QrcodePromise = import('html5-qrcode').then((m) => m.Html5Qrcode);
+  }
+  return html5QrcodePromise;
+}
 import { IoCameraOutline, IoCheckmarkCircleOutline, IoCloseCircleOutline } from 'react-icons/io5';
 import OhgoModal, { OhgoModalButton, OhgoModalText } from '@/components/OhgoModal';
 import { OHGO_CONFIRM_BTN, OHGO_CONFIRM_BTN_CLASS, OHGO_DISMISS_BTN, OHGO_DISMISS_BTN_CLASS } from '@/lib/page-styles';
@@ -31,11 +42,17 @@ function QRScanPageContent() {
   const [scanCompleted, setScanCompleted] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  // 네이티브 앱 QR 스캔 대기 상태
-  const [nativeWaiting, setNativeWaiting] = useState(false);
+  // 네이티브 앱 QR 스캔 대기 상태 (진입 직후 카메라 열리기 전까지 true)
+  const [nativeWaiting, setNativeWaiting] = useState(true);
   const [isNative, setIsNative] = useState(false);
   const [nativeChecked, setNativeChecked] = useState(false);
-  const qrCodeRef = useRef<Html5Qrcode | null>(null);
+  const qrCodeRef = useRef<InstanceType<Html5QrcodeClass> | null>(null);
+  const processingRef = useRef(false);
+  const scanCompletedRef = useRef(false);
+  const nativeAutoStartedRef = useRef(false);
+  const webCameraStartedRef = useRef(false);
+  const userRef = useRef(user);
+  const handleQRInputRef = useRef<(qrData: string) => Promise<void>>(async () => {});
 
   useEffect(() => {
     setIsNative(isNativeApp());
@@ -43,11 +60,18 @@ function QRScanPageContent() {
   }, []);
   const scanAreaRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
   const handleQRInput = useCallback(async (qrData: string) => {
-    if (scanning || !user?.uuid || scanCompleted) return;
+    const currentUser = userRef.current;
+    if (processingRef.current || !currentUser?.uuid || scanCompletedRef.current) return;
+    processingRef.current = true;
     setScanning(true);
     setIsScanning(true);
     setIsProcessing(true);
+    setNativeWaiting(false);
 
     // 스캔 성공 시 스캐너 완전히 중지
     const stopScanner = async () => {
@@ -55,21 +79,24 @@ function QRScanPageContent() {
         try {
           await qrCodeRef.current.stop();
           qrCodeRef.current.clear();
-          qrCodeRef.current = null;
-          setScanCompleted(true);
         } catch (error) {
           console.warn('스캐너 중지 중 오류:', error);
-          qrCodeRef.current = null;
-          setScanCompleted(true);
+          try {
+            qrCodeRef.current.clear();
+          } catch (_) {}
         }
+        qrCodeRef.current = null;
       }
+      // 네이티브는 html5 스캐너가 없어도 완료 처리 (재실행 방지)
+      scanCompletedRef.current = true;
+      setScanCompleted(true);
     };
 
     try {
       const res = await fetch('/api/stamps/process', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qrData, userId: user.uuid }),
+        body: JSON.stringify({ qrData, userId: currentUser.uuid }),
       });
       const data = await res.json();
 
@@ -77,19 +104,18 @@ function QRScanPageContent() {
         if (data.code === 'INVALID_QR') {
           setMessage('유효하지 않은 QR 코드입니다.');
           setMessageColor('#f44336');
-          setIsScanning(false);
-          setScanning(false);
-          setIsProcessing(false);
-          return;
+        } else {
+          setErrorMessage(data.message || '적립 실패');
+          setShowErrorModal(true);
         }
-        setErrorMessage(data.message || '적립 실패');
-        setShowErrorModal(true);
         setIsScanning(false);
         setScanning(false);
         setIsProcessing(false);
+        processingRef.current = false;
         return;
       }
 
+      invalidateCache('stamps:');
       setMessage('스탬프가 적립되었습니다!');
       setMessageColor('#4caf50');
 
@@ -98,8 +124,11 @@ function QRScanPageContent() {
       setScanning(false);
       setIsProcessing(false);
 
+      // replace: 스탬프에서 뒤로가기 시 QR 리더가 다시 열리지 않음
       setTimeout(() => {
-        router.push(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
+        router.replace(
+          `/stamp?uuid=${currentUser.uuid}&name=${currentUser.name}&dob=${currentUser.dob}`
+        );
       }, 1500);
     } catch (error: any) {
       // 이미 처리된 경우 팝업으로 표시
@@ -108,8 +137,13 @@ function QRScanPageContent() {
       setIsScanning(false);
       setScanning(false);
       setIsProcessing(false);
+      processingRef.current = false;
     }
-  }, [scanning, user, router, scanCompleted]);
+  }, [router]);
+
+  useEffect(() => {
+    handleQRInputRef.current = handleQRInput;
+  }, [handleQRInput]);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -120,7 +154,7 @@ function QRScanPageContent() {
       }
       setUser(u);
     };
-    loadUser();
+    void loadUser();
   }, [router]);
 
   // 네이티브 앱: QR_SCAN_RESULT / QR_SCAN_CANCEL 수신 리스너
@@ -132,7 +166,7 @@ function QRScanPageContent() {
         const msg = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         if (msg?.type === 'QR_SCAN_RESULT' && msg?.payload?.data) {
           setNativeWaiting(false);
-          handleQRInput(msg.payload.data);
+          void handleQRInputRef.current(msg.payload.data);
         } else if (msg?.type === 'QR_SCAN_CANCEL') {
           setNativeWaiting(false);
           setMessage('스캔이 취소되었습니다.');
@@ -142,23 +176,33 @@ function QRScanPageContent() {
     };
 
     window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [user, isNative, handleQRInput]);
+    // Android WebView는 document message를 쓰기도 함
+    document.addEventListener('message', handleMessage as EventListener);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      document.removeEventListener('message', handleMessage as EventListener);
+    };
+  }, [user, isNative]);
 
-  // 네이티브 앱이면 카메라 초기화 건너뜀
+  // 네이티브: 진입 시 스캐너 1회만 요청 (처리 중 재실행 금지)
   useEffect(() => {
-    if (!user || !nativeChecked) return;
-    if (isNative) {
-      // 네이티브 앱 환경: 자동으로 QR 스캔 요청
-      setNativeWaiting(true);
-      requestNativeQRScan();
-      return;
-    }
+    if (!user || !nativeChecked || !isNative) return;
+    if (nativeAutoStartedRef.current) return;
+    nativeAutoStartedRef.current = true;
+    setNativeWaiting(true);
+    requestNativeQRScan();
+  }, [user, nativeChecked, isNative]);
 
-    // 웹 환경: html5-qrcode로 카메라 준비
+  // 웹: 카메라 초기화 1회
+  useEffect(() => {
+    if (!user || !nativeChecked || isNative) return;
+    if (webCameraStartedRef.current) return;
+    webCameraStartedRef.current = true;
+
     const initCamera = async () => {
       setIsPreparing(true);
       try {
+        const Html5Qrcode = await loadHtml5Qrcode();
         const qrCode = new Html5Qrcode('qr-reader');
         qrCodeRef.current = qrCode;
 
@@ -194,14 +238,11 @@ function QRScanPageContent() {
           cameraId || { facingMode: 'environment' },
           config,
           (decodedText) => {
-            // 자동 스캔 활성화
-            if (!scanCompleted && !scanning) {
-              handleQRInput(decodedText);
+            if (!scanCompletedRef.current && !processingRef.current) {
+              void handleQRInputRef.current(decodedText);
             }
           },
-          (errorMessage) => {
-            // 스캔 중 오류 (무시)
-          }
+          () => {}
         );
 
         setCameraReady(true);
@@ -224,7 +265,7 @@ function QRScanPageContent() {
       }
     };
 
-    initCamera();
+    void initCamera();
 
     return () => {
       const cleanup = async () => {
@@ -242,9 +283,9 @@ function QRScanPageContent() {
           qrCodeRef.current = null;
         }
       };
-      cleanup();
+      void cleanup();
     };
-  }, [user, nativeChecked, isNative, router, handleQRInput, scanCompleted, scanning]);
+  }, [user, nativeChecked, isNative]);
 
   // 스캔 시작 함수
   const handleStartScan = useCallback(async () => {
@@ -267,6 +308,7 @@ function QRScanPageContent() {
       }
 
       // 스캔 모드로 재시작
+      const Html5Qrcode = await loadHtml5Qrcode();
       const qrCode = new Html5Qrcode('qr-reader');
       qrCodeRef.current = qrCode;
 
@@ -320,13 +362,26 @@ function QRScanPageContent() {
     }
   }, [isScanning, cameraReady, scanCompleted, handleQRInput]);
 
-  if (!user) {
+  if (!user || !nativeChecked) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">로딩 중...</p>
-        </div>
+      <div
+        style={{
+          minHeight: '100vh',
+          backgroundColor: '#F7F8FA',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+        }}
+      >
+        <div className="spinner-border text-primary mb-3" role="status" />
+        <p style={{ color: '#1A1D1F', fontWeight: 700, fontSize: 17, marginBottom: 8 }}>
+          QR 스캔 준비 중…
+        </p>
+        <p style={{ color: '#6F767E', fontSize: 14, textAlign: 'center', margin: 0 }}>
+          카메라를 준비하고 있습니다.
+        </p>
       </div>
     );
   }
@@ -340,10 +395,12 @@ function QRScanPageContent() {
           <>
             <div className="spinner-border text-primary mb-3" role="status" />
             <p style={{ color: '#1A1D1F', fontWeight: 700, fontSize: '17px', marginBottom: '8px' }}>
-              {isProcessing ? '처리 중...' : 'QR 코드 스캔 중'}
+              {isProcessing ? '처리 중...' : '카메라 준비 중…'}
             </p>
             <p style={{ color: '#6F767E', fontSize: '14px', textAlign: 'center' }}>
-              {isProcessing ? '스탬프를 적립하고 있습니다.' : '카메라 화면에서 QR 코드를 스캔해 주세요.'}
+              {isProcessing
+                ? '스탬프를 적립하고 있습니다.'
+                : '잠시만 기다려 주세요. 카메라 화면이 곧 열립니다.'}
             </p>
           </>
         ) : (
@@ -366,8 +423,11 @@ function QRScanPageContent() {
                 type="button"
                 className={`btn w-100 fw-semibold ${OHGO_CONFIRM_BTN_CLASS}`}
                 onClick={() => {
+                  scanCompletedRef.current = false;
+                  processingRef.current = false;
                   setScanCompleted(false);
                   setScanning(false);
+                  setIsProcessing(false);
                   setMessage('');
                   setNativeWaiting(true);
                   requestNativeQRScan();
@@ -402,7 +462,7 @@ function QRScanPageContent() {
                 setShowErrorModal(false);
                 setErrorMessage('');
                 if (user?.uuid) {
-                  router.push(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
+                  router.replace(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
                 } else {
                   router.back();
                 }
@@ -442,7 +502,8 @@ function QRScanPageContent() {
     setTimeout(() => {
       const initQRScanner = async () => {
         try {
-          const qrCode = new Html5Qrcode('qr-reader');
+          const Html5Qrcode = await loadHtml5Qrcode();
+      const qrCode = new Html5Qrcode('qr-reader');
           qrCodeRef.current = qrCode;
 
           const config = {
@@ -670,7 +731,7 @@ function QRScanPageContent() {
               setShowErrorModal(false);
               setErrorMessage('');
               if (user?.uuid) {
-                router.push(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
+                router.replace(`/stamp?uuid=${user.uuid}&name=${user.name}&dob=${user.dob}`);
               } else {
                 router.back();
               }

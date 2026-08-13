@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { resolveAppUser } from '@/lib/auth-session';
 
 type Options = {

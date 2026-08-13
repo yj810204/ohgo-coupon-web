@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { resolveAppUser } from '@/lib/auth-session';
 import {
   getSiteSettings,
@@ -33,9 +33,12 @@ import {
   OHGO_CONFIRM_BTN_CLASS,
   OHGO_PRIMARY_BTN,
   OHGO_SECONDARY_BTN,
+  OHGO_LIST,
+  OHGO_LIST_DIVIDER,
   ohgoListRowStyle,
 } from '@/lib/page-styles';
 import EmptyState from '@/components/EmptyState';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 const CARD: React.CSSProperties = { ...OHGO_CARD };
 
@@ -75,7 +78,7 @@ const LABEL: React.CSSProperties = {
 };
 
 const HINT: React.CSSProperties = {
-  fontSize: 12,
+  fontSize: OHGO_LIST.metaSize,
   color: '#6F767E',
   fontFamily: OHGO_FONT,
   lineHeight: 1.5,
@@ -179,7 +182,7 @@ function AdminSiteSettingsContent() {
   };
 
   const handleDeleteMenuItem = async (itemId: string) => {
-    if (!confirm('이 메뉴를 삭제하시겠습니까?')) {
+    if (!(await ohgoConfirm('이 메뉴를 삭제하시겠습니까?'))) {
       return;
     }
 
@@ -253,18 +256,18 @@ function AdminSiteSettingsContent() {
 
   const tabPickerItems = [HOME_MENU_ITEM, ...activeMenuItems];
 
-  const renderTabPickerRow = (item: MenuItem, index: number, total: number) => {
+  const renderTabPickerRow = (item: MenuItem, index: number) => {
     const IconComponent = getIconComponent(item.iconName);
     const isSelected = bottomTabMenuIds.includes(item.id);
     const canSelect = isSelected || bottomTabMenuIds.length < 5;
 
     return (
+      <div key={item.id}>
+        {index > 0 && <div style={OHGO_LIST_DIVIDER} />}
       <label
-        key={item.id}
         htmlFor={`bottom-tab-${item.id}`}
-        className="d-flex align-items-center gap-2 px-3 py-2 mb-0"
+        className="ohgo-menu-list-row mb-0"
         style={{
-          borderBottom: index < total - 1 ? '1px solid #F7F8FA' : 'none',
           ...ohgoListRowStyle({ selected: isSelected, muted: !isSelected }),
           opacity: canSelect ? 1 : 0.5,
           cursor: canSelect || isSelected ? 'pointer' : 'not-allowed',
@@ -295,6 +298,7 @@ function AdminSiteSettingsContent() {
           </span>
         ) : null}
       </label>
+      </div>
     );
   };
 
@@ -389,12 +393,12 @@ function AdminSiteSettingsContent() {
               {menuItems.map((item, index) => {
                 const IconComponent = getIconComponent(item.iconName);
                 return (
+                  <div key={item.id}>
+                    {index > 0 && <div style={OHGO_LIST_DIVIDER} />}
                   <div
-                    key={item.id}
-                    className="d-flex align-items-center gap-2 px-3 py-2"
+                    className="ohgo-menu-list-row"
                     style={{
                       opacity: item.isActive ? 1 : 0.72,
-                      borderBottom: index < menuItems.length - 1 ? '1px solid #F7F8FA' : 'none',
                       ...ohgoListRowStyle({ muted: !item.isActive }),
                     }}
                   >
@@ -440,8 +444,8 @@ function AdminSiteSettingsContent() {
                         </span>
                         <span
                           style={{
-                            fontSize: 15,
-                            fontWeight: 700,
+                            fontSize: OHGO_LIST.titleSize,
+                            fontWeight: OHGO_LIST.titleWeight,
                             color: '#1A1D1F',
                             fontFamily: OHGO_FONT,
                             overflow: 'hidden',
@@ -462,7 +466,7 @@ function AdminSiteSettingsContent() {
                       </div>
                       <div
                         style={{
-                          fontSize: 12,
+                          fontSize: OHGO_LIST.metaSize,
                           color: '#6F767E',
                           fontFamily: OHGO_FONT,
                           marginTop: 2,
@@ -517,6 +521,7 @@ function AdminSiteSettingsContent() {
                       </button>
                     </div>
                   </div>
+                  </div>
                 );
               })}
             </div>
@@ -564,9 +569,7 @@ function AdminSiteSettingsContent() {
                   backgroundColor: '#FFFFFF',
                 }}
               >
-                {tabPickerItems.map((item, index) =>
-                  renderTabPickerRow(item, index, tabPickerItems.length),
-                )}
+                {tabPickerItems.map((item, index) => renderTabPickerRow(item, index))}
               </div>
 
               {bottomTabMenuIds.length > 0 && (
@@ -590,14 +593,11 @@ function AdminSiteSettingsContent() {
                       const IconComponent = getIconComponent(item.iconName);
 
                       return (
+                        <div key={menuId}>
+                          {index > 0 && <div style={OHGO_LIST_DIVIDER} />}
                         <div
-                          key={menuId}
-                          className="d-flex align-items-center gap-2 px-3 py-2"
-                          style={{
-                            borderBottom:
-                              index < bottomTabMenuIds.length - 1 ? '1px solid #F7F8FA' : 'none',
-                            backgroundColor: '#FFFFFF',
-                          }}
+                          className="ohgo-menu-list-row"
+                          style={{ backgroundColor: '#FFFFFF' }}
                         >
                           <div className="d-flex flex-column gap-1 flex-shrink-0">
                             <button
@@ -666,6 +666,7 @@ function AdminSiteSettingsContent() {
                           >
                             {index + 1}
                           </span>
+                        </div>
                         </div>
                       );
                     })}

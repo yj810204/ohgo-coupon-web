@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { IoChevronForwardOutline, IoTrophyOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
@@ -16,7 +16,7 @@ import {
   type RankingUser,
   type TournamentInfo,
 } from '@/lib/ranking';
-import { OhgoPageLoading } from '@/lib/page-styles';
+import { OhgoPageLoading, OHGO_LIST, OHGO_LIST_DIVIDER } from '@/lib/page-styles';
 
 const CARD: React.CSSProperties = {
   backgroundColor: '#FFFFFF',
@@ -190,43 +190,40 @@ function RankingPageContent() {
               </div>
 
               {users.map((item, idx) => {
-                const isMe = item.id === userUuid;
+                const isMe = myRank != null && idx + 1 === myRank;
                 return (
+                  <div key={item.id}>
+                    {idx > 0 && <div style={OHGO_LIST_DIVIDER} />}
                   <button
-                    key={item.id}
                     type="button"
                     onClick={() => navigate(`/mini-games/ranking/${item.id}`)}
-                    className="btn w-100 d-flex align-items-center px-3 py-3 text-start"
+                    className="btn ohgo-menu-list-row"
                     style={{
-                      border: 'none',
-                      borderTop: '1px solid #F7F8FA',
-                      borderRadius: 0,
                       background: isMe ? '#EBF1FE' : '#FFFFFF',
                       boxShadow: 'none',
                     }}
                   >
-                    <div style={{ width: 48, flexShrink: 0 }}>
+                    <div style={{ width: 40, flexShrink: 0 }}>
                       <MedalBadge rank={idx + 1} medalCount={medalCount} />
                     </div>
                     <div
+                      className="ohgo-menu-list-row__title flex-grow-1"
                       style={{
-                        flexGrow: 1,
-                        fontSize: 14,
-                        fontWeight: isMe ? 700 : 500,
-                        color: isMe ? '#1B6FF5' : '#1A1D1F',
+                        fontWeight: isMe ? 700 : OHGO_LIST.titleWeight,
+                        color: isMe ? '#1B6FF5' : OHGO_LIST.titleColor,
                         fontFamily: RANKING_FONT,
                       }}
                     >
                       {isMe || isAdmin ? item.name : maskName(item.name)}
                       {isMe && (
-                        <span style={{ fontSize: 11, marginLeft: 6, opacity: 0.7 }}>
+                        <span style={{ fontSize: OHGO_LIST.metaSize, marginLeft: 6, opacity: 0.7 }}>
                           (나)
                         </span>
                       )}
                     </div>
                     <div
                       style={{
-                        fontSize: 14,
+                        fontSize: OHGO_LIST.titleSize,
                         fontWeight: 700,
                         color: '#1B6FF5',
                         fontFamily: RANKING_FONT,
@@ -235,18 +232,22 @@ function RankingPageContent() {
                       {item.totalPoint.toLocaleString()}P
                     </div>
                   </button>
+                  </div>
                 );
               })}
 
               {myRank && (
+                <>
+                <div style={OHGO_LIST_DIVIDER} />
                 <div
                   className="px-3 py-3 text-center"
-                  style={{ borderTop: '1px solid #F7F8FA', backgroundColor: '#F7F8FA' }}
+                  style={{ backgroundColor: '#F7F8FA' }}
                 >
                   <span style={{ fontSize: 13, color: '#6F767E', fontFamily: RANKING_FONT }}>
                     내 순위: <strong style={{ color: '#1B6FF5' }}>{myRank}위</strong> / {users.length}명 중
                   </span>
                 </div>
+                </>
               )}
             </div>
           )}

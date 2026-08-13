@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { saveUser } from '@/lib/storage';
 import { getHomePathForUser } from '@/lib/auth-session';
 import { resetSupabaseBrowserClient } from '@/lib/supabase/client';

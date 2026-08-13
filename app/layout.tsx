@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import Script from "next/script";
 import { LoadingProvider } from "@/contexts/LoadingContext";
 import PageLoader from "@/components/PageLoader";
 import SiteTitle from "@/components/SiteTitle";
 import BottomTabBar from "@/components/BottomTabBar";
 import NativeBridgeInit from "@/components/NativeBridgeInit";
+import OhgoDialogHost from "@/components/OhgoDialogHost";
 
 export const metadata: Metadata = {
   title: "오고피씽",
@@ -15,6 +15,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
 };
 
@@ -25,6 +27,24 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" suppressHydrationWarning>
+      <head>
+        {/* 동일 출처 — Google/jsDelivr @import 체인 제거 (모바일 FCP) */}
+        <link rel="stylesheet" href="/vendor/bootstrap.min.css" />
+        <link
+          rel="preload"
+          href="/fonts/scdream/S-CoreDream-4Regular.woff"
+          as="font"
+          type="font/woff"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="/fonts/scdream/S-CoreDream-6Bold.woff"
+          as="font"
+          type="font/woff"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className="antialiased" suppressHydrationWarning>
         <NativeBridgeInit />
         <SiteTitle />
@@ -34,11 +54,7 @@ export default function RootLayout({
           </div>
           <BottomTabBar />
           <PageLoader />
-          <Script
-            src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
-            strategy="afterInteractive"
-            crossOrigin="anonymous"
-          />
+          <OhgoDialogHost />
         </LoadingProvider>
       </body>
     </html>

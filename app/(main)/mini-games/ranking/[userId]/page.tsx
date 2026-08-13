@@ -1,11 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { IoFishOutline } from 'react-icons/io5';
+import { useParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
+import { IoGameControllerOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import { getUser } from '@/lib/storage';
+import { getAllGames, type Game } from '@/lib/game-service';
 import {
   fetchUserDisplayName,
   fetchUserFishRecords,
@@ -21,6 +23,22 @@ const CARD: React.CSSProperties = {
   border: 'none',
 };
 
+function gameThumbUrl(game: Game): string | undefined {
+  if (game.thumbnail_url) return game.thumbnail_url;
+  if (!game.thumbnail_path) return undefined;
+  return game.thumbnail_path.startsWith('http') ? game.thumbnail_path : `/${game.thumbnail_path}`;
+}
+
+function matchGame(name: string, games: Game[]): Game | undefined {
+  const n = name.trim();
+  return games.find(
+    (g) =>
+      g.game_name === n ||
+      g.game_id === n ||
+      g.game_id.replace(/_/g, ' ') === n.toLowerCase()
+  );
+}
+
 export default function RankingUserRecordsPage() {
   const router = useRouter();
   const params = useParams();
@@ -29,18 +47,21 @@ export default function RankingUserRecordsPage() {
   const [viewer, setViewer] = useState<{ uuid?: string; isAdmin?: boolean } | null>(null);
   const [displayName, setDisplayName] = useState('');
   const [groupedFish, setGroupedFish] = useState<GroupedFishCatch[]>([]);
+  const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadRecords = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     try {
-      const [name, fish] = await Promise.all([
+      const [name, fish, allGames] = await Promise.all([
         fetchUserDisplayName(userId),
         fetchUserFishRecords(userId),
+        getAllGames(),
       ]);
       setDisplayName(name);
       setGroupedFish(fish);
+      setGames(allGames);
     } catch (e) {
       console.error(e);
       setGroupedFish([]);
@@ -88,54 +109,68 @@ export default function RankingUserRecordsPage() {
           <div className="spinner-border text-primary" role="status" />
         </div>
       ) : groupedFish.length === 0 ? (
-        <EmptyState icon={IoFishOutline} message="기록이 없습니다." style={CARD} />
+        <EmptyState icon={IoGameControllerOutline} message="기록이 없습니다." style={CARD} />
       ) : (
         <div className="d-flex flex-column gap-2">
-          {groupedFish.map(f => (
-            <div
-              key={f.fishName}
-              className="d-flex align-items-center gap-3 p-3"
-              style={{ ...CARD }}
-            >
-              {f.img ? (
-                <img
-                  src={f.img}
-                  alt={f.fishName}
-                  width={32}
-                  height={32}
-                  style={{ objectFit: 'contain', borderRadius: 8, flexShrink: 0 }}
-                />
-              ) : (
-                <div
-                  className="d-inline-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
-                  style={{ width: 40, height: 40, backgroundColor: '#F2F3F5' }}
-                >
-                  <IoFishOutline size={22} color="#6F767E" />
-                </div>
-              )}
-              <div className="flex-grow-1" style={{ minWidth: 0 }}>
-                <div
-                  style={{ fontSize: 15, fontWeight: 600, color: '#1A1D1F', fontFamily: RANKING_FONT }}
-                >
-                  {f.fishName}
-                </div>
-                <div style={{ fontSize: 13, color: '#6F767E', fontFamily: RANKING_FONT }}>
-                  {f.count}마리
-                </div>
-              </div>
+          {groupedFish.map(f => {
+            const game = matchGame(f.fishName, games);
+            const thumb = game ? gameThumbUrl(game) : f.img;
+            const countLabel = game ? `${f.count}회` : `${f.count}마리`;
+            return (
               <div
-                style={{
-                  fontSize: 15,
-                  fontWeight: 700,
-                  color: '#1B6FF5',
-                  fontFamily: RANKING_FONT,
-                  flexShrink: 0,
-                }}
+                key={f.fishName}
+                className="d-flex align-items-center gap-3 p-3"
+                style={{ ...CARD }}
               >
-                {f.totalPoints.toLocaleString()}P
+                {thumb ? (
+                  <div
+                    className="flex-shrink-0"
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 12,
+                      overflow: 'hidden',
+                      backgroundColor: '#EBF1FE',
+                    }}
+                  >
+                    <img
+                      src={thumb}
+                      alt={f.fishName}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className="d-inline-flex align-items-center justify-content-center flex-shrink-0"
+                    style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: '#EBF1FE' }}
+                  >
+                    <IoGameControllerOutline size={22} color="#1B6FF5" />
+                  </div>
+                )}
+                <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                  <div
+                    style={{ fontSize: 15, fontWeight: 600, color: '#1A1D1F', fontFamily: RANKING_FONT }}
+                  >
+                    {f.fishName}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#6F767E', fontFamily: RANKING_FONT }}>
+                    {countLabel}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: '#1B6FF5',
+                    fontFamily: RANKING_FONT,
+                    flexShrink: 0,
+                  }}
+                >
+                  {f.totalPoints.toLocaleString()}P
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </SubPageFrame>

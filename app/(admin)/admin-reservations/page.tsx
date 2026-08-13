@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { resolveAppUser } from '@/lib/auth-session';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
@@ -19,6 +19,7 @@ import {
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import { OhgoPageLoading, OHGO_CARD, OHGO_FONT } from '@/lib/page-styles';
 import { IoCalendarOutline } from 'react-icons/io5';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 const FONT = OHGO_FONT;
 const CARD: React.CSSProperties = { ...OHGO_CARD };
@@ -122,7 +123,7 @@ export default function AdminReservationsPage() {
   };
 
   const handleAdminCancel = async (id: string) => {
-    if (!confirm('이 예약을 취소 처리하시겠습니까?')) return;
+    if (!(await ohgoConfirm('이 예약을 취소 처리하시겠습니까?'))) return;
     setActing(true);
     try {
       await adminCancelReservation(id);
@@ -133,7 +134,7 @@ export default function AdminReservationsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('취소된 예약 내역을 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.')) return;
+    if (!(await ohgoConfirm('취소된 예약 내역을 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.'))) return;
     setActing(true);
     try {
       const ok = await adminDeleteCancelledReservation(id);
@@ -182,7 +183,7 @@ export default function AdminReservationsPage() {
                     {r.destination}
                   </div>
                   <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT }}>
-                    {formatTripDate(r.tripDate)} · {r.departureTime} 출발
+                    {formatTripDate(r.tripDate)} · {r.departureTime} 출항
                   </div>
                 </div>
                 <span

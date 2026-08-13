@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
 import SubPageFrame from '@/components/SubPageFrame';
 import ProductGridCard from '@/components/home/ProductGridCard';
@@ -33,7 +33,7 @@ export default function ClosedMallPage() {
 
   return (
     <SubPageFrame title="오고피씽몰">
-        <p className="mb-4" style={{ fontSize: 13, color: '#6F767E', fontFamily: "'Urbanist', var(--font-urbanist), sans-serif" }}>
+        <p className="mb-4" style={{ fontSize: 13, color: '#6F767E', fontFamily: "var(--font-ohgo), sans-serif" }}>
           오고피씽 회원 전용 혜택 상품입니다. 상세 주문 기능은 준비 중입니다.
         </p>
         <div className="row g-3">

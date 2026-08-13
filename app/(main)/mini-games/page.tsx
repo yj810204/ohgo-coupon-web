@@ -52,7 +52,7 @@ export default function MiniGamesPage() {
     handleRefresh();
   }, [navigateReplace, handleRefresh]);
 
-  const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+  const FONT = "var(--font-ohgo), sans-serif";
   const CARD: React.CSSProperties = { backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: 'none' };
 
   return (
@@ -105,19 +105,21 @@ export default function MiniGamesPage() {
                 style={{ ...CARD, overflow: 'hidden' }}
               >
                 {(game.thumbnail_url || game.thumbnail_path) ? (
-                  <img
-                    src={game.thumbnail_url || (game.thumbnail_path?.startsWith('http') ? game.thumbnail_path : `/${game.thumbnail_path}`)}
-                    alt={game.game_name}
-                    style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
-                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
+                  <div style={{ width: '100%', aspectRatio: '1 / 1', overflow: 'hidden', backgroundColor: '#EBF1FE' }}>
+                    <img
+                      src={game.thumbnail_url || (game.thumbnail_path?.startsWith('http') ? game.thumbnail_path : `/${game.thumbnail_path}`)}
+                      alt={game.game_name}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', display: 'block' }}
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  </div>
                 ) : (
-                  <div className="d-flex align-items-center justify-content-center" style={{ height: 120, backgroundColor: '#F7F8FA' }}>
+                  <div className="d-flex align-items-center justify-content-center" style={{ width: '100%', aspectRatio: '1 / 1', backgroundColor: '#F7F8FA' }}>
                     <div
-                      className="d-inline-flex align-items-center justify-content-center rounded-circle"
-                      style={{ width: 56, height: 56, backgroundColor: '#F2F3F5' }}
+                      className="d-inline-flex align-items-center justify-content-center"
+                      style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#EBF1FE' }}
                     >
-                      <IoGameControllerOutline size={28} color="#6F767E" />
+                      <IoGameControllerOutline size={28} color="#1B6FF5" />
                     </div>
                   </div>
                 )}

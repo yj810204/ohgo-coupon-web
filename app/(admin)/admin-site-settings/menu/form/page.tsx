@@ -1,7 +1,8 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { getSiteSettings, saveSiteSettings, MenuItem } from '@/utils/site-settings-service';
 import { getAvailableIcons, getIconComponent } from '@/utils/icon-mapper';
 import { IoCheckmarkOutline } from 'react-icons/io5';

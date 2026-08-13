@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { format } from 'date-fns';
 import { getUserActionLogs, clearUserActionLogs } from '@/utils/user-action-log-service';
 import SubPageFrame from '@/components/SubPageFrame';
@@ -10,6 +11,7 @@ import EmptyState from '@/components/EmptyState';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import { IoListOutline } from 'react-icons/io5';
 import { OHGO_CARD, OHGO_FONT, OhgoPageLoading } from '@/lib/page-styles';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 function LogsPageContent() {
   const searchParams = useSearchParams();
@@ -33,7 +35,7 @@ function LogsPageContent() {
   useNativePullToRefresh(loadLogs);
 
   const clearLogs = async () => {
-    if (!confirm('정말로 이 회원의 모든 로그를 삭제하시겠습니까?')) return;
+    if (!(await ohgoConfirm('정말로 이 회원의 모든 로그를 삭제하시겠습니까?'))) return;
     try {
       await clearUserActionLogs(uuid);
       setLogs([]);

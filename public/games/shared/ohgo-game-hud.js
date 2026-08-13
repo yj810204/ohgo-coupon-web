@@ -15,7 +15,7 @@
     livesStroke: 0xd50000,
     labelColor: '#9ca3af',
     valueColor: '#ffffff',
-    fontFamily: 'Urbanist, system-ui, -apple-system, sans-serif',
+    fontFamily: 'SCDream, system-ui, -apple-system, sans-serif',
   };
 
   function parseInsetPx(style, name) {

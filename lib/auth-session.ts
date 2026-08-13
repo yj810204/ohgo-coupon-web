@@ -6,6 +6,7 @@ import {
   type AppProfile,
 } from '@/lib/supabase-auth';
 import { requiresProfileSetup } from '@/lib/profile-complete';
+import { DEV_MOCK_USER, isDevAuthBypass } from '@/lib/dev-auth';
 
 export type AppUser = {
   uuid: string;
@@ -29,6 +30,10 @@ function profileToAppUser(profile: AppProfile): AppUser {
 
 /** localStorage + Supabase 세션 검증 */
 export async function resolveAppUser(): Promise<AppUser | null> {
+  if (isDevAuthBypass()) {
+    return { ...DEV_MOCK_USER };
+  }
+
   let localUser = await getUser();
 
   if (!localUser?.uuid && isSupabaseConfigured()) {
@@ -61,14 +66,20 @@ export function getHomePathForUser(user: AppUser): string {
 export async function signOutApp(options?: { uuid?: string }) {
   const uuid = options?.uuid;
 
-  if (uuid && isSupabaseConfigured()) {
+  if (uuid) {
     try {
-      const { getSupabaseBrowserClient } = await import('@/lib/supabase/client');
-      const supabase = getSupabaseBrowserClient();
-      await supabase
-        .from('profiles')
-        .update({ expo_push_token: null })
-        .eq('id', uuid);
+      const { isFirebaseDataSource } = await import('@/lib/data-source');
+      if (isFirebaseDataSource()) {
+        const { saveExpoPushToken } = await import('@/utils/member-profile-service');
+        await saveExpoPushToken(uuid, null);
+      } else if (isSupabaseConfigured()) {
+        const { getSupabaseBrowserClient } = await import('@/lib/supabase/client');
+        const supabase = getSupabaseBrowserClient();
+        await supabase
+          .from('profiles')
+          .update({ expo_push_token: null })
+          .eq('id', uuid);
+      }
     } catch {
       // ignore
     }

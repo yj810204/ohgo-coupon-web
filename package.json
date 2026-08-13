@@ -9,8 +9,13 @@
     "start": "next start",
     "lint": "eslint",
     "screenshots": "node scripts/capture-all-screenshots.mjs",
+    "import:firebase-guests": "node scripts/import-firebase-guests.mjs",
+    "import:firebase-stamps": "node scripts/import-firebase-stamps-coupons.mjs",
+    "import:apply-staging-sql": "node scripts/apply-legacy-staging-migration.mjs",
     "dev:mobile": "cd mobile && npm start",
-    "mobile:install": "cd mobile && npm install"
+    "mobile:install": "cd mobile && npm install",
+    "mobile:aab": "cd mobile && npm run build:aab",
+    "mobile:ipa": "cd mobile && npm run build:ipa"
   },
   "dependencies": {
     "@ckeditor/ckeditor5-build-classic": "^41.4.2",
@@ -19,6 +24,7 @@
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.107.0",
     "date-fns": "^4.1.0",
+    "firebase": "^11.10.0",
     "html2canvas": "^1.4.1",
     "html5-qrcode": "^2.3.8",
     "next": "^16.0.10",
@@ -33,6 +39,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^16.6.1",
     "eslint": "^9",
     "eslint-config-next": "16.0.8",
     "playwright": "^1.60.0",

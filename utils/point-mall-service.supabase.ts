@@ -174,8 +174,13 @@ export async function purchaseProduct(uuid: string, productId: string): Promise<
 
     if (isBaitProduct) {
       const baitAmount = Math.max(1, Number(product.bait_amount) || 0);
-      if (communityPoint < price) throw new Error('INSUFFICIENT_POINTS');
-      communityPoint -= price;
+      const available = totalPoint + communityPoint;
+      if (available < price) throw new Error('INSUFFICIENT_POINTS');
+      let remaining = price;
+      const fromGame = Math.min(totalPoint, remaining);
+      totalPoint -= fromGame;
+      remaining -= fromGame;
+      communityPoint -= remaining;
       baitCoupons += baitAmount;
     } else {
       const available = totalPoint + communityPoint;

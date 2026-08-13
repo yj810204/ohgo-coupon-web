@@ -1,0 +1,9 @@
+mobile
+screenshots-430x932
+public/games/**/node_modules
+**/*.md
+.git
+.idea
+ios
+android
+agent-transcripts

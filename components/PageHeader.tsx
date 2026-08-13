@@ -34,7 +34,7 @@ export default function PageHeader({
   return (
     <>
       <header className="ohgo-page-header">
-        <div className="container" style={{ maxWidth: 480 }}>
+        <div className="container" style={{ maxWidth: 'var(--ohgo-app-max-width)' }}>
           <div className="ohgo-page-header__bar">
             <div className="ohgo-page-header__side">
               {showBackButton && (

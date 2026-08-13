@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { computeLegacyUuid, normalizeDob } from '@/lib/legacy-uuid';
+import { applyLegacyStagingToProfile } from '@/lib/apply-legacy-staging';
 
 const USER_DATA_TABLES = [
   'stamps',
@@ -75,7 +76,10 @@ async function mergeGuestBoarding(
     .eq('user_id', authUserId)
     .maybeSingle();
 
-  const row = {
+  // 기존 회원의 명부 데이터는 절대 덮어쓰지 않음
+  if (existing) return;
+
+  const { error: insertError } = await admin.from('boarding_info').insert({
     user_id: authUserId,
     name: guestBoarding.name,
     birth: guestBoarding.birth,
@@ -89,17 +93,11 @@ async function mergeGuestBoarding(
     trip_role: guestBoarding.trip_role,
     photo_consent: guestBoarding.agreed,
     updated_at: new Date().toISOString(),
-  };
-
-  if (existing) {
-    const { error: updateError } = await admin.from('boarding_info').update(row).eq('user_id', authUserId);
-    if (updateError) throw updateError;
-  } else {
-    const { error: insertError } = await admin.from('boarding_info').insert(row);
-    if (insertError) throw insertError;
-  }
+  });
+  if (insertError) throw insertError;
 }
 
+/** 런타임 Firebase import는 사용하지 않음. offline 배치(scripts/)만 사용. */
 async function tryImportGuestFromFirebase(_legacyUuid: string): Promise<boolean> {
   return false;
 }
@@ -120,18 +118,20 @@ export async function mergeLegacyAccount(
 
   const { data: currentProfile, error: profileReadError } = await admin
     .from('profiles')
-    .select('id, legacy_uuid, dob')
+    .select('id, legacy_uuid, dob, name, phone')
     .eq('id', authUserId)
     .maybeSingle();
 
   if (profileReadError) throw profileReadError;
   if (!currentProfile) throw new Error('프로필을 찾을 수 없습니다.');
 
-  if (
-    currentProfile.legacy_uuid === legacyUuid &&
-    currentProfile.dob &&
-    currentProfile.dob === normalizedDob
-  ) {
+  if (currentProfile.legacy_uuid === legacyUuid) {
+    // 이미 연결됨 — staging만 반영 시도 (프로필/명부 원본은 수정하지 않음)
+    try {
+      await applyLegacyStagingToProfile(admin, legacyUuid, authUserId);
+    } catch (e) {
+      console.warn('merge-legacy staging apply (already linked):', e);
+    }
     return {
       legacyUuid,
       merged: false,
@@ -177,14 +177,21 @@ export async function mergeLegacyAccount(
 
   const guestPhone = guest?.phone ?? null;
 
+  // 기존 회원의 name/dob/phone 은 절대 덮어쓰지 않음. legacy_uuid 연결 + 빈 phone만 채움.
+  const profilePatch: Record<string, string> = { legacy_uuid: legacyUuid };
+  if (!currentProfile.phone && guestPhone) {
+    profilePatch.phone = guestPhone;
+  }
+  if (!currentProfile.name?.trim() && name.trim()) {
+    profilePatch.name = name.trim();
+  }
+  if (!currentProfile.dob && normalizedDob) {
+    profilePatch.dob = normalizedDob;
+  }
+
   const { error: profileUpdateError } = await admin
     .from('profiles')
-    .update({
-      name: name.trim(),
-      dob: normalizedDob,
-      legacy_uuid: legacyUuid,
-      ...(guestPhone ? { phone: guestPhone } : {}),
-    })
+    .update(profilePatch)
     .eq('id', authUserId);
 
   if (profileUpdateError) throw profileUpdateError;
@@ -205,7 +212,16 @@ export async function mergeLegacyAccount(
     mergedFromGuest = true;
   }
 
-  const merged = mergedFromGuest || mergedFromFirebase;
+  // Firebase staging(스탬프/쿠폰) → live 테이블
+  let stagingApplied = false;
+  try {
+    const applied = await applyLegacyStagingToProfile(admin, legacyUuid, authUserId);
+    stagingApplied = applied.stamps + applied.coupons + applied.history > 0;
+  } catch (e) {
+    console.warn('merge-legacy staging apply:', e);
+  }
+
+  const merged = mergedFromGuest || mergedFromFirebase || stagingApplied;
 
   return {
     legacyUuid,
@@ -213,7 +229,9 @@ export async function mergeLegacyAccount(
     mergedFromGuest,
     mergedFromFirebase,
     message: merged
-      ? '승선명부 게스트 데이터가 연결되었습니다.'
+      ? stagingApplied
+        ? '게스트·스탬프·쿠폰 데이터가 연결되었습니다.'
+        : '승선명부 게스트 데이터가 연결되었습니다.'
       : '프로필이 저장되었습니다.',
   };
 }

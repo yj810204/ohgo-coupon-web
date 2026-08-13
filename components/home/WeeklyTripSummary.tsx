@@ -10,12 +10,14 @@ import {
   sortTripsByNearestDeparture,
   TripGuide,
   tripDateToStr,
+  tripScheduleSubtitle,
+  tripSpeciesTitle,
   tripWeekdayLabelColor,
   tripWeekdayNumberColor,
 } from '@/utils/trip-guide-service';
 import { IoTimeOutline, IoChevronForwardOutline, IoBoatOutline } from 'react-icons/io5';
 
-const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+const FONT = "var(--font-ohgo), sans-serif";
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 const MAX_VISIBLE = 3;
 const TODAY_ACCENT = '#1B6FF5';
@@ -47,16 +49,6 @@ function groupTripsByDate(trips: TripGuide[]): TripDayGroup[] {
   }));
 }
 
-function tripSubtitle(trip: TripGuide) {
-  return [
-    trip.departureTime && `${trip.departureTime} 출발`,
-    trip.species,
-    trip.price ? `${trip.price.toLocaleString()}원` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-}
-
 function dayDividerColor(dayIdx: number, isPast: boolean, isToday: boolean): string {
   if (isPast) return '#EFEFEF';
   if (isToday) return '#C7D9FD';
@@ -67,14 +59,21 @@ function dayDividerColor(dayIdx: number, isPast: boolean, isToday: boolean): str
 
 interface Props {
   onViewAll: () => void;
+  /** 제공 시 API fetch 없이 바로 렌더 (포트폴리오 샘플용) */
+  trips?: TripGuide[];
 }
 
-export default function WeeklyTripSummary({ onViewAll }: Props) {
-  const [trips, setTrips] = useState<TripGuide[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function WeeklyTripSummary({ onViewAll, trips: tripsProp }: Props) {
+  const [trips, setTrips] = useState<TripGuide[]>(tripsProp ?? []);
+  const [loading, setLoading] = useState(!tripsProp);
   const weekRange = useMemo(() => getWeekRange(new Date()), []);
 
   useEffect(() => {
+    if (tripsProp) {
+      setTrips(tripsProp);
+      setLoading(false);
+      return;
+    }
     const load = async () => {
       try {
         const startStr = tripDateToStr(weekRange.start);
@@ -88,7 +87,7 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
       }
     };
     load();
-  }, [weekRange]);
+  }, [weekRange, tripsProp]);
 
   if (loading) return null;
 
@@ -168,7 +167,9 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
 
           return (
             <div key={group.date}>
-              {groupIndex > 0 && <div style={{ height: 1, backgroundColor: '#E8EAED' }} />}
+              {groupIndex > 0 && (
+                <div style={{ height: 1, backgroundColor: '#F7F8FA', marginInline: 16 }} />
+              )}
               <div
                 className="d-flex align-items-stretch gap-2"
                 style={{ backgroundColor: groupBg, opacity: isPast ? 0.92 : 1 }}
@@ -229,14 +230,14 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
                 </div>
                 <div className="flex-grow-1 min-w-0 d-flex flex-column">
                   {group.trips.map((trip, tripIndex) => {
-                    const subtitle = tripSubtitle(trip);
+                    const subtitle = tripScheduleSubtitle(trip);
                     const tripPast =
                       !isDummy &&
                       (isPast || (isToday && isPastTripSchedule(trip.date, trip.departureTime)));
                     return (
                       <div key={trip.id} className="min-w-0">
                         {tripIndex > 0 && (
-                          <div style={{ height: 1, backgroundColor: 'rgba(232, 234, 237, 0.9)' }} />
+                          <div style={{ height: 1, backgroundColor: '#F7F8FA', marginInline: 16 }} />
                         )}
                         <button
                           type="button"
@@ -281,7 +282,7 @@ export default function WeeklyTripSummary({ onViewAll }: Props) {
                                   whiteSpace: 'nowrap',
                                 }}
                               >
-                                {trip.destination}
+                                {tripSpeciesTitle(trip)}
                               </span>
                             </div>
                             {subtitle ? (

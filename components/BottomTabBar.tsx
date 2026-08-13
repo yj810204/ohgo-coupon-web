@@ -4,49 +4,80 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname } from 'next/navigation';
 import { useNavigation } from '@/hooks/useNavigation';
-import { getBottomTabMenuItems, type MenuItem } from '@/utils/site-settings-service';
+import {
+  getBottomTabMenuItems,
+  peekBottomTabMenuItems,
+  type MenuItem,
+} from '@/utils/site-settings-service';
 import { getIconComponent } from '@/utils/icon-mapper';
 import { isMiniGamePlayRoute } from '@/lib/mini-game-routes';
 
 export const TAB_BAR_HEIGHT = 60;
 
+/** 전체화면·오버레이 UI — 하단 탭이 버튼을 가리지 않도록 숨김 */
+function shouldHideBottomTab(pathname: string): boolean {
+  return (
+    pathname === '/login' ||
+    pathname === '/onboarding' ||
+    pathname === '/profile-setup' ||
+    pathname.startsWith('/auth/') ||
+    pathname.startsWith('/samples') ||
+    pathname.startsWith('/roster-preview') ||
+    isMiniGamePlayRoute(pathname)
+  );
+}
+
+function syncBottomTabInset(visible: boolean) {
+  if (visible) {
+    document.body.setAttribute('data-has-bottom-tab', 'true');
+  } else {
+    document.body.removeAttribute('data-has-bottom-tab');
+  }
+}
+
 export default function BottomTabBar() {
   const pathname = usePathname();
   const { navigate } = useNavigation();
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = peekBottomTabMenuItems();
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(cached ?? []);
+  const [loading, setLoading] = useState(!cached);
   const [mounted, setMounted] = useState(false);
+  const tabVisible = !shouldHideBottomTab(pathname);
 
   useEffect(() => {
     setMounted(true);
     document.documentElement.style.setProperty('--ohgo-tab-bar-height', `${TAB_BAR_HEIGHT}px`);
   }, []);
 
+  // 메뉴 로드 여부와 무관하게, 탭바가 보이는 동안 본문 하단 inset을 즉시 확보
   useEffect(() => {
+    syncBottomTabInset(tabVisible);
+    return () => { syncBottomTabInset(false); };
+  }, [tabVisible]);
+
+  // 메뉴 데이터는 경로와 무관 — pathname refetch 제거
+  useEffect(() => {
+    if (!tabVisible) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
     const load = async () => {
       try {
         const items = await getBottomTabMenuItems();
-        setMenuItems(items);
-        if (
-          items.length > 0 &&
-          pathname !== '/login' &&
-          !isMiniGamePlayRoute(pathname)
-        ) {
-          document.body.setAttribute('data-has-bottom-tab', 'true');
-        } else {
-          document.body.removeAttribute('data-has-bottom-tab');
-        }
+        if (!cancelled) setMenuItems(items);
       } catch (e) {
         console.error('[BottomTabBar]', e);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
+    if (!peekBottomTabMenuItems()) setLoading(true);
     load();
-    return () => { document.body.removeAttribute('data-has-bottom-tab'); };
-  }, [pathname]);
+    return () => { cancelled = true; };
+  }, [tabVisible]);
 
-  if (!mounted || pathname === '/login' || isMiniGamePlayRoute(pathname)) {
+  if (!mounted || !tabVisible) {
     return null;
   }
 

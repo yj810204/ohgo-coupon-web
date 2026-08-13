@@ -4,6 +4,7 @@ import { IoPersonOutline } from 'react-icons/io5';
 
 interface AvatarHeaderProps {
   userName: string;
+  avatarUrl?: string | null;
   onMyPage?: () => void;
 }
 
@@ -13,7 +14,7 @@ function getInitials(name: string): string {
   return trimmed.slice(0, 1);
 }
 
-export default function AvatarHeader({ userName, onMyPage }: AvatarHeaderProps) {
+export default function AvatarHeader({ userName, avatarUrl, onMyPage }: AvatarHeaderProps) {
   return (
     <div className="d-flex align-items-center justify-content-between py-2">
       <div className="d-flex align-items-center gap-3">
@@ -22,13 +23,24 @@ export default function AvatarHeader({ userName, onMyPage }: AvatarHeaderProps) 
           style={{
             width: 48,
             height: 48,
-            background: 'linear-gradient(135deg, #1B6FF5 0%, #5B8DEF 100%)',
+            background: avatarUrl
+              ? '#EBF1FE'
+              : 'linear-gradient(135deg, #1B6FF5 0%, #5B8DEF 100%)',
             fontSize: '20px',
             fontFamily: 'var(--font-urbanist), system-ui, sans-serif',
             flexShrink: 0,
+            overflow: 'hidden',
           }}
         >
-          {getInitials(userName)}
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt=""
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          ) : (
+            getInitials(userName)
+          )}
         </div>
         <div>
           <p

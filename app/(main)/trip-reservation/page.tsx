@@ -1,7 +1,8 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
 import SubPageFrame from '@/components/SubPageFrame';
 import { OhgoModalInfoList, OhgoModalInfoRow } from '@/components/OhgoModal';
@@ -19,6 +20,8 @@ import {
   isPastTripSchedule,
   isTripDateViewable,
   tripDateToStr,
+  tripPricePerPersonLabel,
+  tripSpeciesTitle,
   type TripGuide,
 } from '@/utils/trip-guide-service';
 import {
@@ -35,19 +38,14 @@ import {
   IoCalendarOutline,
   IoCallOutline,
   IoCheckmark,
-  IoFishOutline,
   IoPersonOutline,
   IoTimeOutline,
 } from 'react-icons/io5';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 const FONT = OHGO_FONT;
 const CARD: React.CSSProperties = { ...OHGO_CARD };
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
-
-function formatPrice(p?: number) {
-  if (!p) return '';
-  return p.toLocaleString('ko-KR') + '원';
-}
 
 function formatTripDate(dateStr: string) {
   const m = parseInt(dateStr.split('-')[1], 10);
@@ -170,7 +168,7 @@ function TripReservationContent() {
     ]);
 
     if (!boarding) {
-      if (confirm('승선정보가 등록되어 있어야 예약할 수 있습니다. 승선정보 작성 페이지로 이동할까요?')) {
+      if (await ohgoConfirm('승선정보가 등록되어 있어야 예약할 수 있습니다. 승선정보 작성 페이지로 이동할까요?')) {
         router.replace('/boarding-form');
       } else {
         router.back();
@@ -301,10 +299,11 @@ function TripReservationContent() {
             {successMessage}
           </p>
           <p className="mt-3 mb-0" style={{ fontSize: 14, color: '#1A1D1F', fontFamily: FONT, fontWeight: 600 }}>
-            {trip.destination}
+            {tripSpeciesTitle(trip)}
           </p>
           <p className="mb-0" style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>
-            {formatTripDate(trip.date)} · {trip.departureTime} 출발
+            {formatTripDate(trip.date)} · {trip.departureTime} 출항
+            {trip.destination ? ` · ${trip.destination}` : ''}
           </p>
         </div>
         <div className="trip-reservation-actions trip-reservation-actions--row">
@@ -335,17 +334,17 @@ function TripReservationContent() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ ...CARD, padding: 16 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT, marginBottom: 12 }}>
-            {trip.destination}
+            {tripSpeciesTitle(trip)}
           </div>
           <OhgoModalInfoList>
             <OhgoModalInfoRow icon={IoBoatOutline} variant="date" value={formatTripDate(trip.date)} />
             <OhgoModalInfoRow
               icon={IoTimeOutline}
-              label="출항 시간(귀항 예정)"
-              value={`${trip.departureTime}${trip.returnTime ? ` ~ ${trip.returnTime}` : ''}`}
+              label="출항 시간"
+              value={`${trip.departureTime} 출항${trip.returnTime ? ` ~ ${trip.returnTime} 귀항` : ''}`}
             />
-            {trip.species ? (
-              <OhgoModalInfoRow icon={IoFishOutline} label="목표 어종" value={trip.species} />
+            {trip.destination ? (
+              <OhgoModalInfoRow icon={IoBoatOutline} label="목적지" value={trip.destination} />
             ) : null}
           </OhgoModalInfoList>
         </div>
@@ -374,7 +373,7 @@ function TripReservationContent() {
                 value={
                   <>
                     {boardingInfo.name}
-                    {boardingInfo.gender ? ` · ${boardingInfo.gender}` : ''}
+                    {boardingInfo.gender ? ` (${boardingInfo.gender})` : ''}
                   </>
                 }
               />
@@ -410,7 +409,7 @@ function TripReservationContent() {
           >
             <span style={{ fontSize: 14, fontWeight: 600, color: '#1B6FF5', fontFamily: FONT }}>1인 요금</span>
             <span style={{ fontSize: 20, fontWeight: 800, color: '#1B6FF5', fontFamily: FONT }}>
-              {formatPrice(trip.price)}
+              {tripPricePerPersonLabel(trip.price)}
             </span>
           </div>
         ) : null}

@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 16.0.0",
-    "appVersionSource": "remote"
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -12,13 +12,30 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_WEB_URL": "https://ohgo.codejaka.com",
+        "EXPO_PUBLIC_USE_HOSTED": "true"
       }
     },
     "production": {
-      "autoIncrement": true
+      "env": {
+        "EXPO_PUBLIC_WEB_URL": "https://ohgo.codejaka.com",
+        "EXPO_PUBLIC_USE_HOSTED": "true"
+      }
+    },
+    "production-local": {
+      "extends": "production",
+      "credentialsSource": "local"
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "completed"
+      },
+      "ios": {}
+    }
   }
 }

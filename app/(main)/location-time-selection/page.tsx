@@ -1,16 +1,44 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, useRef, Suspense, type CSSProperties } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import SubPageFrame from '@/components/SubPageFrame';
-import { OhgoPageLoading } from '@/lib/page-styles';
-import html2canvas from 'html2canvas';
+import {
+  OHGO_CARD,
+  OHGO_CONFIRM_BTN,
+  OHGO_CONFIRM_BTN_CLASS,
+  OHGO_FONT,
+  OHGO_INPUT,
+  OhgoPageLoading,
+} from '@/lib/page-styles';
+import { IoChevronForwardOutline } from 'react-icons/io5';
 import {
   getRosterConfig,
   isTripConfirmed,
   updateAttendanceLocationTime,
   type RosterItem,
 } from '@/utils/roster-service';
+
+const SECTION_TITLE: CSSProperties = {
+  fontSize: 15,
+  fontWeight: 700,
+  color: '#1A1D1F',
+  fontFamily: OHGO_FONT,
+  marginBottom: 12,
+};
+
+const pillStyle = (active: boolean): CSSProperties => ({
+  border: 'none',
+  borderRadius: 20,
+  padding: '8px 14px',
+  fontSize: 14,
+  fontWeight: 700,
+  fontFamily: OHGO_FONT,
+  backgroundColor: active ? '#EBF1FE' : '#F2F3F5',
+  color: active ? '#1B6FF5' : '#6F767E',
+  cursor: 'pointer',
+});
 
 // A4 용지 비율에 맞는 크기 설정
 const A4_WIDTH = 794;
@@ -174,6 +202,7 @@ function LocationTimeSelectionContent() {
         // Wait a bit for rendering
         await new Promise(resolve => setTimeout(resolve, 500));
 
+        const { default: html2canvas } = await import('html2canvas');
         const canvas = await html2canvas(a4Ref.current, {
           width: A4_WIDTH,
           height: A4_HEIGHT,
@@ -373,120 +402,153 @@ function LocationTimeSelectionContent() {
     </div>
   );
 
+  const fontSizeLabels: Record<string, string> = {
+    small: '작게',
+    medium: '보통',
+    large: '크게',
+    xlarge: '아주크게',
+  };
+
   return (
     <SubPageFrame title="위치 및 시간 선택">
       {renderA4Roster()}
-        <div className="ohgo-card mb-3">
-          <div className="card-body">
-            <h5 className="text-primary mb-0 text-center">위치 및 입항시간 선택</h5>
-          </div>
+
+      <div className="p-3 mb-3 text-center" style={OHGO_CARD}>
+        <div
+          style={{
+            fontSize: 18,
+            fontWeight: 800,
+            color: '#1B6FF5',
+            fontFamily: OHGO_FONT,
+            letterSpacing: -0.3,
+            lineHeight: 1.35,
+          }}
+        >
+          {dateDisplay || date || '날짜 미선택'} {tripNum}항차
         </div>
+        <div
+          style={{
+            marginTop: 6,
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#6F767E',
+            fontFamily: OHGO_FONT,
+          }}
+        >
+          위치 및 입항시간 선택
+        </div>
+      </div>
 
       {loading ? (
         <div className="text-center py-5">
           <div className="spinner-border text-primary mb-3" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
-          <p className="text-muted">정보를 불러오는 중...</p>
+          <p style={{ fontSize: 14, color: '#6F767E', fontFamily: OHGO_FONT }}>
+            정보를 불러오는 중...
+          </p>
         </div>
       ) : (
         <>
-          <div className="ohgo-card mb-3">
-            <div className="card-body">
-              <h6 className="mb-3">위치 선택 <span className="text-danger">*</span></h6>
-              <div className="d-flex flex-wrap gap-2">
-                {locations.map((location, index) => (
+          <div className="p-3 mb-3" style={OHGO_CARD}>
+            <div style={SECTION_TITLE}>
+              위치 선택 <span style={{ color: '#FF3B30' }}>*</span>
+            </div>
+            <div className="d-flex flex-wrap gap-2">
+              {locations.map((location) => {
+                const active = selectedLocations.includes(location);
+                return (
                   <button
-                    key={index}
-                    className={`btn ${selectedLocations.includes(location) ? 'btn-primary' : 'btn-outline-secondary'}`}
+                    key={location}
+                    type="button"
+                    style={pillStyle(active)}
                     onClick={() => {
-                      const newLocations = selectedLocations.includes(location)
-                        ? selectedLocations.filter(loc => loc !== location)
+                      const next = active
+                        ? selectedLocations.filter((loc) => loc !== location)
                         : [...selectedLocations, location];
-                      if (newLocations.length > 0) {
-                        setSelectedLocations(newLocations);
-                      }
+                      if (next.length > 0) setSelectedLocations(next);
                     }}
-                    style={{ fontSize: '14px' }}
                   >
                     {location}
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </div>
 
-          <div className="ohgo-card mb-3">
-            <div className="card-body">
-              <h6 className="mb-3">입항시간 선택 <span className="text-danger">*</span></h6>
-              <select
-                className="form-select"
-                value={selectedTime}
-                onChange={(e) => setSelectedTime(e.target.value)}
+          <div className="p-3 mb-3" style={OHGO_CARD}>
+            <div style={SECTION_TITLE}>
+              입항시간 선택 <span style={{ color: '#FF3B30' }}>*</span>
+            </div>
+            <select
+              value={selectedTime}
+              onChange={(e) => setSelectedTime(e.target.value)}
+              style={{ ...OHGO_INPUT, width: '100%', backgroundColor: '#FFFFFF' }}
+            >
+              {hours.map((hour) => (
+                <option key={hour} value={hour}>
+                  {hour}시{isNextDay() && parseInt(hour, 10) === parseInt(selectedTime, 10) ? ' (익일)' : ''}
+                </option>
+              ))}
+            </select>
+            {isNextDay() && (
+              <div
+                style={{
+                  marginTop: 8,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#E65100',
+                  fontFamily: OHGO_FONT,
+                }}
               >
-                {hours.map((hour) => (
-                  <option key={hour} value={hour}>{hour}시</option>
-                ))}
-              </select>
-            </div>
+                선택 시간이 현재보다 이르면 익일로 표시됩니다.
+              </div>
+            )}
           </div>
 
-          <div className="ohgo-card mb-3">
-            <div className="card-body">
-              <h6 className="mb-3">글자크기</h6>
-              <div className="d-flex gap-2">
-                {['small', 'medium', 'large', 'xlarge'].map((size) => (
-                  <button
-                    key={size}
-                    className={`btn flex-fill ${selectedFontSize === size ? 'btn-primary' : 'btn-outline-secondary'}`}
-                    onClick={() => saveFontSizePreference(size)}
-                    style={{ fontSize: '14px' }}
-                  >
-                    {size === 'small' ? '작게' : size === 'medium' ? '보통' : size === 'large' ? '크게' : '아주크게'}
-                  </button>
-                ))}
-              </div>
+          <div className="p-3 mb-3" style={OHGO_CARD}>
+            <div style={SECTION_TITLE}>글자크기</div>
+            <div className="d-flex gap-2">
+              {(['small', 'medium', 'large', 'xlarge'] as const).map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  className="flex-fill"
+                  style={pillStyle(selectedFontSize === size)}
+                  onClick={() => saveFontSizePreference(size)}
+                >
+                  {fontSizeLabels[size]}
+                </button>
+              ))}
             </div>
           </div>
         </>
       )}
 
-      <div
-        className="position-fixed bottom-0 start-0 end-0 bg-white border-top p-3 shadow-lg"
-        style={{ maxWidth: 480, left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}
+      <button
+        type="button"
+        className={`btn w-100 d-flex align-items-center justify-content-center gap-2 ${OHGO_CONFIRM_BTN_CLASS}`}
+        style={{
+          ...OHGO_CONFIRM_BTN,
+          opacity: savingImage || !selectedLocations.length ? 0.65 : 1,
+        }}
+        onClick={captureAndSaveImage}
+        disabled={savingImage || !selectedLocations.length}
       >
-        <div>
-          <div className="row g-2">
-            <div className="col-6">
-              <button
-                className="btn btn-secondary w-100"
-                onClick={() => router.back()}
-                disabled={savingImage}
-              >
-                이전
-              </button>
+        {savingImage ? (
+          <>
+            <div className="spinner-border spinner-border-sm" role="status">
+              <span className="visually-hidden">생성 중...</span>
             </div>
-            <div className="col-6">
-              <button
-                className="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2"
-                onClick={captureAndSaveImage}
-                disabled={savingImage || !selectedLocations.length}
-              >
-                {savingImage ? (
-                  <>
-                    <div className="spinner-border spinner-border-sm" role="status">
-                      <span className="visually-hidden">생성 중...</span>
-                    </div>
-                    <span>생성 중...</span>
-                  </>
-                ) : (
-                  <span>다음</span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+            <span>생성 중...</span>
+          </>
+        ) : (
+          <>
+            <span>다음</span>
+            <IoChevronForwardOutline size={20} className="flex-shrink-0" aria-hidden />
+          </>
+        )}
+      </button>
     </SubPageFrame>
   );
 }

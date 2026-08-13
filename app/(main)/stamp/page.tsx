@@ -1,20 +1,24 @@
 'use client';
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { getStamps, getCouponCount, issue50PercentCoupon, deleteStamp } from '@/utils/stamp-service';
 import { getUser } from '@/lib/storage';
 import { IoQrCodeOutline, IoPricetagOutline, IoGiftOutline, IoCheckmarkCircleOutline, IoStarOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal, { OhgoModalButton, OhgoModalField } from '@/components/OhgoModal';
 import EmptyState from '@/components/EmptyState';
+import { OHGO_FONT } from '@/lib/page-styles';
+import { useNavigation } from '@/hooks/useNavigation';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 const CARD_STYLE: React.CSSProperties = {
   backgroundColor: '#FFFFFF',
   borderRadius: 16,
   boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
   border: 'none',
-  fontFamily: "'Urbanist', var(--font-urbanist), sans-serif",
+  fontFamily: OHGO_FONT,
 };
 
 function StampCard({ raw, isFifth, fromAdmin, onTap }: {
@@ -26,38 +30,79 @@ function StampCard({ raw, isFifth, fromAdmin, onTap }: {
   const [date, method, time] = raw.split('|');
   const methodLabel = method === 'ADMIN' ? '선장님' : method === 'QR' ? 'QR 스캔' : '알 수 없음';
 
+  const showIssue = isFifth && !fromAdmin;
+
   return (
     <button
       type="button"
       onClick={() => onTap(raw, isFifth)}
-      className="btn w-100 text-start p-3"
+      className="btn w-100 text-start px-3"
       style={{
         ...CARD_STYLE,
-        ...(isFifth ? { backgroundColor: '#EBF1FE', border: '1.5px solid #C7D9FD' } : {}),
+        boxSizing: 'border-box',
+        height: 76,
+        display: 'flex',
+        alignItems: 'center',
+        backgroundColor: isFifth ? '#EBF1FE' : '#FFFFFF',
+        border: isFifth ? '1.5px solid #C7D9FD' : '1.5px solid transparent',
         transition: 'transform 0.15s',
       }}
     >
-      <div className="d-flex align-items-center gap-3">
+      <div className="d-flex align-items-center gap-3 w-100" style={{ minWidth: 0 }}>
         <div
           className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-          style={{ width: 40, height: 40, backgroundColor: isFifth ? '#EBF1FE' : '#F7F8FA' }}
+          style={{
+            width: 40,
+            height: 40,
+            backgroundColor: isFifth ? '#D6E4FF' : '#F7F8FA',
+          }}
         >
           <IoPricetagOutline size={20} color={isFifth ? '#1B6FF5' : '#6F767E'} />
         </div>
-        <div className="flex-grow-1">
-          <div style={{ fontSize: 15, fontWeight: 600, color: isFifth ? '#1B6FF5' : '#1A1D1F' }}>
+        <div className="flex-grow-1" style={{ minWidth: 0 }}>
+          <div
+            className="text-truncate"
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              lineHeight: '20px',
+              color: isFifth ? '#1B6FF5' : '#1A1D1F',
+            }}
+          >
             {date.replace(/-/g, '.')}
             {time && ` ${time.slice(0, 5)}`}
           </div>
-          <div style={{ fontSize: 13, color: '#6F767E', marginTop: 2 }}>
-            {isFifth && !fromAdmin
-              ? <><IoStarOutline size={13} style={{ verticalAlign: 'middle', marginRight: 3 }} />50% 쿠폰 발급 가능 — 탭해서 발급받기</>
-              : `적립 방법: ${methodLabel}`}
+          <div
+            className="d-flex align-items-center"
+            style={{ marginTop: 2, minWidth: 0, height: 18 }}
+          >
+            {showIssue && (
+              <IoStarOutline
+                size={13}
+                color="#6F767E"
+                className="flex-shrink-0"
+                style={{ marginRight: 4, display: 'block' }}
+              />
+            )}
+            <span
+              className="text-truncate"
+              style={{ fontSize: 13, lineHeight: '18px', color: '#6F767E', minWidth: 0 }}
+            >
+              {showIssue ? '50% 쿠폰 발급 가능 — 탭해서 발급받기' : `적립 방법: ${methodLabel}`}
+            </span>
           </div>
         </div>
-        {isFifth && !fromAdmin && (
-          <span className="badge rounded-pill" style={{ backgroundColor: '#1B6FF5', fontSize: 11 }}>발급</span>
-        )}
+        <span
+          className="badge rounded-pill flex-shrink-0"
+          style={{
+            backgroundColor: '#1B6FF5',
+            fontSize: 11,
+            lineHeight: '16px',
+            visibility: showIssue ? 'visible' : 'hidden',
+          }}
+        >
+          발급
+        </span>
       </div>
     </button>
   );
@@ -65,12 +110,14 @@ function StampCard({ raw, isFifth, fromAdmin, onTap }: {
 
 function StampPageContent() {
   const router = useRouter();
+  const { navigate } = useNavigation();
   const searchParams = useSearchParams();
   const [stamps, setStamps] = useState<string[]>([]);
   const [couponCount, setCouponCount] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedStampInfo, setSelectedStampInfo] = useState<{ date: string; method?: string; value?: string } | null>(null);
   const [user, setUser] = useState<{ uuid?: string; name?: string; dob?: string } | null>(null);
+  const [qrOpening, setQrOpening] = useState(false);
   const fromAdmin = searchParams.get('fromAdmin') === 'true';
   const targetUuid = searchParams.get('uuid');
   const targetName = searchParams.get('name');
@@ -108,9 +155,9 @@ function StampPageContent() {
 
   useEffect(() => { if (user?.uuid) fetchStamps(); }, [user?.uuid, fetchStamps]);
 
-  const handleTap = (raw: string, isFifth: boolean) => {
+  const handleTap = async (raw: string, isFifth: boolean) => {
     if (isFifth && !fromAdmin) {
-      if (!confirm('50% 할인 쿠폰을 발급하시겠습니까?')) return;
+      if (!(await ohgoConfirm('50% 할인 쿠폰을 발급하시겠습니까?'))) return;
       issue50PercentCoupon(user!.uuid!).then(() => {
         alert('50% 쿠폰이 발급되었습니다!');
         fetchStamps();
@@ -144,14 +191,14 @@ function StampPageContent() {
               <span style={{ fontSize: 22, fontWeight: 700, color: '#fff' }}>{stamps.length}</span>
             </div>
             <div>
-              <div style={{ fontSize: 13, color: '#6F767E', fontFamily: "'Urbanist',sans-serif" }}>현재 스탬프</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: '#1A1D1F', fontFamily: "'Urbanist',sans-serif" }}>
+              <div style={{ fontSize: 13, color: '#6F767E', fontFamily: OHGO_FONT }}>현재 스탬프</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: '#1A1D1F', fontFamily: OHGO_FONT }}>
                 {stamps.length}개 보유
               </div>
             </div>
             <div className="ms-auto text-end">
-              <div style={{ fontSize: 13, color: '#6F767E', fontFamily: "'Urbanist',sans-serif" }}>보유 쿠폰</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: '#1B6FF5', fontFamily: "'Urbanist',sans-serif" }}>
+              <div style={{ fontSize: 13, color: '#6F767E', fontFamily: OHGO_FONT }}>보유 쿠폰</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: '#1B6FF5', fontFamily: OHGO_FONT }}>
                 {couponCount}장
               </div>
             </div>
@@ -160,20 +207,46 @@ function StampPageContent() {
             {!fromAdmin && (
               <button
                 type="button"
-                onClick={() => router.push(`/qr-scan?${query}`)}
+                disabled={qrOpening}
+                onClick={() => {
+                  if (qrOpening) return;
+                  setQrOpening(true);
+                  navigate(`/qr-scan?${query}`);
+                }}
                 className="btn flex-grow-1 d-flex align-items-center justify-content-center gap-2 fw-semibold"
-                style={{ backgroundColor: '#1B6FF5', color: '#fff', borderRadius: 12, padding: '11px', border: 'none', fontFamily: "'Urbanist',sans-serif" }}
+                style={{
+                  backgroundColor: '#1B6FF5',
+                  color: '#fff',
+                  borderRadius: 12,
+                  padding: '11px',
+                  border: 'none',
+                  fontFamily: OHGO_FONT,
+                  opacity: qrOpening ? 0.85 : 1,
+                }}
               >
-                <IoQrCodeOutline size={20} />
-                QR 스캔
+                {qrOpening ? (
+                  <>
+                    <span
+                      className="spinner-border spinner-border-sm"
+                      role="status"
+                      style={{ width: 18, height: 18, borderWidth: 2 }}
+                    />
+                    준비 중…
+                  </>
+                ) : (
+                  <>
+                    <IoQrCodeOutline size={20} />
+                    QR 스캔
+                  </>
+                )}
               </button>
             )}
             {!fromAdmin && (
               <button
                 type="button"
-                onClick={() => router.push(`/coupons?${query}`)}
+                onClick={() => navigate(`/coupons?${query}`)}
                 className="btn flex-grow-1 d-flex align-items-center justify-content-center gap-2 fw-semibold"
-                style={{ backgroundColor: '#EBF1FE', color: '#1B6FF5', borderRadius: 12, padding: '11px', border: 'none', fontFamily: "'Urbanist',sans-serif" }}
+                style={{ backgroundColor: '#EBF1FE', color: '#1B6FF5', borderRadius: 12, padding: '11px', border: 'none', fontFamily: OHGO_FONT }}
               >
                 <IoGiftOutline size={20} />
                 쿠폰 보기
@@ -184,7 +257,7 @@ function StampPageContent() {
 
         {/* 적립 내역 */}
         <div className="d-flex align-items-center justify-content-between mb-2 px-1">
-          <span style={{ fontSize: 17, fontWeight: 700, color: '#1A1D1F', fontFamily: "'Urbanist',sans-serif" }}>
+          <span style={{ fontSize: 17, fontWeight: 700, color: '#1A1D1F', fontFamily: OHGO_FONT }}>
             적립 내역
           </span>
           {fromAdmin && (

@@ -1,10 +1,20 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, Suspense, type CSSProperties } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import SubPageFrame from '@/components/SubPageFrame';
-import OhgoModal, { OhgoModalButton, OhgoModalField, OhgoModalText } from '@/components/OhgoModal';
-import { OhgoPageLoading } from '@/lib/page-styles';
+import { OhgoModalButton } from '@/components/OhgoModal';
+import BoardingInfoModal from '@/components/BoardingInfoModal';
+import {
+  OHGO_CARD,
+  OHGO_CONFIRM_BTN,
+  OHGO_CONFIRM_BTN_CLASS,
+  OHGO_FONT,
+  OHGO_LIST,
+  OHGO_LIST_DIVIDER,
+  OhgoPageLoading,
+} from '@/lib/page-styles';
 import { getUser } from '@/lib/storage';
 import {
   isTripConfirmed,
@@ -12,12 +22,76 @@ import {
   removeMemberFromDailyRoster,
   type RosterItem,
 } from '@/utils/roster-service';
-import { IoChevronForwardOutline, IoAddOutline, IoArrowBackOutline, IoBoatOutline } from 'react-icons/io5';
+import {
+  IoAddOutline,
+  IoBoatOutline,
+  IoChevronForwardOutline,
+  IoPersonOutline,
+  IoWarningOutline,
+} from 'react-icons/io5';
 import EmptyState from '@/components/EmptyState';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
-
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 type RosterListItem = RosterItem;
+
+const ROLE_PILL: Record<'captain' | 'sailor' | 'missing', CSSProperties> = {
+  captain: {
+    fontSize: 11,
+    fontWeight: 700,
+    fontFamily: OHGO_FONT,
+    color: '#1B6FF5',
+    backgroundColor: '#EBF1FE',
+    borderRadius: 20,
+    padding: '3px 8px',
+    lineHeight: 1.2,
+  },
+  sailor: {
+    fontSize: 11,
+    fontWeight: 700,
+    fontFamily: OHGO_FONT,
+    color: '#34C759',
+    backgroundColor: '#E8F8EE',
+    borderRadius: 20,
+    padding: '3px 8px',
+    lineHeight: 1.2,
+  },
+  missing: {
+    fontSize: 11,
+    fontWeight: 700,
+    fontFamily: OHGO_FONT,
+    color: '#FF3B30',
+    backgroundColor: '#FFECEA',
+    borderRadius: 20,
+    padding: '3px 8px',
+    lineHeight: 1.2,
+  },
+};
+
+function RoleIcon({ item }: { item: RosterListItem }) {
+  const bg = item.isCaptain ? '#EBF1FE' : item.isSailor ? '#E8F8EE' : '#F2F3F5';
+  const color = item.isCaptain ? '#1B6FF5' : item.isSailor ? '#34C759' : '#6F767E';
+  return (
+    <div
+      style={{
+        width: OHGO_LIST.iconBox,
+        height: OHGO_LIST.iconBox,
+        borderRadius: '50%',
+        backgroundColor: bg,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
+      {item.isCaptain || item.isSailor ? (
+        <IoBoatOutline size={OHGO_LIST.iconGlyph} color={color} />
+      ) : (
+        <IoPersonOutline size={OHGO_LIST.iconGlyph} color={color} />
+      )}
+    </div>
+  );
+}
 
 function RosterListContent() {
   const router = useRouter();
@@ -42,7 +116,7 @@ function RosterListContent() {
         router.replace('/login');
         return;
       }
-      
+
       if (showPreview === 'true') {
         await loadRosterData();
       } else {
@@ -99,162 +173,228 @@ function RosterListContent() {
   };
 
   const handleRosterItemPress = (item: RosterListItem) => {
-    if (item.hasRoster) {
-      setSelectedRoster(item);
-      setModalVisible(true);
-    } else {
-      setSelectedRoster(item);
-      setNoRosterModalVisible(true);
+    setSelectedRoster(item);
+    if (item.hasRoster) setModalVisible(true);
+    else setNoRosterModalVisible(true);
+  };
+
+  const goNext = () => {
+    if (!date || !tripNumber) {
+      alert('날짜 또는 항차 정보가 없습니다.');
+      return;
     }
+    if (rosterItems.length === 0) {
+      alert('명부에 회원이 없습니다. 회원을 추가해주세요.');
+      return;
+    }
+
+    const dateYear = dateDisplay?.toString().split('년')[0] || '';
+    const dateMonth = dateDisplay?.toString().split('년')[1]?.split('월')[0]?.trim() || '';
+    const dateDay = dateDisplay?.toString().split('월')[1]?.split('일')[0]?.trim() || '';
+    const rosterItemsJson = JSON.stringify(rosterItems);
+
+    router.push(
+      `/location-time-selection?date=${date}&dateDisplay=${encodeURIComponent(dateDisplay || '')}&dateYear=${dateYear}&dateMonth=${dateMonth}&dateDay=${dateDay}&tripNumber=${tripNum}&rosterItems=${encodeURIComponent(rosterItemsJson)}`,
+    );
   };
 
   useNativePullToRefresh(loadRosterData);
 
   return (
-    <SubPageFrame title="승선명부" onRefresh={loadRosterData}>
-        <div className="ohgo-card mb-3">
-          <div className="card-body text-center">
-            <h5 className="text-primary mb-0">{dateDisplay} {tripNum}항차</h5>
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="text-center py-5">
-            <div className="spinner-border text-primary mb-3" role="status">
-              <span className="visually-hidden">Loading...</span>
-            </div>
-            <p className="text-muted">명부 정보를 불러오는 중...</p>
-          </div>
-        ) : rosterItems.length === 0 ? (
-          <EmptyState icon={IoBoatOutline} message="해당 날짜의 명부 정보가 없습니다." />
-        ) : (
-          <div className="d-flex flex-column gap-2 mb-3">
-            {rosterItems.map((item) => (
-              <div
-                key={item.id}
-                className={`ohgo-card ${
-                  item.isCaptain ? 'border-primary border-start border-4' : 
-                  item.isSailor ? 'border-success border-start border-4' : ''
-                }`}
-                style={{
-                  backgroundColor: item.isCaptain ? '#e3f2fd' : item.isSailor ? '#e8f5e9' : 'white'
-                }}
-              >
-                <div className="card-body">
-                  <div 
-                    className="d-flex justify-content-between align-items-center"
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => handleRosterItemPress(item)}
-                  >
-                    <div className="flex-grow-1">
-                      <div className="d-flex align-items-center gap-2 mb-2">
-                        <h6 className="mb-0">{item.name}</h6>
-                        {item.isCaptain && (
-                          <span className="badge bg-primary">선장</span>
-                        )}
-                        {item.isSailor && (
-                          <span className="badge bg-success">선원</span>
-                        )}
-                        {!item.hasRoster && (
-                          <span className="badge bg-danger">명부 없음</span>
-                        )}
-                      </div>
-                      <div className="small text-muted">
-                        <div>{item.birth} ({item.gender || '미입력'})</div>
-                        <div>{item.phone || '미입력'}</div>
-                      </div>
-                    </div>
-                    <IoChevronForwardOutline size={20} className="text-muted" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
+    <SubPageFrame title="승선명부" onRefresh={loadRosterData} dense>
+      {/* 날짜 · 항차 · 인원 + 추가 — 단일 툴바 */}
       <div
-        className="position-fixed bottom-0 start-0 end-0 bg-white border-top p-3 shadow-lg"
-        style={{ maxWidth: 480, left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}
+        className="d-flex align-items-center gap-2 mb-2"
+        style={{ padding: '2px 2px 8px' }}
       >
-        <div>
-          <div className="row g-2">
-            <div className="col-4">
-              <button 
-                className="btn btn-secondary w-100 d-flex align-items-center justify-content-center"
-                onClick={() => router.back()}
-                style={{
-                  padding: '12px',
-                  fontSize: '1rem',
-                  fontWeight: '500',
-                  borderRadius: '8px',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                이전
-              </button>
-            </div>
-            <div className="col-4">
-              <button 
-                className="btn btn-success w-100 d-flex align-items-center justify-content-center gap-2"
-                onClick={() => {
-                  router.push(`/roster-member-search?date=${date}&dateDisplay=${encodeURIComponent(dateDisplay || '')}&tripNumber=${tripNum}`);
-                }}
-                style={{
-                  padding: '12px',
-                  fontSize: '1rem',
-                  fontWeight: '500',
-                  borderRadius: '8px',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                <IoAddOutline size={20} className="flex-shrink-0" />
-                <span>추가</span>
-              </button>
-            </div>
-            <div className="col-4">
-              <button 
-                className="btn btn-primary w-100 d-flex align-items-center justify-content-center"
-                onClick={() => {
-                  if (!date || !tripNumber) {
-                    alert('날짜 또는 항차 정보가 없습니다.');
-                    return;
-                  }
-
-                  if (rosterItems.length === 0) {
-                    alert('명부에 회원이 없습니다. 회원을 추가해주세요.');
-                    return;
-                  }
-
-                  // Extract year, month, and day from dateDisplay
-                  const dateYear = dateDisplay?.toString().split('년')[0] || '';
-                  const dateMonth = dateDisplay?.toString().split('년')[1]?.split('월')[0]?.trim() || '';
-                  const dateDay = dateDisplay?.toString().split('월')[1]?.split('일')[0]?.trim() || '';
-
-                  // Stringify the roster items to pass as a parameter
-                  const rosterItemsJson = JSON.stringify(rosterItems);
-                  
-                  router.push(`/location-time-selection?date=${date}&dateDisplay=${encodeURIComponent(dateDisplay || '')}&dateYear=${dateYear}&dateMonth=${dateMonth}&dateDay=${dateDay}&tripNumber=${tripNum}&rosterItems=${encodeURIComponent(rosterItemsJson)}`);
-                }}
-                style={{
-                  padding: '12px',
-                  fontSize: '1rem',
-                  fontWeight: '500',
-                  borderRadius: '8px',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                다음
-              </button>
-            </div>
-          </div>
+        <div
+          className="flex-grow-1 min-w-0 d-flex align-items-center gap-1 flex-wrap"
+          style={{ fontFamily: OHGO_FONT, rowGap: 4 }}
+        >
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 800,
+              color: '#1A1D1F',
+              letterSpacing: -0.2,
+              lineHeight: 1.2,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: '100%',
+            }}
+          >
+            {dateDisplay || date || '날짜 미선택'}
+          </span>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#1B6FF5',
+              backgroundColor: '#EBF1FE',
+              borderRadius: 999,
+              padding: '2px 8px',
+              lineHeight: 1.4,
+              flexShrink: 0,
+            }}
+          >
+            {tripNum}항차
+          </span>
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#6F767E',
+              flexShrink: 0,
+            }}
+          >
+            {loading ? '…' : `${rosterItems.length}명`}
+          </span>
         </div>
+        <button
+          type="button"
+          aria-label="회원 추가"
+          className="btn d-flex align-items-center justify-content-center gap-1 flex-shrink-0"
+          style={{
+            minHeight: 32,
+            height: 32,
+            padding: '0 10px',
+            fontSize: 13,
+            fontWeight: 700,
+            fontFamily: OHGO_FONT,
+            borderRadius: 999,
+            whiteSpace: 'nowrap',
+            backgroundColor: '#1B6FF5',
+            color: '#FFFFFF',
+            border: 'none',
+            boxShadow: 'none',
+          }}
+          onClick={() => {
+            router.push(
+              `/roster-member-search?date=${date}&dateDisplay=${encodeURIComponent(dateDisplay || '')}&tripNumber=${tripNum}`,
+            );
+          }}
+        >
+          <IoAddOutline size={15} aria-hidden />
+          추가
+        </button>
       </div>
 
-      <OhgoModal
+      {loading ? (
+        <div className="text-center py-4">
+          <div className="spinner-border spinner-border-sm text-primary mb-2" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mb-0" style={{ fontSize: 13, color: '#6F767E', fontFamily: OHGO_FONT }}>
+            불러오는 중…
+          </p>
+        </div>
+      ) : rosterItems.length === 0 ? (
+        <EmptyState
+          icon={IoBoatOutline}
+          message="등록된 승선자가 없습니다."
+          subtitle="「추가」로 승선자를 등록해 주세요."
+          style={OHGO_CARD}
+        />
+      ) : (
+        <div className="mb-3" style={{ ...OHGO_CARD, overflow: 'hidden' }}>
+          {rosterItems.map((item, index) => (
+            <div key={item.id}>
+              {index > 0 && <div style={OHGO_LIST_DIVIDER} />}
+              <button
+                type="button"
+                onClick={() => handleRosterItemPress(item)}
+                className="btn w-100 text-start border-0 rounded-0"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: OHGO_LIST.gap,
+                  padding: `${OHGO_LIST.rowPaddingY}px ${OHGO_LIST.rowPaddingX}px`,
+                  minHeight: OHGO_LIST.rowMinHeight,
+                  backgroundColor: !item.hasRoster ? '#FFFAFA' : '#FFFFFF',
+                }}
+              >
+                <RoleIcon item={item} />
+                <div className="flex-grow-1 min-w-0">
+                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                    <span
+                      style={{
+                        fontSize: OHGO_LIST.titleSize,
+                        fontWeight: OHGO_LIST.titleWeight,
+                        color: OHGO_LIST.titleColor,
+                        fontFamily: OHGO_FONT,
+                      }}
+                    >
+                      {item.name}
+                    </span>
+                    {item.isCaptain && <span style={ROLE_PILL.captain}>선장</span>}
+                    {item.isSailor && <span style={ROLE_PILL.sailor}>선원</span>}
+                    {!item.hasRoster && (
+                      <span style={ROLE_PILL.missing}>
+                        <IoWarningOutline size={11} style={{ marginRight: 2, verticalAlign: -1 }} />
+                        명부 없음
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: OHGO_LIST.descSize,
+                      color: OHGO_LIST.mutedColor,
+                      fontFamily: OHGO_FONT,
+                      marginTop: 2,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {item.birth} ({item.gender || '미입력'})
+                  </div>
+                  <div
+                    style={{
+                      fontSize: OHGO_LIST.metaSize,
+                      color: OHGO_LIST.mutedColor,
+                      fontFamily: OHGO_FONT,
+                      marginTop: 1,
+                    }}
+                  >
+                    {item.phone || '연락처 미입력'}
+                  </div>
+                </div>
+                <IoChevronForwardOutline
+                  size={OHGO_LIST.chevronSize}
+                  color={OHGO_LIST.chevronColor}
+                  className="flex-shrink-0"
+                />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        className={`btn w-100 d-flex align-items-center justify-content-center gap-2 ${OHGO_CONFIRM_BTN_CLASS}`}
+        style={OHGO_CONFIRM_BTN}
+        onClick={goNext}
+      >
+        <span>다음</span>
+        <IoChevronForwardOutline size={20} className="flex-shrink-0" aria-hidden />
+      </button>
+
+      <BoardingInfoModal
         open={modalVisible && !!selectedRoster}
         onClose={() => setModalVisible(false)}
-        title={selectedRoster ? `${selectedRoster.name}님의 명부 정보` : ''}
-        footerLayout="row"
+        personName={selectedRoster?.name || ''}
+        data={
+          selectedRoster
+            ? {
+                name: selectedRoster.name,
+                birth: selectedRoster.birth,
+                gender: selectedRoster.gender,
+                phone: selectedRoster.phone,
+                emergency: selectedRoster.emergency,
+                address: selectedRoster.address,
+              }
+            : null
+        }
         footer={
           selectedRoster ? (
             <>
@@ -262,7 +402,7 @@ function RosterListContent() {
                 variant="warning"
                 onClick={() => {
                   router.push(
-                    `/boarding-form?uuid=${selectedRoster.id}&name=${encodeURIComponent(selectedRoster.name)}&dob=${selectedRoster.birth}&returnTo=roster-list&date=${date}&dateDisplay=${encodeURIComponent(dateDisplay || '')}&tripNumber=${tripNum}`
+                    `/boarding-form?uuid=${selectedRoster.id}&name=${encodeURIComponent(selectedRoster.name)}&dob=${selectedRoster.birth}&returnTo=roster-list&date=${date}&dateDisplay=${encodeURIComponent(dateDisplay || '')}&tripNumber=${tripNum}`,
                   );
                   setModalVisible(false);
                 }}
@@ -271,8 +411,8 @@ function RosterListContent() {
               </OhgoModalButton>
               <OhgoModalButton
                 variant="danger"
-                onClick={() => {
-                  if (confirm(`${selectedRoster.name}님을 명부에서 삭제하시겠습니까?`)) {
+                onClick={async () => {
+                  if (await ohgoConfirm(`${selectedRoster.name}님을 명부에서 삭제하시겠습니까?`)) {
                     removeMemberFromRoster(selectedRoster.id);
                     setModalVisible(false);
                   }
@@ -283,32 +423,26 @@ function RosterListContent() {
             </>
           ) : null
         }
-      >
-        {selectedRoster && (
-          <>
-            <OhgoModalField label="이름" value={selectedRoster.name} />
-            <OhgoModalField label="생년월일" value={selectedRoster.birth} />
-            <OhgoModalField label="성별" value={selectedRoster.gender || '미입력'} />
-            <OhgoModalField label="연락처" value={selectedRoster.phone || '미입력'} />
-            <OhgoModalField label="비상 연락처" value={selectedRoster.emergency} />
-            <OhgoModalField label="주소" value={selectedRoster.address} />
-          </>
-        )}
-      </OhgoModal>
+      />
 
-      <OhgoModal
+      <BoardingInfoModal
         open={noRosterModalVisible && !!selectedRoster}
         onClose={() => setNoRosterModalVisible(false)}
-        title="명부 정보 없음"
-        titleTone="danger"
-        footerLayout="row"
+        personName={selectedRoster?.name || ''}
+        data={null}
+        empty
+        emptyMessage={
+          selectedRoster
+            ? `${selectedRoster.name}님의 명부 정보가 없습니다.`
+            : undefined
+        }
         footer={
           selectedRoster ? (
             <>
               <OhgoModalButton
                 variant="danger"
-                onClick={() => {
-                  if (confirm(`${selectedRoster.name}님을 명부에서 삭제하시겠습니까?`)) {
+                onClick={async () => {
+                  if (await ohgoConfirm(`${selectedRoster.name}님을 명부에서 삭제하시겠습니까?`)) {
                     removeMemberFromRoster(selectedRoster.id);
                     setNoRosterModalVisible(false);
                   }
@@ -320,7 +454,7 @@ function RosterListContent() {
                 variant="success"
                 onClick={() => {
                   router.push(
-                    `/boarding-form?uuid=${selectedRoster.id}&name=${encodeURIComponent(selectedRoster.name)}&dob=${selectedRoster.birth}&returnTo=roster-list&date=${date}&dateDisplay=${encodeURIComponent(dateDisplay || '')}&tripNumber=${tripNum}`
+                    `/boarding-form?uuid=${selectedRoster.id}&name=${encodeURIComponent(selectedRoster.name)}&dob=${selectedRoster.birth}&returnTo=roster-list&date=${date}&dateDisplay=${encodeURIComponent(dateDisplay || '')}&tripNumber=${tripNum}`,
                   );
                   setNoRosterModalVisible(false);
                 }}
@@ -330,11 +464,7 @@ function RosterListContent() {
             </>
           ) : null
         }
-      >
-        {selectedRoster && (
-          <OhgoModalText>{selectedRoster.name}님의 명부 정보가 없습니다.</OhgoModalText>
-        )}
-      </OhgoModal>
+      />
     </SubPageFrame>
   );
 }
@@ -346,4 +476,3 @@ export default function RosterListPage() {
     </Suspense>
   );
 }
-

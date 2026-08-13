@@ -2,9 +2,11 @@
 
 import { useEffect, useCallback, useState } from 'react';
 import { getUser } from '@/lib/storage';
-import { resolveAppUser, getHomePathForUser } from '@/lib/auth-session';
+import { resolveAppUser } from '@/lib/auth-session';
+import { isDevAuthBypass } from '@/lib/dev-auth';
 import { getStamps, getCouponCount } from '@/utils/stamp-service';
 import { getPhotos, type CommunityPhoto } from '@/utils/community-service';
+import { getPhotosForUser, type CaptainPhoto } from '@/utils/captain-photo-service';
 import { getActiveGames, type Game } from '@/lib/game-service';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
@@ -14,41 +16,55 @@ import SectionHeader from '@/components/home/SectionHeader';
 import GridCard from '@/components/home/GridCard';
 import FeaturedCard from '@/components/home/FeaturedCard';
 import ProductGridCard from '@/components/home/ProductGridCard';
+import HorizontalScroll from '@/components/home/HorizontalScroll';
 import WeeklyTripSummary from '@/components/home/WeeklyTripSummary';
 import { getPointMallProducts } from '@/utils/point-mall-service';
+import { getAvatarPublicUrl } from '@/utils/member-profile-service';
 import { formatPointPrice, getProductPrimaryImageUrl } from '@/constants/point-mall';
 import type { PointMallProduct } from '@/constants/point-mall';
 import { format } from 'date-fns';
 import { IoGameControllerOutline, IoStorefrontOutline } from 'react-icons/io5';
 import EmptyState from '@/components/EmptyState';
+import { OhgoPageLoading } from '@/lib/page-styles';
+
+function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
+  return result.status === 'fulfilled' ? result.value : fallback;
+}
 
 export default function MainPage() {
   const { navigate, navigateReplace } = useNavigation();
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{ uuid?: string; name?: string; dob?: string } | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [stampCount, setStampCount] = useState(0);
   const [couponCount, setCouponCount] = useState(0);
   const [photos, setPhotos] = useState<CommunityPhoto[]>([]);
+  const [myCaptainPhotos, setMyCaptainPhotos] = useState<CaptainPhoto[]>([]);
   const [games, setGames] = useState<Game[]>([]);
   const [mallProducts, setMallProducts] = useState<PointMallProduct[]>([]);
 
   const loadRemoteData = useCallback(async (uuid: string) => {
-    try {
-      const [stamps, coupons, photoList, activeGames, pointProducts] = await Promise.all([
+    // Supabase 미연결 개발 우회: 빈 섹션으로 홈 UI만 탐색
+    if (isDevAuthBypass()) return;
+
+    const [stamps, coupons, photoList, activeGames, pointProducts, taggedPhotos, avatar] =
+      await Promise.allSettled([
         getStamps(uuid),
         getCouponCount(uuid),
         getPhotos(4),
         getActiveGames(),
         getPointMallProducts(),
+        getPhotosForUser(uuid),
+        getAvatarPublicUrl(uuid),
       ]);
-      setStampCount(stamps.length);
-      setCouponCount(coupons);
-      setPhotos(photoList);
-      setGames(activeGames);
-      setMallProducts(pointProducts.slice(0, 4));
-    } catch (error) {
-      console.error('Error loading home data:', error);
-    }
+
+    setStampCount(settledValue(stamps, []).length);
+    setCouponCount(settledValue(coupons, 0));
+    setPhotos(settledValue(photoList, []));
+    setMyCaptainPhotos(settledValue(taggedPhotos, []));
+    setGames(settledValue(activeGames, []));
+    setMallProducts(settledValue(pointProducts, []).slice(0, 4));
+    setAvatarUrl(settledValue(avatar, null));
   }, []);
 
   const handleRefresh = useCallback(async () => {
@@ -62,11 +78,6 @@ export default function MainPage() {
 
       if (appUser.needsProfileSetup) {
         navigateReplace('/profile-setup');
-        return;
-      }
-
-      if (appUser.isAdmin || appUser.isCaptain) {
-        navigateReplace('/admin-main');
         return;
       }
 
@@ -125,17 +136,7 @@ export default function MainPage() {
   const gameImage = (game: Game) => game.thumbnail_url || undefined;
 
   if (loading || !user?.uuid) {
-    return (
-      <div
-        className="min-vh-100 d-flex align-items-center justify-content-center"
-        style={{ backgroundColor: '#F7F8FA' }}
-      >
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status" />
-          <p className="text-muted">로딩 중...</p>
-        </div>
-      </div>
-    );
+    return <OhgoPageLoading />;
   }
 
   const query = `uuid=${user.uuid}&name=${encodeURIComponent(user.name || '')}&dob=${user.dob || ''}`;
@@ -154,6 +155,7 @@ export default function MainPage() {
         <div className="px-3 pt-2" style={{ maxWidth: 480, margin: '0 auto' }}>
           <AvatarHeader
             userName={user.name || '회원'}
+            avatarUrl={avatarUrl}
             onMyPage={() => navigate('/my-page')}
           />
         </div>
@@ -172,6 +174,27 @@ export default function MainPage() {
         </div>
 
         <WeeklyTripSummary onViewAll={() => navigate('/community/trip-guide')} />
+
+        {myCaptainPhotos.length > 0 && (
+          <section className="mb-4">
+            <SectionHeader
+              title="내 조황 사진"
+              onViewAll={() => navigate('/my-photos')}
+            />
+            <div className="row g-3">
+              {myCaptainPhotos.slice(0, 4).map((photo) => (
+                <div key={photo.id} className="col-6">
+                  <GridCard
+                    title={photo.tripDate}
+                    subtitle={photo.species || '조황 사진'}
+                    imageUrl={photo.imageUrls[0]}
+                    onClick={() => navigate('/my-photos')}
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="mb-4">
           <SectionHeader
@@ -211,7 +234,7 @@ export default function MainPage() {
               style={{ backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
             />
           ) : (
-            <div
+            <HorizontalScroll
               className="d-flex gap-3 overflow-auto pb-1"
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
@@ -221,10 +244,10 @@ export default function MainPage() {
                   title={game.game_name}
                   imageUrl={gameImage(game)}
                   badge={i === 0 ? '인기' : undefined}
-                  onClick={() => navigate(`/mini-games/${game.game_id}`)}
+                  onClick={() => navigate('/mini-games')}
                 />
               ))}
-            </div>
+            </HorizontalScroll>
           )}
         </section>
 

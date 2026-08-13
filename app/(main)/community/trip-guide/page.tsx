@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useMemo, useRef, type PointerEvent } from 'react';
+import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
 import {
   getReservationCount,
@@ -20,24 +20,30 @@ import {
   TripGuide,
   sortTripsByNearestDeparture,
   tripDateToStr,
+  tripPricePerPersonLabel,
+  tripScheduleSubtitle,
+  tripSpeciesTitle,
 } from '@/utils/trip-guide-service';
 import { OHGO_CARD, OHGO_FONT } from '@/lib/page-styles';
 import {
   IoChevronBackOutline,
   IoChevronForwardOutline,
+  IoChevronDownOutline,
+  IoChevronUpOutline,
   IoBoatOutline,
   IoTimeOutline,
-  IoFishOutline,
   IoCallOutline,
   IoInformationCircleOutline,
 } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal, {
+  OhgoModalActions,
   OhgoModalButton,
   OhgoModalInfoList,
   OhgoModalInfoRow,
 } from '@/components/OhgoModal';
 import EmptyState from '@/components/EmptyState';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 const FONT = OHGO_FONT;
 const CARD: React.CSSProperties = { ...OHGO_CARD };
@@ -49,9 +55,33 @@ function toYM(y: number, m: number) {
   return `${y}-${String(m + 1).padStart(2, '0')}`;
 }
 
-function formatPrice(p?: number) {
-  if (!p) return '';
-  return p.toLocaleString('ko-KR') + '원';
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return tripDateToStr(d);
+}
+
+/** 일~토 주간 (달력 그리드와 동일) */
+function weekDateStrs(dateStr: string): string[] {
+  const d = new Date(`${dateStr}T12:00:00`);
+  d.setDate(d.getDate() - d.getDay());
+  return Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(d);
+    day.setDate(d.getDate() + i);
+    return tripDateToStr(day);
+  });
+}
+
+function formatSunSatWeekLabel(dateStr: string): string {
+  const days = weekDateStrs(dateStr);
+  const start = days[0];
+  const end = days[6];
+  const sm = Number(start.slice(5, 7));
+  const sd = Number(start.slice(8, 10));
+  const em = Number(end.slice(5, 7));
+  const ed = Number(end.slice(8, 10));
+  if (sm === em) return `${sm}월 ${sd}일 – ${ed}일`;
+  return `${sm}월 ${sd}일 – ${em}월 ${ed}일`;
 }
 
 function formatTripModalDate(dateStr: string) {
@@ -75,6 +105,7 @@ export default function TripGuidePage() {
   const [modalReservation, setModalReservation] = useState<TripReservation | null>(null);
   const [modalReserveCount, setModalReserveCount] = useState(0);
   const [hasBoarding, setHasBoarding] = useState(false);
+  const [calendarExpanded, setCalendarExpanded] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -107,17 +138,25 @@ export default function TripGuidePage() {
     void loadReserveMeta();
   }, [modalTrip]);
 
+  const loadMonthsKey = useMemo(() => {
+    if (calendarExpanded) return toYM(year, month);
+    return [...new Set(weekDateStrs(selectedDate).map((d) => d.slice(0, 7)))].sort().join(',');
+  }, [calendarExpanded, year, month, selectedDate]);
+
   const loadTrips = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getTripsByMonth(toYM(year, month));
-      setTrips(data);
+      const months = loadMonthsKey.split(',');
+      const lists = await Promise.all(months.map((ym) => getTripsByMonth(ym)));
+      const byId = new Map<string, TripGuide>();
+      lists.flat().forEach((trip) => byId.set(trip.id, trip));
+      setTrips([...byId.values()]);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [year, month]);
+  }, [loadMonthsKey]);
 
   useEffect(() => {
     void loadTrips();
@@ -146,6 +185,88 @@ export default function TripGuidePage() {
     } else setMonth(m => m + 1);
   };
 
+  const goToWeek = (deltaWeeks: number) => {
+    const nextAnchor = addDays(selectedDate, deltaWeeks * 7);
+    const week = weekDateStrs(nextAnchor);
+    const pick = week.includes(todayStr) ? todayStr : nextAnchor;
+    const d = new Date(`${pick}T12:00:00`);
+    setSelectedDate(pick);
+    setYear(d.getFullYear());
+    setMonth(d.getMonth());
+  };
+
+  const goPrev = () => (calendarExpanded ? prevMonth() : goToWeek(-1));
+  const goNext = () => (calendarExpanded ? nextMonth() : goToWeek(1));
+  const goToThisWeek = () => {
+    const d = new Date(`${todayStr}T12:00:00`);
+    setCalendarExpanded(false);
+    setSelectedDate(todayStr);
+    setYear(d.getFullYear());
+    setMonth(d.getMonth());
+  };
+  const isThisWeekView =
+    !calendarExpanded && weekDateStrs(todayStr)[0] === weekDateStrs(selectedDate)[0];
+  const swipeRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    moved: boolean;
+    axis: 'h' | 'v' | null;
+  } | null>(null);
+
+  const onCalendarPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (loading) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    swipeRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+      axis: null,
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onCalendarPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    const state = swipeRef.current;
+    if (!state || state.pointerId !== e.pointerId) return;
+    const dx = e.clientX - state.startX;
+    const dy = e.clientY - state.startY;
+    if (!state.axis) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      state.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'h' : 'v';
+      if (state.axis === 'v' && e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    }
+    if (state.axis === 'h') {
+      state.moved = Math.abs(dx) > 16;
+      e.preventDefault();
+    }
+  };
+
+  const endCalendarSwipe = (e: PointerEvent<HTMLDivElement>) => {
+    const state = swipeRef.current;
+    const el = e.currentTarget;
+    if (!state || state.pointerId !== e.pointerId) return;
+    if (el.hasPointerCapture(e.pointerId)) {
+      el.releasePointerCapture(e.pointerId);
+    }
+    const dx = e.clientX - state.startX;
+    if (state.axis === 'h' && Math.abs(dx) >= 48 && !loading) {
+      if (dx < 0) goNext();
+      else goPrev();
+      const blockClick = (ev: Event) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        el.removeEventListener('click', blockClick, true);
+      };
+      el.addEventListener('click', blockClick, true);
+      window.setTimeout(() => el.removeEventListener('click', blockClick, true), 0);
+    }
+    swipeRef.current = null;
+  };
+
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const cells: (number | null)[] = [
@@ -153,6 +274,8 @@ export default function TripGuidePage() {
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
   while (cells.length % 7 !== 0) cells.push(null);
+  const weekCount = cells.length / 7;
+  const weekDates = weekDateStrs(selectedDate);
 
   const tripMap: Record<string, TripGuide[]> = {};
   trips.forEach(t => {
@@ -198,7 +321,7 @@ export default function TripGuidePage() {
       return;
     }
     if (!hasBoarding) {
-      if (confirm('승선정보가 등록되어 있어야 예약할 수 있습니다. 승선정보 작성 페이지로 이동할까요?')) {
+      if (await ohgoConfirm('승선정보가 등록되어 있어야 예약할 수 있습니다. 승선정보 작성 페이지로 이동할까요?')) {
         router.push('/boarding-form');
       }
       return;
@@ -206,6 +329,140 @@ export default function TripGuidePage() {
     if (modalReservation) return;
     if (isTripFull) return;
     router.push(`/trip-reservation?tripId=${encodeURIComponent(modalTrip.id)}`);
+  };
+
+  const handleCallInquiry = () => {
+    const raw = modalTrip?.contact?.trim();
+    if (!raw) {
+      alert('등록된 문의 전화번호가 없습니다.');
+      return;
+    }
+    const tel = raw.replace(/[^\d+]/g, '');
+    if (!tel) {
+      alert('등록된 문의 전화번호가 없습니다.');
+      return;
+    }
+    window.location.href = `tel:${tel}`;
+  };
+
+  const selectCalendarDate = (dateStr: string) => {
+    if (loading) return;
+    const d = new Date(`${dateStr}T12:00:00`);
+    setSelectedDate(dateStr);
+    setYear(d.getFullYear());
+    setMonth(d.getMonth());
+  };
+
+  const renderDayCell = (dateStr: string, col: number, outsideMonth: boolean) => {
+    const day = Number(dateStr.slice(8, 10));
+    const dayTrips = tripMap[dateStr] || [];
+    const tripCount = dayTrips.length;
+    const isToday = dateStr === todayStr;
+    const isPast =
+      isPastTripDate(dateStr, todayStr) ||
+      (dateStr === todayStr &&
+        dayTrips.length > 0 &&
+        dayTrips.every((t) => isPastTripSchedule(t.date, t.departureTime)));
+    const isClosed = !isTripDateViewable(dateStr, todayStr);
+    const isSelected = dateStr === selectedDate;
+    const isSun = col === 0;
+    const isSat = col === 6;
+
+    let dayNumberColor = '#1A1D1F';
+    if (outsideMonth) dayNumberColor = '#C5C8CD';
+    else if (isSun) dayNumberColor = '#FF3B30';
+    else if (isSat) dayNumberColor = '#1B6FF5';
+    else if (isPast || isClosed) dayNumberColor = '#ABABAB';
+
+    const tripBadgeColor = tripCount >= 2 ? '#FF9500' : '#34C759';
+
+    let cellBg = '#FFFFFF';
+    if (isToday) cellBg = TODAY_BG;
+    else if (isSelected) cellBg = '#EBF1FE';
+    else if (isPast) cellBg = '#FAFAFA';
+
+    return (
+      <button
+        key={dateStr}
+        type="button"
+        onClick={() => selectCalendarDate(dateStr)}
+        disabled={loading}
+        className="btn"
+        style={{
+          flex: '1 1 0',
+          minWidth: 0,
+          minHeight: 40,
+          border: 'none',
+          backgroundColor: cellBg,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          gap: 1,
+          padding: '3px 1px 2px',
+          borderRadius: 0,
+          opacity: outsideMonth ? 0.7 : 1,
+        }}
+      >
+        <div
+          style={{
+            width: 24,
+            height: 24,
+            flexShrink: 0,
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: isToday ? TODAY_ACCENT : 'transparent',
+            fontSize: 12,
+            fontWeight: isToday ? 700 : 600,
+            fontFamily: FONT,
+            color: isToday ? '#FFFFFF' : dayNumberColor,
+          }}
+        >
+          {day}
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: 13,
+            minHeight: 13,
+            width: '100%',
+          }}
+        >
+          {tripCount > 0 ? (
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                fontFamily: FONT,
+                color: '#fff',
+                backgroundColor: tripBadgeColor,
+                borderRadius: 8,
+                padding: '0 5px',
+                lineHeight: 1.3,
+              }}
+              title={`출조 ${tripCount}건`}
+            >
+              {tripCount}
+            </span>
+          ) : isToday ? (
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                fontFamily: FONT,
+                color: TODAY_ACCENT,
+              }}
+            >
+              오늘
+            </span>
+          ) : null}
+        </div>
+      </button>
+    );
   };
 
   const dateBadgeStyle = selectedDateBadge
@@ -217,8 +474,8 @@ export default function TripGuidePage() {
     : null;
 
   return (
-    <SubPageFrame title="출조 안내" onRefresh={loadTrips}>
-        <div className="position-relative mb-4" style={{ ...CARD, overflow: 'hidden', width: '100%', minWidth: 0 }}>
+    <SubPageFrame title="출조 안내" onRefresh={loadTrips} dense>
+        <div className="position-relative mb-2" style={{ ...CARD, overflow: 'hidden', width: '100%', minWidth: 0 }}>
           {loading && (
             <div
               className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
@@ -233,27 +490,38 @@ export default function TripGuidePage() {
             </div>
           )}
 
-          <div className="d-flex align-items-center justify-content-between px-3 pt-3 pb-2">
+          <div
+            onPointerDown={onCalendarPointerDown}
+            onPointerMove={onCalendarPointerMove}
+            onPointerUp={endCalendarSwipe}
+            onPointerCancel={endCalendarSwipe}
+            style={{ touchAction: 'pan-y', userSelect: 'none' }}
+          >
+          <div className="d-flex align-items-center justify-content-between px-2 pt-2 pb-1">
             <button
               type="button"
-              onClick={prevMonth}
+              onClick={goPrev}
               disabled={loading}
-              className="btn p-2 rounded-circle"
+              className="btn p-1 rounded-circle"
               style={{ border: 'none', backgroundColor: '#F7F8FA' }}
+              aria-label={calendarExpanded ? '이전 달' : '이전 주'}
             >
-              <IoChevronBackOutline size={20} color="#1A1D1F" />
+              <IoChevronBackOutline size={18} color="#1A1D1F" />
             </button>
-            <span style={{ fontSize: 18, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
-              {format(currentMonthDate, 'yyyy년 M월')}
+            <span style={{ fontSize: 16, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
+              {calendarExpanded
+                ? format(currentMonthDate, 'yyyy년 M월')
+                : formatSunSatWeekLabel(selectedDate)}
             </span>
             <button
               type="button"
-              onClick={nextMonth}
+              onClick={goNext}
               disabled={loading}
-              className="btn p-2 rounded-circle"
+              className="btn p-1 rounded-circle"
               style={{ border: 'none', backgroundColor: '#F7F8FA' }}
+              aria-label={calendarExpanded ? '다음 달' : '다음 주'}
             >
-              <IoChevronForwardOutline size={20} color="#1A1D1F" />
+              <IoChevronForwardOutline size={18} color="#1A1D1F" />
             </button>
           </div>
 
@@ -264,8 +532,8 @@ export default function TripGuidePage() {
                 style={{
                   flex: 1,
                   textAlign: 'center',
-                  padding: '10px 0',
-                  fontSize: 12,
+                  padding: '6px 0',
+                  fontSize: 11,
                   fontWeight: 700,
                   fontFamily: FONT,
                   color: i === 0 ? '#FF3B30' : i === 6 ? '#1B6FF5' : '#6F767E',
@@ -276,137 +544,82 @@ export default function TripGuidePage() {
             ))}
           </div>
 
-          {Array.from({ length: cells.length / 7 }, (_, row) => (
-            <div
-              key={row}
-              className="d-flex"
-              style={{ borderBottom: row < cells.length / 7 - 1 ? '1px solid #F7F8FA' : 'none' }}
+          {calendarExpanded
+            ? Array.from({ length: weekCount }, (_, row) => (
+                <div
+                  key={row}
+                  className="d-flex"
+                  style={{ borderBottom: row < weekCount - 1 ? '1px solid #F7F8FA' : 'none' }}
+                >
+                  {cells.slice(row * 7, row * 7 + 7).map((day, col) =>
+                    day ? (
+                      renderDayCell(getDateStr(day), col, false)
+                    ) : (
+                      <div key={col} style={{ flex: 1, minHeight: 40, padding: '2px 1px' }} aria-hidden />
+                    )
+                  )}
+                </div>
+              ))
+            : (
+                <div className="d-flex">
+                  {weekDates.map((dateStr, col) =>
+                    renderDayCell(dateStr, col, dateStr.slice(0, 7) !== toYM(year, month))
+                  )}
+                </div>
+              )}
+          </div>
+          <div
+            className="d-flex"
+            style={{ borderTop: '1px solid #F7F8FA', backgroundColor: '#FAFBFC' }}
+          >
+            {!isThisWeekView && (
+              <button
+                type="button"
+                onClick={goToThisWeek}
+                disabled={loading}
+                className="btn flex-fill d-flex align-items-center justify-content-center py-1"
+                style={{
+                  border: 'none',
+                  borderRight: '1px solid #F7F8FA',
+                  backgroundColor: 'transparent',
+                  fontFamily: FONT,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: TODAY_ACCENT,
+                  borderRadius: 0,
+                }}
+              >
+                이번주 보기
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setCalendarExpanded((open) => !open)}
+              className="btn flex-fill d-flex align-items-center justify-content-center gap-1 py-1"
+              style={{
+                border: 'none',
+                backgroundColor: 'transparent',
+                fontFamily: FONT,
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#6F767E',
+                borderRadius: 0,
+              }}
             >
-              {cells.slice(row * 7, row * 7 + 7).map((day, col) => {
-                if (!day) {
-                  return (
-                    <div key={col} style={{ flex: 1, minHeight: 56, padding: '6px 2px' }} aria-hidden />
-                  );
-                }
-
-                const dateStr = getDateStr(day);
-                const dayTrips = tripMap[dateStr] || [];
-                const tripCount = dayTrips.length;
-                const isToday = dateStr === todayStr;
-                const isPast =
-                  isPastTripDate(dateStr, todayStr) ||
-                  (dateStr === todayStr &&
-                    dayTrips.length > 0 &&
-                    dayTrips.every(t => isPastTripSchedule(t.date, t.departureTime)));
-                const isClosed = !isTripDateViewable(dateStr, todayStr);
-                const isSelected = dateStr === selectedDate;
-                const isSun = col === 0;
-                const isSat = col === 6;
-
-                let dayNumberColor = '#1A1D1F';
-                if (isSun) dayNumberColor = '#FF3B30';
-                else if (isSat) dayNumberColor = '#1B6FF5';
-                else if (isPast || isClosed) dayNumberColor = '#ABABAB';
-
-                const tripBadgeColor = tripCount >= 2 ? '#FF9500' : '#34C759';
-
-                let cellBg = '#FFFFFF';
-                if (isToday) cellBg = TODAY_BG;
-                else if (isPast) cellBg = '#FAFAFA';
-                else if (isSelected) cellBg = '#EBF1FE';
-
-                return (
-                  <button
-                    key={col}
-                    type="button"
-                    onClick={() => !loading && setSelectedDate(dateStr)}
-                    disabled={loading}
-                    className="btn"
-                    style={{
-                      flex: '1 1 0',
-                      minWidth: 0,
-                      minHeight: 56,
-                      border: 'none',
-                      backgroundColor: cellBg,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'flex-start',
-                      gap: 4,
-                      padding: '6px 1px',
-                      borderRadius: 0,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 30,
-                        height: 30,
-                        flexShrink: 0,
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: isToday ? TODAY_ACCENT : 'transparent',
-                        fontSize: 13,
-                        fontWeight: isToday ? 700 : 600,
-                        fontFamily: FONT,
-                        color: isToday ? '#FFFFFF' : dayNumberColor,
-                      }}
-                    >
-                      {day}
-                    </div>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        height: 16,
-                        minHeight: 16,
-                        width: '100%',
-                      }}
-                    >
-                      {tripCount > 0 ? (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            fontFamily: FONT,
-                            color: '#fff',
-                            backgroundColor: tripBadgeColor,
-                            borderRadius: 8,
-                            padding: '1px 6px',
-                            lineHeight: 1.3,
-                          }}
-                          title={`출조 ${tripCount}건`}
-                        >
-                          {tripCount}
-                        </span>
-                      ) : isToday ? (
-                        <span
-                          style={{
-                            fontSize: 9,
-                            fontWeight: 700,
-                            fontFamily: FONT,
-                            color: TODAY_ACCENT,
-                          }}
-                        >
-                          오늘
-                        </span>
-                      ) : null}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+              {calendarExpanded ? (
+                <>
+                  <IoChevronUpOutline size={14} />
+                  달력 접기
+                </>
+              ) : (
+                <>
+                  <IoChevronDownOutline size={14} />
+                  달력 펼치기
+                </>
+              )}
+            </button>
+          </div>
         </div>
-
-        <p
-          className="mb-3 px-1"
-          style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT, lineHeight: 1.5, textAlign: 'center' }}
-        >
-          날짜를 선택하면 해당 날짜의 출조 일정을 확인할 수 있습니다.
-        </p>
 
         {/* 선택한 날짜 출조 리스트 */}
         {!loading && (
@@ -481,74 +694,59 @@ export default function TripGuidePage() {
                         <IoBoatOutline size={22} color={isPast ? '#9A9FA5' : '#1B6FF5'} />
                       </div>
 
-                      {/* 우측 콘텐츠 전체 */}
                       <div className="flex-grow-1" style={{ minWidth: 0 }}>
-                        {/* 줄 1: 목적지+시간 (왼쪽) | ⓘ (오른쪽) */}
-                        <div className="d-flex align-items-center justify-content-between gap-2">
-                          <div
-                            className="trip-schedule-card__title"
-                            style={{
-                              fontSize: 15,
-                              fontWeight: 700,
-                              color: isPast ? '#6F767E' : '#1A1D1F',
-                              fontFamily: FONT,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              minWidth: 0,
-                            }}
-                          >
-                            {trip.destination}
-                            {(trip.departureTime || trip.returnTime) && (
-                              <span
+                        <div className="d-flex align-items-start justify-content-between gap-2">
+                          <div className="min-w-0 flex-grow-1">
+                            <div
+                              className="trip-schedule-card__title"
+                              style={{
+                                fontSize: 15,
+                                fontWeight: 700,
+                                color: isPast ? '#6F767E' : '#1A1D1F',
+                                fontFamily: FONT,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {tripSpeciesTitle(trip)}
+                            </div>
+                            <div
+                              className="trip-schedule-card__meta"
+                              style={{
+                                fontSize: 12,
+                                color: isPast ? '#9A9FA5' : '#6F767E',
+                                fontFamily: FONT,
+                                marginTop: 2,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {tripScheduleSubtitle(trip)}
+                            </div>
+                            {trip.price ? (
+                              <div
+                                className="trip-schedule-card__price"
                                 style={{
-                                  fontWeight: 500,
-                                  color: isPast ? '#ABABAB' : '#6F767E',
-                                  marginLeft: 6,
+                                  fontSize: 12,
+                                  color: isPast ? '#9A9FA5' : '#1B6FF5',
+                                  fontFamily: FONT,
+                                  fontWeight: 600,
+                                  marginTop: 2,
                                 }}
                               >
-                                {trip.departureTime}{trip.returnTime && ` ~ ${trip.returnTime}`}
-                              </span>
-                            )}
+                                {tripPricePerPersonLabel(trip.price)}
+                              </div>
+                            ) : null}
                           </div>
                           <IoInformationCircleOutline
                             size={20}
                             color={isPast ? '#C5C8CD' : '#ABABAB'}
                             className="trip-schedule-card__info-icon flex-shrink-0"
+                            style={{ marginTop: 2 }}
                           />
                         </div>
-
-                        {/* 줄 2: 어종 + 가격 배지 (나란히, 왼쪽 정렬) */}
-                        {(trip.species || trip.price) && (
-                          <div className="d-flex align-items-center gap-2 mt-1" style={{ flexWrap: 'wrap' }}>
-                            {trip.species && (
-                              <span
-                                className="trip-schedule-card__meta"
-                                style={{
-                                  fontSize: 13,
-                                  color: isPast ? '#9A9FA5' : '#6F767E',
-                                  fontFamily: FONT,
-                                }}
-                              >
-                                {trip.species}
-                              </span>
-                            )}
-                            {trip.price && (
-                              <span
-                                className="trip-schedule-card__price badge rounded-pill"
-                                style={{
-                                  backgroundColor: isPast ? '#E8EAED' : '#EBF1FE',
-                                  color: isPast ? '#6F767E' : '#1B6FF5',
-                                  fontSize: 12,
-                                  fontFamily: FONT,
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {formatPrice(trip.price)}
-                              </span>
-                            )}
-                          </div>
-                        )}
                       </div>
                     </div>
                   </button>
@@ -562,7 +760,7 @@ export default function TripGuidePage() {
       <OhgoModal
         open={!!modalTrip}
         onClose={() => setModalTrip(null)}
-        title={modalTrip?.destination ?? '출조 정보'}
+        title={modalTrip ? tripSpeciesTitle(modalTrip) : '출조 정보'}
       >
         {modalTrip && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -579,26 +777,26 @@ export default function TripGuidePage() {
               <OhgoModalInfoRow
                 icon={IoTimeOutline}
                 label="출항 시간"
-                value={`${modalTrip.departureTime}${modalTrip.returnTime ? ` ~ ${modalTrip.returnTime}` : ''}`}
+                value={`${modalTrip.departureTime} 출항${modalTrip.returnTime ? ` ~ ${modalTrip.returnTime} 귀항` : ''}`}
               />
-              {modalTrip.species ? (
-                <OhgoModalInfoRow icon={IoFishOutline} label="목표 어종" value={modalTrip.species} />
+              {modalTrip.destination ? (
+                <OhgoModalInfoRow icon={IoBoatOutline} label="목적지" value={modalTrip.destination} />
               ) : null}
               {modalTrip.contact ? (
                 <OhgoModalInfoRow icon={IoCallOutline} label="예약 문의" value={modalTrip.contact} />
               ) : null}
             </OhgoModalInfoList>
-            {modalTrip.price && (
+            {modalTrip.price ? (
               <div
                 className="p-3 rounded-3 d-flex align-items-center justify-content-between"
                 style={{ backgroundColor: '#EBF1FE' }}
               >
                 <span style={{ fontSize: 14, fontWeight: 600, color: '#1B6FF5', fontFamily: FONT }}>1인 요금</span>
                 <span style={{ fontSize: 20, fontWeight: 800, color: '#1B6FF5', fontFamily: FONT }}>
-                  {formatPrice(modalTrip.price)}
+                  {tripPricePerPersonLabel(modalTrip.price)}
                 </span>
               </div>
-            )}
+            ) : null}
             {modalTrip.notes && (
               <div className="p-3 rounded-3" style={{ backgroundColor: '#F7F8FA' }}>
                 <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginBottom: 6 }}>비고</div>
@@ -615,14 +813,23 @@ export default function TripGuidePage() {
                 </div>
               </div>
             )}
-            {canShowReserveButton && (
-              <OhgoModalButton
-                variant="primary"
-                disabled={!!modalReservation || isTripFull}
-                onClick={() => void handleReserveClick()}
-              >
-                {modalReservation ? '예약 완료' : isTripFull ? '정원 마감' : '예약'}
-              </OhgoModalButton>
+            {(modalTrip.contact || canShowReserveButton) && (
+              <OhgoModalActions direction={canShowReserveButton && modalTrip.contact ? 'row' : 'stack'}>
+                {modalTrip.contact ? (
+                  <OhgoModalButton variant="secondary" onClick={handleCallInquiry}>
+                    전화 문의
+                  </OhgoModalButton>
+                ) : null}
+                {canShowReserveButton ? (
+                  <OhgoModalButton
+                    variant="primary"
+                    disabled={!!modalReservation || isTripFull}
+                    onClick={() => void handleReserveClick()}
+                  >
+                    {modalReservation ? '예약 완료' : isTripFull ? '정원 마감' : '예약'}
+                  </OhgoModalButton>
+                ) : null}
+              </OhgoModalActions>
             )}
           </div>
         )}

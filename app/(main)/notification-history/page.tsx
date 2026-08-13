@@ -5,8 +5,9 @@ import { IoTrashOutline, IoNotificationsOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import SubPageActionBar from '@/components/SubPageActionBar';
 import EmptyState from '@/components/EmptyState';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
-const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+const FONT = "var(--font-ohgo), sans-serif";
 
 type NotificationLog = { title: string; body: string; time: string };
 
@@ -23,8 +24,8 @@ export default function NotificationHistoryPage() {
 
   useEffect(() => { loadHistory(); }, []);
 
-  const clearHistory = () => {
-    if (!confirm('모든 알림 기록을 삭제하시겠습니까?')) return;
+  const clearHistory = async () => {
+    if (!(await ohgoConfirm('모든 알림 기록을 삭제하시겠습니까?'))) return;
     localStorage.removeItem('notificationHistory');
     setHistory([]);
   };

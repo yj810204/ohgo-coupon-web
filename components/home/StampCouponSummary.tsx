@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { IoQrCodeOutline, IoPricetagOutline, IoGiftOutline } from 'react-icons/io5';
 
 interface StampCouponSummaryProps {
@@ -59,6 +60,14 @@ export default function StampCouponSummary({
   onCouponClick,
   onQrScan,
 }: StampCouponSummaryProps) {
+  const [qrOpening, setQrOpening] = useState(false);
+
+  const handleQrScan = () => {
+    if (qrOpening) return;
+    setQrOpening(true);
+    onQrScan();
+  };
+
   return (
     <div
       className="text-white"
@@ -91,7 +100,8 @@ export default function StampCouponSummary({
       </div>
       <button
         type="button"
-        onClick={onQrScan}
+        onClick={handleQrScan}
+        disabled={qrOpening}
         className="btn btn-light w-100 d-flex align-items-center justify-content-center gap-2 fw-semibold"
         style={{
           borderRadius: 12,
@@ -99,10 +109,24 @@ export default function StampCouponSummary({
           color: '#1B6FF5',
           fontFamily: FONT,
           border: 'none',
+          opacity: qrOpening ? 0.85 : 1,
         }}
       >
-        <IoQrCodeOutline size={20} />
-        QR 스캔으로 스탬프 적립
+        {qrOpening ? (
+          <>
+            <span
+              className="spinner-border spinner-border-sm"
+              role="status"
+              style={{ width: 18, height: 18, borderWidth: 2, color: '#1B6FF5' }}
+            />
+            카메라 준비 중…
+          </>
+        ) : (
+          <>
+            <IoQrCodeOutline size={20} />
+            QR 스캔으로 스탬프 적립
+          </>
+        )}
       </button>
     </div>
   );

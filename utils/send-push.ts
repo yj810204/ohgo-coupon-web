@@ -1,3 +1,6 @@
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
+import { isFirebaseDataSource } from '@/lib/data-source';
+import { getFirebaseDb } from '@/lib/firebase/client';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -37,6 +40,15 @@ async function sendExpoPush(
 }
 
 async function getAdminPushTokens(): Promise<string[]> {
+  if (isFirebaseDataSource()) {
+    const db = getFirebaseDb();
+    const snap = await getDocs(collection(db, 'users'));
+    return snap.docs
+      .map((d) => d.data())
+      .filter((u) => u.isAdmin === true && u.expoPushToken)
+      .map((u) => String(u.expoPushToken));
+  }
+
   const supabase = getProfilesClient();
   const { data, error } = await supabase
     .from('profiles')
@@ -50,11 +62,20 @@ async function getAdminPushTokens(): Promise<string[]> {
   }
 
   return (data ?? [])
-    .map((row) => row.expo_push_token)
-    .filter((token): token is string => Boolean(token));
+    .map((row: { expo_push_token: string | null }) => row.expo_push_token)
+    .filter((token: string | null): token is string => Boolean(token));
 }
 
 async function getPushTokenForUser(uuid: string): Promise<string | null> {
+  if (isFirebaseDataSource()) {
+    const { resolveFirestoreUserId } = await import('@/lib/firebase/resolve-user-id');
+    const fbUuid = (await resolveFirestoreUserId(uuid)) ?? uuid;
+    const db = getFirebaseDb();
+    const snap = await getDoc(doc(db, 'users', fbUuid));
+    if (!snap.exists()) return null;
+    return snap.data().expoPushToken ?? null;
+  }
+
   const supabase = getProfilesClient();
   const { data, error } = await supabase
     .from('profiles')
@@ -67,6 +88,14 @@ async function getPushTokenForUser(uuid: string): Promise<string | null> {
 }
 
 async function getAllPushTokens(): Promise<string[]> {
+  if (isFirebaseDataSource()) {
+    const db = getFirebaseDb();
+    const snap = await getDocs(collection(db, 'users'));
+    return snap.docs
+      .map((d) => d.data().expoPushToken)
+      .filter((token): token is string => Boolean(token));
+  }
+
   const supabase = getProfilesClient();
   const { data, error } = await supabase
     .from('profiles')
@@ -79,8 +108,8 @@ async function getAllPushTokens(): Promise<string[]> {
   }
 
   return (data ?? [])
-    .map((row) => row.expo_push_token)
-    .filter((token): token is string => Boolean(token));
+    .map((row: { expo_push_token: string | null }) => row.expo_push_token)
+    .filter((token: string | null): token is string => Boolean(token));
 }
 
 export const notifyAllAdmins = async (

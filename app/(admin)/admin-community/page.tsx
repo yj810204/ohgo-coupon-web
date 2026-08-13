@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { resolveAppUser } from '@/lib/auth-session';
 import { getPointRules, savePointSettings } from '@/utils/community-point-service';
 import { 
@@ -38,6 +39,8 @@ import {
   OHGO_DISMISS_BTN,
   OHGO_DISMISS_BTN_CLASS,
   OHGO_SECONDARY_BTN,
+  OHGO_LIST,
+  OHGO_LIST_DIVIDER,
   OhgoPageLoading,
 } from '@/lib/page-styles';
 import EmptyState from '@/components/EmptyState';
@@ -49,6 +52,7 @@ import {
   uploadPhoto,
   CommunityPhoto
 } from '@/utils/community-service';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 const FONT = OHGO_FONT;
 const CARD: React.CSSProperties = { ...OHGO_CARD };
@@ -132,8 +136,21 @@ function SectionAddButton({ label, onClick }: { label: string; onClick: () => vo
   return (
     <button
       type="button"
-      className="btn d-flex align-items-center gap-1 flex-shrink-0 ohgo-modal__btn ohgo-modal__btn--primary"
-      style={{ ...OHGO_PRIMARY_BTN, padding: '8px 12px', fontSize: 13, borderRadius: 10 }}
+      className="btn d-flex align-items-center gap-1 flex-shrink-0"
+      style={{
+        backgroundColor: '#1B6FF5',
+        color: '#fff',
+        borderRadius: 10,
+        border: 'none',
+        fontFamily: FONT,
+        fontWeight: 600,
+        fontSize: 13,
+        lineHeight: 1.2,
+        letterSpacing: '-0.02em',
+        padding: '8px 12px',
+        whiteSpace: 'nowrap',
+        width: 'auto',
+      }}
       onClick={onClick}
     >
       <IoAddOutline size={16} aria-hidden />
@@ -330,7 +347,7 @@ function AdminCommunityContent() {
   };
 
   const handleDeleteEmojiPack = async (packId: string) => {
-    if (!confirm('이 이모티콘 팩을 삭제하시겠습니까? 모든 이모티콘이 삭제됩니다.')) {
+    if (!(await ohgoConfirm('이 이모티콘 팩을 삭제하시겠습니까? 모든 이모티콘이 삭제됩니다.'))) {
       return;
     }
 
@@ -402,7 +419,7 @@ function AdminCommunityContent() {
 
   const handleDeleteEmoji = async (index: number) => {
     const emoji = emojiPackEmojis[index];
-    if (!confirm(`이모티콘 "${emoji.name || emoji.emojiId}"을(를) 삭제하시겠습니까?`)) {
+    if (!(await ohgoConfirm(`이모티콘 "${emoji.name || emoji.emojiId}"을(를) 삭제하시겠습니까?`))) {
       return;
     }
 
@@ -483,7 +500,7 @@ function AdminCommunityContent() {
   };
 
   const handleDeleteTemplate = async (templateId: string) => {
-    if (!confirm('이 템플릿을 삭제하시겠습니까?')) {
+    if (!(await ohgoConfirm('이 템플릿을 삭제하시겠습니까?'))) {
       return;
     }
 
@@ -1031,7 +1048,7 @@ function AdminCommunityContent() {
   };
 
   const handleDelete = async (photoId: string) => {
-    if (!confirm('이 사진을 삭제하시겠습니까?\n댓글도 함께 삭제됩니다.')) {
+    if (!(await ohgoConfirm('이 사진을 삭제하시겠습니까?\n댓글도 함께 삭제됩니다.'))) {
       return;
     }
 
@@ -1281,16 +1298,19 @@ function AdminCommunityContent() {
             <label style={LABEL}>템플릿 목록</label>
             <div style={LIST_CONTAINER}>
               {templates.map((template, index) => (
-                <div
-                  key={template.templateId}
-                  className="d-flex align-items-center justify-content-between gap-2 px-3 py-3"
-                  style={{
-                    borderBottom: index < templates.length - 1 ? '1px solid #F7F8FA' : 'none',
-                  }}
-                >
+                <div key={template.templateId}>
+                  {index > 0 && <div style={OHGO_LIST_DIVIDER} />}
+                <div className="ohgo-menu-list-row justify-content-between">
                   <div className="min-w-0 flex-grow-1">
                     <div className="d-flex align-items-center gap-2 flex-wrap">
-                      <span style={{ fontSize: 15, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>
+                      <span
+                        style={{
+                          fontSize: OHGO_LIST.titleSize,
+                          fontWeight: OHGO_LIST.titleWeight,
+                          color: '#1A1D1F',
+                          fontFamily: FONT,
+                        }}
+                      >
                         {template.name}
                       </span>
                       {activeTemplateId === template.templateId && (
@@ -1308,7 +1328,14 @@ function AdminCommunityContent() {
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 4 }}>
+                    <div
+                      style={{
+                        fontSize: OHGO_LIST.metaSize,
+                        color: '#6F767E',
+                        fontFamily: FONT,
+                        marginTop: 4,
+                      }}
+                    >
                       필드 {template.fields.length}개
                     </div>
                   </div>
@@ -1330,6 +1357,7 @@ function AdminCommunityContent() {
                       onClick={() => handleDeleteTemplate(template.templateId)}
                     />
                   </div>
+                </div>
                 </div>
               ))}
             </div>
@@ -1390,17 +1418,23 @@ function AdminCommunityContent() {
         ) : (
           <div style={LIST_CONTAINER}>
             {emojiPacks.map((pack, index) => (
+              <div key={pack.packId}>
+                {index > 0 && <div style={OHGO_LIST_DIVIDER} />}
               <div
-                key={pack.packId}
-                className="px-3 py-3"
-                style={{
-                  borderBottom: index < emojiPacks.length - 1 ? '1px solid #F7F8FA' : 'none',
-                }}
+                className="ohgo-data-list-row"
+                style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0 }}
               >
-                <div className="d-flex align-items-start justify-content-between gap-2">
+                <div className="d-flex align-items-start justify-content-between gap-2 w-100">
                   <div className="min-w-0 flex-grow-1">
                     <div className="d-flex align-items-center gap-2 flex-wrap">
-                      <span style={{ fontSize: 15, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>
+                      <span
+                        style={{
+                          fontSize: OHGO_LIST.titleSize,
+                          fontWeight: OHGO_LIST.titleWeight,
+                          color: '#1A1D1F',
+                          fontFamily: FONT,
+                        }}
+                      >
                         {pack.name}
                       </span>
                       {!pack.isActive && (
@@ -1449,11 +1483,13 @@ function AdminCommunityContent() {
                 </div>
                 <button
                   type="button"
-                  className="btn btn-sm mt-2"
+                  className="btn btn-sm mt-2 align-self-start"
                   style={{
                     ...OHGO_SECONDARY_BTN,
+                    width: 'auto',
                     padding: '6px 12px',
                     fontSize: 12,
+                    lineHeight: 1.2,
                     borderRadius: 8,
                   }}
                   onClick={() => handleToggleEmojiPackActive(pack)}
@@ -1461,7 +1497,7 @@ function AdminCommunityContent() {
                   {pack.isActive ? '비활성화' : '활성화'}
                 </button>
                 {pack.emojis.length > 0 && (
-                  <div className="mt-2 d-flex gap-1 flex-wrap">
+                  <div className="mt-2 d-flex gap-1 flex-wrap w-100">
                     {pack.emojis.slice(0, 8).map(emoji => (
                       <img
                         key={emoji.emojiId}
@@ -1497,6 +1533,7 @@ function AdminCommunityContent() {
                     )}
                   </div>
                 )}
+              </div>
               </div>
             ))}
           </div>

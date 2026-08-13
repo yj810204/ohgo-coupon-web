@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useRef, type CSSProperties } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { IoFishOutline, IoPeopleOutline, IoTrophyOutline } from 'react-icons/io5';
 
-const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+const FONT = "var(--font-ohgo), sans-serif";
 
 const SLIDES = [
   {
@@ -65,12 +65,16 @@ export default function OnboardingPage() {
   return (
     <div
       style={{
-        minHeight: '100dvh',
+        minHeight: 'calc(100dvh - var(--ohgo-content-bottom-inset, 0px))',
+        width: '100%',
+        maxWidth: 'var(--ohgo-app-max-width)',
+        margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
         fontFamily: FONT,
         backgroundColor: '#FFFFFF',
         overflowX: 'hidden',
+        boxSizing: 'border-box',
       }}
       onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
       onTouchEnd={e => {
@@ -81,26 +85,37 @@ export default function OnboardingPage() {
         touchStartX.current = null;
       }}
     >
-      {/* 상단 Skip */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '20px 24px 0' }}>
-        {!isLast && (
-          <button
-            type="button"
-            onClick={markDoneAndGo}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: 14,
-              fontWeight: 600,
-              color: '#9CA3AF',
-              fontFamily: FONT,
-              cursor: 'pointer',
-              padding: '6px 4px',
-            }}
-          >
-            건너뛰기
-          </button>
-        )}
+      {/* 상단 Skip — 마지막 슬라이드에서도 높이 유지 (레이아웃 점프 방지) */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+          padding: '20px 24px 0',
+          minHeight: 53,
+          boxSizing: 'border-box',
+        }}
+      >
+        <button
+          type="button"
+          onClick={markDoneAndGo}
+          aria-hidden={isLast}
+          tabIndex={isLast ? -1 : 0}
+          style={{
+            background: 'none',
+            border: 'none',
+            fontSize: 14,
+            fontWeight: 600,
+            color: '#9CA3AF',
+            fontFamily: FONT,
+            cursor: isLast ? 'default' : 'pointer',
+            padding: '6px 4px',
+            visibility: isLast ? 'hidden' : 'visible',
+            pointerEvents: isLast ? 'none' : 'auto',
+          }}
+        >
+          건너뛰기
+        </button>
       </div>
 
       {/* 일러스트 Placeholder 영역 */}
@@ -169,8 +184,15 @@ export default function OnboardingPage() {
         </span>
       </div>
 
-      {/* 텍스트 영역 */}
-      <div style={{ flex: 1, padding: '32px 32px 0', display: 'flex', flexDirection: 'column' }}>
+      {/* 텍스트 영역 — fixed footer 높이만큼 하단 여백 */}
+      <div
+        style={{
+          flex: 1,
+          padding: '32px 32px calc(env(safe-area-inset-bottom, 0px) + 140px)',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         {/* 태그 */}
         <div style={{
           display: 'inline-block',
@@ -213,14 +235,18 @@ export default function OnboardingPage() {
         </p>
       </div>
 
-      {/* 하단 네비게이션 */}
-      <div style={{
-        padding: '28px 24px calc(env(safe-area-inset-bottom, 0px) + 28px)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 20,
-        alignItems: 'center',
-      }}>
+      {/* 하단 네비게이션 (fixed) */}
+      <div
+        className="ohgo-fixed-bottom-bar"
+        style={{
+          padding: '16px 24px calc(env(safe-area-inset-bottom, 0px) + 20px)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 16,
+          alignItems: 'center',
+          backgroundColor: '#FFFFFF',
+        }}
+      >
         {/* 도트 인디케이터 */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {SLIDES.map((_, i) => (
@@ -245,7 +271,6 @@ export default function OnboardingPage() {
           onClick={goNext}
           style={{
             width: '100%',
-            maxWidth: 420,
             padding: '16px',
             border: 'none',
             borderRadius: 50,

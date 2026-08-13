@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, useRef, Suspense } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { resolveAppUser } from '@/lib/auth-session';
 import { getGame, updateGame, Game } from '@/lib/game-service';
 import SubPageFrame from '@/components/SubPageFrame';

@@ -1,43 +1,45 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
+import { useCallback, startTransition } from 'react';
 import { useLoading } from '@/contexts/LoadingContext';
-import { useCallback } from 'react';
 
+/**
+ * 앱 내 페이지 이동.
+ * 상단 진행 바로 «이동 중» 피드백을 주고, 경로가 바뀌면 자동으로 해제한다.
+ */
 export function useNavigation() {
   const router = useRouter();
+  const pathname = usePathname();
   const { setLoading } = useLoading();
 
-  const navigate = useCallback((path: string) => {
-    setLoading(true);
-    // 약간의 지연을 주어 로딩 상태가 보이도록 함
-    setTimeout(() => {
-      router.push(path);
-      // 페이지 이동 후 약간의 지연 후 로딩 해제
-      setTimeout(() => {
-        setLoading(false);
-      }, 300);
-    }, 100);
-  }, [router, setLoading]);
+  const navigate = useCallback(
+    (path: string) => {
+      if (path === pathname) return;
+      setLoading(true);
+      startTransition(() => {
+        router.push(path);
+      });
+    },
+    [router, pathname, setLoading],
+  );
 
-  const navigateReplace = useCallback((path: string) => {
-    setLoading(true);
-    setTimeout(() => {
-      router.replace(path);
-      setTimeout(() => {
-        setLoading(false);
-      }, 300);
-    }, 100);
-  }, [router, setLoading]);
+  const navigateReplace = useCallback(
+    (path: string) => {
+      if (path === pathname) return;
+      setLoading(true);
+      startTransition(() => {
+        router.replace(path);
+      });
+    },
+    [router, pathname, setLoading],
+  );
 
   const navigateBack = useCallback(() => {
     setLoading(true);
-    setTimeout(() => {
+    startTransition(() => {
       router.back();
-      setTimeout(() => {
-        setLoading(false);
-      }, 300);
-    }, 100);
+    });
   }, [router, setLoading]);
 
   return {
@@ -47,4 +49,3 @@ export function useNavigation() {
     router,
   };
 }
-

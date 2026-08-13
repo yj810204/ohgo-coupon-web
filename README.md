@@ -16,10 +16,11 @@ http://localhost:3000
 웹 UI를 그대로 로드하는 Thin Shell 앱입니다. 웹 배포만으로 앱 화면이 갱신됩니다.
 
 ```bash
-npm run mobile:install
-# mobile/.env 에 EXPO_PUBLIC_WEB_URL 설정
-npm run dev          # 웹 (터미널 1)
-npm run dev:mobile   # Expo (터미널 2)
+# 개발 (배포 없이 로컬 웹 → Expo)
+npm run dev:lan          # 터미널 1 — LAN으로 Next 실행
+cd mobile && npx expo start -c   # 터미널 2
+
+# 호스팅 웹을 보려면 mobile/.env 에 EXPO_PUBLIC_USE_HOSTED=true
 ```
 
 자세한 내용: [mobile/README.md](./mobile/README.md)
@@ -34,7 +35,9 @@ npm run dev:mobile   # Expo (터미널 2)
 
 ## 백엔드
 
-Firebase Firestore / Storage
+Supabase (Auth / Postgres / Storage)
+
+구앱(Firebase) 스탬프·쿠폰 이관: [scripts/FIREBASE_MIGRATION.md](./scripts/FIREBASE_MIGRATION.md)
 
 ## UI
 

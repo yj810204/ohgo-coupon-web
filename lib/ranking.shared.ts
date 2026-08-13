@@ -1,4 +1,4 @@
-export const RANKING_FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+export const RANKING_FONT = "var(--font-ohgo), sans-serif";
 
 export type RankingUser = { id: string; name: string; totalPoint: number };
 

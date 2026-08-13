@@ -1,25 +1,16 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
 import { IoImageOutline, IoBoatOutline, IoChevronForwardOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import { useNavigation } from '@/hooks/useNavigation';
+import { OHGO_CARD, OHGO_LIST, OHGO_LIST_DIVIDER } from '@/lib/page-styles';
 
-const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+const FONT = "var(--font-ohgo), sans-serif";
 
-interface SubMenuItem {
-  id: string;
-  label: string;
-  desc: string;
-  path: string;
-  icon: React.ComponentType<{ size: number; color: string }>;
-  color: string;
-  bg: string;
-}
-
-const subMenuItems: SubMenuItem[] = [
+const subMenuItems = [
   {
     id: 'photos',
     label: '조황 사진',
@@ -54,38 +45,30 @@ export default function CommunityPage() {
 
   return (
     <SubPageFrame title="커뮤니티">
-        <p style={{ fontSize: 14, color: '#6F767E', fontFamily: FONT, marginBottom: 20 }}>
-          낚시 커뮤니티에 참여하고 정보를 나눠보세요.
-        </p>
+      <p style={{ fontSize: 14, color: '#6F767E', fontFamily: FONT, marginBottom: 20 }}>
+        낚시 커뮤니티에 참여하고 정보를 나눠보세요.
+      </p>
 
-        <div className="d-flex flex-column gap-3">
-          {subMenuItems.map(({ id, label, desc, path, icon: Icon, color, bg }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => navigate(path)}
-              className="btn w-100 text-start d-flex align-items-center gap-3 p-3"
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: 16,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                border: 'none',
-              }}
-            >
-              <div
-                className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                style={{ width: 52, height: 52, backgroundColor: bg }}
-              >
-                <Icon size={26} color={color} />
+      <div style={OHGO_CARD}>
+        {subMenuItems.map(({ id, label, desc, path, icon: Icon, color, bg }, idx) => (
+          <div key={id}>
+            {idx > 0 && <div style={OHGO_LIST_DIVIDER} />}
+            <button type="button" onClick={() => navigate(path)} className="btn ohgo-menu-list-row">
+              <div className="ohgo-menu-list-row__icon" style={{ backgroundColor: bg }}>
+                <Icon size={OHGO_LIST.iconGlyph} color={color} />
               </div>
-              <div className="flex-grow-1">
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>{label}</div>
-                <div style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT, marginTop: 2 }}>{desc}</div>
+              <div className="flex-grow-1 min-w-0">
+                <div className="ohgo-menu-list-row__title">{label}</div>
+                <div className="ohgo-menu-list-row__desc">{desc}</div>
               </div>
-              <IoChevronForwardOutline size={20} color="#ABABAB" />
+              <IoChevronForwardOutline
+                size={OHGO_LIST.chevronSize}
+                color={OHGO_LIST.chevronColor}
+              />
             </button>
-          ))}
-        </div>
+          </div>
+        ))}
+      </div>
     </SubPageFrame>
   );
 }

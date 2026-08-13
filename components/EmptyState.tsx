@@ -3,7 +3,7 @@
 import type { CSSProperties } from 'react';
 import type { IconType } from 'react-icons';
 
-const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+const FONT = "var(--font-ohgo), sans-serif";
 
 export type EmptyStateProps = {
   icon: IconType;

@@ -27,6 +27,7 @@ export default function ProductGridCard({ product, onClick }: ProductGridCardPro
             src={product.imageUrl}
             alt=""
             className="w-100 h-100"
+            loading="lazy"
             style={{ objectFit: 'contain', display: 'block' }}
           />
         ) : (

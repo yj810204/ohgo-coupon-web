@@ -36,6 +36,9 @@ function inputToRow(input: Partial<TripGuideInput>): Record<string, unknown> {
   return row;
 }
 
+const TRIP_LIST_COLUMNS =
+  'id, date, destination, departure_time, return_time, species, capacity, price, notes, contact, created_at';
+
 function monthEndDate(yearMonth: string): string {
   const [year, month] = yearMonth.split('-').map(Number);
   const lastDay = new Date(year, month, 0).getDate();
@@ -48,7 +51,7 @@ export async function getTripsByMonth(yearMonth: string): Promise<TripGuide[]> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase
     .from('trip_guides')
-    .select('*')
+    .select(TRIP_LIST_COLUMNS)
     .gte('date', start)
     .lte('date', end)
     .order('date', { ascending: true });
@@ -60,7 +63,7 @@ export async function getAllTrips(): Promise<TripGuide[]> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase
     .from('trip_guides')
-    .select('*')
+    .select(TRIP_LIST_COLUMNS)
     .order('date', { ascending: true });
   if (error) throw error;
   return (data ?? []).map((row: Record<string, unknown>) => mapRow(row));
@@ -102,7 +105,7 @@ export async function getTripsInDateRange(startDate: string, endDate: string): P
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase
     .from('trip_guides')
-    .select('*')
+    .select(TRIP_LIST_COLUMNS)
     .gte('date', startDate)
     .lte('date', endDate)
     .order('date', { ascending: true });

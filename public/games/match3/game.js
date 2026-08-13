@@ -89,6 +89,8 @@ class Match3Game {
         this.isProcessing = false;
         this.board = [];
         this.boardSize = 7;
+        this.boardRows = 7;
+        this.boardCols = 7;
         this.selectedTile = null;
         this.draggedTile = null;
         this.blockTypes = [];
@@ -207,21 +209,23 @@ class Match3Game {
         }
         
         // 화면 크기에 따라 기기 타입 결정 및 설정 적용
+        // mobile/tablet 섹션이 없으면 루트 board_size를 사용해 보드가 과도하게 작아지지 않게 한다.
+        const rootBoardSize = gameConfig && gameConfig.board_size
+            ? parseInt(gameConfig.board_size) || 7
+            : 7;
         if (screenWidth < 768) {
             // 모바일
             if (gameConfig && gameConfig.mobile) {
                 deviceConfig = gameConfig.mobile;
             } else {
-                // 기본값
-                deviceConfig = { board_size: 5, canvas_width: 400, canvas_height: 600 };
+                deviceConfig = { board_size: rootBoardSize, canvas_width: 400, canvas_height: 600 };
             }
         } else if (screenWidth < 1024) {
             // 태블릿
             if (gameConfig && gameConfig.tablet) {
                 deviceConfig = gameConfig.tablet;
             } else {
-                // 기본값
-                deviceConfig = { board_size: 6, canvas_width: 500, canvas_height: 700 };
+                deviceConfig = { board_size: rootBoardSize, canvas_width: 500, canvas_height: 700 };
             }
         } else {
             // PC
@@ -230,12 +234,11 @@ class Match3Game {
             } else if (gameConfig && gameConfig.board_size) {
                 // 기존 단일 설정 사용 (호환성)
                 deviceConfig = {
-                    board_size: parseInt(gameConfig.board_size) || 7,
+                    board_size: rootBoardSize,
                     canvas_width: parseInt(gameConfig.canvas_width) || 600,
                     canvas_height: parseInt(gameConfig.canvas_height) || 700
                 };
             } else {
-                // 기본값
                 deviceConfig = { board_size: 7, canvas_width: 600, canvas_height: 700 };
             }
         }
@@ -243,6 +246,8 @@ class Match3Game {
         // 기기별 설정 적용
         if (deviceConfig) {
             this.boardSize = parseInt(deviceConfig.board_size) || this.boardSize;
+            this.boardRows = this.boardSize;
+            this.boardCols = this.boardSize;
             this.canvasWidth = parseInt(deviceConfig.canvas_width) || this.canvasWidth;
             this.canvasHeight = parseInt(deviceConfig.canvas_height) || this.canvasHeight;
         }
@@ -386,6 +391,8 @@ class Match3Game {
         
         // 게임 설정 다시 읽기 (create 시점에 확실히 적용)
         this.loadGameConfig();
+        // loadGameConfig가 game_config_json의 빈 image_path로 덮어쓸 수 있으므로 재주입
+        this._applyFirestoreImagePaths();
         
         // UI를 먼저 생성하여 실제 패널 높이 확인
         this.createUI();
@@ -393,46 +400,65 @@ class Match3Game {
         // UI 패널의 실제 하단 위치 사용 (createUI에서 저장된 값)
         const uiPanelBottom = this.uiPanelBottom || 80; // createUI에서 저장된 값 또는 기본값
         
-        const sidePadding = 15; // 좌우 여백 (최소 보장)
-        const panelBottomPadding = 50; // UI 패널과 게임판 사이 간격 (더 넓게)
-        const bottomPadding = 15; // 하단 여백
+        const sidePadding = 12; // 좌우 여백
+        // 세로로 긴 폰에서는 간격을 줄여 보드가 화면을 더 채우게 한다
+        const isTallPhone = this.canvasHeight / Math.max(1, this.canvasWidth) >= 1.8;
+        const panelBottomPadding = isTallPhone ? 18 : 50;
+        const bottomPadding = isTallPhone ? 48 : 15; // 닫기 버튼 영역 확보
         
         const availableHeight = this.canvasHeight - uiPanelBottom - panelBottomPadding - bottomPadding;
-        const availableWidth = this.canvasWidth - sidePadding * 2; // 좌우 여백 제외
-        
-        // 보드 크기에 맞는 최적 타일 크기 계산
-        const maxTileSizeByHeight = Math.floor((availableHeight - (this.boardSize - 1) * this.spacing) / this.boardSize);
-        const maxTileSizeByWidth = Math.floor((availableWidth - (this.boardSize - 1) * this.spacing) / this.boardSize);
-        const calculatedTileSize = Math.min(maxTileSizeByHeight, maxTileSizeByWidth, 80); // 최대 80px로 제한
-        
-        // 최소 크기 보장 (너무 작아지지 않도록)
-        this.tileSize = Math.max(calculatedTileSize, 30);
-        
-        // 게임판 너비 계산 (타일은 중앙 원점이므로 실제 너비는 타일 크기 포함)
-        const boardWidth = this.boardSize * this.tileSize + (this.boardSize - 1) * this.spacing;
-        
-        // 게임판을 canvasWidth의 가운데에 위치시키기 위해 startX 계산
-        // 타일의 원점이 중앙이므로, 첫 번째 타일의 왼쪽 가장자리는 startX - tileSize/2
-        // 따라서 startX는 최소 tileSize/2 + sidePadding 이상이어야 함
+        const availableWidth = this.canvasWidth - sidePadding * 2;
+
+        // 기본: 정사각 보드. 세로로 긴 폰은 행을 늘려 화면을 채운다.
+        this.boardCols = this.boardSize;
+        this.boardRows = this.boardSize;
+
+        if (isTallPhone) {
+            // 세로 폰: 타일을 크게(5~6열) 잡고, 남는 높이는 행으로 채움
+            let cols = availableWidth >= 390 ? 6 : 5;
+            let tile = Math.floor((availableWidth - (cols - 1) * this.spacing) / cols);
+            tile = Math.min(Math.max(tile, 40), 96);
+            let rows = Math.floor((availableHeight + this.spacing) / (tile + this.spacing));
+            rows = Math.max(8, Math.min(rows, 11));
+            // 확정된 행 수에 맞춰 타일 높이를 키워 하단 여백을 최소화
+            const tileByHeight = Math.floor((availableHeight - (rows - 1) * this.spacing) / rows);
+            tile = Math.min(tile, tileByHeight);
+            // 폭이 남으면 열을 한 칸 더 넣을 수 있는지 재검토
+            const colsFit = Math.floor((availableWidth + this.spacing) / (tile + this.spacing));
+            if (colsFit > cols && colsFit <= 7) {
+                cols = colsFit;
+                tile = Math.floor((availableWidth - (cols - 1) * this.spacing) / cols);
+                tile = Math.min(tile, tileByHeight);
+            }
+            this.boardCols = cols;
+            this.boardRows = rows;
+            this.tileSize = Math.max(tile, 30);
+        } else {
+            const maxTileSizeByHeight = Math.floor((availableHeight - (this.boardRows - 1) * this.spacing) / this.boardRows);
+            const maxTileSizeByWidth = Math.floor((availableWidth - (this.boardCols - 1) * this.spacing) / this.boardCols);
+            const tileCap = 96;
+            this.tileSize = Math.max(Math.min(maxTileSizeByHeight, maxTileSizeByWidth, tileCap), 30);
+        }
+
+        const boardWidth = this.boardCols * this.tileSize + (this.boardCols - 1) * this.spacing;
+        const boardHeight = this.boardRows * this.tileSize + (this.boardRows - 1) * this.spacing;
+
         const centerX = (this.canvasWidth - boardWidth) / 2;
-        const minStartX = this.tileSize / 2 + sidePadding; // 타일 반 크기 + 여백
+        const minStartX = this.tileSize / 2 + sidePadding;
         this.startX = Math.max(centerX, minStartX);
-        
-        // 게임판이 캔버스 오른쪽을 넘지 않도록 조정
-        // 마지막 타일의 오른쪽 가장자리는 startX + boardWidth - tileSize/2
-        // 이것이 canvasWidth - sidePadding 이하여야 함
+
         const maxRightEdge = this.canvasWidth - sidePadding;
         const actualRightEdge = this.startX + boardWidth - this.tileSize / 2;
         if (actualRightEdge > maxRightEdge) {
-            // 오른쪽을 넘으면 왼쪽으로 이동
             const overflow = actualRightEdge - maxRightEdge;
             this.startX = Math.max(this.startX - overflow, minStartX);
         }
-        
-        // 게임판을 UI 패널 아래에 적절한 간격으로 배치
-        this.startY = uiPanelBottom + panelBottomPadding;
-        
-        // 콤보 텍스트 위치 업데이트 (게임판 시작 위치 기준)
+
+        const baseStartY = uiPanelBottom + panelBottomPadding;
+        const spareBelow = this.canvasHeight - (baseStartY + boardHeight) - bottomPadding;
+        this.startY = baseStartY + (spareBelow > 24 ? Math.floor(spareBelow * 0.15) : 0);
+
+                // 콤보 텍스트 위치 업데이트 (게임판 시작 위치 기준)
         if (this.comboText) {
             this.comboText.y = this.startY + (this.tileSize * 0.5); // 게임판 첫 번째 행 중앙
         }
@@ -505,9 +531,9 @@ class Match3Game {
      */
     saveGameState() {
         const boardState = [];
-        for (let row = 0; row < this.boardSize; row++) {
+        for (let row = 0; row < this.boardRows; row++) {
             boardState[row] = [];
-            for (let col = 0; col < this.boardSize; col++) {
+            for (let col = 0; col < this.boardCols; col++) {
                 if (this.board[row] && this.board[row][col]) {
                     boardState[row][col] = {
                         colorIndex: this.board[row][col].colorIndex
@@ -525,7 +551,7 @@ class Match3Game {
             maxCombo: this.maxCombo,
             moves: this.moves,
             boardState: boardState,
-            boardSize: this.boardSize
+            boardSize: this.boardSize, boardRows: this.boardRows, boardCols: this.boardCols
         };
     }
 
@@ -539,9 +565,9 @@ class Match3Game {
         }
         
         this.board = [];
-        for (let row = 0; row < this.boardSize; row++) {
+        for (let row = 0; row < this.boardRows; row++) {
             this.board[row] = [];
-            for (let col = 0; col < this.boardSize; col++) {
+            for (let col = 0; col < this.boardCols; col++) {
                 const x = this.startX + col * (this.tileSize + this.spacing);
                 const y = this.startY + row * (this.tileSize + this.spacing);
                 
@@ -786,13 +812,13 @@ class Match3Game {
             const dy = pointer.y - originalY;
 
             if (Math.abs(dx) > Math.abs(dy)) {
-                if (dx > 0 && startCol < this.boardSize - 1) {
+                if (dx > 0 && startCol < this.boardCols - 1) {
                     targetCol = startCol + 1;
                 } else if (dx < 0 && startCol > 0) {
                     targetCol = startCol - 1;
                 }
             } else {
-                if (dy > 0 && startRow < this.boardSize - 1) {
+                if (dy > 0 && startRow < this.boardRows - 1) {
                     targetRow = startRow + 1;
                 } else if (dy < 0 && startRow > 0) {
                     targetRow = startRow - 1;
@@ -1250,8 +1276,8 @@ class Match3Game {
         const matchedSet = new Set(); // 중복 체크를 위한 Set
 
         // 2x2 정사각형 매치 (가로 x 세로 동일한 4개)
-        for (let row = 0; row < this.boardSize - 1; row++) {
-            for (let col = 0; col < this.boardSize - 1; col++) {
+        for (let row = 0; row < this.boardRows - 1; row++) {
+            for (let col = 0; col < this.boardCols - 1; col++) {
                 if (!this.board[row] || !this.board[row][col] ||
                     !this.board[row][col + 1] ||
                     !this.board[row + 1] || !this.board[row + 1][col] ||
@@ -1286,9 +1312,9 @@ class Match3Game {
         }
 
         // 가로 매치
-        for (let row = 0; row < this.boardSize; row++) {
+        for (let row = 0; row < this.boardRows; row++) {
             let startCol = 0;
-            while (startCol < this.boardSize) {
+            while (startCol < this.boardCols) {
                 if (!this.board[row] || !this.board[row][startCol]) {
                     startCol++;
                     continue;
@@ -1297,7 +1323,7 @@ class Match3Game {
                 const colorIndex = this.board[row][startCol].colorIndex;
                 let endCol = startCol;
 
-                while (endCol + 1 < this.boardSize && 
+                while (endCol + 1 < this.boardCols && 
                        this.board[row][endCol + 1] && 
                        this.board[row][endCol + 1].colorIndex === colorIndex) {
                     endCol++;
@@ -1318,9 +1344,9 @@ class Match3Game {
         }
 
         // 세로 매치
-        for (let col = 0; col < this.boardSize; col++) {
+        for (let col = 0; col < this.boardCols; col++) {
             let startRow = 0;
-            while (startRow < this.boardSize) {
+            while (startRow < this.boardRows) {
                 if (!this.board[startRow] || !this.board[startRow][col]) {
                     startRow++;
                     continue;
@@ -1329,7 +1355,7 @@ class Match3Game {
                 const colorIndex = this.board[startRow][col].colorIndex;
                 let endRow = startRow;
 
-                while (endRow + 1 < this.boardSize && 
+                while (endRow + 1 < this.boardRows && 
                        this.board[endRow + 1] && 
                        this.board[endRow + 1][col] && 
                        this.board[endRow + 1][col].colorIndex === colorIndex) {
@@ -1390,8 +1416,8 @@ class Match3Game {
                 const newKey = `${newRow},${newCol}`;
                 
                 // 범위 체크
-                if (newRow < 0 || newRow >= this.boardSize || 
-                    newCol < 0 || newCol >= this.boardSize) {
+                if (newRow < 0 || newRow >= this.boardRows || 
+                    newCol < 0 || newCol >= this.boardCols) {
                     continue;
                 }
                 
@@ -1576,11 +1602,11 @@ class Match3Game {
             }
         };
         
-        for (let col = 0; col < this.boardSize; col++) {
+        for (let col = 0; col < this.boardCols; col++) {
             const column = [];
             
             // 아래에서 위로 수집
-            for (let row = this.boardSize - 1; row >= 0; row--) {
+            for (let row = this.boardRows - 1; row >= 0; row--) {
                 if (this.board[row] && this.board[row][col] && this.board[row][col].container) {
                     column.push(this.board[row][col]);
                     this.board[row][col] = null;
@@ -1589,7 +1615,7 @@ class Match3Game {
 
             // 아래에서부터 배치
             for (let i = 0; i < column.length; i++) {
-                const row = this.boardSize - 1 - i;
+                const row = this.boardRows - 1 - i;
                 const tile = column[i];
                 this.board[row][col] = tile;
 
@@ -1613,7 +1639,7 @@ class Match3Game {
             }
 
             // 빈 공간 채우기
-            const emptyRows = this.boardSize - column.length;
+            const emptyRows = this.boardRows - column.length;
             for (let i = 0; i < emptyRows; i++) {
                 const row = i;
                 let blockTypeIndex = Math.floor(Math.random() * this.blockTypes.length);
@@ -1893,8 +1919,8 @@ class Match3Game {
     }
 
     clearHintHighlight() {
-        for (let row = 0; row < this.boardSize; row++) {
-            for (let col = 0; col < this.boardSize; col++) {
+        for (let row = 0; row < this.boardRows; row++) {
+            for (let col = 0; col < this.boardCols; col++) {
                 if (this.board[row] && this.board[row][col] && this.board[row][col].container) {
                     const tile = this.board[row][col];
                     
@@ -1936,9 +1962,9 @@ class Match3Game {
         const clonedBoard = [];
         
         // 보드 복제
-        for (let row = 0; row < this.boardSize; row++) {
+        for (let row = 0; row < this.boardRows; row++) {
             clonedBoard[row] = [];
-            for (let col = 0; col < this.boardSize; col++) {
+            for (let col = 0; col < this.boardCols; col++) {
                 if (this.board[row] && this.board[row][col]) {
                     clonedBoard[row][col] = { colorIndex: this.board[row][col].colorIndex };
                 } else {
@@ -1947,12 +1973,12 @@ class Match3Game {
             }
         }
 
-        for (let row = 0; row < this.boardSize; row++) {
-            for (let col = 0; col < this.boardSize; col++) {
+        for (let row = 0; row < this.boardRows; row++) {
+            for (let col = 0; col < this.boardCols; col++) {
                 if (!clonedBoard[row][col]) continue;
 
                 // 오른쪽과 교환 시도
-                if (col < this.boardSize - 1 && clonedBoard[row][col + 1]) {
+                if (col < this.boardCols - 1 && clonedBoard[row][col + 1]) {
                     const temp = clonedBoard[row][col];
                     clonedBoard[row][col] = clonedBoard[row][col + 1];
                     clonedBoard[row][col + 1] = temp;
@@ -1966,7 +1992,7 @@ class Match3Game {
                 }
 
                 // 아래와 교환 시도
-                if (row < this.boardSize - 1 && clonedBoard[row + 1][col]) {
+                if (row < this.boardRows - 1 && clonedBoard[row + 1][col]) {
                     const temp = clonedBoard[row][col];
                     clonedBoard[row][col] = clonedBoard[row + 1][col];
                     clonedBoard[row + 1][col] = temp;
@@ -1989,8 +2015,8 @@ class Match3Game {
         const matchedSet = new Set();
 
         // 2x2 정사각형 매치 (가로 x 세로 동일한 4개)
-        for (let row = 0; row < this.boardSize - 1; row++) {
-            for (let col = 0; col < this.boardSize - 1; col++) {
+        for (let row = 0; row < this.boardRows - 1; row++) {
+            for (let col = 0; col < this.boardCols - 1; col++) {
                 if (!board[row] || !board[row][col] ||
                     !board[row][col + 1] ||
                     !board[row + 1] || !board[row + 1][col] ||
@@ -2010,9 +2036,9 @@ class Match3Game {
         }
 
         // 가로 매치
-        for (let row = 0; row < this.boardSize; row++) {
+        for (let row = 0; row < this.boardRows; row++) {
             let startCol = 0;
-            while (startCol < this.boardSize) {
+            while (startCol < this.boardCols) {
                 if (!board[row] || !board[row][startCol]) {
                     startCol++;
                     continue;
@@ -2021,7 +2047,7 @@ class Match3Game {
                 const colorIndex = board[row][startCol].colorIndex;
                 let endCol = startCol;
 
-                while (endCol + 1 < this.boardSize && 
+                while (endCol + 1 < this.boardCols && 
                        board[row][endCol + 1] && 
                        board[row][endCol + 1].colorIndex === colorIndex) {
                     endCol++;
@@ -2036,9 +2062,9 @@ class Match3Game {
         }
 
         // 세로 매치
-        for (let col = 0; col < this.boardSize; col++) {
+        for (let col = 0; col < this.boardCols; col++) {
             let startRow = 0;
-            while (startRow < this.boardSize) {
+            while (startRow < this.boardRows) {
                 if (!board[startRow] || !board[startRow][col]) {
                     startRow++;
                     continue;
@@ -2047,7 +2073,7 @@ class Match3Game {
                 const colorIndex = board[startRow][col].colorIndex;
                 let endRow = startRow;
 
-                while (endRow + 1 < this.boardSize && 
+                while (endRow + 1 < this.boardRows && 
                        board[endRow + 1] && 
                        board[endRow + 1][col] && 
                        board[endRow + 1][col].colorIndex === colorIndex) {
@@ -2227,8 +2253,8 @@ class Match3Game {
         this.hintMove = null;
 
         // 보드 초기화
-        for (let row = 0; row < this.boardSize; row++) {
-            for (let col = 0; col < this.boardSize; col++) {
+        for (let row = 0; row < this.boardRows; row++) {
+            for (let col = 0; col < this.boardCols; col++) {
                 if (this.board[row] && this.board[row][col] && this.board[row][col].container) {
                     const tile = this.board[row][col];
                     // 컨테이너 내부 요소들을 명시적으로 제거

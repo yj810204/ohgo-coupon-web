@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import {
   searchMembersByName,
   addMemberToDailyRoster,
@@ -10,11 +11,48 @@ import {
 } from '@/utils/roster-service';
 import { getUser } from '@/lib/storage';
 import { computeLegacyUuid } from '@/lib/legacy-uuid';
-import { IoSearchOutline, IoAddOutline, IoArrowBackOutline } from 'react-icons/io5';
+import { IoSearchOutline, IoAddOutline, IoPersonOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
-import { OhgoPageLoading } from '@/lib/page-styles';
+import {
+  OHGO_CARD,
+  OHGO_CONFIRM_BTN,
+  OHGO_CONFIRM_BTN_CLASS,
+  OHGO_FONT,
+  OHGO_INPUT,
+  OHGO_LIST,
+  OHGO_LIST_DIVIDER,
+  OhgoPageLoading,
+} from '@/lib/page-styles';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import EmptyState from '@/components/EmptyState';
+import type { CSSProperties } from 'react';
+
+const LABEL: CSSProperties = {
+  display: 'block',
+  fontSize: 13,
+  fontWeight: 700,
+  color: '#6F767E',
+  fontFamily: OHGO_FONT,
+  marginBottom: 8,
+};
+
+const FIELD: CSSProperties = {
+  ...OHGO_INPUT,
+  width: '100%',
+  backgroundColor: '#FFFFFF',
+};
+
+const pillBtn = (active: boolean): CSSProperties => ({
+  border: 'none',
+  borderRadius: 20,
+  padding: '8px 14px',
+  fontSize: 14,
+  fontWeight: 700,
+  fontFamily: OHGO_FONT,
+  backgroundColor: active ? '#EBF1FE' : '#F2F3F5',
+  color: active ? '#1B6FF5' : '#6F767E',
+  cursor: 'pointer',
+});
 
 interface UserData {
   id: string;
@@ -22,6 +60,7 @@ interface UserData {
   name: string;
   dob?: string;
   phone?: string;
+  gender?: string;
   hasBoarding?: boolean;
   [key: string]: any;
 }
@@ -182,221 +221,308 @@ function RosterMemberSearchContent() {
     }
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    searchMembers();
-  };
-
   useNativePullToRefresh(async () => {
     if (searchText.trim()) {
       await searchMembers();
     }
   });
 
+  const tripNum = tripNumber ? parseInt(tripNumber, 10) || 1 : 1;
+
   return (
-    <SubPageFrame title="회원 검색">
-        <div className="ohgo-card mb-3">
-          <div className="card-body">
-            <h5 className="text-primary mb-3">{dateDisplay} {tripNumber}항차 - 회원 추가</h5>
-            
-            <div className="mb-3 position-relative">
-              <input
-                type="text"
-                className="form-control form-control-lg"
-                placeholder="회원 이름 검색"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                style={{ paddingRight: '40px' }}
-              />
-              <IoSearchOutline 
-                size={20} 
-                className="position-absolute top-50 end-0 translate-middle-y me-3 text-muted"
-                style={{ pointerEvents: 'none' }}
-              />
-            </div>
-
-            <button
-              className={`btn w-100 d-flex align-items-center justify-content-center gap-2 ${
-                showNewMemberForm ? 'btn-outline-secondary' : 'btn-success'
-              }`}
-              onClick={() => setShowNewMemberForm(!showNewMemberForm)}
-              style={{
-                padding: '12px',
-                fontSize: '1rem',
-                fontWeight: '500',
-                borderRadius: '8px',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <IoAddOutline size={20} className="flex-shrink-0" />
-              <span>{showNewMemberForm ? '새 회원 등록 취소' : '새 회원 등록'}</span>
-            </button>
-          </div>
-        </div>
-
-        {showNewMemberForm && (
-          <div className="ohgo-card mb-3">
-            <div className="card-body">
-              <h6 className="mb-3">새 회원 등록</h6>
-              <div className="mb-3">
-                <label className="form-label">이름 *</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={newMemberName}
-                  onChange={(e) => setNewMemberName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="mb-3">
-                <label className="form-label">생년월일 (8자리) *</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="예: 19900101"
-                  value={newMemberDob}
-                  onChange={(e) => setNewMemberDob(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                  maxLength={8}
-                  required
-                />
-              </div>
-              <div className="mb-3">
-                <label className="form-label">전화번호 *</label>
-                <input
-                  type="tel"
-                  className="form-control"
-                  value={newMemberPhone}
-                  onChange={(e) => setNewMemberPhone(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="mb-3">
-                <label className="form-label">성별 *</label>
-                <select
-                  className="form-select"
-                  value={newMemberGender}
-                  onChange={(e) => setNewMemberGender(e.target.value)}
-                  required
-                >
-                  <option value="">선택하세요</option>
-                  <option value="남">남</option>
-                  <option value="여">여</option>
-                </select>
-              </div>
-              <div className="mb-3">
-                <label className="form-label">비상 연락처 *</label>
-                <input
-                  type="tel"
-                  className="form-control"
-                  value={newMemberEmergency}
-                  onChange={(e) => setNewMemberEmergency(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="mb-3">
-                <label className="form-label">주소 *</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={newMemberAddress}
-                  onChange={(e) => setNewMemberAddress(e.target.value)}
-                  required
-                />
-              </div>
-              <button
-                className="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2"
-                onClick={createNewMemberAndAddToRoster}
-                disabled={isSubmitting}
-                style={{
-                  padding: '12px',
-                  fontSize: '1rem',
-                  fontWeight: '500',
-                  borderRadius: '8px',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="spinner-border spinner-border-sm" role="status">
-                      <span className="visually-hidden">Loading...</span>
-                    </div>
-                    <span>등록 중...</span>
-                  </>
-                ) : (
-                  <>
-                    <IoAddOutline size={20} className="flex-shrink-0" />
-                    <span>등록 및 명부 추가</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {isLoading && searchText.trim() ? (
-          <div className="text-center py-5">
-            <div className="spinner-border text-primary mb-3" role="status">
-              <span className="visually-hidden">Loading...</span>
-            </div>
-            <p className="text-muted">검색 중...</p>
-          </div>
-        ) : searchResults.length > 0 ? (
-          <div className="d-flex flex-column gap-2">
-            {searchResults.map((member) => (
-              <div key={member.id} className="ohgo-card">
-                <div className="card-body">
-                  <div className="d-flex justify-content-between align-items-center">
-                    <div>
-                      <h6 className="mb-1">{member.name}</h6>
-                      <div className="small text-muted">
-                        <div>생년월일: {member.dob || '미입력'}</div>
-                        <div>전화번호: {member.phone || '미입력'}</div>
-                        {member.hasBoarding && (
-                          <span className="badge bg-success mt-1">명부 정보 있음</span>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      className="btn btn-primary d-flex align-items-center justify-content-center gap-1"
-                      onClick={() => addMemberToRoster(member)}
-                      disabled={isLoading}
-                      style={{
-                        minWidth: '80px',
-                        padding: '8px 16px',
-                        borderRadius: '6px',
-                        fontWeight: '500'
-                      }}
-                    >
-                      <IoAddOutline size={16} className="flex-shrink-0" />
-                      <span>추가</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : searchText.trim() && !isLoading ? (
-          <EmptyState icon={IoSearchOutline} message="검색 결과가 없습니다." />
-        ) : null}
-
-      <div className="position-fixed bottom-0 start-0 end-0 bg-white border-top p-3 shadow-lg" style={{ maxWidth: 480, left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}>
-        <div className="container">
-          <button 
-            className="btn btn-secondary w-100 d-flex align-items-center justify-content-center gap-2"
-            onClick={() => router.back()}
+    <SubPageFrame title="회원 검색" dense>
+      {/* 승선명부와 동일: 날짜 · 항차 툴바 */}
+      <div
+        className="d-flex align-items-center gap-2 mb-2"
+        style={{ padding: '2px 2px 8px' }}
+      >
+        <div
+          className="flex-grow-1 min-w-0 d-flex align-items-center gap-1 flex-wrap"
+          style={{ fontFamily: OHGO_FONT, rowGap: 4 }}
+        >
+          <span
             style={{
-              padding: '12px',
-              fontSize: '1rem',
-              fontWeight: '500',
-              borderRadius: '8px',
-              transition: 'all 0.2s ease'
+              fontSize: 14,
+              fontWeight: 800,
+              color: '#1A1D1F',
+              letterSpacing: -0.2,
+              lineHeight: 1.2,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: '100%',
             }}
           >
-            <IoArrowBackOutline size={20} />
-            <span>돌아가기</span>
+            {dateDisplay || date || '날짜 미선택'}
+          </span>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: '#1B6FF5',
+              backgroundColor: '#EBF1FE',
+              borderRadius: 999,
+              padding: '2px 8px',
+              lineHeight: 1.4,
+              flexShrink: 0,
+            }}
+          >
+            {tripNum}항차
+          </span>
+        </div>
+        <button
+          type="button"
+          className="btn d-flex align-items-center justify-content-center gap-1 flex-shrink-0"
+          style={{
+            minHeight: 32,
+            height: 32,
+            padding: '0 10px',
+            fontSize: 13,
+            fontWeight: 700,
+            fontFamily: OHGO_FONT,
+            borderRadius: 999,
+            whiteSpace: 'nowrap',
+            backgroundColor: showNewMemberForm ? '#F2F3F5' : '#1B6FF5',
+            color: showNewMemberForm ? '#6F767E' : '#FFFFFF',
+            border: 'none',
+            boxShadow: 'none',
+          }}
+          onClick={() => setShowNewMemberForm(!showNewMemberForm)}
+        >
+          <IoAddOutline size={15} aria-hidden />
+          {showNewMemberForm ? '취소' : '새 회원'}
+        </button>
+      </div>
+
+      <div className="position-relative mb-2">
+        <input
+          type="text"
+          placeholder="이름 검색"
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          style={{
+            ...FIELD,
+            paddingRight: 40,
+            minHeight: 40,
+            height: 40,
+            borderRadius: 12,
+            fontSize: 14,
+          }}
+        />
+        <IoSearchOutline
+          size={18}
+          className="position-absolute top-50 end-0 translate-middle-y me-3"
+          style={{ pointerEvents: 'none', color: '#9A9FA5' }}
+        />
+      </div>
+
+      {showNewMemberForm && (
+        <div className="p-3 mb-2" style={OHGO_CARD}>
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: '#1A1D1F',
+              fontFamily: OHGO_FONT,
+              marginBottom: 12,
+            }}
+          >
+            새 회원 등록
+          </div>
+          <div className="mb-3">
+            <label style={LABEL}>이름 *</label>
+            <input
+              type="text"
+              value={newMemberName}
+              onChange={(e) => setNewMemberName(e.target.value)}
+              style={FIELD}
+            />
+          </div>
+          <div className="mb-3">
+            <label style={LABEL}>생년월일 (8자리) *</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="예: 19900101"
+              value={newMemberDob}
+              onChange={(e) => setNewMemberDob(e.target.value.replace(/\D/g, '').slice(0, 8))}
+              maxLength={8}
+              style={FIELD}
+            />
+          </div>
+          <div className="mb-3">
+            <label style={LABEL}>전화번호 *</label>
+            <input
+              type="tel"
+              value={newMemberPhone}
+              onChange={(e) => setNewMemberPhone(e.target.value)}
+              style={FIELD}
+            />
+          </div>
+          <div className="mb-3">
+            <label style={LABEL}>성별 *</label>
+            <div className="d-flex gap-2">
+              {(['남', '여'] as const).map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  className="flex-fill"
+                  style={pillBtn(newMemberGender === g)}
+                  onClick={() => setNewMemberGender(g)}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mb-3">
+            <label style={LABEL}>비상 연락처 *</label>
+            <input
+              type="tel"
+              value={newMemberEmergency}
+              onChange={(e) => setNewMemberEmergency(e.target.value)}
+              style={FIELD}
+            />
+          </div>
+          <div className="mb-3">
+            <label style={LABEL}>주소 *</label>
+            <input
+              type="text"
+              value={newMemberAddress}
+              onChange={(e) => setNewMemberAddress(e.target.value)}
+              style={FIELD}
+            />
+          </div>
+          <button
+            type="button"
+            className={`btn w-100 d-flex align-items-center justify-content-center gap-2 ${OHGO_CONFIRM_BTN_CLASS}`}
+            style={{
+              ...OHGO_CONFIRM_BTN,
+              opacity: isSubmitting ? 0.65 : 1,
+            }}
+            onClick={createNewMemberAndAddToRoster}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <div className="spinner-border spinner-border-sm" role="status">
+                  <span className="visually-hidden">Loading...</span>
+                </div>
+                <span>등록 중...</span>
+              </>
+            ) : (
+              <>
+                <IoAddOutline size={20} className="flex-shrink-0" />
+                <span>등록 및 명부 추가</span>
+              </>
+            )}
           </button>
         </div>
-      </div>
+      )}
+
+      {isLoading && searchText.trim() ? (
+        <div className="text-center py-4">
+          <div className="spinner-border spinner-border-sm text-primary mb-2" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mb-0" style={{ fontSize: 13, color: '#6F767E', fontFamily: OHGO_FONT }}>
+            검색 중…
+          </p>
+        </div>
+      ) : searchResults.length > 0 ? (
+        <div className="mb-3" style={{ ...OHGO_CARD, overflow: 'hidden' }}>
+          {searchResults.map((member, index) => (
+            <div key={member.id || member.uuid}>
+              {index > 0 && <div style={OHGO_LIST_DIVIDER} />}
+              <div
+                className="d-flex align-items-center"
+                style={{
+                  gap: OHGO_LIST.gap,
+                  padding: '10px 14px',
+                  minHeight: 56,
+                }}
+              >
+                <div
+                  className="d-flex align-items-center justify-content-center flex-shrink-0"
+                  style={{
+                    width: OHGO_LIST.iconBox,
+                    height: OHGO_LIST.iconBox,
+                    borderRadius: 12,
+                    backgroundColor: '#EBF1FE',
+                  }}
+                >
+                  <IoPersonOutline size={OHGO_LIST.iconGlyph} color="#1B6FF5" />
+                </div>
+                <div className="flex-grow-1 min-w-0">
+                  <div className="d-flex align-items-center gap-2 min-w-0">
+                    <div
+                      className="text-truncate"
+                      style={{
+                        fontSize: OHGO_LIST.titleSize,
+                        fontWeight: OHGO_LIST.titleWeight,
+                        color: OHGO_LIST.titleColor,
+                        fontFamily: OHGO_FONT,
+                      }}
+                    >
+                      {member.name}
+                      {member.gender?.trim() ? ` (${member.gender.trim()})` : ''}
+                    </div>
+                    {member.hasBoarding ? (
+                      <span
+                        className="flex-shrink-0"
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          fontFamily: OHGO_FONT,
+                          backgroundColor: '#E8F5E9',
+                          color: '#2E7D32',
+                        }}
+                      >
+                        명부
+                      </span>
+                    ) : null}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: OHGO_LIST.descSize,
+                      color: OHGO_LIST.mutedColor,
+                      fontFamily: OHGO_FONT,
+                      marginTop: 2,
+                    }}
+                  >
+                    생년월일 {member.dob || '미입력'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="d-flex align-items-center justify-content-center gap-1 flex-shrink-0"
+                  onClick={() => addMemberToRoster(member)}
+                  disabled={isLoading}
+                  style={{
+                    border: 'none',
+                    borderRadius: 999,
+                    padding: '8px 14px',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    fontFamily: OHGO_FONT,
+                    backgroundColor: '#237FFF',
+                    color: '#FFFFFF',
+                    opacity: isLoading ? 0.65 : 1,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <IoAddOutline size={16} className="flex-shrink-0" />
+                  <span>추가</span>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : searchText.trim() && !isLoading ? (
+        <EmptyState icon={IoSearchOutline} message="검색 결과가 없습니다." />
+      ) : null}
     </SubPageFrame>
   );
 }

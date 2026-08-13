@@ -12,6 +12,12 @@ ios/build/
 ios/Pods/
 android/build/
 android/.gradle/
+dist/
+credentials.json
+credentials/android/*
+!credentials/android/.gitkeep
+credentials/ios/*
+!credentials/ios/.gitkeep
 *.jks
 *.p8
 *.p12

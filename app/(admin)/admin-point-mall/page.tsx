@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { resolveAppUser } from '@/lib/auth-session';
 import type { PointMallProduct } from '@/constants/point-mall';
 import { formatPointPrice, getProductPrimaryImageUrl } from '@/constants/point-mall';
@@ -20,7 +20,15 @@ import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import { ADMIN_EDIT_ICON } from '@/lib/admin-icons';
-import { OHGO_CARD, OHGO_CONFIRM_BTN_CLASS, OHGO_FONT, OHGO_INPUT, OHGO_PRIMARY_BTN } from '@/lib/page-styles';
+import {
+  OHGO_CARD,
+  OHGO_CONFIRM_BTN_CLASS,
+  OHGO_FONT,
+  OHGO_INPUT,
+  OHGO_LIST_DIVIDER,
+  OHGO_PRIMARY_BTN,
+} from '@/lib/page-styles';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 const FONT = OHGO_FONT;
 const CARD: React.CSSProperties = { ...OHGO_CARD };
@@ -65,7 +73,7 @@ export default function AdminPointMallPage() {
   useNativePullToRefresh(loadProducts);
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`"${name}" 상품을 삭제하시겠습니까?`)) return;
+    if (!(await ohgoConfirm(`"${name}" 상품을 삭제하시겠습니까?`))) return;
     try {
       await deletePointMallProduct(id);
       await loadProducts();
@@ -116,196 +124,182 @@ export default function AdminPointMallPage() {
       ) : products.length === 0 ? (
         <EmptyState icon={IoStorefrontOutline} message="등록된 상품이 없습니다." style={CARD} />
       ) : (
-        <div
-          style={{
-            borderRadius: 14,
-            border: '1px solid #EFEFEF',
-            overflow: 'hidden',
-            backgroundColor: '#FFFFFF',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-          }}
-        >
-          {products.map((product, index) => {
-            const outOfStock = product.stock === 0;
-            const thumbUrl = getProductPrimaryImageUrl(product);
+        <>
+          <p
+            className="mb-2"
+            style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, lineHeight: 1.4 }}
+          >
+            재고는 행에서 바로 수정할 수 있습니다. <span style={{ color: '#ABABAB' }}>-1 = 무제한</span>
+          </p>
+          <div
+            style={{
+              borderRadius: 14,
+              border: '1px solid #EFEFEF',
+              overflow: 'hidden',
+              backgroundColor: '#FFFFFF',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+            }}
+          >
+            {products.map((product, index) => {
+              const outOfStock = product.stock === 0;
+              const thumbUrl = getProductPrimaryImageUrl(product);
+              const stockDirty =
+                (stockEdits[product.id] ?? String(product.stock)) !== String(product.stock);
 
-            return (
-              <div
-                key={product.id}
-                className="px-3 py-3"
-                style={{
-                  borderBottom: index < products.length - 1 ? '1px solid #F7F8FA' : 'none',
-                  opacity: product.isActive ? 1 : 0.75,
-                  backgroundColor: product.isActive ? '#FFFFFF' : '#FAFAFA',
-                }}
-              >
-                <div className="d-flex align-items-start gap-3">
+              return (
+                <div key={product.id}>
+                  {index > 0 && <div style={OHGO_LIST_DIVIDER} />}
                   <div
-                    className="flex-shrink-0 overflow-hidden d-flex align-items-center justify-content-center"
+                    className="ohgo-data-list-row"
                     style={{
-                      width: 64,
-                      height: 64,
-                      borderRadius: 12,
-                      backgroundColor: '#F7F8FA',
-                      border: '1px solid #EFEFEF',
+                      flexDirection: 'column',
+                      alignItems: 'stretch',
+                      gap: 10,
+                      opacity: product.isActive ? 1 : 0.75,
+                      backgroundColor: product.isActive ? '#FFFFFF' : '#FAFAFA',
                     }}
                   >
-                    {thumbUrl ? (
-                      <img
-                        src={thumbUrl}
-                        alt=""
-                        style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
-                      />
-                    ) : (
-                      <IoImageOutline size={24} color="#B0B8C4" />
-                    )}
-                  </div>
+                    <div className="d-flex align-items-center gap-3 w-100">
+                      <div className="ohgo-data-list-row__thumb">
+                        {thumbUrl ? (
+                          <img
+                            src={thumbUrl}
+                            alt=""
+                            style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                          />
+                        ) : (
+                          <IoImageOutline size={24} color="#B0B8C4" />
+                        )}
+                      </div>
 
-                  <div className="flex-grow-1 min-w-0">
-                    <div className="d-flex align-items-center gap-2 flex-wrap">
+                      <div className="flex-grow-1 min-w-0">
+                        <div className="d-flex align-items-center gap-2 min-w-0">
+                          <span
+                            className="ohgo-data-list-row__title text-truncate"
+                            style={{ fontFamily: FONT }}
+                          >
+                            {product.name}
+                          </span>
+                          <span
+                            className="badge rounded-pill flex-shrink-0"
+                            style={{
+                              backgroundColor: product.isActive ? '#EBF1FE' : '#F7F8FA',
+                              color: product.isActive ? '#1B6FF5' : '#6F767E',
+                              fontSize: 10,
+                              fontFamily: FONT,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {product.isActive ? '노출' : '숨김'}
+                          </span>
+                          {outOfStock && (
+                            <span
+                              className="badge rounded-pill flex-shrink-0"
+                              style={{
+                                backgroundColor: '#FFF0F0',
+                                color: '#FF3B30',
+                                fontSize: 10,
+                                fontFamily: FONT,
+                                fontWeight: 700,
+                              }}
+                            >
+                              품절
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className="ohgo-data-list-row__meta text-truncate"
+                          style={{ fontFamily: FONT, marginTop: 4 }}
+                        >
+                          <span style={{ color: '#1B6FF5', fontWeight: 700 }}>
+                            {formatPointPrice(product.pointPrice)}
+                          </span>
+                          <span aria-hidden> · </span>
+                          재고 {stockLabel(product.stock)}
+                          <span aria-hidden> · </span>
+                          정렬 {product.order}
+                        </div>
+                      </div>
+
+                      <div className="d-flex gap-1 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/admin-point-mall/form?id=${product.id}`)}
+                          className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
+                          title="수정"
+                          style={{ width: 32, height: 32, backgroundColor: '#EBF1FE', border: 'none' }}
+                        >
+                          <ADMIN_EDIT_ICON size={16} color="#1B6FF5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete(product.id, product.name)}
+                          className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
+                          title="삭제"
+                          style={{ width: 32, height: 32, backgroundColor: '#FFF0F0', border: 'none' }}
+                        >
+                          <IoTrashOutline size={16} color="#FF3B30" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="d-flex align-items-center gap-2 w-100">
                       <span
-                        className="badge rounded-pill flex-shrink-0"
+                        className="flex-shrink-0"
                         style={{
-                          backgroundColor: '#F7F8FA',
+                          fontSize: 12,
+                          fontWeight: 600,
                           color: '#6F767E',
-                          fontSize: 10,
                           fontFamily: FONT,
-                          fontWeight: 700,
+                          minWidth: 28,
                         }}
                       >
-                        {index + 1}
+                        재고
                       </span>
-                      <span
+                      <input
+                        type="number"
+                        value={stockEdits[product.id] ?? String(product.stock)}
+                        onChange={e =>
+                          setStockEdits(prev => ({ ...prev, [product.id]: e.target.value }))
+                        }
+                        placeholder="-1"
+                        className="form-control form-control-sm"
                         style={{
-                          fontSize: 15,
-                          fontWeight: 700,
-                          color: '#1A1D1F',
+                          ...OHGO_INPUT,
+                          padding: '8px 10px',
+                          fontSize: 14,
+                          backgroundColor: '#F7F8FA',
+                          margin: 0,
+                          minWidth: 0,
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleStockSave(product.id)}
+                        disabled={!stockDirty}
+                        className="btn flex-shrink-0"
+                        style={{
+                          backgroundColor: stockDirty ? '#1B6FF5' : '#E8EEF7',
+                          color: stockDirty ? '#FFFFFF' : '#8A94A6',
+                          border: 'none',
+                          borderRadius: 10,
                           fontFamily: FONT,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
+                          fontWeight: 700,
+                          fontSize: 13,
+                          lineHeight: 1.2,
+                          padding: '8px 14px',
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        {product.name}
-                      </span>
-                      <span
-                        className="badge rounded-pill flex-shrink-0"
-                        style={{
-                          backgroundColor: product.isActive ? '#EBF1FE' : '#F7F8FA',
-                          color: product.isActive ? '#1B6FF5' : '#6F767E',
-                          fontSize: 10,
-                          fontFamily: FONT,
-                          fontWeight: 600,
-                        }}
-                      >
-                        {product.isActive ? '노출' : '숨김'}
-                      </span>
-                      {outOfStock && (
-                        <span
-                          className="badge rounded-pill flex-shrink-0"
-                          style={{
-                            backgroundColor: '#FFF0F0',
-                            color: '#FF3B30',
-                            fontSize: 10,
-                            fontFamily: FONT,
-                            fontWeight: 600,
-                          }}
-                        >
-                          품절
-                        </span>
-                      )}
+                        저장
+                      </button>
                     </div>
-                    <div
-                      style={{
-                        fontSize: 16,
-                        color: '#1B6FF5',
-                        fontWeight: 800,
-                        fontFamily: FONT,
-                        marginTop: 6,
-                      }}
-                    >
-                      {formatPointPrice(product.pointPrice)}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 4 }}>
-                      재고 {stockLabel(product.stock)} · 정렬 {product.order}
-                    </div>
-                  </div>
-
-                  <div className="d-flex flex-row gap-1 flex-shrink-0 align-self-center">
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/admin-point-mall/form?id=${product.id}`)}
-                      className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
-                      title="수정"
-                      style={{ width: 28, height: 28, backgroundColor: '#EBF1FE', border: 'none' }}
-                    >
-                      <ADMIN_EDIT_ICON size={14} color="#1B6FF5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleDelete(product.id, product.name)}
-                      className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
-                      title="삭제"
-                      style={{ width: 28, height: 28, backgroundColor: '#FFF0F0', border: 'none' }}
-                    >
-                      <IoTrashOutline size={14} color="#FF3B30" />
-                    </button>
                   </div>
                 </div>
-
-                <div
-                  className="mt-3 p-2"
-                  style={{ backgroundColor: '#F7F8FA', borderRadius: 10 }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: '#6F767E',
-                      fontFamily: FONT,
-                      marginBottom: 8,
-                    }}
-                  >
-                    재고 수량
-                  </div>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr auto',
-                      gap: 8,
-                      alignItems: 'center',
-                    }}
-                  >
-                    <input
-                      type="number"
-                      value={stockEdits[product.id] ?? String(product.stock)}
-                      onChange={e =>
-                        setStockEdits(prev => ({ ...prev, [product.id]: e.target.value }))
-                      }
-                      placeholder="-1"
-                      className="form-control form-control-sm"
-                      style={{ ...OHGO_INPUT, backgroundColor: '#FFFFFF', margin: 0 }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void handleStockSave(product.id)}
-                      className={`btn btn-sm fw-semibold flex-shrink-0 ${OHGO_CONFIRM_BTN_CLASS}`}
-                      style={{
-                        ...OHGO_PRIMARY_BTN,
-                        minWidth: 72,
-                      }}
-                    >
-                      저장
-                    </button>
-                  </div>
-                  <p className="mb-0 mt-2" style={{ fontSize: 11, color: '#6F767E', fontFamily: FONT }}>
-                    -1 입력 시 무제한 재고
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </SubPageFrame>
   );

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
 import { sendPushToUser } from '@/utils/send-push';
 import {
@@ -15,8 +16,9 @@ import { IoGiftOutline, IoCheckmarkCircleOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal, { OhgoModalButton, OhgoModalField } from '@/components/OhgoModal';
 import EmptyState from '@/components/EmptyState';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
-const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+const FONT = "var(--font-ohgo), sans-serif";
 const CARD: React.CSSProperties = { backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: 'none' };
 
 function CouponsPageContent() {
@@ -65,7 +67,7 @@ function CouponsPageContent() {
     finally { setModalVisible(false); }
   };
 
-  const handleUse = () => {
+  const handleUse = async () => {
     if (!selectedCoupon) return;
     const msgs: string[] = [];
     const issuedAt = selectedCoupon?.issuedAt;
@@ -73,7 +75,7 @@ function CouponsPageContent() {
       typeof issuedAt === 'string' && issuedAt === new Date().toISOString().split('T')[0];
     if (isTodayIssued) msgs.push('- 금일 생성된 쿠폰입니다.');
     if (selectedCoupon?.isHalf === 'Y') msgs.push('- 50% 쿠폰입니다.');
-    if (msgs.length > 0 && !confirm(msgs.join('\n') + '\n\n그래도 사용하시겠습니까?')) return;
+    if (msgs.length > 0 && !(await ohgoConfirm(msgs.join('\n') + '\n\n그래도 사용하시겠습니까?'))) return;
     setModalVisible(false);
     setTimeout(() => setPasswordModalVisible(true), 200);
   };

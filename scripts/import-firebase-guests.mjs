@@ -2,13 +2,17 @@
 /**
  * Firebase uuidv5 회원 → Supabase guest_profiles 일괄 import
  *
+ * 로그인 UX: 신규 앱은 Google/Apple OAuth 유지. 이름+DOB 로그인 복원 안 함.
+ * 스탬프/쿠폰은 import:firebase-stamps 스크립트 + staging 전략 사용.
+ * 문서: scripts/FIREBASE_MIGRATION.md
+ *
  * 사용법:
- *   node scripts/import-firebase-guests.mjs
+ *   npm run import:firebase-guests
  *
  * 필요 env (.env.local):
  *   NEXT_PUBLIC_SUPABASE_URL
  *   SUPABASE_SERVICE_ROLE_KEY
- *   (Firebase 클라이언트 env — lib/firebase.ts 와 동일)
+ *   NEXT_PUBLIC_FIREBASE_*
  */
 
 import { config } from 'dotenv';

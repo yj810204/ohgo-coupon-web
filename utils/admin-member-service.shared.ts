@@ -14,9 +14,33 @@ export type AdminMember = {
   stampCount?: number;
   hasMemo?: boolean;
   hasBoarding?: boolean;
-  /** 승선명부 uuidv5 비회원 (OAuth 미가입) */
+  /** 구앱/승선명부 uuidv5 회원 (OAuth 미가입) */
   isGuest?: boolean;
   phone?: string | null;
+  /** OAuth 회원 중 구앱 legacy_uuid 연결됨 */
+  isLegacyLinked?: boolean;
+};
+
+export type AdminGuestDetail = {
+  id: string;
+  name: string;
+  dob: string;
+  phone: string | null;
+  createdAt: string;
+  mergedTo: string | null;
+  boarding: {
+    name: string | null;
+    birth: string | null;
+    gender: string | null;
+    phone: string | null;
+    emergency: string | null;
+    address: string | null;
+    addressDetail: string | null;
+  } | null;
+  stampCount: number;
+  couponCount: number;
+  halfCouponCount: number;
+  fullCouponCount: number;
 };
 
 export type AdminMemberStats = {

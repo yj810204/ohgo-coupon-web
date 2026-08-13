@@ -52,6 +52,14 @@ export async function getMonthRosterSummary(
   return { datesWithRoster, confirmedTrips };
 }
 
+export async function getYearRosterSummary(year: number): Promise<MonthRosterSummary> {
+  return getMonthRosterSummary(`${year}-01-01`, `${year}-12-31`);
+}
+
+export function peekYearRosterSummary(_year: number): MonthRosterSummary | undefined {
+  return undefined;
+}
+
 export async function getYearConfirmedTripCount(year: number): Promise<number> {
   const supabase = getSupabaseBrowserClient();
   const { count, error } = await supabase
@@ -63,6 +71,10 @@ export async function getYearConfirmedTripCount(year: number): Promise<number> {
 
   if (error) throw error;
   return count ?? 0;
+}
+
+export function invalidateRosterSummaryCache(_year?: number): void {
+  // Supabase 경로는 서버 쿼리라 클라이언트 요약 캐시 없음
 }
 
 export async function getConfirmedTrip(date: string, tripNumber: number): Promise<ConfirmedTrip | null> {
@@ -377,15 +389,16 @@ export async function searchMembersByName(queryText: string) {
     (profiles ?? []).map(async (row) => {
       const { data: boarding } = await supabase
         .from('boarding_info')
-        .select('user_id')
+        .select('user_id, gender, birth')
         .eq('user_id', row.id)
         .maybeSingle();
       return {
         id: row.id,
         uuid: row.id,
         name: row.name,
-        dob: row.dob ?? undefined,
+        dob: row.dob ?? boarding?.birth ?? undefined,
         phone: row.phone ?? undefined,
+        gender: boarding?.gender ?? undefined,
         hasBoarding: Boolean(boarding),
         isGuest: false,
       };
@@ -396,15 +409,16 @@ export async function searchMembersByName(queryText: string) {
     (guests ?? []).map(async (row) => {
       const { data: boarding } = await supabase
         .from('guest_boarding_info')
-        .select('guest_id')
+        .select('guest_id, gender, birth')
         .eq('guest_id', row.id)
         .maybeSingle();
       return {
         id: row.id,
         uuid: row.id,
         name: row.name,
-        dob: row.dob ?? undefined,
+        dob: row.dob ?? boarding?.birth ?? undefined,
         phone: row.phone ?? undefined,
+        gender: boarding?.gender ?? undefined,
         hasBoarding: Boolean(boarding),
         isGuest: true,
       };

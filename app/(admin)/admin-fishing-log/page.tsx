@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { resolveAppUser } from '@/lib/auth-session';
 import { getProfileByUserId } from '@/lib/supabase-auth';
 import {
@@ -24,6 +24,7 @@ import EmptyState from '@/components/EmptyState';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import { OHGO_CARD, OHGO_FONT, OhgoPageLoading } from '@/lib/page-styles';
 import { ADMIN_EDIT_ICON } from '@/lib/admin-icons';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 const CARD: React.CSSProperties = { ...OHGO_CARD };
 
@@ -92,7 +93,7 @@ function AdminFishingLogContent() {
   }, [yearMonth]);
 
   const handleDelete = async (log: FishingLog) => {
-    if (!confirm(`${log.date} 조업 기록을 삭제할까요?`)) return;
+    if (!(await ohgoConfirm(`${log.date} 조업 기록을 삭제할까요?`))) return;
     try {
       await deleteLog(log.id);
       await loadData();

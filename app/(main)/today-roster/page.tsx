@@ -1,19 +1,20 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from '@/hooks/useAppRouter';
+import { useLoading } from '@/contexts/LoadingContext';
 import { getUser } from '@/lib/storage';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, getDay, eachDayOfInterval } from 'date-fns';
 import {
-  getMonthRosterSummary,
-  getYearConfirmedTripCount,
+  getYearRosterSummary,
+  peekYearRosterSummary,
   getConfirmedTrip,
+  invalidateRosterSummaryCache,
+  type MonthRosterSummary,
 } from '@/utils/roster-service';
 import {
   IoChevronBackOutline,
   IoChevronForwardOutline,
-  IoStatsChartOutline,
-  IoBoatOutline,
 } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal, { OhgoModalActions, OhgoModalButton } from '@/components/OhgoModal';
@@ -26,95 +27,47 @@ const TODAY_ACCENT = '#E65100';
 const TODAY_BG = '#FFF3E0';
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 
-function StatCard({
-  icon: Icon,
-  iconBg,
-  iconColor,
-  label,
-  value,
-}: {
-  icon: React.ComponentType<{ size: number; color: string }>;
-  iconBg: string;
-  iconColor: string;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div
-      className="d-flex align-items-center gap-3"
-      style={{ ...CARD, padding: '14px 16px' }}
-    >
-      <div
-        className="d-flex align-items-center justify-content-center flex-shrink-0"
-        style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: iconBg }}
-      >
-        <Icon size={22} color={iconColor} />
-      </div>
-      <div className="min-w-0">
-        <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginBottom: 2 }}>{label}</div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT, lineHeight: 1.2 }}>
-          {value}
-        </div>
-      </div>
-    </div>
-  );
+function filterMonthSummary(
+  yearSummary: MonthRosterSummary,
+  monthStart: Date,
+  monthEnd: Date
+): { datesWithRoster: string[]; confirmedTrips: Record<string, number[]> } {
+  const start = format(monthStart, 'yyyy-MM-dd');
+  const end = format(monthEnd, 'yyyy-MM-dd');
+  const datesWithRoster = yearSummary.datesWithRoster.filter((d) => d >= start && d <= end);
+  const confirmedTrips: Record<string, number[]> = {};
+  Object.entries(yearSummary.confirmedTrips).forEach(([date, trips]) => {
+    if (date >= start && date <= end) confirmedTrips[date] = trips;
+  });
+  return { datesWithRoster, confirmedTrips };
 }
-
-type CachedMonth = {
-  datesWithRoster: string[];
-  confirmedTrips: Record<string, number[]>;
-  timestamp: number;
-};
 
 export default function TodayRosterPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const { setLoading: setNavLoading } = useLoading();
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const initialYear = currentMonth.getFullYear();
+  const cachedInitial = peekYearRosterSummary(initialYear);
+  const [loading, setLoading] = useState(!cachedInitial);
   const [modalVisible, setModalVisible] = useState(false);
   const [tempSelectedDate, setTempSelectedDate] = useState<Date | null>(null);
-  const [datesWithRoster, setDatesWithRoster] = useState<string[]>([]);
-  const [confirmedTrips, setConfirmedTrips] = useState<Record<string, number[]>>({});
-  const [cachedMonths, setCachedMonths] = useState<Record<string, CachedMonth>>({});
-  const [totalConfirmedTrips, setTotalConfirmedTrips] = useState<number>(0);
-  const [currentMonthTrips, setCurrentMonthTrips] = useState<number>(0);
+  const [yearSummary, setYearSummary] = useState<MonthRosterSummary | null>(cachedInitial ?? null);
+  const [loadedYear, setLoadedYear] = useState<number | null>(cachedInitial ? initialYear : null);
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      const user = await getUser();
-      if (!user?.uuid) {
-        router.replace('/login');
-        return;
-      }
-    };
-    checkAuth();
-    fetchTotalConfirmedTrips();
-  }, [router]);
-
-  useEffect(() => {
-    fetchRosterData();
-    fetchTotalConfirmedTrips();
-  }, [currentMonth]);
-
-  useEffect(() => {
-    let count = 0;
-    Object.values(confirmedTrips).forEach(trips => {
-      count += trips.length;
-    });
-    setCurrentMonthTrips(count);
-  }, [confirmedTrips]);
-
-  const limitCacheSize = (cache: Record<string, CachedMonth>) => {
-    const MAX_CACHE_SIZE = 3;
-    if (Object.keys(cache).length <= MAX_CACHE_SIZE) return cache;
-    
-    const sortedEntries = Object.entries(cache).sort((a, b) => b[1].timestamp - a[1].timestamp);
-    const limitedEntries = sortedEntries.slice(0, MAX_CACHE_SIZE);
-    
-    return Object.fromEntries(limitedEntries);
-  };
-
+  const year = currentMonth.getFullYear();
+  const monthKey = format(currentMonth, 'yyyy-MM');
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
+
+  const { confirmedTrips } = useMemo(() => {
+    if (!yearSummary || loadedYear !== year) {
+      return { confirmedTrips: {} as Record<string, number[]> };
+    }
+    return filterMonthSummary(yearSummary, monthStart, monthEnd);
+    // monthKey로 월 단위만 추적 (Date 객체 참조 변화로 인한 재계산 방지)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [yearSummary, loadedYear, year, monthKey]);
+
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
   const startDay = getDay(monthStart);
   const calendarCells: (Date | null)[] = [
@@ -124,72 +77,56 @@ export default function TodayRosterPage() {
   while (calendarCells.length % 7 !== 0) calendarCells.push(null);
   const todayStr = format(new Date(), 'yyyy-MM-dd');
 
+  useEffect(() => {
+    const checkAuth = async () => {
+      const user = await getUser();
+      if (!user?.uuid) {
+        router.replace('/login');
+      }
+    };
+    checkAuth();
+  }, [router]);
+
+  const fetchYearSummary = useCallback(
+    async (forceRefresh = false) => {
+      // remount/뒤로가기: 캐시가 있으면 스피너 없이 즉시 표시
+      if (!forceRefresh) {
+        const cached = peekYearRosterSummary(year);
+        if (cached) {
+          setYearSummary(cached);
+          setLoadedYear(year);
+          setLoading(false);
+          return;
+        }
+      }
+
+      setLoading(true);
+      try {
+        if (forceRefresh) {
+          invalidateRosterSummaryCache(year);
+        }
+        const summary = await getYearRosterSummary(year);
+        setYearSummary(summary);
+        setLoadedYear(year);
+      } catch (error) {
+        console.error('Error fetching roster data:', error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [year]
+  );
+
+  useEffect(() => {
+    fetchYearSummary(false);
+  }, [fetchYearSummary]);
+
   const prevMonth = () => {
     setCurrentMonth(subMonths(currentMonth, 1));
   };
 
   const nextMonth = () => {
     setCurrentMonth(addMonths(currentMonth, 1));
-  };
-
-  const fetchRosterData = async (forceRefresh: boolean = false) => {
-    setLoading(true);
-    try {
-      const monthKey = format(currentMonth, 'yyyy-MM');
-      
-      if (!forceRefresh && cachedMonths[monthKey]) {
-        console.log('Using cached data for month:', monthKey);
-        setDatesWithRoster(cachedMonths[monthKey].datesWithRoster);
-        setConfirmedTrips(cachedMonths[monthKey].confirmedTrips);
-        
-        setCachedMonths(prev => {
-          const updatedCache = {
-            ...prev,
-            [monthKey]: {
-              ...prev[monthKey],
-              timestamp: Date.now()
-            }
-          };
-          return limitCacheSize(updatedCache);
-        });
-        
-        setLoading(false);
-        return;
-      }
-      
-      const startDateStr = format(monthStart, 'yyyy-MM-dd');
-      const endDateStr = format(monthEnd, 'yyyy-MM-dd');
-
-      const summary = await getMonthRosterSummary(startDateStr, endDateStr);
-      setDatesWithRoster(summary.datesWithRoster);
-      setConfirmedTrips(summary.confirmedTrips);
-
-      setCachedMonths((prev) => {
-        const updatedCache = {
-          ...prev,
-          [monthKey]: {
-            datesWithRoster: summary.datesWithRoster,
-            confirmedTrips: summary.confirmedTrips,
-            timestamp: Date.now(),
-          },
-        };
-        return limitCacheSize(updatedCache);
-      });
-      
-    } catch (error) {
-      console.error('Error fetching roster data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchTotalConfirmedTrips = async () => {
-    try {
-      const totalCount = await getYearConfirmedTripCount(currentMonth.getFullYear());
-      setTotalConfirmedTrips(totalCount);
-    } catch (error) {
-      console.error('Error fetching total confirmed trips:', error);
-    }
   };
 
   const handleDateClick = (day: Date) => {
@@ -204,14 +141,14 @@ export default function TodayRosterPage() {
     return date < today;
   };
 
-  const handleTripSelection = async (tripNumber: number) => {
-    if (tempSelectedDate) {
-      const dateStr = format(tempSelectedDate, 'yyyy-MM-dd');
-      const dateDisplay = format(tempSelectedDate, 'yyyy년 MM월 dd일');
-      
-      router.push(`/roster-list?date=${dateStr}&dateDisplay=${encodeURIComponent(dateDisplay)}&tripNumber=${tripNumber}`);
-      setModalVisible(false);
-    }
+  const handleTripSelection = (tripNumber: number) => {
+    if (!tempSelectedDate) return;
+    const dateStr = format(tempSelectedDate, 'yyyy-MM-dd');
+    const dateDisplay = format(tempSelectedDate, 'yyyy년 MM월 dd일');
+    setModalVisible(false);
+    router.push(
+      `/roster-list?date=${dateStr}&dateDisplay=${encodeURIComponent(dateDisplay)}&tripNumber=${tripNumber}`
+    );
   };
 
   const handleTripClick = async (tripNumber: number) => {
@@ -221,17 +158,26 @@ export default function TodayRosterPage() {
     const confirmedForDate = confirmedTrips[dateStr] || [];
 
     if (confirmedForDate.includes(tripNumber)) {
-      const tripData = await getConfirmedTrip(dateStr, tripNumber);
+      // getConfirmedTrip 대기 전에 이동 표시 — 가만히 있는 것처럼 보이는 문제 방지
+      setNavLoading(true);
+      setModalVisible(false);
+      try {
+        const tripData = await getConfirmedTrip(dateStr, tripNumber);
 
-      if (tripData?.rosterImageUrl) {
-        router.push(
-          `/roster-preview?imageUri=${encodeURIComponent(tripData.rosterImageUrl)}&date=${dateStr}&tripNumber=${tripNumber}`
-        );
-      } else {
-        const dateDisplay = format(tempSelectedDate, 'yyyy년 MM월 dd일');
-        router.push(
-          `/roster-list?date=${dateStr}&dateDisplay=${encodeURIComponent(dateDisplay)}&tripNumber=${tripNumber}&showPreview=true`
-        );
+        if (tripData?.rosterImageUrl) {
+          router.push(
+            `/roster-preview?imageUri=${encodeURIComponent(tripData.rosterImageUrl)}&date=${dateStr}&tripNumber=${tripNumber}`
+          );
+        } else {
+          const dateDisplay = format(tempSelectedDate, 'yyyy년 MM월 dd일');
+          router.push(
+            `/roster-list?date=${dateStr}&dateDisplay=${encodeURIComponent(dateDisplay)}&tripNumber=${tripNumber}&showPreview=true`
+          );
+        }
+      } catch (error) {
+        console.error('Error loading confirmed trip:', error);
+        setNavLoading(false);
+        alert('확정 명부 정보를 불러오지 못했습니다.');
       }
     } else {
       handleTripSelection(tripNumber);
@@ -239,12 +185,11 @@ export default function TodayRosterPage() {
   };
 
   useNativePullToRefresh(async () => {
-    await fetchRosterData(true);
-    await fetchTotalConfirmedTrips();
+    await fetchYearSummary(true);
   });
 
   return (
-    <SubPageFrame title="명부 관리" onRefresh={async () => { await fetchRosterData(true); await fetchTotalConfirmedTrips(); }}>
+    <SubPageFrame title="명부 관리" onRefresh={async () => { await fetchYearSummary(true); }}>
         <div className="position-relative mb-4" style={{ ...CARD, overflow: 'hidden' }}>
           {loading && (
             <div
@@ -421,36 +366,6 @@ export default function TodayRosterPage() {
           ))}
         </div>
 
-        <p
-          className="mb-3 px-1"
-          style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT, lineHeight: 1.5, textAlign: 'center' }}
-        >
-          날짜를 선택하면 해당 날짜의 명부를 확인할 수 있습니다.
-        </p>
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 12,
-          }}
-        >
-          <StatCard
-            icon={IoBoatOutline}
-            iconBg="#EBF1FE"
-            iconColor="#1B6FF5"
-            label={`${format(currentMonth, 'M')}월 출항수`}
-            value={`${currentMonthTrips.toLocaleString()}회`}
-          />
-          <StatCard
-            icon={IoStatsChartOutline}
-            iconBg="#E8F8EE"
-            iconColor="#34C759"
-            label={`${currentMonth.getFullYear()}년 누적 출항수`}
-            value={`${totalConfirmedTrips.toLocaleString()}회`}
-          />
-        </div>
-
       <OhgoModal
         open={modalVisible && !!tempSelectedDate}
         onClose={() => setModalVisible(false)}
@@ -460,7 +375,7 @@ export default function TodayRosterPage() {
           const dateStr = format(tempSelectedDate, 'yyyy-MM-dd');
           const confirmedForDate = confirmedTrips[dateStr] || [];
           return (
-            <OhgoModalActions>
+            <OhgoModalActions direction="stack">
               {([1, 2, 3] as const).map(trip => {
                 const isConfirmed = confirmedForDate.some(t => Number(t) === trip);
                 return (
@@ -469,7 +384,7 @@ export default function TodayRosterPage() {
                     variant={isConfirmed ? 'success' : 'primary'}
                     onClick={() => handleTripClick(trip)}
                   >
-                    {isConfirmed ? `✓ ${trip}항차 (출항 확정)` : `${trip}항차`}
+                    {isConfirmed ? `✓ ${trip}항차 (확정)` : `${trip}항차`}
                   </OhgoModalButton>
                 );
               })}

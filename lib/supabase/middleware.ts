@@ -9,6 +9,14 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.next({ request });
   }
 
+  // 세션 쿠키가 없으면 Auth 서버 왕복 생략 (로그인 전·정적 페이지 체감 개선)
+  const hasAuthCookie = request.cookies
+    .getAll()
+    .some((c) => c.name.includes('-auth-token') || c.name.includes('sb-'));
+  if (!hasAuthCookie) {
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(url, anonKey, {

@@ -1,3 +1,6 @@
+/** 작성자 소프트 삭제 시 본문에 표시하는 안내 문구 */
+export const COMMUNITY_POST_DELETED_MESSAGE = '작성자가 삭제한 글입니다.';
+
 export interface CommunityPhoto {
   photoId: string;
   imageUrl: string;
@@ -12,6 +15,8 @@ export interface CommunityPhoto {
   templateId?: string;
   templateFieldValues?: Record<string, string | string[]>;
   commentCount: number;
+  /** 작성자 삭제(댓글 유지) 처리된 글 */
+  isDeleted?: boolean;
 }
 
 export interface Comment {

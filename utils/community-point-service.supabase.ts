@@ -59,28 +59,39 @@ async function getTodayPoints(userId: string): Promise<number> {
   return (data ?? []).reduce((sum, row) => sum + (row.point_awarded ?? 0), 0);
 }
 
-export async function awardCommentPoints(
+export type CommentPointAwardEval = {
+  pointsToAward: number;
+  isLimitReached: boolean;
+  reason?: string;
+  todayPoints: number;
+  dailyLimit: number;
+};
+
+/** 일일 한도·중복 댓글 등 적립 자격만 판별. 잔액 쓰기는 호출측. */
+export async function evaluateCommentPointAward(
   userId: string,
   photoId: string,
   commentId: string,
   photoUploadedBy?: string
-): Promise<{ points: number; totalPoints: number; isLimitReached: boolean; reason?: string }> {
+): Promise<CommentPointAwardEval> {
   if (photoUploadedBy && photoUploadedBy === userId) {
     return {
-      points: 0,
-      totalPoints: 0,
+      pointsToAward: 0,
       isLimitReached: false,
       reason: '본인 작성글에는 포인트가 적립되지 않습니다.',
+      todayPoints: 0,
+      dailyLimit: 0,
     };
   }
 
   const existingComments = await getCommentsByUserAndPhoto(userId, photoId, commentId);
   if (existingComments.length > 0) {
     return {
-      points: 0,
-      totalPoints: 0,
+      pointsToAward: 0,
       isLimitReached: false,
       reason: '같은 게시글에는 한 번만 포인트가 적립됩니다.',
+      todayPoints: 0,
+      dailyLimit: 0,
     };
   }
 
@@ -88,16 +99,41 @@ export async function awardCommentPoints(
   const todayPoints = await getTodayPoints(userId);
 
   if (todayPoints >= settings.dailyLimit) {
-    return { points: 0, totalPoints: 0, isLimitReached: true };
+    return { pointsToAward: 0, isLimitReached: true, todayPoints, dailyLimit: settings.dailyLimit };
   }
 
   const availablePoints = settings.dailyLimit - todayPoints;
   const pointsToAward = Math.min(settings.pointsPerComment, availablePoints);
 
   if (pointsToAward <= 0) {
-    return { points: 0, totalPoints: 0, isLimitReached: true };
+    return { pointsToAward: 0, isLimitReached: true, todayPoints, dailyLimit: settings.dailyLimit };
   }
 
+  return {
+    pointsToAward,
+    isLimitReached: todayPoints + pointsToAward >= settings.dailyLimit,
+    todayPoints,
+    dailyLimit: settings.dailyLimit,
+  };
+}
+
+export async function awardCommentPoints(
+  userId: string,
+  photoId: string,
+  commentId: string,
+  photoUploadedBy?: string
+): Promise<{ points: number; totalPoints: number; isLimitReached: boolean; reason?: string }> {
+  const evalResult = await evaluateCommentPointAward(userId, photoId, commentId, photoUploadedBy);
+  if (evalResult.pointsToAward <= 0) {
+    return {
+      points: 0,
+      totalPoints: await getCommunityPoints(userId),
+      isLimitReached: evalResult.isLimitReached,
+      reason: evalResult.reason,
+    };
+  }
+
+  const pointsToAward = evalResult.pointsToAward;
   const supabase = getSupabaseBrowserClient();
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
@@ -128,7 +164,7 @@ export async function awardCommentPoints(
   return {
     points: pointsToAward,
     totalPoints: nextCommunityPoints,
-    isLimitReached: todayPoints + pointsToAward >= settings.dailyLimit,
+    isLimitReached: evalResult.isLimitReached,
   };
 }
 

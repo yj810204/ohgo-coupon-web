@@ -11,21 +11,33 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "ohgo.mobile",
+      "buildNumber": "10057",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSCameraUsageDescription": "QR 스캔을 위해 카메라 접근 권한이 필요합니다.",
-        "NSPhotoLibraryUsageDescription": "사진 업로드를 위해 사진 라이브러리 접근 권한이 필요합니다."
+        "NSPhotoLibraryUsageDescription": "사진 업로드를 위해 사진 라이브러리 접근 권한이 필요합니다.",
+        "NSPhotoLibraryAddUsageDescription": "명부 이미지를 사진 앨범에 저장하기 위해 권한이 필요합니다.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true,
+          "NSAllowsArbitraryLoads": true
+        }
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1B6FF5"
+        "backgroundColor": "#000000"
       },
       "package": "ohgo.mobile",
+      "versionCode": 10063,
+      "googleServicesFile": "./google-services.json",
+      "usesCleartextTraffic": true,
       "permissions": [
         "CAMERA",
         "INTERNET",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "READ_MEDIA_IMAGES",
+        "WRITE_EXTERNAL_STORAGE"
       ]
     },
     "plugins": [
@@ -41,6 +53,14 @@
         "expo-camera",
         {
           "cameraPermission": "QR 코드 스캔을 위해 카메라 접근 권한이 필요합니다."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "사진 업로드를 위해 사진 라이브러리 접근 권한이 필요합니다.",
+          "savePhotosPermission": "명부 이미지를 사진 앨범에 저장하기 위해 권한이 필요합니다.",
+          "isAccessMediaLocationEnabled": false
         }
       ]
     ],

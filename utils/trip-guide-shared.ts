@@ -206,3 +206,24 @@ export function tripWeekdayLabelColor(dayIdx: number, isMuted: boolean): string 
   if (dayIdx === 6) return '#1B6FF5';
   return '#6F767E';
 }
+
+/** 목록·카드 제목: 대상어종 */
+export function tripSpeciesTitle(trip: Pick<TripGuide, 'species'>): string {
+  return trip.species?.trim() || '어종 미정';
+}
+
+/** 목록·카드 부제: 출항 시간 · 목적지 */
+export function tripScheduleSubtitle(
+  trip: Pick<TripGuide, 'departureTime' | 'returnTime' | 'destination'>,
+): string {
+  const time = trip.departureTime
+    ? `${trip.departureTime} 출항${trip.returnTime ? ` ~ ${trip.returnTime} 귀항` : ''}`
+    : '';
+  return [time, trip.destination?.trim()].filter(Boolean).join(' · ');
+}
+
+/** 1인 요금 표기 */
+export function tripPricePerPersonLabel(price?: number | null): string {
+  if (price == null || !Number.isFinite(price) || price <= 0) return '';
+  return `${price.toLocaleString('ko-KR')}원/1인`;
+}

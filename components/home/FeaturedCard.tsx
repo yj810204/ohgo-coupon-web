@@ -21,14 +21,22 @@ export default function FeaturedCard({ title, imageUrl, badge, onClick }: Featur
     >
       <div className="position-relative">
         <div
+          className="overflow-hidden"
           style={{
             width: 160,
             height: 120,
-            background: imageUrl
-              ? `url(${imageUrl}) center/cover no-repeat`
-              : '#F2F3F5',
+            backgroundColor: '#F2F3F5',
           }}
-        />
+        >
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt=""
+              loading="lazy"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          ) : null}
+        </div>
         {badge && (
           <span
             className="position-absolute top-0 start-0 m-2 badge rounded-pill"

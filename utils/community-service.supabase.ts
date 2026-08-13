@@ -1,5 +1,10 @@
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
-import type { CommunityPhoto, Comment } from './community-service.shared';
+import {
+  COMMUNITY_POST_DELETED_MESSAGE,
+  type CommunityPhoto,
+  type Comment,
+} from './community-service.shared';
+export { COMMUNITY_POST_DELETED_MESSAGE };
 
 const STORAGE_BUCKET = 'photos';
 
@@ -24,21 +29,38 @@ async function deleteStorageImages(imageUrls: string[]): Promise<void> {
   }
 }
 
+function supabaseErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+}
+
 async function uploadImageFiles(files: File[], idPrefix: string): Promise<string[]> {
-  const supabase = getSupabaseBrowserClient();
   const urls: string[] = [];
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    const ext = file.name.split('.').pop() || 'jpg';
-    const path = `community/photos/${idPrefix}_${Date.now()}_${i}.${ext}`;
-    const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, {
-      upsert: true,
-      contentType: file.type,
+    const form = new FormData();
+    form.append('file', file);
+    form.append('prefix', `${idPrefix}_${i}`);
+    const res = await fetch('/api/community/upload-photo', {
+      method: 'POST',
+      body: form,
+      credentials: 'include',
     });
-    if (error) throw error;
-    const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-    urls.push(data.publicUrl);
+    let json: { success?: boolean; message?: string; imageUrl?: string } = {};
+    try {
+      json = await res.json();
+    } catch {
+      json = {};
+    }
+    if (!res.ok || !json.success || !json.imageUrl) {
+      throw new Error(json.message || '이미지 업로드에 실패했습니다.');
+    }
+    urls.push(json.imageUrl);
   }
 
   return urls;
@@ -46,6 +68,12 @@ async function uploadImageFiles(files: File[], idPrefix: string): Promise<string
 
 function mapPhoto(row: Record<string, unknown>): CommunityPhoto {
   const imageUrls = (row.image_urls as string[] | null) ?? undefined;
+  const description = (row.description as string) ?? '';
+  const content = row.content as string | undefined;
+  const markedDeleted =
+    row.is_deleted === true ||
+    description === COMMUNITY_POST_DELETED_MESSAGE ||
+    content === COMMUNITY_POST_DELETED_MESSAGE;
   return {
     photoId: row.id as string,
     imageUrl: imageUrls?.[0] ?? '',
@@ -54,23 +82,30 @@ function mapPhoto(row: Record<string, unknown>): CommunityPhoto {
     uploadedByName: (row.uploaded_by_name as string) ?? '',
     uploadedAt: row.created_at as string,
     title: (row.title as string) ?? '',
-    description: (row.description as string) ?? '',
-    content: row.content as string | undefined,
+    description,
+    content,
     photoDate: row.photo_date as string | undefined,
     templateId: row.template_id as string | undefined,
     templateFieldValues: row.template_field_values as Record<string, string | string[]> | undefined,
     commentCount: (row.comment_count as number) ?? 0,
+    isDeleted: markedDeleted,
   };
 }
 
+const PHOTO_LIST_COLUMNS =
+  'id, image_urls, uploaded_by, uploaded_by_name, created_at, title, description, content, photo_date, template_id, comment_count';
+
 export async function getPhotos(limitCount?: number): Promise<CommunityPhoto[]> {
   const supabase = getSupabaseBrowserClient();
-  let q = supabase.from('community_photos').select('*').order('created_at', { ascending: false });
+  let q = supabase
+    .from('community_photos')
+    .select(PHOTO_LIST_COLUMNS)
+    .order('created_at', { ascending: false });
   if (limitCount) q = q.limit(limitCount);
 
   const { data, error } = await q;
   if (error) throw error;
-  return (data ?? []).map((row) => mapPhoto(row));
+  return (data ?? []).map((row: Record<string, unknown>) => mapPhoto(row));
 }
 
 export async function getPhoto(photoId: string): Promise<CommunityPhoto | null> {
@@ -102,25 +137,36 @@ export async function uploadPhoto(
   const prefix = `photo_${Date.now()}`;
   const imageUrls = await uploadImageFiles(imageFiles, prefix);
 
+  const row: Record<string, unknown> = {
+    uploaded_by: uploadedBy,
+    uploaded_by_name: uploadedByName,
+    title: title ?? '',
+    description: description ?? '',
+    image_urls: imageUrls,
+    comment_count: 0,
+  };
+  if (content !== undefined) row.content = content ?? null;
+  if (photoDate) row.photo_date = photoDate.toISOString().split('T')[0];
+  if (templateId) row.template_id = templateId;
+  if (templateFieldValues) row.template_field_values = templateFieldValues;
+
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase
-    .from('community_photos')
-    .insert({
+  let { data, error } = await supabase.from('community_photos').insert(row).select('id').single();
+
+  if (error && /template_field_values|uploaded_by_name|photo_date|content/i.test(error.message || '')) {
+    const slim = {
       uploaded_by: uploadedBy,
-      uploaded_by_name: uploadedByName,
       title: title ?? '',
       description: description ?? '',
-      content: content ?? null,
       image_urls: imageUrls,
-      photo_date: photoDate ? photoDate.toISOString().split('T')[0] : null,
-      template_id: templateId ?? null,
-      template_field_values: templateFieldValues ?? null,
       comment_count: 0,
-    })
-    .select('id')
-    .single();
+    };
+    ({ data, error } = await supabase.from('community_photos').insert(slim).select('id').single());
+  }
 
-  if (error || !data) throw error ?? new Error('사진 저장 실패');
+  if (error || !data) {
+    throw new Error(supabaseErrorMessage(error, '사진 저장 실패'));
+  }
   return data.id;
 }
 
@@ -281,26 +327,25 @@ export async function deleteComment(
   return null;
 }
 
-export async function deletePhoto(photoId: string): Promise<void> {
-  const supabase = getSupabaseBrowserClient();
+export type DeletePhotoResult = { mode: 'hard' | 'soft' };
 
-  const { data: photo, error: fetchError } = await supabase
-    .from('community_photos')
-    .select('image_urls')
-    .eq('id', photoId)
-    .maybeSingle();
-  if (fetchError) throw fetchError;
-
-  const imageUrls = (photo?.image_urls as string[] | null) ?? [];
-  if (imageUrls.length > 0) {
-    await deleteStorageImages(imageUrls);
+export async function deletePhoto(
+  photoId: string,
+  options?: { mode?: 'hard' | 'soft' }
+): Promise<DeletePhotoResult> {
+  const mode = options?.mode === 'soft' ? 'soft' : 'hard';
+  const res = await fetch('/api/community/delete-photo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photoId, mode }),
+  });
+  const data = (await res.json().catch(() => null)) as
+    | { success?: boolean; message?: string; mode?: 'hard' | 'soft' }
+    | null;
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.message || '게시글 삭제에 실패했습니다.');
   }
-
-  const { error: commentsError } = await supabase.from('comments').delete().eq('photo_id', photoId);
-  if (commentsError) throw commentsError;
-
-  const { error } = await supabase.from('community_photos').delete().eq('id', photoId);
-  if (error) throw error;
+  return { mode: data.mode === 'soft' ? 'soft' : 'hard' };
 }
 
 export type { CommunityPhoto, Comment };

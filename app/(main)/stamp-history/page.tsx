@@ -10,6 +10,7 @@ import EmptyState from '@/components/EmptyState';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import { IoTimeOutline } from 'react-icons/io5';
 import { OHGO_CARD, OHGO_FONT, OHGO_SECONDARY_BTN, OhgoPageLoading } from '@/lib/page-styles';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 type StampHistoryItem = {
   id: string;
@@ -66,7 +67,7 @@ function StampHistoryPageContent() {
   useNativePullToRefresh(fetchHistory);
 
   const handleClearHistory = async () => {
-    if (!confirm('정말로 이 회원의 모든 스탬프 이력을 삭제하시겠습니까?')) return;
+    if (!(await ohgoConfirm('정말로 이 회원의 모든 스탬프 이력을 삭제하시겠습니까?'))) return;
     await clearStampHistory(uuid);
     setHistory([]);
   };
@@ -170,10 +171,7 @@ function StampHistoryPageContent() {
                     {formatHistoryTimestamp(item.timestamp)}
                   </small>
                 </div>
-                <p className="mb-1" style={{ fontSize: 14, color: '#1A1D1F', fontFamily: OHGO_FONT }}>{item.message}</p>
-                {item.date && (
-                  <small style={{ fontSize: 12, color: '#6F767E', fontFamily: OHGO_FONT }}>최초 적립일: {item.date}</small>
-                )}
+                <p className="mb-0" style={{ fontSize: 14, color: '#1A1D1F', fontFamily: OHGO_FONT }}>{item.message}</p>
             </div>
           ))}
         </div>

@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { format } from 'date-fns';
 import { addMemo, getMemos, softDeleteMemo } from '@/utils/memo-service';
 import SubPageFrame from '@/components/SubPageFrame';
@@ -9,6 +10,7 @@ import EmptyState from '@/components/EmptyState';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import { IoDocumentTextOutline } from 'react-icons/io5';
 import { OHGO_CARD, OHGO_CONFIRM_BTN, OHGO_CONFIRM_BTN_CLASS, OHGO_FONT, OHGO_INPUT, OhgoPageLoading } from '@/lib/page-styles';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 function MemoPageContent() {
   const router = useRouter();
@@ -40,7 +42,7 @@ function MemoPageContent() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('해당 메모를 삭제할까요?')) return;
+    if (!(await ohgoConfirm('해당 메모를 삭제할까요?'))) return;
     await softDeleteMemo(uuid, id);
     await loadMemos();
   };

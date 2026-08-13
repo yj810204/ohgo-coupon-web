@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
@@ -170,7 +170,7 @@ export default function MyReservationsPage() {
                   </span>
                 </div>
                 <div style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>
-                  {r.departureTime} 출발
+                  {r.departureTime} 출항
                   {r.returnTime ? ` ~ ${r.returnTime} 귀항` : ''}
                 </div>
                 {r.status === 'rejected' && r.rejectedReason && (

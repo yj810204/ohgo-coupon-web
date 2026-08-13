@@ -1,5 +1,8 @@
+import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
+import { isFirebaseDataSource } from '@/lib/data-source';
+import { getFirebaseDb } from '@/lib/firebase/client';
 import { createAdminClient } from './supabase/admin';
-import { syncGameThumbnailFromLocal } from './game-thumbnail';
+import { findLocalThumbnailFile, syncGameThumbnailFromLocal } from './game-thumbnail';
 import type { Game } from './game-service.shared';
 
 export interface ScanResult {
@@ -30,7 +33,7 @@ function buildGamePayload(
   };
 }
 
-async function syncThumbnailAfterSave(
+async function syncThumbnailAfterSaveSupabase(
   publicRoot: string,
   gameId: string,
   config: Record<string, unknown>,
@@ -67,6 +70,26 @@ async function syncThumbnailAfterSave(
   if (error) throw error;
 }
 
+async function resolveLocalThumbnailFields(
+  publicRoot: string,
+  gameId: string,
+  config: Record<string, unknown>,
+  existing?: { thumbnail_url?: string | null; thumbnail_path?: string | null },
+): Promise<{ thumbnail_path?: string; thumbnail_url?: string }> {
+  if (existing?.thumbnail_url) {
+    return {
+      thumbnail_path: existing.thumbnail_path ?? undefined,
+      thumbnail_url: existing.thumbnail_url,
+    };
+  }
+  const local = await findLocalThumbnailFile(publicRoot, gameId, config);
+  if (!local) return {};
+  return {
+    thumbnail_path: local.relativePath,
+    thumbnail_url: `/${local.relativePath.replace(/^\//, '')}`,
+  };
+}
+
 async function getGameSupabase(gameId: string) {
   const admin = createAdminClient();
   const { data, error } = await admin.from('games').select('*').eq('id', gameId).maybeSingle();
@@ -74,7 +97,14 @@ async function getGameSupabase(gameId: string) {
   return data;
 }
 
-async function registerGame(
+async function getGameFirebase(gameId: string): Promise<Record<string, unknown> | null> {
+  const db = getFirebaseDb();
+  const snap = await getDoc(doc(db, 'games', gameId));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() };
+}
+
+async function registerGameSupabase(
   config: Record<string, unknown>,
   gameId: string,
   gamePath: string,
@@ -91,10 +121,10 @@ async function registerGame(
   });
   if (error) throw error;
 
-  await syncThumbnailAfterSave(publicRoot, gameId, config);
+  await syncThumbnailAfterSaveSupabase(publicRoot, gameId, config);
 }
 
-async function updateGame(
+async function updateGameSupabase(
   config: Record<string, unknown>,
   gameId: string,
   gamePath: string,
@@ -121,10 +151,47 @@ async function updateGame(
     .eq('id', gameId);
   if (error) throw error;
 
-  await syncThumbnailAfterSave(publicRoot, gameId, config, existing ? {
+  await syncThumbnailAfterSaveSupabase(publicRoot, gameId, config, existing ? {
     thumbnail_url: existing.thumbnail_url,
     thumbnail_path: existing.thumbnail_path,
   } : undefined);
+}
+
+async function upsertGameFirebase(
+  config: Record<string, unknown>,
+  gameId: string,
+  gamePath: string,
+  displayOrder: number,
+  publicRoot: string,
+  existing: Record<string, unknown> | null,
+): Promise<'registered' | 'updated'> {
+  const db = getFirebaseDb();
+  const payload = buildGamePayload(config, gameId, gamePath, existing ? {
+    config_data: (existing.config_data as string) ?? undefined,
+    point_rate: existing.point_rate != null ? Number(existing.point_rate) : undefined,
+    is_active: existing.is_active !== false,
+  } : undefined);
+
+  const thumb = await resolveLocalThumbnailFields(publicRoot, gameId, config, {
+    thumbnail_url: (existing?.thumbnail_url as string) ?? null,
+    thumbnail_path: (existing?.thumbnail_path as string) ?? null,
+  });
+
+  await setDoc(
+    doc(db, 'games', gameId),
+    {
+      ...payload,
+      asset_urls: existing?.asset_urls ?? null,
+      display_order: existing?.display_order ?? displayOrder,
+      is_active: existing?.is_active ?? true,
+      ...thumb,
+      last_update: Timestamp.now(),
+      ...(existing ? {} : { regdate: Timestamp.now() }),
+    },
+    { merge: true },
+  );
+
+  return existing ? 'updated' : 'registered';
 }
 
 /** public/games/ 폴더 스캔 (서버 전용) */
@@ -139,6 +206,7 @@ export async function scanGamesFolder(gamesPath: string): Promise<ScanResult> {
   };
 
   const publicRoot = path.join(gamesPath, '..');
+  const useFirebase = isFirebaseDataSource();
 
   try {
     try {
@@ -172,14 +240,28 @@ export async function scanGamesFolder(gamesPath: string): Promise<ScanResult> {
 
         const gameId = (config.game_id as string) || entry.name;
         const gamePath = `games/${gameId}`;
-        const existing = await getGameSupabase(gameId);
 
-        if (existing) {
-          await updateGame(config, gameId, gamePath, displayOrder, publicRoot);
-          result.updated++;
+        if (useFirebase) {
+          const existing = await getGameFirebase(gameId);
+          const kind = await upsertGameFirebase(
+            config,
+            gameId,
+            gamePath,
+            displayOrder,
+            publicRoot,
+            existing,
+          );
+          if (kind === 'updated') result.updated++;
+          else result.registered++;
         } else {
-          await registerGame(config, gameId, gamePath, displayOrder, publicRoot);
-          result.registered++;
+          const existing = await getGameSupabase(gameId);
+          if (existing) {
+            await updateGameSupabase(config, gameId, gamePath, displayOrder, publicRoot);
+            result.updated++;
+          } else {
+            await registerGameSupabase(config, gameId, gamePath, displayOrder, publicRoot);
+            result.registered++;
+          }
         }
 
         displayOrder++;

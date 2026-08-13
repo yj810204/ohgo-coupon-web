@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { format } from 'date-fns';
 import { getUser } from '@/lib/storage';
 import SubPageFrame from '@/components/SubPageFrame';
@@ -10,7 +10,7 @@ import { getMyOrders, type PointMallOrder } from '@/utils/point-mall-service';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import { IoReceiptOutline } from 'react-icons/io5';
 
-const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+const FONT = "var(--font-ohgo), sans-serif";
 const CARD: React.CSSProperties = {
   backgroundColor: '#FFFFFF',
   borderRadius: 14,

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { resolveAppUser } from '@/lib/auth-session';
 import {
   TripGuide,
@@ -13,6 +13,9 @@ import {
   isPastTripSchedule,
   sortTripsByNearestDeparture,
   tripDateToStr,
+  tripPricePerPersonLabel,
+  tripScheduleSubtitle,
+  tripSpeciesTitle,
 } from '@/utils/trip-guide-service';
 import {
   adminDeleteCancelledReservation,
@@ -23,15 +26,15 @@ import {
   reservationStatusLabel,
   type TripReservation,
 } from '@/utils/reservation-service';
-import { IoAddOutline, IoTrashOutline, IoBoatOutline, IoCopyOutline, IoPeopleOutline, IoChevronBackOutline, IoChevronForwardOutline } from 'react-icons/io5';
-import { ADMIN_EDIT_ICON } from '@/lib/admin-icons';
+import { IoAddOutline, IoBoatOutline, IoCopyOutline, IoChevronBackOutline, IoChevronForwardOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import { OHGO_CONFIRM_BTN_CLASS, OHGO_INPUT, OHGO_PRIMARY_BTN, OHGO_SECONDARY_BTN } from '@/lib/page-styles';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
-const FONT = "'Urbanist', var(--font-urbanist), sans-serif";
+const FONT = "var(--font-ohgo), sans-serif";
 const CARD: React.CSSProperties = { backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: 'none' };
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -164,6 +167,7 @@ export default function AdminTripGuidePage() {
   const [rejectTarget, setRejectTarget] = useState<TripReservation | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [acting, setActing] = useState(false);
+  const [menuTrip, setMenuTrip] = useState<TripGuide | null>(null);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -207,7 +211,7 @@ export default function AdminTripGuidePage() {
   });
 
   const handleDelete = async (id: string, dest: string) => {
-    if (!confirm(`"${dest}" 출조 일정을 삭제하시겠습니까?`)) return;
+    if (!(await ohgoConfirm(`"${dest}" 출조 일정을 삭제하시겠습니까?`))) return;
     try {
       await deleteTrip(id);
       if (copyingId === id) {
@@ -260,7 +264,7 @@ export default function AdminTripGuidePage() {
       alert(`한 번에 최대 ${MAX_COPY_DAYS}일까지 복사할 수 있습니다.`);
       return;
     }
-    if (!confirm(`${dates.length}일 출조 일정을 복사하시겠습니까?`)) return;
+    if (!(await ohgoConfirm(`${dates.length}일 출조 일정을 복사하시겠습니까?`))) return;
 
     setCopying(true);
     try {
@@ -470,20 +474,18 @@ export default function AdminTripGuidePage() {
                             <div
                               style={{
                                 height: 1,
-                                backgroundColor: '#EFEFEF',
-                                margin: '12px 0',
+                                backgroundColor: '#F7F8FA',
+                                margin: '12px 16px',
                               }}
                             />
                           )}
                           <div className="d-flex align-items-start gap-2" style={{ opacity: tripPast && !isPast ? 0.55 : 1 }}>
                             <div className="flex-grow-1 min-w-0">
                               <div style={{ fontSize: 15, fontWeight: 700, color: textMuted ? '#9A9FA5' : '#1A1D1F', fontFamily: FONT }}>
-                                {trip.destination}
+                                {tripSpeciesTitle(trip)}
                               </div>
                               <div style={{ fontSize: 12, color: textMuted ? '#ABABAB' : '#6F767E', fontFamily: FONT, marginTop: 2 }}>
-                                {trip.departureTime} 출발
-                                {trip.returnTime && ` ~ ${trip.returnTime} 귀항`}
-                                {trip.species && ` · ${trip.species}`}
+                                {tripScheduleSubtitle(trip)}
                               </div>
                               {trip.price ? (
                                 <div
@@ -495,7 +497,7 @@ export default function AdminTripGuidePage() {
                                     marginTop: 2,
                                   }}
                                 >
-                                  {trip.price.toLocaleString()}원
+                                  {tripPricePerPersonLabel(trip.price)}
                                 </div>
                               ) : null}
                               {(reserveCountMap[trip.id] ?? 0) > 0 ||
@@ -516,47 +518,26 @@ export default function AdminTripGuidePage() {
                                 </div>
                               ) : null}
                             </div>
-                            <div className="d-flex flex-row gap-1 flex-shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => void openReservations(trip)}
-                                className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
-                                title="예약자 보기"
-                                style={{ width: 28, height: 28, backgroundColor: '#EDF5FF', border: 'none' }}
-                              >
-                                <IoPeopleOutline size={14} color="#237FFF" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => openCopyPanel(trip.id)}
-                                className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
-                                title="다른 날짜로 복사"
-                                style={{
-                                  width: 28,
-                                  height: 28,
-                                  backgroundColor: copyingId === trip.id ? '#34C759' : '#E8F8EE',
-                                  border: 'none',
-                                }}
-                              >
-                                <IoCopyOutline size={14} color={copyingId === trip.id ? '#fff' : '#34C759'} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => router.push(`/admin-trip-guide/form?id=${trip.id}`)}
-                                className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
-                                style={{ width: 28, height: 28, backgroundColor: '#EBF1FE', border: 'none' }}
-                              >
-                                <ADMIN_EDIT_ICON size={14} color="#1B6FF5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDelete(trip.id, trip.destination)}
-                                className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
-                                style={{ width: 28, height: 28, backgroundColor: '#FFF0F0', border: 'none' }}
-                              >
-                                <IoTrashOutline size={14} color="#FF3B30" />
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setMenuTrip(trip)}
+                              className="btn flex-shrink-0 d-inline-flex align-items-center"
+                              aria-label="일정 관리"
+                              style={{
+                                padding: '4px 10px',
+                                marginTop: -2,
+                                backgroundColor: textMuted ? '#F0F1F3' : '#F4F7FB',
+                                border: 'none',
+                                borderRadius: 8,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: textMuted ? '#9A9FA5' : '#1B6FF5',
+                                fontFamily: FONT,
+                                lineHeight: 1.2,
+                              }}
+                            >
+                              관리
+                            </button>
                           </div>
                           {copyingId === trip.id && (
                             <div
@@ -671,6 +652,78 @@ export default function AdminTripGuidePage() {
         )}
 
       <OhgoModal
+        open={!!menuTrip}
+        onClose={() => setMenuTrip(null)}
+        title={menuTrip ? menuTrip.destination : '메뉴'}
+        bodyPadding={false}
+      >
+        {menuTrip ? (
+          <div>
+            {[
+              {
+                key: 'reservations',
+                label: '예약자 보기',
+                danger: false,
+                onClick: () => {
+                  const trip = menuTrip;
+                  setMenuTrip(null);
+                  void openReservations(trip);
+                },
+              },
+              {
+                key: 'copy',
+                label: '다른 날짜로 복사',
+                danger: false,
+                onClick: () => {
+                  const trip = menuTrip;
+                  setMenuTrip(null);
+                  openCopyPanel(trip.id);
+                },
+              },
+              {
+                key: 'edit',
+                label: '수정',
+                danger: false,
+                onClick: () => {
+                  const id = menuTrip.id;
+                  setMenuTrip(null);
+                  router.push(`/admin-trip-guide/form?id=${id}`);
+                },
+              },
+              {
+                key: 'delete',
+                label: '삭제',
+                danger: true,
+                onClick: () => {
+                  const trip = menuTrip;
+                  setMenuTrip(null);
+                  void handleDelete(trip.id, trip.destination);
+                },
+              },
+            ].map((item, index, list) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={item.onClick}
+                className="btn w-100 border-0 rounded-0 text-start"
+                style={{
+                  padding: '16px 20px',
+                  backgroundColor: 'transparent',
+                  fontFamily: FONT,
+                  fontSize: 16,
+                  fontWeight: 600,
+                  color: item.danger ? '#FF3B30' : '#1A1D1F',
+                  borderBottom: index < list.length - 1 ? '1px solid #F0F1F3' : 'none',
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </OhgoModal>
+
+      <OhgoModal
         open={!!reserveModalTrip}
         onClose={() => {
           setReserveModalTrip(null);
@@ -736,7 +789,7 @@ export default function AdminTripGuidePage() {
                     disabled={acting}
                     style={{ border: '1px solid #EFEFEF', backgroundColor: '#fff', color: '#FF3B30', fontWeight: 600 }}
                     onClick={async () => {
-                      if (!confirm('취소된 예약 내역을 삭제하시겠습니까?')) return;
+                      if (!(await ohgoConfirm('취소된 예약 내역을 삭제하시겠습니까?'))) return;
                       setActing(true);
                       const ok = await adminDeleteCancelledReservation(r.id);
                       if (!ok) alert('삭제할 수 없는 내역입니다.');

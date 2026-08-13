@@ -1,13 +1,15 @@
 'use client';
 
 import { useEffect, useState, useRef, Suspense, useCallback } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
 import { getGame, Game } from '@/lib/game-service';
 import { GameLoader } from '@/lib/game-loader';
 import PageHeader from '@/components/PageHeader';
 import { isNativeApp, postToNative } from '@/lib/native-bridge';
-import { getUserBaitCoupons } from '@/utils/point-mall-service';
+import { getUserBaitCoupons, invalidateBaitCache } from '@/utils/point-mall-service';
+import { invalidatePointCache } from '@/lib/firebase/user-points';
 
 function GamePlayContent() {
   const router = useRouter();
@@ -57,6 +59,7 @@ function GamePlayContent() {
       const result = await response.json();
 
       if (result.success) {
+        invalidatePointCache();
         alert(`${result.points}포인트를 획득했습니다! (총 ${result.totalPoints.toLocaleString()}포인트)`);
       } else {
         alert(`점수 저장 실패: ${result.message}`);
@@ -84,6 +87,7 @@ function GamePlayContent() {
       });
       const result = await response.json();
       if (result.ok) {
+        invalidateBaitCache();
         const remaining = typeof result.remaining === 'number' ? result.remaining : 0;
         setBaitCount(remaining);
         if (typeof window !== 'undefined') {

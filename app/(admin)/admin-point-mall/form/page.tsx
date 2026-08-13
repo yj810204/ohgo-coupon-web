@@ -1,7 +1,9 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import type { PointMallProductInput } from '@/constants/point-mall';
 import { getProductImageUrls } from '@/constants/point-mall';
 import {
@@ -14,9 +16,13 @@ import { IoImageOutline, IoTrashOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import { FormActions, FormSection, FORM_LABEL } from '@/components/SubPageForm';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import { useImageEditQueue } from '@/hooks/useImageEditQueue';
 import { OHGO_FONT, OHGO_INPUT, OhgoPageLoading } from '@/lib/page-styles';
 
+const ImageEditor = dynamic(() => import('@/components/ImageEditor'), { ssr: false });
+
 const MAX_PRODUCT_IMAGES = 10;
+const MAX_SOURCE_SIZE = 20 * 1024 * 1024;
 
 const EMPTY: PointMallProductInput = {
   name: '',
@@ -104,6 +110,34 @@ function PointMallFormContent() {
 
   const imageUrls = form.imageUrls ?? [];
 
+  const uploadEditedFiles = useCallback(
+    async (edited: File[]) => {
+      if (edited.length === 0) return;
+      setUploading(true);
+      try {
+        const newUrls: string[] = [];
+        for (const file of edited) {
+          const url = await uploadProductImage(file);
+          newUrls.push(url);
+        }
+        setForm((f) => ({
+          ...f,
+          imageUrls: [...(f.imageUrls ?? []), ...newUrls],
+        }));
+      } catch (err) {
+        console.error(err);
+        alert('이미지 업로드에 실패했습니다.');
+      } finally {
+        setUploading(false);
+      }
+    },
+    []
+  );
+
+  const editQueue = useImageEditQueue((edited) => {
+    void uploadEditedFiles(edited);
+  });
+
   useEffect(() => {
     if (!ready || !editId) return;
     const load = async () => {
@@ -147,37 +181,34 @@ function PointMallFormContent() {
     setForm(f => ({ ...f, [key]: value }));
   };
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
+    e.target.value = '';
     if (!files?.length) return;
 
     const remaining = MAX_PRODUCT_IMAGES - imageUrls.length;
     if (remaining <= 0) {
       alert(`이미지는 최대 ${MAX_PRODUCT_IMAGES}장까지 등록할 수 있습니다.`);
-      e.target.value = '';
       return;
     }
 
-    const toUpload = Array.from(files).slice(0, remaining);
+    const selected = Array.from(files).slice(0, remaining);
     if (files.length > remaining) {
       alert(`이미지는 최대 ${MAX_PRODUCT_IMAGES}장까지 등록할 수 있습니다. ${remaining}장만 추가됩니다.`);
     }
 
-    setUploading(true);
-    try {
-      const newUrls: string[] = [];
-      for (const file of toUpload) {
-        const url = await uploadProductImage(file);
-        newUrls.push(url);
+    const valid = selected.filter((file) => {
+      if (!file.type.startsWith('image/')) {
+        alert(`${file.name}: 이미지 파일만 선택할 수 있습니다.`);
+        return false;
       }
-      setField('imageUrls', [...imageUrls, ...newUrls]);
-    } catch (err) {
-      console.error(err);
-      alert('이미지 업로드에 실패했습니다.');
-    } finally {
-      setUploading(false);
-      e.target.value = '';
-    }
+      if (file.size > MAX_SOURCE_SIZE) {
+        alert(`${file.name}: 20MB 이하만 선택할 수 있습니다.`);
+        return false;
+      }
+      return true;
+    });
+    if (valid.length > 0) editQueue.startWithFiles(valid);
   };
 
   const handleRemoveImage = (index: number) => {
@@ -292,23 +323,24 @@ function PointMallFormContent() {
           <IoImageOutline size={18} aria-hidden />
           {uploading
             ? '업로드 중...'
-            : imageUrls.length > 0
-              ? `이미지 추가 (${imageUrls.length}/${MAX_PRODUCT_IMAGES})`
-              : '이미지 선택'}
+            : editQueue.isEditing
+              ? '편집 중...'
+              : imageUrls.length > 0
+                ? `이미지 추가 (${imageUrls.length}/${MAX_PRODUCT_IMAGES})`
+                : '이미지 선택 · 편집'}
           <input
             type="file"
             accept="image/*"
             multiple
             className="d-none"
-            onChange={e => void handleImageChange(e)}
-            disabled={uploading || atImageLimit}
+            onChange={handleImageChange}
+            disabled={uploading || atImageLimit || editQueue.isEditing}
           />
         </label>
-        {imageUrls.length > 0 && (
-          <small style={{ fontSize: 11, color: '#9A9FA5', fontFamily: OHGO_FONT, marginTop: 8, display: 'block' }}>
-            첫 번째 이미지가 목록 대표 이미지로 사용됩니다.
-          </small>
-        )}
+        <small style={{ fontSize: 11, color: '#9A9FA5', fontFamily: OHGO_FONT, marginTop: 8, display: 'block' }}>
+          선택 후 잘라내기·편집 · 저장 시 자동 압축
+          {imageUrls.length > 0 ? ' · 첫 이미지가 대표로 사용됩니다.' : ''}
+        </small>
       </FormSection>
 
       <FormSection title="판매 설정">
@@ -408,8 +440,17 @@ function PointMallFormContent() {
         submitLabel={editId ? '수정' : '저장'}
         loading={saving}
         loadingLabel="저장 중..."
-        disabled={uploading}
+        disabled={uploading || editQueue.isEditing}
       />
+
+      {editQueue.current ? (
+        <ImageEditor
+          imageUrl={editQueue.current.previewUrl}
+          title={editQueue.remaining > 0 ? `이미지 편집 · 남은 ${editQueue.remaining}장` : '이미지 편집'}
+          onSave={(file) => editQueue.acceptCurrent(file)}
+          onCancel={editQueue.skipCurrent}
+        />
+      ) : null}
     </SubPageFrame>
   );
 }

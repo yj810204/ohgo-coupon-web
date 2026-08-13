@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { resolveAppUser } from '@/lib/auth-session';
 import { getPhotos, uploadPhoto, deletePhoto, updatePhoto, CommunityPhoto } from '@/utils/community-service';
 import { 
@@ -15,7 +17,6 @@ import { IoImageOutline, IoTrashOutline, IoAddOutline } from 'react-icons/io5';
 import { ADMIN_EDIT_ICON } from '@/lib/admin-icons';
 import CKEditorComponent from '@/components/CKEditor';
 import TemplateFieldInput from '@/components/TemplateFieldInput';
-import ImageEditor from '@/components/ImageEditor';
 import SubPageFrame from '@/components/SubPageFrame';
 import {
   OHGO_CARD,
@@ -25,11 +26,19 @@ import {
   OHGO_PRIMARY_BTN,
   OHGO_DISMISS_BTN,
   OHGO_DISMISS_BTN_CLASS,
+  OHGO_LIST,
+  OHGO_LIST_DIVIDER,
   OhgoPageLoading,
 } from '@/lib/page-styles';
 import EmptyState from '@/components/EmptyState';
+import CaptainPhotoPanel from '@/components/CaptainPhotoPanel';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
+import { useImageEditQueue } from '@/hooks/useImageEditQueue';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
+
+const ImageEditor = dynamic(() => import('@/components/ImageEditor'), { ssr: false });
+const MAX_SOURCE_SIZE = 20 * 1024 * 1024;
 
 const FONT = OHGO_FONT;
 const CARD: React.CSSProperties = { ...OHGO_CARD };
@@ -178,6 +187,7 @@ function ImagePreviewGrid({
               src={url}
               alt={`미리보기 ${index + 1}`}
               className="w-100"
+              loading="lazy"
               style={{
                 aspectRatio: '1',
                 objectFit: 'cover',
@@ -226,8 +236,11 @@ function AdminPhotosContent() {
   const searchParams = useSearchParams();
   const view = searchParams.get('view');
   const editPhotoId = searchParams.get('photoId');
+  const tabParam = searchParams.get('tab');
   const { navigate } = useNavigation();
   const [photos, setPhotos] = useState<CommunityPhoto[]>([]);
+  const [isAdminUser, setIsAdminUser] = useState(true);
+  const [activeTab, setActiveTab] = useState<'community' | 'captain'>('community');
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -255,6 +268,16 @@ function AdminPhotosContent() {
   const [editTemplateFieldValues, setEditTemplateFieldValues] = useState<Record<string, string | string[]>>({});
   const [showEditTemplateFields, setShowEditTemplateFields] = useState(false);
 
+  const uploadEditQueue = useImageEditQueue((edited) => {
+    setSelectedFiles((prev) => [...prev, ...edited]);
+    setPreviewUrls((prev) => [...prev, ...edited.map((file) => URL.createObjectURL(file))]);
+  });
+
+  const editFormQueue = useImageEditQueue((edited) => {
+    setEditSelectedFiles((prev) => [...prev, ...edited]);
+    setEditPreviewUrls((prev) => [...prev, ...edited.map((file) => URL.createObjectURL(file))]);
+  });
+
   useEffect(() => {
     const checkAuth = async () => {
       const appUser = await resolveAppUser();
@@ -263,16 +286,31 @@ function AdminPhotosContent() {
         return;
       }
 
-      if (!appUser.isAdmin) {
+      if (!appUser.isAdmin && !appUser.isCaptain) {
         router.replace('/main');
         return;
       }
 
-      setUser({ uuid: appUser.uuid, name: appUser.name || '관리자' });
-      await Promise.all([loadPhotos(), loadTemplates(), loadActiveTemplate()]);
+      const captainOnly = appUser.isCaptain && !appUser.isAdmin;
+      setIsAdminUser(appUser.isAdmin);
+      setActiveTab(
+        captainOnly || tabParam === 'captain' ? 'captain' : 'community'
+      );
+      setUser({ uuid: appUser.uuid, name: appUser.name || (appUser.isAdmin ? '관리자' : '선장') });
+      if (appUser.isAdmin) {
+        await Promise.all([loadPhotos(), loadTemplates(), loadActiveTemplate()]);
+      } else {
+        setLoading(false);
+      }
     };
     checkAuth();
-  }, [router]);
+  }, [router, tabParam]);
+
+  useEffect(() => {
+    if (!isAdminUser && (view === 'upload' || view === 'edit')) {
+      router.replace('/admin-photos?tab=captain');
+    }
+  }, [isAdminUser, view, router]);
 
   useEffect(() => {
     if (activeTemplateId) {
@@ -341,28 +379,21 @@ function AdminPhotosContent() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
+    e.target.value = '';
     if (files.length === 0) return;
 
-    const validFiles: File[] = [];
-    const urls: string[] = [];
-
-    files.forEach((file) => {
+    const validFiles = files.filter((file) => {
       if (!file.type.startsWith('image/')) {
         alert(`${file.name}은(는) 이미지 파일이 아닙니다.`);
-        return;
+        return false;
       }
-
-      if (file.size > 5 * 1024 * 1024) {
-        alert(`${file.name}의 크기는 5MB 이하여야 합니다.`);
-        return;
+      if (file.size > MAX_SOURCE_SIZE) {
+        alert(`${file.name}은(는) 20MB 이하여야 합니다.`);
+        return false;
       }
-
-      validFiles.push(file);
-      urls.push(URL.createObjectURL(file));
+      return true;
     });
-
-    setSelectedFiles([...selectedFiles, ...validFiles]);
-    setPreviewUrls([...previewUrls, ...urls]);
+    if (validFiles.length > 0) uploadEditQueue.startWithFiles(validFiles);
   };
 
   const handleRemoveImage = (index: number) => {
@@ -459,14 +490,28 @@ function AdminPhotosContent() {
   };
 
   const handleDelete = async (photoId: string) => {
-    if (!confirm('이 사진을 삭제하시겠습니까?\n댓글도 함께 삭제됩니다.')) {
+    const target = photos.find((p) => p.photoId === photoId);
+    if (!(await ohgoConfirm('이 사진을 삭제하시겠습니까?'))) {
       return;
+    }
+
+    let mode: 'hard' | 'soft' = 'hard';
+    const commentCount = target?.commentCount ?? 0;
+    if (commentCount > 0 && !target?.isDeleted) {
+      const deleteComments = await ohgoConfirm(
+        `댓글 ${commentCount}개가 있습니다.\n댓글까지 함께 삭제할까요?`
+      );
+      mode = deleteComments ? 'hard' : 'soft';
     }
 
     try {
       setDeletingPhotoId(photoId);
-      await deletePhoto(photoId);
-      alert('사진이 삭제되었습니다.');
+      const result = await deletePhoto(photoId, { mode });
+      alert(
+        result.mode === 'soft'
+          ? '게시글이 삭제 처리되었습니다. 댓글은 유지됩니다.'
+          : '사진이 삭제되었습니다.'
+      );
       await loadPhotos();
     } catch (error: any) {
       console.error('Error deleting photo:', error);
@@ -583,35 +628,21 @@ function AdminPhotosContent() {
 
   const handleEditFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
+    e.target.value = '';
     if (files.length === 0) return;
 
-    const validFiles: File[] = [];
-    for (const file of files) {
+    const validFiles = files.filter((file) => {
       if (!file.type.startsWith('image/')) {
         alert(`${file.name}은(는) 이미지 파일이 아닙니다.`);
-        continue;
+        return false;
       }
-
-      if (file.size > 5 * 1024 * 1024) {
-        alert(`${file.name}의 크기는 5MB 이하여야 합니다.`);
-        continue;
+      if (file.size > MAX_SOURCE_SIZE) {
+        alert(`${file.name}은(는) 20MB 이하여야 합니다.`);
+        return false;
       }
-
-      validFiles.push(file);
-    }
-
-    if (validFiles.length === 0) return;
-
-    const newFiles = [...editSelectedFiles, ...validFiles];
-    setEditSelectedFiles(newFiles);
-
-    const newPreviewUrls = [...editPreviewUrls];
-    validFiles.forEach(file => {
-      newPreviewUrls.push(URL.createObjectURL(file));
+      return true;
     });
-    setEditPreviewUrls(newPreviewUrls);
-
-    e.target.value = '';
+    if (validFiles.length > 0) editFormQueue.startWithFiles(validFiles);
   };
 
   const handleEditImageRemove = (index: number) => {
@@ -762,7 +793,7 @@ function AdminPhotosContent() {
           onChange={handleFileSelect}
           disabled={uploading}
         />
-        <p style={HINT}>여러 장 선택 가능 · 이미지당 5MB 이하 · 탭하여 편집</p>
+        <p style={HINT}>선택 후 잘라내기·편집 · 저장 시 자동 압축 · 탭하여 재편집</p>
         <ImagePreviewGrid
           urls={previewUrls}
           disabled={uploading}
@@ -832,7 +863,7 @@ function AdminPhotosContent() {
             onChange={handleEditFileSelect}
             disabled={updatingPhoto}
           />
-          <p style={HINT}>탭하여 편집 · 최소 1장 유지</p>
+          <p style={HINT}>선택 후 편집·압축 · 탭하여 재편집 · 최소 1장 유지</p>
           <ImagePreviewGrid
             urls={editPreviewUrls}
             disabled={updatingPhoto}
@@ -894,13 +925,24 @@ function AdminPhotosContent() {
     return (
       <SubPageFrame title="새글 등록" onBack={() => router.replace('/admin-photos')}>
         {uploadForm}
-        {editingImageIndex !== null && previewUrls[editingImageIndex] && (
+        {uploadEditQueue.current ? (
+          <ImageEditor
+            imageUrl={uploadEditQueue.current.previewUrl}
+            title={
+              uploadEditQueue.remaining > 0
+                ? `이미지 편집 · 남은 ${uploadEditQueue.remaining}장`
+                : '이미지 편집'
+            }
+            onSave={(file) => uploadEditQueue.acceptCurrent(file)}
+            onCancel={uploadEditQueue.skipCurrent}
+          />
+        ) : editingImageIndex !== null && previewUrls[editingImageIndex] ? (
           <ImageEditor
             imageUrl={previewUrls[editingImageIndex]}
-            onSave={editedFile => handleImageEditSave(editingImageIndex, editedFile)}
+            onSave={(editedFile) => handleImageEditSave(editingImageIndex, editedFile)}
             onCancel={() => setEditingImageIndex(null)}
           />
-        )}
+        ) : null}
       </SubPageFrame>
     );
   }
@@ -909,19 +951,82 @@ function AdminPhotosContent() {
     return (
       <SubPageFrame title="글 수정" onBack={() => router.replace('/admin-photos')}>
         {editForm || <OhgoPageLoading />}
-        {editEditingImageIndex !== null && editPreviewUrls[editEditingImageIndex] && (
+        {editFormQueue.current ? (
+          <ImageEditor
+            imageUrl={editFormQueue.current.previewUrl}
+            title={
+              editFormQueue.remaining > 0
+                ? `이미지 편집 · 남은 ${editFormQueue.remaining}장`
+                : '이미지 편집'
+            }
+            onSave={(file) => editFormQueue.acceptCurrent(file)}
+            onCancel={editFormQueue.skipCurrent}
+          />
+        ) : editEditingImageIndex !== null && editPreviewUrls[editEditingImageIndex] ? (
           <ImageEditor
             imageUrl={editPreviewUrls[editEditingImageIndex]}
-            onSave={editedFile => handleEditImageEditSave(editEditingImageIndex, editedFile)}
+            onSave={(editedFile) => handleEditImageEditSave(editEditingImageIndex, editedFile)}
             onCancel={() => setEditEditingImageIndex(null)}
           />
-        )}
+        ) : null}
       </SubPageFrame>
     );
   }
 
   return (
-    <SubPageFrame title="조황사진 관리" onRefresh={reloadPhotos}>
+    <SubPageFrame
+      title="조황사진 관리"
+      onRefresh={activeTab === 'community' ? reloadPhotos : undefined}
+      onBack={() => router.replace('/admin-main')}
+    >
+      <div
+        className="d-flex gap-2 mb-3"
+        style={{ backgroundColor: '#F7F8FA', borderRadius: 12, padding: 4 }}
+      >
+        {isAdminUser && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('community')}
+            style={{
+              flex: 1,
+              padding: '10px 12px',
+              borderRadius: 10,
+              border: 'none',
+              fontFamily: FONT,
+              fontSize: 13,
+              fontWeight: 700,
+              backgroundColor: activeTab === 'community' ? '#FFFFFF' : 'transparent',
+              color: activeTab === 'community' ? '#1B6FF5' : '#6F767E',
+              boxShadow: activeTab === 'community' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+            }}
+          >
+            커뮤니티 조황
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setActiveTab('captain')}
+          style={{
+            flex: 1,
+            padding: '10px 12px',
+            borderRadius: 10,
+            border: 'none',
+            fontFamily: FONT,
+            fontSize: 13,
+            fontWeight: 700,
+            backgroundColor: activeTab === 'captain' ? '#FFFFFF' : 'transparent',
+            color: activeTab === 'captain' ? '#1B6FF5' : '#6F767E',
+            boxShadow: activeTab === 'captain' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+          }}
+        >
+          선장 조황 · 태깅
+        </button>
+      </div>
+
+      {activeTab === 'captain' && user?.uuid ? (
+        <CaptainPhotoPanel captainId={user.uuid} />
+      ) : (
+        <>
       <button
         type="button"
         onClick={() => router.push('/admin-photos?view=upload')}
@@ -963,20 +1068,16 @@ function AdminPhotosContent() {
             const isDeleting = deletingPhotoId === photo.photoId;
 
             return (
-              <div
-                key={photo.photoId}
-                className="px-3 py-3"
-                style={{
-                  borderBottom: index < photos.length - 1 ? '1px solid #F7F8FA' : 'none',
-                }}
-              >
+              <div key={photo.photoId}>
+                {index > 0 && <div style={OHGO_LIST_DIVIDER} />}
+              <div className="ohgo-data-list-row">
                 <div className="d-flex align-items-start gap-3">
                   <button
                     type="button"
                     className="flex-shrink-0 p-0 border-0 overflow-hidden"
                     style={{
-                      width: 72,
-                      height: 72,
+                      width: OHGO_LIST.thumbBox,
+                      height: OHGO_LIST.thumbBox,
                       borderRadius: 12,
                       background: thumb ? `url(${thumb}) center/cover` : '#F2F3F5',
                       border: '1px solid #EFEFEF',
@@ -1009,8 +1110,8 @@ function AdminPhotosContent() {
                         type="button"
                         className="btn btn-link p-0 text-start flex-grow-1 min-w-0"
                         style={{
-                          fontSize: 15,
-                          fontWeight: 700,
+                          fontSize: OHGO_LIST.titleSize,
+                          fontWeight: OHGO_LIST.titleWeight,
                           color: '#1A1D1F',
                           fontFamily: FONT,
                           textDecoration: 'none',
@@ -1064,9 +1165,12 @@ function AdminPhotosContent() {
                   </div>
                 </div>
               </div>
+              </div>
             );
           })}
         </div>
+      )}
+        </>
       )}
     </SubPageFrame>
   );

@@ -1,14 +1,31 @@
 'use client';
 
 import { useEffect, useState, Suspense, useCallback, useRef, type CSSProperties } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
 import { resolveAppUser } from '@/lib/auth-session';
 import { getBoardingForm, saveBoardingForm } from '@/utils/boarding-service';
 import { IoCheckboxOutline, IoSquareOutline, IoSearchOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
-import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
-import { OHGO_CARD, OHGO_FONT, OhgoPageLoading } from '@/lib/page-styles';
+import OhgoModal from '@/components/OhgoModal';
+import {
+  OHGO_CARD,
+  OHGO_CONFIRM_BTN,
+  OHGO_CONFIRM_BTN_CLASS,
+  OHGO_FONT,
+  OHGO_INPUT,
+  OhgoPageLoading,
+} from '@/lib/page-styles';
+
+const FIELD_LABEL: CSSProperties = {
+  display: 'block',
+  fontSize: 13,
+  fontWeight: 700,
+  color: '#6F767E',
+  fontFamily: OHGO_FONT,
+  marginBottom: 8,
+};
 
 const PILL_RADIUS = 9999;
 
@@ -71,8 +88,20 @@ declare global {
   interface Window {
     daum?: {
       Postcode: new (options: {
-        oncomplete: (data: { address: string; addressType: string; bname: string; buildingName: string }) => void;
-      }) => { open: () => void };
+        oncomplete: (data: {
+          address: string;
+          addressType: string;
+          bname: string;
+          buildingName: string;
+        }) => void;
+        onclose?: (state: string) => void;
+        width?: string | number;
+        height?: string | number;
+      }) => {
+        open: () => void;
+        /** WebView에서는 팝업(open)이 흰 화면만 뜨므로 embed 사용 */
+        embed: (element: HTMLElement) => void;
+      };
     };
   }
 }
@@ -154,8 +183,10 @@ function BoardingFormContent() {
   const [agreedThirdParty, setAgreedThirdParty] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showThirdPartyModal, setShowThirdPartyModal] = useState(false);
+  const [showPostcodeModal, setShowPostcodeModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const addressDetailRef = useRef<HTMLInputElement>(null);
+  const postcodeEmbedRef = useRef<HTMLDivElement>(null);
 
   // 다음 우편번호 스크립트 로드
   useEffect(() => {
@@ -167,24 +198,58 @@ function BoardingFormContent() {
     document.head.appendChild(script);
   }, []);
 
+  const applySelectedAddress = useCallback(
+    (data: { address: string; addressType: string; bname: string; buildingName: string }) => {
+      let fullAddress = data.address;
+      if (data.addressType === 'R') {
+        if (data.bname) fullAddress += ` (${data.bname}`;
+        if (data.buildingName) {
+          fullAddress += data.bname ? `, ${data.buildingName})` : ` (${data.buildingName})`;
+        } else if (data.bname) {
+          fullAddress += ')';
+        }
+      }
+      setAddress(fullAddress);
+      setAddressDetail('');
+      setShowPostcodeModal(false);
+      window.setTimeout(() => addressDetailRef.current?.focus(), 150);
+    },
+    []
+  );
+
+  // WebView는 window.open 팝업이 막히거나 흰 화면만 뜸 → 모달 안에 embed
+  useEffect(() => {
+    if (!showPostcodeModal) return;
+    const el = postcodeEmbedRef.current;
+    if (!el) return;
+
+    let cancelled = false;
+    const tryEmbed = () => {
+      if (cancelled || !postcodeEmbedRef.current) return;
+      if (!window.daum?.Postcode) {
+        window.setTimeout(tryEmbed, 120);
+        return;
+      }
+      postcodeEmbedRef.current.innerHTML = '';
+      new window.daum.Postcode({
+        oncomplete: applySelectedAddress,
+        onclose: () => setShowPostcodeModal(false),
+        width: '100%',
+        height: '100%',
+      }).embed(postcodeEmbedRef.current);
+    };
+    tryEmbed();
+    return () => {
+      cancelled = true;
+    };
+  }, [showPostcodeModal, applySelectedAddress]);
+
   const openAddressSearch = useCallback(() => {
-    if (!window.daum?.Postcode) {
+    if (!window.daum?.Postcode && !document.getElementById('daum-postcode-script')) {
       alert('주소 검색 서비스를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
       return;
     }
-    new window.daum.Postcode({
-      oncomplete: (data) => {
-        let fullAddress = data.address;
-        if (data.addressType === 'R') {
-          if (data.bname) fullAddress += ` (${data.bname}`;
-          if (data.buildingName) fullAddress += data.bname ? `, ${data.buildingName})` : ` (${data.buildingName})`;
-          else if (data.bname) fullAddress += ')';
-        }
-        setAddress(fullAddress);
-        setAddressDetail('');
-        window.setTimeout(() => addressDetailRef.current?.focus(), 150);
-      },
-    }).open();
+    setShowPostcodeModal(true);
   }, []);
 
   useEffect(() => {
@@ -332,194 +397,199 @@ function BoardingFormContent() {
 
   return (
     <SubPageFrame title="명부 작성">
-        <div className="p-3" style={OHGO_CARD}>
-
-            <div className="mb-3">
-              <label className="form-label">이름 *</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="홍길동"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label">생년월일 *</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="예: 19900101"
-                value={birth}
-                onChange={(e) => setBirth(formatDOB(e.target.value))}
-                maxLength={10}
-              />
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label">성별 *</label>
-              <div className="d-flex gap-2">
-                <SegmentButton label="남" active={gender === '남'} onClick={() => setGender('남')} />
-                <SegmentButton label="여" active={gender === '여'} onClick={() => setGender('여')} />
-              </div>
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label">연락처 *</label>
-              <input
-                type="tel"
-                className="form-control"
-                value={phone}
-                onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
-                maxLength={13}
-              />
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label">비상 연락처 *</label>
-              <input
-                type="tel"
-                className="form-control"
-                value={emergency}
-                onChange={(e) => setEmergency(formatPhoneNumber(e.target.value))}
-                maxLength={13}
-              />
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label">주소 *</label>
-              <div className="d-flex gap-2 mb-2 align-items-stretch">
-                <input
-                  type="text"
-                  placeholder="주소 검색 버튼을 눌러주세요"
-                  value={address}
-                  readOnly
-                  className="flex-grow-1 min-w-0"
-                  style={{
-                    ...pillFieldStyle,
-                    backgroundColor: address ? '#FFFFFF' : '#F7F8FA',
-                    cursor: 'default',
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={openAddressSearch}
-                  className="d-flex align-items-center justify-content-center gap-1 flex-shrink-0"
-                  style={{
-                    ...segmentActiveStyle,
-                    borderRadius: PILL_RADIUS,
-                    padding: '10px 18px',
-                    fontSize: 14,
-                    fontWeight: 600,
-                    whiteSpace: 'nowrap',
-                    fontFamily: OHGO_FONT,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <IoSearchOutline size={16} />
-                  검색
-                </button>
-              </div>
-              <input
-                ref={addressDetailRef}
-                type="text"
-                placeholder={address ? '상세 주소 입력 (동/호수 등)' : '주소 검색 후 상세 주소를 입력하세요'}
-                value={addressDetail}
-                onChange={(e) => setAddressDetail(e.target.value)}
-                autoComplete="address-line2"
-                className="form-control w-100"
-                style={{
-                  ...pillFieldStyle,
-                  backgroundColor: '#FFFFFF',
-                }}
-              />
-            </div>
-
-            {isAdmin && (
-              <div className="mb-3">
-                <label className="form-label">역할</label>
-                <div className="d-flex gap-2">
-                  <SegmentButton label="선장" active={role === 'captain'} onClick={() => setRole('captain')} />
-                  <SegmentButton label="선원" active={role === 'sailor'} onClick={() => setRole('sailor')} />
-                  <SegmentButton label="없음" active={role === 'none'} onClick={() => setRole('none')} />
-                </div>
-              </div>
-            )}
-
-            <div className="mb-3 d-flex align-items-start">
-              <button
-                type="button"
-                className="btn btn-link p-0 me-2"
-                onClick={() => setAgreed(!agreed)}
-                style={{ border: 'none', background: 'none' }}
-              >
-                {agreed ? (
-                  <IoCheckboxOutline size={22} color="#1e88e5" />
-                ) : (
-                  <IoSquareOutline size={22} color="#888" />
-                )}
-              </button>
-              <div className="flex-grow-1">
-                <span className="small">
-                  <button
-                    type="button"
-                    className="btn btn-link p-0 text-primary text-decoration-underline"
-                    onClick={() => setShowPrivacyModal(true)}
-                    style={{ fontSize: 'inherit' }}
-                  >
-                    개인정보 수집 및 이용
-                  </button>
-                  에 동의합니다.
-                </span>
-              </div>
-            </div>
-
-            <div className="mb-3 d-flex align-items-start">
-              <button
-                type="button"
-                className="btn btn-link p-0 me-2"
-                onClick={() => setAgreedThirdParty(!agreedThirdParty)}
-                style={{ border: 'none', background: 'none' }}
-              >
-                {agreedThirdParty ? (
-                  <IoCheckboxOutline size={22} color="#1e88e5" />
-                ) : (
-                  <IoSquareOutline size={22} color="#888" />
-                )}
-              </button>
-              <div className="flex-grow-1">
-                <span className="small">
-                  <button
-                    type="button"
-                    className="btn btn-link p-0 text-primary text-decoration-underline"
-                    onClick={() => setShowThirdPartyModal(true)}
-                    style={{ fontSize: 'inherit' }}
-                  >
-                    제3자 개인정보 제공
-                  </button>
-                  에 동의합니다.
-                </span>
-              </div>
-            </div>
-
-            <button
-              className="btn btn-primary w-100"
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                  저장 중...
-                </>
-              ) : (
-                '저장'
-              )}
-            </button>
+      <div className="p-3 mb-3" style={OHGO_CARD}>
+        <div className="mb-3">
+          <label style={FIELD_LABEL}>이름 *</label>
+          <input
+            type="text"
+            placeholder="홍길동"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            style={{ ...OHGO_INPUT, width: '100%', backgroundColor: '#FFFFFF' }}
+          />
         </div>
 
-      {/* Privacy Modal */}
+        <div className="mb-3">
+          <label style={FIELD_LABEL}>생년월일 *</label>
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="예: 19900101"
+            value={birth}
+            onChange={(e) => setBirth(formatDOB(e.target.value))}
+            maxLength={10}
+            style={{ ...OHGO_INPUT, width: '100%', backgroundColor: '#FFFFFF' }}
+          />
+        </div>
+
+        <div className="mb-3">
+          <label style={FIELD_LABEL}>성별 *</label>
+          <div className="d-flex gap-2">
+            <SegmentButton label="남" active={gender === '남'} onClick={() => setGender('남')} />
+            <SegmentButton label="여" active={gender === '여'} onClick={() => setGender('여')} />
+          </div>
+        </div>
+
+        <div className="mb-3">
+          <label style={FIELD_LABEL}>연락처 *</label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
+            maxLength={13}
+            style={{ ...OHGO_INPUT, width: '100%', backgroundColor: '#FFFFFF' }}
+          />
+        </div>
+
+        <div className="mb-3">
+          <label style={FIELD_LABEL}>비상 연락처 *</label>
+          <input
+            type="tel"
+            value={emergency}
+            onChange={(e) => setEmergency(formatPhoneNumber(e.target.value))}
+            maxLength={13}
+            style={{ ...OHGO_INPUT, width: '100%', backgroundColor: '#FFFFFF' }}
+          />
+        </div>
+
+        <div className="mb-3">
+          <label style={FIELD_LABEL}>주소 *</label>
+          <div className="d-flex gap-2 mb-2 align-items-stretch">
+            <input
+              type="text"
+              placeholder="주소 검색 버튼을 눌러주세요"
+              value={address}
+              readOnly
+              className="flex-grow-1 min-w-0"
+              style={{
+                ...pillFieldStyle,
+                backgroundColor: address ? '#FFFFFF' : '#F7F8FA',
+                cursor: 'default',
+              }}
+            />
+            <button
+              type="button"
+              onClick={openAddressSearch}
+              className="d-flex align-items-center justify-content-center gap-1 flex-shrink-0"
+              style={{
+                ...segmentActiveStyle,
+                borderRadius: PILL_RADIUS,
+                padding: '10px 18px',
+                fontSize: 14,
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                fontFamily: OHGO_FONT,
+                cursor: 'pointer',
+              }}
+            >
+              <IoSearchOutline size={16} />
+              검색
+            </button>
+          </div>
+          <input
+            ref={addressDetailRef}
+            type="text"
+            placeholder={address ? '상세 주소 입력 (동/호수 등)' : '주소 검색 후 상세 주소를 입력하세요'}
+            value={addressDetail}
+            onChange={(e) => setAddressDetail(e.target.value)}
+            autoComplete="address-line2"
+            className="w-100"
+            style={{
+              ...OHGO_INPUT,
+              width: '100%',
+              backgroundColor: '#FFFFFF',
+            }}
+          />
+        </div>
+
+        {isAdmin && (
+          <div className="mb-3">
+            <label style={FIELD_LABEL}>역할</label>
+            <div className="d-flex gap-2">
+              <SegmentButton label="선장" active={role === 'captain'} onClick={() => setRole('captain')} />
+              <SegmentButton label="선원" active={role === 'sailor'} onClick={() => setRole('sailor')} />
+              <SegmentButton label="없음" active={role === 'none'} onClick={() => setRole('none')} />
+            </div>
+          </div>
+        )}
+
+        <div className="mb-3 d-flex align-items-start">
+          <button
+            type="button"
+            className="btn btn-link p-0 me-2"
+            onClick={() => setAgreed(!agreed)}
+            style={{ border: 'none', background: 'none' }}
+          >
+            {agreed ? (
+              <IoCheckboxOutline size={22} color="#1B6FF5" />
+            ) : (
+              <IoSquareOutline size={22} color="#9A9FA5" />
+            )}
+          </button>
+          <div className="flex-grow-1">
+            <span style={{ fontSize: 13, color: '#1A1D1F', fontFamily: OHGO_FONT }}>
+              <button
+                type="button"
+                className="btn btn-link p-0 text-decoration-underline"
+                onClick={() => setShowPrivacyModal(true)}
+                style={{ fontSize: 'inherit', color: '#1B6FF5', fontFamily: OHGO_FONT }}
+              >
+                개인정보 수집 및 이용
+              </button>
+              에 동의합니다.
+            </span>
+          </div>
+        </div>
+
+        <div className="mb-1 d-flex align-items-start">
+          <button
+            type="button"
+            className="btn btn-link p-0 me-2"
+            onClick={() => setAgreedThirdParty(!agreedThirdParty)}
+            style={{ border: 'none', background: 'none' }}
+          >
+            {agreedThirdParty ? (
+              <IoCheckboxOutline size={22} color="#1B6FF5" />
+            ) : (
+              <IoSquareOutline size={22} color="#9A9FA5" />
+            )}
+          </button>
+          <div className="flex-grow-1">
+            <span style={{ fontSize: 13, color: '#1A1D1F', fontFamily: OHGO_FONT }}>
+              <button
+                type="button"
+                className="btn btn-link p-0 text-decoration-underline"
+                onClick={() => setShowThirdPartyModal(true)}
+                style={{ fontSize: 'inherit', color: '#1B6FF5', fontFamily: OHGO_FONT }}
+              >
+                제3자 개인정보 제공
+              </button>
+              에 동의합니다.
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        className={`btn w-100 d-flex align-items-center justify-content-center gap-2 ${OHGO_CONFIRM_BTN_CLASS}`}
+        style={{
+          ...OHGO_CONFIRM_BTN,
+          opacity: isSubmitting ? 0.65 : 1,
+        }}
+        onClick={handleSubmit}
+        disabled={isSubmitting}
+      >
+        {isSubmitting ? (
+          <>
+            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" />
+            <span>저장 중...</span>
+          </>
+        ) : (
+          '저장'
+        )}
+      </button>
+
       <OhgoModal
         open={showPrivacyModal}
         onClose={() => setShowPrivacyModal(false)}
@@ -549,6 +619,26 @@ function BoardingFormContent() {
           srcDoc={THIRD_PARTY_HTML}
           style={{ width: '100%', height: 'min(60vh, 500px)', border: 'none', display: 'block' }}
           title="제3자 개인정보 제공 동의"
+        />
+      </OhgoModal>
+
+      <OhgoModal
+        open={showPostcodeModal}
+        onClose={() => setShowPostcodeModal(false)}
+        title="주소 검색"
+        size="lg"
+        scrollable={false}
+        closeOnBackdrop
+        bodyPadding={false}
+      >
+        <div
+          ref={postcodeEmbedRef}
+          style={{
+            width: '100%',
+            height: 'min(70vh, 520px)',
+            minHeight: 360,
+            overflow: 'hidden',
+          }}
         />
       </OhgoModal>
     </SubPageFrame>
