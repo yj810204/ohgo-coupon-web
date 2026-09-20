@@ -1075,7 +1075,9 @@ function PhotoDetailContent() {
                   dangerouslySetInnerHTML={{ __html: photo.content }}
                 />
               ) : photo.description ? (
-                <p style={{ ...META, fontSize: 14, marginBottom: 0 }}>{photo.description}</p>
+                <p style={{ ...META, fontSize: 14, marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+                  {photo.description}
+                </p>
               ) : null}
             </>
           ) : null}
