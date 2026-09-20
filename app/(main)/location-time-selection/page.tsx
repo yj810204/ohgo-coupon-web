@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense, type CSSProperties } from 'react';
+import { useState, useEffect, Suspense, type CSSProperties } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/hooks/useAppRouter';
 import SubPageFrame from '@/components/SubPageFrame';
@@ -19,6 +19,8 @@ import {
   updateAttendanceLocationTime,
   type RosterItem,
 } from '@/utils/roster-service';
+import { blobToDataUrl, storeRosterPreviewImage } from '@/lib/roster-preview-image';
+import { drawRosterImage } from '@/lib/draw-roster-image';
 
 const SECTION_TITLE: CSSProperties = {
   fontSize: 15,
@@ -40,20 +42,18 @@ const pillStyle = (active: boolean): CSSProperties => ({
   cursor: 'pointer',
 });
 
-// A4 용지 비율에 맞는 크기 설정
-const A4_WIDTH = 794;
-const A4_HEIGHT = 1123;
+const FONT_SIZE_MIN = 8;
+const FONT_SIZE_MAX = 14;
+const FONT_SIZE_DEFAULT = 10;
 
-// Font size mapping
-const getFontSize = (size: string) => {
-  switch(size) {
-    case 'small': return 8;
-    case 'medium': return 10;
-    case 'large': return 12;
-    case 'xlarge': return 14;
-    default: return 10;
-  }
-};
+function parseSavedFontSize(raw: string | null): number {
+  if (!raw) return FONT_SIZE_DEFAULT;
+  const named: Record<string, number> = { small: 8, medium: 10, large: 12, xlarge: 14 };
+  if (raw in named) return named[raw];
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n)) return FONT_SIZE_DEFAULT;
+  return Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, n));
+}
 
 function LocationTimeSelectionContent() {
   const router = useRouter();
@@ -77,9 +77,8 @@ function LocationTimeSelectionContent() {
   const [desc01, setDesc01] = useState<string>('');
   const [desc02, setDesc02] = useState<string>('');
   const [onBoard, setOnBoard] = useState<boolean>(false);
-  const [selectedFontSize, setSelectedFontSize] = useState<string>('medium');
+  const [selectedFontSize, setSelectedFontSize] = useState(FONT_SIZE_DEFAULT);
   
-  const a4Ref = useRef<HTMLDivElement>(null);
   const tripNum = tripNumber ? parseInt(tripNumber) : 1;
 
   const hours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
@@ -91,19 +90,15 @@ function LocationTimeSelectionContent() {
     return selectedHour < currentHour;
   };
 
-  // Load font size preference from localStorage
   useEffect(() => {
-    const savedFontSize = localStorage.getItem('roster_font_size_preference');
-    if (savedFontSize) {
-      setSelectedFontSize(savedFontSize);
-    }
+    setSelectedFontSize(parseSavedFontSize(localStorage.getItem('roster_font_size_preference')));
   }, []);
 
-  // Save font size preference to localStorage
-  const saveFontSizePreference = (fontSize: string) => {
+  const saveFontSizePreference = (fontSize: number) => {
+    const next = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, fontSize));
     try {
-      localStorage.setItem('roster_font_size_preference', fontSize);
-      setSelectedFontSize(fontSize);
+      localStorage.setItem('roster_font_size_preference', String(next));
+      setSelectedFontSize(next);
     } catch (error) {
       console.error('Error saving font size preference:', error);
     }
@@ -185,7 +180,6 @@ function LocationTimeSelectionContent() {
     }
   };
 
-  // Capture and save image
   const captureAndSaveImage = async () => {
     if (!selectedLocations.length) {
       alert('위치를 선택해주세요.');
@@ -197,32 +191,24 @@ function LocationTimeSelectionContent() {
       if (!success) return;
 
       setSavingImage(true);
-
-      if (a4Ref.current) {
-        // Wait a bit for rendering
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        const { default: html2canvas } = await import('html2canvas');
-        const canvas = await html2canvas(a4Ref.current, {
-          width: A4_WIDTH,
-          height: A4_HEIGHT,
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff'
-        });
-
-        canvas.toBlob(async (blob) => {
-          if (!blob) {
-            alert('이미지 생성에 실패했습니다.');
-            setSavingImage(false);
-            return;
-          }
-
-          const imageUrl = URL.createObjectURL(blob);
-          
-          router.push(`/roster-preview?imageUri=${encodeURIComponent(imageUrl)}&date=${date}&tripNumber=${tripNumber}&fontSize=${selectedFontSize}`);
-        }, 'image/jpeg', 0.9);
-      }
+      const blob = await drawRosterImage({
+        items: rosterItems,
+        shipName,
+        shipTon,
+        desc01,
+        desc02,
+        onBoard,
+        dateYear: dateYear || '',
+        dateMonth: dateMonth || '',
+        dateDay: dateDay || '',
+        locations: selectedLocations,
+        arrivalLabel: `${isNextDay() ? `(익일) ${selectedTime}` : selectedTime} 시`,
+        cellFontSize: selectedFontSize,
+      });
+      storeRosterPreviewImage(await blobToDataUrl(blob));
+      router.push(
+        `/roster-preview?local=1&date=${date}&tripNumber=${tripNumber}&fontSize=${selectedFontSize}`
+      );
     } catch (error) {
       console.error('Error capturing image:', error);
       alert('이미지 생성 중 오류가 발생했습니다.');
@@ -230,189 +216,22 @@ function LocationTimeSelectionContent() {
     }
   };
 
-  const cellFontSize = getFontSize(selectedFontSize);
-
-  // Render A4 roster
-  const renderA4Roster = () => (
-    <div 
-      ref={a4Ref}
-      style={{
-        width: `${A4_WIDTH}px`,
-        height: `${A4_HEIGHT}px`,
-        backgroundColor: 'white',
-        padding: '40px',
-        fontFamily: 'sans-serif',
-        position: 'absolute',
-        top: '-9999px',
-        left: '-9999px'
-      }}
-    >
-      <div style={{ fontSize: '12px', textAlign: 'left', marginBottom: '20px' }}>
-        ■ 낚시 관리 및 육성법 시행규칙 [별지 제16호서식]
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '5px' }}>
-        <div style={{ fontSize: '34px', fontWeight: 'bold' }}>승 선 자 명 부</div>
-        {shipName && <div style={{ fontSize: '28px', fontWeight: 'bold', marginLeft: '15px' }}>({shipName})</div>}
-      </div>
-      <div style={{ fontSize: '14px', textAlign: 'center' }}>{desc01}</div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '5px', padding: '5px 0' }}>
-        <div style={{ fontSize: '16px' }}>(승선일 : {dateYear} 년 {dateMonth} 월 {dateDay} 일)</div>
-        <div style={{ fontSize: '16px' }}>{shipTon}</div>
-      </div>
-      <table style={{ borderLeft: '1px solid #000', borderRight: '1px solid #000', width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ backgroundColor: '#f0f0f0', borderBottom: '2px solid #000', borderTop: '1px solid #000', height: '40px' }}>
-            <th style={{ width: '4%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold임' }}>
-              <div style={{ position: 'relative', top: '-7px' }}> </div>
-            </th>
-            <th style={{ width: '10%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>
-              <div style={{ position: 'relative', top: '-7px' }}>성명</div>
-            </th>
-            <th style={{ width: '14%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>
-              <div style={{ position: 'relative', top: '-7px' }}>생년월일</div>
-            </th>
-            <th style={{ width: '6%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>
-              <div style={{ position: 'relative', top: '-7px' }}>성별</div>
-            </th>
-            <th style={{ width: '32%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>
-              <div style={{ position: 'relative', top: '-7px' }}>주소</div>
-            </th>
-            <th style={{ width: '14%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>
-              <div style={{ position: 'relative', top: '-7px' }}>전화번호</div>
-            </th>
-            <th style={{ width: '14%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>
-              <div style={{ position: 'relative', top: '-7px' }}>비상연락처</div>
-            </th>
-            <th style={{ width: '6%', padding: '0 3px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>
-              <div style={{ position: 'relative', top: '-7px' }}>비고</div>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {(() => {
-            const captainsAndCrew = rosterItems.filter(item => item.role === 'captain' || item.role === 'sailor');
-            const otherPassengers = rosterItems.filter(item => item.role !== 'captain' && item.role !== 'sailor');
-            
-            const captainCrewRows = captainsAndCrew.map((item) => (
-              <tr key={item.id} style={{ borderBottom: '1px solid #000', height: '40px' }}>
-                <td style={{ width: '4%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                  <div style={{ position: 'relative', top: '-7px' }}>-</div>
-                </td>
-                <td style={{ width: '10%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                  <div style={{ position: 'relative', top: '-7px' }}>{item.name}</div>
-                </td>
-                <td style={{ width: '14%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                  <div style={{ position: 'relative', top: '-7px' }}>{item.birth}</div>
-                </td>
-                <td style={{ width: '6%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                  <div style={{ position: 'relative', top: '-7px' }}>{item.gender}</div>
-                </td>
-                <td style={{ width: '32%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'left', fontSize: `${cellFontSize}px` }}>
-                  <div style={{ position: 'relative', top: '-7px' }}>{item.address}</div>
-                </td>
-                <td style={{ width: '14%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                  <div style={{ position: 'relative', top: '-7px' }}>{item.phone}</div>
-                </td>
-                <td style={{ width: '14%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                  <div style={{ position: 'relative', top: '-7px' }}>{item.emergency}</div>
-                </td>
-                <td style={{ width: '6%', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                  <div style={{ position: 'relative', top: '-7px' }}>
-                    {item.role === 'captain' ? '선장' : item.role === 'sailor' ? '선원' : ''}
-                  </div>
-                </td>
-              </tr>
-            ));
-            
-            const passengerRows = otherPassengers.map((item, index) => (
-              <tr key={item.id} style={{ borderBottom: '1px solid #000', height: '40px' }}>
-                <td style={{ width: '4%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                  <div style={{ position: 'relative', top: '-7px' }}>{index + 1}</div>
-                </td>
-                <td style={{ width: '10%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                  <div style={{ position: 'relative', top: '-7px' }}>{item.name}</div>
-                </td>
-                <td style={{ width: '14%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                  <div style={{ position: 'relative', top: '-7px' }}>{item.birth}</div>
-                </td>
-                <td style={{ width: '6%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                  <div style={{ position: 'relative', top: '-7px' }}>{item.gender}</div>
-                </td>
-                <td style={{ width: '32%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'left', fontSize: `${cellFontSize}px` }}>
-                  <div style={{ position: 'relative', top: '-7px' }}>{item.address}</div>
-                </td>
-                <td style={{ width: '14%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                  <div style={{ position: 'relative', top: '-7px' }}>{item.phone}</div>
-                </td>
-                <td style={{ width: '14%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                  <div style={{ position: 'relative', top: '-7px' }}>{item.emergency}</div>
-                </td>
-                <td style={{ width: '6%', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                  <div style={{ position: 'relative', top: '-7px' }}>
-                    {item.role === 'captain' ? '선장' : item.role === 'sailor' ? '선원' : ''}
-                  </div>
-                </td>
-              </tr>
-            ));
-            
-            return [...captainCrewRows, ...passengerRows];
-          })()}
-          {Array.from({ length: Math.max(0, 15 - rosterItems.length) }).map((_, index) => (
-            <tr key={`empty-${index}`} style={{ borderBottom: '1px solid #000', height: '40px' }}>
-              <td style={{ width: '4%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                <div style={{ position: 'relative', top: '-7px' }}></div>
-              </td>
-              <td style={{ width: '10%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                <div style={{ position: 'relative', top: '-7px' }}></div>
-              </td>
-              <td style={{ width: '14%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                <div style={{ position: 'relative', top: '-7px' }}></div>
-              </td>
-              <td style={{ width: '6%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                <div style={{ position: 'relative', top: '-7px' }}></div>
-              </td>
-              <td style={{ width: '32%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'left', fontSize: `${cellFontSize}px` }}>
-                <div style={{ position: 'relative', top: '-7px' }}></div>
-              </td>
-              <td style={{ width: '14%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                <div style={{ position: 'relative', top: '-7px' }}></div>
-              </td>
-              <td style={{ width: '14%', borderRight: '1px solid #000', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                <div style={{ position: 'relative', top: '-7px' }}></div>
-              </td>
-              <td style={{ width: '6%', padding: '0 3px', textAlign: 'center', fontSize: `${cellFontSize}px` }}>
-                <div style={{ position: 'relative', top: '-7px' }}></div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div style={{ marginTop: '20px', alignItems: 'center', textAlign: 'center' }}>
-        {onBoard && <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '20px' }}>선 상</div>}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '5px' }}>
-          <div style={{ fontSize: '16px', fontWeight: 'bold', width: '100px', textAlign: 'right' }}>위       치 :</div>
-          <div style={{ fontSize: '16px', width: '200px', textAlign: 'left', marginLeft: '5px' }}>{selectedLocations.join(', ')}</div>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '5px' }}>
-          <div style={{ fontSize: '16px', fontWeight: 'bold', width: '100px', textAlign: 'right' }}>입항시간 :</div>
-          <div style={{ fontSize: '16px', width: '200px', textAlign: 'left', marginLeft: '5px' }}>{isNextDay() ? `(익일) ${selectedTime}` : selectedTime} 시</div>
-        </div>
-        <div style={{ marginTop: '20px', fontSize: '14px', textAlign: 'center' }}>{desc02}</div>
-      </div>
-    </div>
-  );
-
-  const fontSizeLabels: Record<string, string> = {
-    small: '작게',
-    medium: '보통',
-    large: '크게',
-    xlarge: '아주크게',
-  };
+  const stepperBtn = (disabled: boolean): CSSProperties => ({
+    width: 44,
+    height: 44,
+    border: 'none',
+    borderRadius: 12,
+    backgroundColor: disabled ? '#F2F3F5' : '#EBF1FE',
+    color: disabled ? '#C4C4C4' : '#1B6FF5',
+    fontSize: 22,
+    fontWeight: 700,
+    fontFamily: OHGO_FONT,
+    lineHeight: 1,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+  });
 
   return (
     <SubPageFrame title="위치 및 시간 선택">
-      {renderA4Roster()}
-
       <div className="p-3 mb-3 text-center" style={OHGO_CARD}>
         <div
           style={{
@@ -508,18 +327,38 @@ function LocationTimeSelectionContent() {
 
           <div className="p-3 mb-3" style={OHGO_CARD}>
             <div style={SECTION_TITLE}>글자크기</div>
-            <div className="d-flex gap-2">
-              {(['small', 'medium', 'large', 'xlarge'] as const).map((size) => (
-                <button
-                  key={size}
-                  type="button"
-                  className="flex-fill"
-                  style={pillStyle(selectedFontSize === size)}
-                  onClick={() => saveFontSizePreference(size)}
-                >
-                  {fontSizeLabels[size]}
-                </button>
-              ))}
+            <div className="d-flex align-items-center justify-content-center gap-3">
+              <button
+                type="button"
+                aria-label="글자 작게"
+                style={stepperBtn(selectedFontSize <= FONT_SIZE_MIN)}
+                disabled={selectedFontSize <= FONT_SIZE_MIN}
+                onClick={() => saveFontSizePreference(selectedFontSize - 1)}
+              >
+                −
+              </button>
+              <div
+                style={{
+                  minWidth: 56,
+                  textAlign: 'center',
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: '#1A1D1F',
+                  fontFamily: OHGO_FONT,
+                  letterSpacing: -0.3,
+                }}
+              >
+                {selectedFontSize}
+              </div>
+              <button
+                type="button"
+                aria-label="글자 크게"
+                style={stepperBtn(selectedFontSize >= FONT_SIZE_MAX)}
+                disabled={selectedFontSize >= FONT_SIZE_MAX}
+                onClick={() => saveFontSizePreference(selectedFontSize + 1)}
+              >
+                +
+              </button>
             </div>
           </div>
         </>

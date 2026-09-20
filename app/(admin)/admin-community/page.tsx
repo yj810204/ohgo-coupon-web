@@ -53,6 +53,12 @@ import {
   CommunityPhoto
 } from '@/utils/community-service';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
+import CategoryManager from '@/components/admin/CategoryManager';
+import {
+  getBoardCategories,
+  saveBoardCategories,
+  type BoardCategory,
+} from '@/utils/board-category-service';
 
 const FONT = OHGO_FONT;
 const CARD: React.CSSProperties = { ...OHGO_CARD };
@@ -239,6 +245,10 @@ function AdminCommunityContent() {
   const [uploading, setUploading] = useState(false);
   const [updatingPhoto, setUpdatingPhoto] = useState(false);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
+  const [qnaCategories, setQnaCategories] = useState<BoardCategory[]>([]);
+  const [faqCategories, setFaqCategories] = useState<BoardCategory[]>([]);
+  const [savingQnaCategories, setSavingQnaCategories] = useState(false);
+  const [savingFaqCategories, setSavingFaqCategories] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -254,7 +264,13 @@ function AdminCommunityContent() {
       }
 
       setUser({ uuid: appUser.uuid, name: appUser.name || '관리자' });
-      await Promise.all([loadPointSettings(), loadTemplates(), loadActiveTemplate(), loadEmojiPacks()]);
+      await Promise.all([
+        loadPointSettings(),
+        loadTemplates(),
+        loadActiveTemplate(),
+        loadEmojiPacks(),
+        loadBoardCategories(),
+      ]);
       setLoading(false);
     };
     checkAuth();
@@ -295,6 +311,41 @@ function AdminCommunityContent() {
       setEmojiPacks(packs);
     } catch (error) {
       console.error('Error loading emoji packs:', error);
+    }
+  };
+
+  const loadBoardCategories = async () => {
+    try {
+      const [qna, faq] = await Promise.all([
+        getBoardCategories('qna', { includeInactive: true }),
+        getBoardCategories('faq', { includeInactive: true }),
+      ]);
+      setQnaCategories(qna);
+      setFaqCategories(faq);
+    } catch (error) {
+      console.error('Error loading board categories:', error);
+    }
+  };
+
+  const handleSaveQnaCategories = async (next: BoardCategory[]) => {
+    setSavingQnaCategories(true);
+    try {
+      setQnaCategories(await saveBoardCategories('qna', next));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Q&A 카테고리 저장에 실패했습니다.');
+    } finally {
+      setSavingQnaCategories(false);
+    }
+  };
+
+  const handleSaveFaqCategories = async (next: BoardCategory[]) => {
+    setSavingFaqCategories(true);
+    try {
+      setFaqCategories(await saveBoardCategories('faq', next));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'FAQ 카테고리 저장에 실패했습니다.');
+    } finally {
+      setSavingFaqCategories(false);
     }
   };
 
@@ -1267,6 +1318,28 @@ function AdminCommunityContent() {
 
   return (
     <SubPageFrame title="커뮤니티 관리">
+      <FormSection title="Q&A 카테고리">
+        <p style={HINT}>회원 질문 글에서 선택할 분류입니다. 숨기면 새 글 작성·필터에서만 빠집니다.</p>
+        <CategoryManager
+          scope="qna"
+          items={qnaCategories}
+          saving={savingQnaCategories}
+          emptyMessage="Q&A 카테고리가 없습니다."
+          onSave={handleSaveQnaCategories}
+        />
+      </FormSection>
+
+      <FormSection title="FAQ 카테고리">
+        <p style={HINT}>팁 · FAQ 글에서 선택할 분류입니다. 숨기면 새 글 작성·필터에서만 빠집니다.</p>
+        <CategoryManager
+          scope="faq"
+          items={faqCategories}
+          saving={savingFaqCategories}
+          emptyMessage="FAQ 카테고리가 없습니다."
+          onSave={handleSaveFaqCategories}
+        />
+      </FormSection>
+
       <FormSection
         title="템플릿 관리"
         action={

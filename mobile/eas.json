@@ -19,6 +19,7 @@
       }
     },
     "production": {
+      "distribution": "store",
       "env": {
         "EXPO_PUBLIC_WEB_URL": "https://ohgo.codejaka.com",
         "EXPO_PUBLIC_USE_HOSTED": "true"

@@ -149,6 +149,11 @@ export const sendPushToUser = async ({
       return;
     }
 
+    // 회원 상세에서 통일 문구로 다시 보내므로, 배치 API의 옛 회수 푸시는 보내지 않음
+    if (title === '스탬프가 회수되었습니다.') {
+      return;
+    }
+
     console.log('푸시 페이로드:', { to: expoPushToken, title, body, data });
     await sendExpoPush(expoPushToken, { title, body, data });
   } catch (error) {

@@ -16,9 +16,11 @@
 ```bash
 cd mobile
 # iOS buildNumber / Android versionCode 가 스토어(10055)보다 커야 함
-# eas.json preview/production 에 autoIncrement=true 설정됨
-npx eas build --profile preview --platform ios
-npx eas build --profile preview --platform android
+# TestFlight / Play 내부테스트는 production 프로필 (preview는 Ad Hoc / APK)
+npx eas build --profile production --platform ios
+npx eas submit --profile production --platform ios
+npx eas build --profile production --platform android
+npx eas submit --profile production --platform android
 ```
 
 - TestFlight / Android 내부 테스트에 업로드

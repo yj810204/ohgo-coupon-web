@@ -11,16 +11,23 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "ohgo.mobile",
-      "buildNumber": "10057",
+      "buildNumber": "10065",
       "googleServicesFile": "./GoogleService-Info.plist",
+      "entitlements": {
+        "aps-environment": "production"
+      },
       "infoPlist": {
-        "NSCameraUsageDescription": "QR 스캔을 위해 카메라 접근 권한이 필요합니다.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["remote-notification"],
+        "NSCameraUsageDescription": "QR 코드 스캔을 위해 카메라 접근 권한이 필요합니다.",
+        "NSMicrophoneUsageDescription": "QR 스캔을 위해 카메라와 함께 마이크 권한이 요청될 수 있습니다.",
         "NSPhotoLibraryUsageDescription": "사진 업로드를 위해 사진 라이브러리 접근 권한이 필요합니다.",
         "NSPhotoLibraryAddUsageDescription": "명부 이미지를 사진 앨범에 저장하기 위해 권한이 필요합니다.",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true,
-          "NSAllowsArbitraryLoads": true
-        }
+          "NSAllowsArbitraryLoads": false
+        },
+        "LSApplicationQueriesSchemes": ["tel", "telprompt", "sms", "mailto"]
       }
     },
     "android": {
@@ -29,7 +36,7 @@
         "backgroundColor": "#000000"
       },
       "package": "ohgo.mobile",
-      "versionCode": 10063,
+      "versionCode": 10065,
       "googleServicesFile": "./google-services.json",
       "usesCleartextTraffic": true,
       "permissions": [
@@ -41,6 +48,7 @@
       ]
     },
     "plugins": [
+      "./plugins/withDisableFontScaling",
       "expo-router",
       [
         "expo-notifications",

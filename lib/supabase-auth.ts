@@ -1,7 +1,6 @@
 import type { User } from '@supabase/supabase-js';
 import { getSupabaseBrowserClient, resetSupabaseBrowserClient } from '@/lib/supabase/client';
 import { saveUser, clearUser } from '@/lib/storage';
-import { getBrowserOrigin } from '@/lib/auth-origin';
 
 export type AppProfile = {
   id: string;
@@ -21,58 +20,6 @@ function displayNameFromUser(user: User): string {
     user.email?.split('@')[0] ??
     '회원'
   );
-}
-
-/** OAuth 리다이렉트 직후 쿠키/세션 반영 대기 */
-export async function waitForSupabaseUser(
-  maxAttempts = 25,
-  intervalMs = 200
-): Promise<User | null> {
-  const supabase = getSupabaseBrowserClient();
-
-  for (let i = 0; i < maxAttempts; i++) {
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (sessionData.session?.user) {
-      return sessionData.session.user;
-    }
-
-    const { data: userData } = await supabase.auth.getUser();
-    if (userData.user) {
-      return userData.user;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
-  }
-
-  return null;
-}
-
-export async function signInWithApple(redirectPath = '/auth/complete') {
-  const supabase = getSupabaseBrowserClient();
-  const origin = getBrowserOrigin();
-
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'apple',
-    options: {
-      redirectTo: `${origin}/api/auth/callback?next=${encodeURIComponent(redirectPath)}`,
-    },
-  });
-
-  if (error) throw error;
-}
-
-export async function signInWithGoogle(redirectPath = '/auth/complete') {
-  const supabase = getSupabaseBrowserClient();
-  const origin = getBrowserOrigin();
-
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: `${origin}/api/auth/callback?next=${encodeURIComponent(redirectPath)}`,
-    },
-  });
-
-  if (error) throw error;
 }
 
 function clearSupabaseAuthStorage() {
@@ -137,13 +84,9 @@ function minimalProfileFromUser(user: User): AppProfile {
   };
 }
 
-/** OAuth 로그인 후 localStorage 동기화 (기존 앱 호환) */
-export async function syncLocalUserFromSupabaseSession(options?: {
-  waitForSession?: boolean;
-}) {
-  const user = options?.waitForSession
-    ? await waitForSupabaseUser()
-    : await getSupabaseSessionUser();
+/** 세션이 있을 때 localStorage 동기화 (기존 앱 호환) */
+export async function syncLocalUserFromSupabaseSession() {
+  const user = await getSupabaseSessionUser();
 
   if (!user) return null;
 

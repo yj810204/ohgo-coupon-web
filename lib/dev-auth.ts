@@ -1,5 +1,5 @@
 /**
- * 개발 중 Google 로그인 없이 화면을 탐색하기 위한 우회.
+ * 개발 중 로그인 없이 화면을 탐색하기 위한 우회.
  * NEXT_PUBLIC_DEV_AUTH_BYPASS=true 이고 development일 때만 동작한다.
  */
 
@@ -9,7 +9,6 @@ export const DEV_MOCK_USER = {
   dob: '1990-01-01',
   isAdmin: false,
   isCaptain: false,
-  needsProfileSetup: false,
 } as const;
 
 export function isDevAuthBypass(): boolean {

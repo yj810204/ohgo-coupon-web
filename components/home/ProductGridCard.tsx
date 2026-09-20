@@ -1,9 +1,15 @@
 'use client';
 
-import type { ClosedMallProduct } from '@/constants/closed-mall';
+export interface ProductGridCardProduct {
+  id: string;
+  name: string;
+  price: string;
+  imageUrl?: string;
+  memberOnly?: boolean;
+}
 
 interface ProductGridCardProps {
-  product: ClosedMallProduct;
+  product: ProductGridCardProduct;
   onClick?: () => void;
 }
 

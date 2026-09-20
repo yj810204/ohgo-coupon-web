@@ -1,10 +1,10 @@
 import { DATA_SOURCE } from '@/lib/data-source';
 import { cachedFetch, invalidateCache } from '@/lib/query-cache';
-import type { AdminMember, AdminMemberStats } from './admin-member-service.shared';
+import type { AdminMember, AdminMemberStats, DuplicateMemberCandidate } from './admin-member-service.shared';
 import * as supa from './admin-member-service.supabase';
 import * as fb from './admin-member-service.firebase';
 
-export type { AdminMember, AdminMemberStats };
+export type { AdminMember, AdminMemberStats, DuplicateMemberCandidate };
 
 const impl = DATA_SOURCE === 'firebase' ? fb : supa;
 
@@ -32,3 +32,9 @@ export const adjustGuestLegacyStamps: typeof supa.adjustGuestLegacyStamps = (...
   impl.adjustGuestLegacyStamps(...a);
 export const adjustGuestLegacyCoupons: typeof supa.adjustGuestLegacyCoupons = (...a) =>
   impl.adjustGuestLegacyCoupons(...a);
+export const listAdminMembersActive: typeof supa.listAdminMembersActive = (...a) =>
+  impl.listAdminMembersActive(...a);
+export const findDuplicateUsers: typeof supa.findDuplicateUsers = (...a) =>
+  impl.findDuplicateUsers(...a);
+export const mergeDuplicateUsers: typeof supa.mergeDuplicateUsers = (...a) =>
+  impl.mergeDuplicateUsers(...a);

@@ -317,7 +317,7 @@ dry-run:  npm run import:firebase-stamps -- --dry-run
       .filter(Boolean)
       .join(' ')
   );
-  console.log('Auth UX: OAuth + name/DOB merge (이름+DOB 로그인 복원 안 함)');
+  console.log('Auth UX: 이름+생년월일 로그인, 미연결 게스트는 관리자 수동 연결');
   console.log('FK strategy: staging(legacy_*) → merge/apply → live tables\n');
 
   if (!dryRun) await ensureStagingTables();
@@ -375,7 +375,7 @@ dry-run:  npm run import:firebase-stamps -- --dry-run
   if (dryRun) {
     console.log('\nDRY-RUN 완료. 실제 적재: npm run import:firebase-stamps -- --limit 5');
   } else {
-    console.log('\n미연결 회원은 staging만 적재됨. OAuth 후 profile-setup 병합 시 live로 이동.');
+    console.log('\n미연결 회원은 staging만 적재됨. 이름·생년월일 로그인 또는 관리자 게스트 연결 시 live로 이동.');
     console.log('전량 이관 후 구앱(Firebase) 쓰기를 중단하세요. 자세한 내용: scripts/FIREBASE_MIGRATION.md');
   }
 

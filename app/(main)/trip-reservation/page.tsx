@@ -18,7 +18,6 @@ import {
 import {
   getTripById,
   isPastTripSchedule,
-  isTripDateViewable,
   tripDateToStr,
   tripPricePerPersonLabel,
   tripSpeciesTitle,
@@ -155,7 +154,7 @@ function TripReservationContent() {
       return;
     }
 
-    if (!isTripDateViewable(tripData.date, todayStr) || isPastTripSchedule(tripData.date, tripData.departureTime)) {
+    if (isPastTripSchedule(tripData.date, tripData.departureTime)) {
       alert('출항 시간이 지나 예약할 수 없는 일정입니다.');
       router.replace('/community/trip-guide');
       return;

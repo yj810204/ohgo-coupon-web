@@ -101,22 +101,42 @@ function CouponsPageContent() {
   return (
     <SubPageFrame title="쿠폰" onRefresh={fetchCoupons}>
         {/* 회원 정보 */}
-        <div className="mb-4 p-3" style={{ ...CARD }}>
-          <div className="d-flex align-items-center gap-3">
-            <div className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-              style={{ width: 44, height: 44, backgroundColor: '#EBF1FE' }}>
+        <div className="ohgo-status-card mb-4" style={{ ...CARD }}>
+          <div className="d-flex align-items-center gap-3 w-100">
+            <div
+              className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+              style={{ width: 48, height: 48, backgroundColor: '#EBF1FE' }}
+            >
               <IoGiftOutline size={22} color="#1B6FF5" />
             </div>
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>{user.name}</div>
-              <div style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>
-                {user.dob?.length === 8 ? `${user.dob.slice(0, 4)}.${user.dob.slice(4, 6)}.${user.dob.slice(6)}` : user.dob}
-                {fromAdmin && <span className="ms-2 badge rounded-pill" style={{ backgroundColor: '#FF9500', fontSize: 11 }}>관리자 모드</span>}
+            <div className="flex-grow-1 min-w-0">
+              <div
+                className="text-truncate"
+                style={{ fontSize: 17, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT, lineHeight: 1.25 }}
+              >
+                {user.name}
+              </div>
+              <div
+                className="d-flex align-items-center"
+                style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, lineHeight: 1.4, marginTop: 4 }}
+              >
+                <span className="text-truncate">
+                  {user.dob?.length === 8
+                    ? `${user.dob.slice(0, 4)}.${user.dob.slice(4, 6)}.${user.dob.slice(6)}`
+                    : user.dob}
+                </span>
+                {fromAdmin && (
+                  <span className="ms-2 badge rounded-pill flex-shrink-0" style={{ backgroundColor: '#FF9500', fontSize: 10 }}>
+                    관리자 모드
+                  </span>
+                )}
               </div>
             </div>
-            <div className="ms-auto text-end">
-              <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT }}>사용 가능</div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: '#1B6FF5', fontFamily: FONT }}>{usable.length}장</div>
+            <div className="flex-shrink-0 text-end">
+              <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, lineHeight: 1.2 }}>사용 가능</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#1B6FF5', fontFamily: FONT, lineHeight: 1.2 }}>
+                {usable.length}장
+              </div>
             </div>
           </div>
         </div>

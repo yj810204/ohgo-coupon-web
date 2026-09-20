@@ -39,6 +39,7 @@ export default function ImageSwipeSlider({
     objectFit: 'cover',
     display: 'block',
     backgroundColor: '#111',
+    cursor: onImageClick ? 'pointer' : undefined,
   };
 
   if (urls.length === 1) {

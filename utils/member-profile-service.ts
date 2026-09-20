@@ -33,3 +33,10 @@ export const updateBaitCoupons: typeof supa.updateBaitCoupons = async (...a) => 
 };
 export const saveExpoPushToken: typeof supa.saveExpoPushToken = (...a) =>
   impl.saveExpoPushToken(...a);
+export const getMemberTripCount: typeof supa.getMemberTripCount = (...a) =>
+  impl.getMemberTripCount(...a);
+export const updateTripCount: typeof supa.updateTripCount = async (...a) => {
+  const result = await impl.updateTripCount(...a);
+  invalidateCache('admin-stats:');
+  return result;
+};

@@ -168,6 +168,53 @@ export async function awardCommentPoints(
   };
 }
 
+export async function awardQnaAcceptedPoints(
+  userId: string,
+  commentId: string,
+  photoUploadedBy?: string
+): Promise<{ points: number; totalPoints: number; reason?: string }> {
+  if (photoUploadedBy && photoUploadedBy === userId) {
+    return {
+      points: 0,
+      totalPoints: await getCommunityPoints(userId),
+      reason: '본인 작성글에는 포인트가 적립되지 않습니다.',
+    };
+  }
+
+  const settings = await getPointSettings();
+  const pointsToAward = settings.pointsPerComment;
+  if (pointsToAward <= 0) {
+    return { points: 0, totalPoints: await getCommunityPoints(userId) };
+  }
+
+  const supabase = getSupabaseBrowserClient();
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('community_point')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (profileError || !profile) {
+    throw new Error('사용자를 찾을 수 없습니다.');
+  }
+
+  const nextCommunityPoints = (profile.community_point ?? 0) + pointsToAward;
+  const { error: updateError } = await supabase
+    .from('profiles')
+    .update({ community_point: nextCommunityPoints })
+    .eq('id', userId);
+  if (updateError) throw updateError;
+
+  await supabase.from('points').insert({
+    user_id: userId,
+    amount: pointsToAward,
+    reason: 'community_qna_accepted',
+    source_id: commentId,
+  });
+
+  return { points: pointsToAward, totalPoints: nextCommunityPoints };
+}
+
 export async function getRemainingPoints(userId: string): Promise<number> {
   const settings = await getPointSettings();
   const todayPoints = await getTodayPoints(userId);

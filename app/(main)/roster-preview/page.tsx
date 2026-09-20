@@ -4,7 +4,14 @@ import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/hooks/useAppRouter';
 import { IoCloseOutline, IoDownloadOutline, IoCheckmarkCircleOutline } from 'react-icons/io5';
-import { confirmTripDeparture, isTripConfirmed } from '@/utils/roster-service';
+import {
+  finalizeConfirmedTrip,
+  getAttendance,
+  isTripConfirmed,
+  saveConfirmedTripMembers,
+} from '@/utils/roster-service';
+import { loadRosterPreviewImage } from '@/lib/roster-preview-image';
+import { uploadRosterImage } from '@/lib/roster-upload';
 import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
 import { isNativeApp, saveImageToDevice } from '@/lib/native-bridge';
 import {
@@ -46,10 +53,12 @@ function touchMidpoint(a: Touch, b: Touch) {
 function RosterPreviewContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const imageUri = searchParams.get('imageUri');
+  const imageUriParam = searchParams.get('imageUri');
+  const isLocalPreview = searchParams.get('local') === '1';
   const date = searchParams.get('date');
   const tripNumber = searchParams.get('tripNumber');
 
+  const [imageUri, setImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
@@ -97,6 +106,19 @@ function RosterPreviewContent() {
     };
     void checkConfirmationStatus();
   }, [date, tripNumber]);
+
+  useEffect(() => {
+    const localImage = isLocalPreview ? loadRosterPreviewImage() : null;
+    const next = localImage || imageUriParam;
+    if (!next) {
+      setLoading(false);
+      setImageError(true);
+      return;
+    }
+    setImageUri(next);
+    setImageError(false);
+    setLoading(true);
+  }, [isLocalPreview, imageUriParam]);
 
   /** 이미지 중심 기준 좌표계에서, 포커스 지점(client)이 고정되도록 확대 */
   const applyZoomAt = useCallback((newScale: number, clientX: number, clientY: number) => {
@@ -333,19 +355,47 @@ function RosterPreviewContent() {
     try {
       setSavingImage(true);
       const response = await fetch(imageUri);
+      if (!response.ok) throw new Error('이미지를 불러오지 못했습니다.');
       const blob = await response.blob();
       const tripNum = parseInt(tripNumber, 10);
-      try {
-        await confirmTripDeparture(date, tripNum, blob);
-      } catch (error) {
-        console.error('Error uploading roster image:', error);
+      const uploaded = await uploadRosterImage(blob, date, tripNum);
+      const attendance = await getAttendance(date);
+      if (attendance.memberIds.length > 0) {
+        await saveConfirmedTripMembers(date, tripNum, attendance.memberIds);
       }
+      await finalizeConfirmedTrip(date, tripNum, uploaded.imagePath, uploaded.imageUrl);
+
+      const filename = `${date || 'roster'}_${tripNumber || '0'}항차_명부.jpg`;
+      let savedLocally = true;
+      try {
+        if (isNativeApp()) {
+          await saveImageToDevice({ imageUri, filename });
+        } else {
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(link);
+        }
+      } catch (error) {
+        savedLocally = false;
+        console.error('Error saving roster image locally:', error);
+      }
+
       setConfirmOpen(false);
-      alert('출항이 확정되었습니다. 승선명부 이미지가 서버에 저장되었습니다.');
+      alert(
+        savedLocally
+          ? '출항이 확정되었습니다. 승선명부 이미지가 서버와 기기에 저장되었습니다.'
+          : '출항은 확정되었습니다. 기기 저장만 실패했으니 미리보기에서 다시 저장해 주세요.'
+      );
       router.push('/today-roster');
     } catch (error) {
       console.error('Error in confirmDeparture:', error);
-      alert('출항 확정 정보를 저장하는 중 오류가 발생했습니다.');
+      const detail = error instanceof Error && error.message ? error.message : '';
+      alert(detail ? `출항 확정에 실패했습니다. ${detail}` : '출항 확정 정보를 저장하는 중 오류가 발생했습니다.');
     } finally {
       setSavingImage(false);
     }
@@ -464,7 +514,9 @@ function RosterPreviewContent() {
               이미지를 불러올 수 없습니다.
             </p>
             <p className="small mb-3" style={{ color: 'rgba(255,255,255,0.55)' }}>
-              이미지 서버에 일시적인 문제가 있을 수 있습니다.
+              {isLocalPreview
+                ? '방금 만든 이미지를 찾을 수 없습니다. 명부를 다시 생성해 주세요.'
+                : '이미지 서버에 일시적인 문제가 있을 수 있습니다.'}
             </p>
             <button
               type="button"
@@ -472,7 +524,7 @@ function RosterPreviewContent() {
               style={OHGO_DISMISS_BTN}
               onClick={() => router.back()}
             >
-              돌아가기
+              {isLocalPreview ? '다시 생성' : '돌아가기'}
             </button>
           </div>
         )}

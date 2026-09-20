@@ -15,13 +15,13 @@ import { isMiniGamePlayRoute } from '@/lib/mini-game-routes';
 export const TAB_BAR_HEIGHT = 60;
 
 /** 전체화면·오버레이 UI — 하단 탭이 버튼을 가리지 않도록 숨김 */
-function shouldHideBottomTab(pathname: string): boolean {
+function shouldHideBottomTab(pathname: string | null): boolean {
+  if (!pathname) return true;
   return (
     pathname === '/login' ||
     pathname === '/onboarding' ||
-    pathname === '/profile-setup' ||
-    pathname.startsWith('/auth/') ||
     pathname.startsWith('/samples') ||
+    pathname.startsWith('/admin-screenshot-studio') ||
     pathname.startsWith('/roster-preview') ||
     isMiniGamePlayRoute(pathname)
   );

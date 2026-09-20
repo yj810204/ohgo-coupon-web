@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { cachedFetch, invalidateCache, peekCache } from '@/lib/query-cache';
 import { getFirebaseDb } from '@/lib/firebase/client';
+import { personIdentityKey } from '@/lib/person-name';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { findCaptains } from './find-captains.firebase';
 import {
@@ -275,6 +276,35 @@ export async function confirmTripDeparture(
   await clearAttendanceMembers(date);
   invalidateRosterSummaryCache();
   return downloadURL;
+}
+
+/** 이미 서버에 올라간 명부 이미지로 trips 확정만 기록한다. */
+export async function finalizeConfirmedTrip(
+  date: string,
+  tripNumber: number,
+  imagePath: string,
+  imageUrl: string
+): Promise<string> {
+  const db = getFirebaseDb();
+  const tripsRef = doc(db, 'trips', date);
+  const key = tripKey(tripNumber);
+  const tripData = {
+    confirmed: true,
+    confirmedAt: new Date().toISOString(),
+    rosterImagePath: imagePath,
+    rosterImageUrl: imageUrl,
+  };
+
+  const existing = await getDoc(tripsRef);
+  if (existing.exists()) {
+    await updateDoc(tripsRef, { [key]: tripData });
+  } else {
+    await setDoc(tripsRef, { [key]: tripData });
+  }
+
+  await clearAttendanceMembers(date);
+  invalidateRosterSummaryCache();
+  return imageUrl;
 }
 
 async function fetchRosterConfig(): Promise<RosterConfig> {
@@ -575,4 +605,62 @@ export async function addMemberToDailyRoster(
   await saveAttendanceMembers(date, [...attendance.memberIds, memberId], tripNumber);
   invalidateRosterSummaryCache();
   return true;
+}
+
+/** 출항 확정 전에 호출 — clearAttendanceMembers 이후에도 승선자를 남긴다. */
+export async function saveConfirmedTripMembers(
+  date: string,
+  tripNumber: number,
+  memberIds: string[]
+): Promise<void> {
+  const db = getFirebaseDb();
+  const ref = doc(db, 'attendance', date);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      confirmedMembers: { [String(tripNumber)]: memberIds },
+      updatedAt: new Date(),
+    });
+    return;
+  }
+  await updateDoc(ref, {
+    [`confirmedMembers.${tripNumber}`]: memberIds,
+    updatedAt: new Date(),
+  });
+}
+
+/** 정규화 이름+생년월일로 기존 users 문서 조회 (mergedTo 제외) */
+export async function findUserByNameDob(name: string, dob: string): Promise<string | null> {
+  const key = personIdentityKey(name, dob);
+  if (key.startsWith('|') || key.endsWith('|')) return null;
+  const db = getFirebaseDb();
+  const snap = await getDocs(collection(db, 'users'));
+  for (const d of snap.docs) {
+    const data = d.data();
+    if (data.mergedTo) continue;
+    if (personIdentityKey(String(data.name ?? ''), String(data.dob ?? '')) === key) {
+      return d.id;
+    }
+  }
+  return null;
+}
+
+/** 현재 명부 + 확정 항차 스냅샷을 합친 오늘 승선자 */
+export async function getBoardedMemberIds(date: string): Promise<string[]> {
+  const db = getFirebaseDb();
+  const snap = await getDoc(doc(db, 'attendance', date));
+  if (!snap.exists()) return [];
+  const data = snap.data();
+  const ids = new Set<string>();
+  if (Array.isArray(data.members)) {
+    for (const id of data.members) ids.add(String(id));
+  }
+  const confirmed = data.confirmedMembers;
+  if (confirmed && typeof confirmed === 'object') {
+    for (const value of Object.values(confirmed as Record<string, unknown>)) {
+      if (!Array.isArray(value)) continue;
+      for (const id of value) ids.add(String(id));
+    }
+  }
+  return [...ids];
 }

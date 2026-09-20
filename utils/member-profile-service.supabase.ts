@@ -128,3 +128,23 @@ export async function saveExpoPushToken(userId: string, token: string | null): P
     .eq('id', userId);
   if (error) throw error;
 }
+
+export async function getMemberTripCount(userId: string): Promise<number> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('trip_count')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return Number((data as { trip_count: number | null } | null)?.trip_count) || 0;
+}
+
+export async function updateTripCount(userId: string, count: number): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase
+    .from('profiles')
+    .update({ trip_count: Math.max(0, Math.floor(count)) })
+    .eq('id', userId);
+  if (error) throw error;
+}

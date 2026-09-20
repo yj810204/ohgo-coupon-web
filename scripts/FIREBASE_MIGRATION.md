@@ -8,11 +8,11 @@
 
 ## 로그인 UX 확정 (confirm-auth-ux)
 
-**확정: 기등록 회원은 이름+생년월일 로그인 + (신규) Google/Apple OAuth.**
+**확정: 기등록 회원은 이름+생년월일 로그인만 사용한다.**
 
-- 로그인 화면에서 구앱과 동일하게 이름·생년월일 로그인 가능 (`/api/auth/legacy-login`).
+- 로그인 화면에서 구앱과 동일하게 이름·생년월일 로그인 (`/api/auth/legacy-login`).
 - `guest_profiles` 또는 `profiles.legacy_uuid`가 있는 회원만 허용 (기등록).
-- OAuth 신규 가입 후 `/profile-setup`에서 이름·생년월일 병합도 계속 지원.
+- 승선명부 비회원은 관리자 화면에서 기존 회원과 수동 연결 (`/api/auth/merge-legacy/manual`).
 - UUID v5 네임스페이스는 구앱과 동일 (`lib/legacy-uuid.ts`).
 
 ## FK 전략 (fk-strategy)
@@ -21,7 +21,7 @@
 
 1. Firestore 데이터를 **`legacy_*` staging 테이블**에 적재 (`legacy_uuid` = 구앱 uuidv5, FK 없음)
 2. 이미 `profiles.legacy_uuid`가 있으면 스크립트가 즉시 live 테이블로 apply
-3. 아직 미연결이면 staging만 유지 → OAuth 병합 시 `merge-legacy`가 staging → live 적용
+3. 아직 미연결이면 staging만 유지 → 이름·생년월일 로그인 또는 관리자 게스트 연결 시 `merge-legacy`가 staging → live 적용
 
 멱등: staging `(legacy_uuid, firestore_id)` UNIQUE. 이미 `applied_profile_id`가 있으면 skip.
 
@@ -76,7 +76,7 @@ npm run import:firebase-stamps -- --dry-run --limit 5
    (또는 `DATABASE_URL` 설정 후 `node scripts/apply-legacy-staging-migration.mjs`)
 2. [ ] `npm run import:firebase-guests`
 3. [ ] `npm run import:firebase-stamps -- --cutover --limit 5` 로 실제 staging 적재 검증
-4. [ ] OAuth 테스트 계정으로 profile-setup 병합 → 스탬프/쿠폰 표시 확인
+4. [ ] 이름·생년월일 로그인 또는 관리자 게스트 연결 후 스탬프/쿠폰 표시 확인
 5. [ ] `npm run import:firebase-stamps -- --cutover` 전량
 6. [ ] **결정: 구앱 Firebase 쓰기 중단** (동시 사용 시 이중 적립)
 

@@ -65,7 +65,7 @@ export function NativeQRScanner({ onResult, onCancel }: Props) {
   if (!permission) {
     return (
       <View style={styles.container}>
-        <Text style={styles.message}>카메라 권한 확인 중...</Text>
+        <Text style={styles.message} allowFontScaling={false}>카메라 권한 확인 중...</Text>
       </View>
     );
   }
@@ -73,16 +73,16 @@ export function NativeQRScanner({ onResult, onCancel }: Props) {
   if (!permission.granted) {
     return (
       <View style={styles.container}>
-        <Text style={styles.cameraIcon}>📷</Text>
-        <Text style={styles.title}>카메라 권한이 필요합니다</Text>
-        <Text style={styles.message}>
+        <Text style={styles.cameraIcon} allowFontScaling={false}>📷</Text>
+        <Text style={styles.title} allowFontScaling={false}>카메라 권한이 필요합니다</Text>
+        <Text style={styles.message} allowFontScaling={false}>
           QR 코드 스캔을 위해{'\n'}카메라 접근 권한을 허용해 주세요.
         </Text>
         <TouchableOpacity style={styles.btn} onPress={requestPermission}>
-          <Text style={styles.btnText}>권한 허용</Text>
+          <Text style={styles.btnText} allowFontScaling={false}>권한 허용</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
-          <Text style={styles.cancelBtnText}>취소</Text>
+          <Text style={styles.cancelBtnText} allowFontScaling={false}>취소</Text>
         </TouchableOpacity>
       </View>
     );
@@ -122,9 +122,9 @@ export function NativeQRScanner({ onResult, onCancel }: Props) {
         </View>
         {/* 하단 어두운 영역 */}
         <View style={styles.overlayBottom}>
-          <Text style={styles.hint}>QR 코드를 사각형 안에 맞춰주세요</Text>
+          <Text style={styles.hint} allowFontScaling={false}>QR 코드를 사각형 안에 맞춰주세요</Text>
           <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
-            <Text style={styles.cancelBtnText}>취소</Text>
+            <Text style={styles.cancelBtnText} allowFontScaling={false}>취소</Text>
           </TouchableOpacity>
         </View>
       </View>

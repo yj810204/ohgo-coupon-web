@@ -10,18 +10,131 @@ export interface MenuItem {
 
 export type ReservationApprovalMode = 'auto' | 'manual';
 
+export type HomeSectionId =
+  | 'stampCoupon'
+  | 'weeklyTrip'
+  | 'myPhotos'
+  | 'community'
+  | 'miniGames'
+  | 'market';
+
+export type HomeSectionVisibility = Record<HomeSectionId, boolean>;
+
+export const DEFAULT_HOME_SECTIONS: HomeSectionVisibility = {
+  stampCoupon: true,
+  weeklyTrip: true,
+  myPhotos: true,
+  community: true,
+  miniGames: true,
+  market: true,
+};
+
+export const DEFAULT_HOME_SECTION_ORDER: HomeSectionId[] = [
+  'stampCoupon',
+  'weeklyTrip',
+  'myPhotos',
+  'community',
+  'miniGames',
+  'market',
+];
+
+export const HOME_SECTION_OPTIONS: Array<{
+  id: HomeSectionId;
+  label: string;
+  hint: string;
+}> = [
+  { id: 'stampCoupon', label: '스탬프·쿠폰', hint: '스탬프·쿠폰 현황과 QR 스캔 버튼을 표시합니다.' },
+  { id: 'weeklyTrip', label: '이번 주 출조', hint: '이번 주 출조 일정을 표시합니다.' },
+  { id: 'myPhotos', label: '내 조황 사진', hint: '선장이 태그한 내 조황 사진을 표시합니다. 사진이 있을 때만 나타납니다.' },
+  { id: 'community', label: '커뮤니티', hint: '조황 사진, 낚시 팁, Q&A를 표시합니다.' },
+  { id: 'miniGames', label: '미니게임', hint: '진행 중인 미니게임을 표시합니다.' },
+  { id: 'market', label: '중고장터', hint: '최근 중고장터 판매글을 표시합니다.' },
+];
+
+export function normalizeHomeSections(value: unknown): HomeSectionVisibility {
+  const src = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  return {
+    stampCoupon: src.stampCoupon !== false,
+    weeklyTrip: src.weeklyTrip !== false,
+    myPhotos: src.myPhotos !== false,
+    community: src.community !== false,
+    miniGames: src.miniGames !== false,
+    market: src.market !== false,
+  };
+}
+
+export function normalizeHomeSectionOrder(value: unknown): HomeSectionId[] {
+  const valid = new Set<HomeSectionId>(DEFAULT_HOME_SECTION_ORDER);
+  const incoming = Array.isArray(value)
+    ? value.filter((id): id is HomeSectionId => typeof id === 'string' && valid.has(id as HomeSectionId))
+    : [];
+  const seen = new Set<HomeSectionId>();
+  const ordered: HomeSectionId[] = [];
+  for (const id of incoming) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    ordered.push(id);
+  }
+  for (const id of DEFAULT_HOME_SECTION_ORDER) {
+    if (seen.has(id)) continue;
+    ordered.push(id);
+  }
+  return ordered;
+}
+
+export interface AppPopupSettings {
+  enabled: boolean;
+  title: string;
+  body: string;
+  imageUrl: string;
+  ctaLabel: string;
+  ctaPath: string;
+  version: number;
+}
+
+export const DEFAULT_APP_POPUP: AppPopupSettings = {
+  enabled: false,
+  title: '',
+  body: '',
+  imageUrl: '',
+  ctaLabel: '',
+  ctaPath: '',
+  version: 0,
+};
+
+export function normalizeAppPopup(value: unknown): AppPopupSettings {
+  const src = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  const version = Number(src.version);
+  return {
+    enabled: src.enabled === true,
+    title: typeof src.title === 'string' ? src.title : '',
+    body: typeof src.body === 'string' ? src.body : '',
+    imageUrl: typeof src.imageUrl === 'string' ? src.imageUrl : '',
+    ctaLabel: typeof src.ctaLabel === 'string' ? src.ctaLabel : '',
+    ctaPath: typeof src.ctaPath === 'string' ? src.ctaPath : '',
+    version: Number.isFinite(version) && version > 0 ? version : 0,
+  };
+}
+
+export function isAppPopupContentReady(popup: AppPopupSettings): boolean {
+  return Boolean(popup.title.trim() || popup.body.trim() || popup.imageUrl.trim());
+}
+
 export interface SiteSettings {
   siteName: string;
   userMenuItems: MenuItem[];
   bottomTabMenuIds?: string[];
   reservationEnabled?: boolean;
   reservationApprovalMode?: ReservationApprovalMode;
+  homeSections: HomeSectionVisibility;
+  homeSectionOrder: HomeSectionId[];
+  appPopup: AppPopupSettings;
   updatedAt: Date | string;
 }
 
 export const DEFAULT_SITE_NAME = '오고피씽';
 
-export const TRAVELIA_BOTTOM_TAB_IDS = ['home', 'community', 'stamp', 'closed-mall', 'my-page'];
+export const TRAVELIA_BOTTOM_TAB_IDS = ['home', 'community', 'stamp', 'market', 'my-page'];
 
 export const DEFAULT_MENU_ITEMS: MenuItem[] = [
   { id: 'home', label: '홈', path: '/main', iconName: 'IoHomeOutline', color: '#1B6FF5', order: -1, isActive: true },
@@ -32,8 +145,25 @@ export const DEFAULT_MENU_ITEMS: MenuItem[] = [
   { id: 'mini-games', label: '미니 게임', path: '/mini-games', iconName: 'IoGameControllerOutline', color: '#FF3B30', order: 4, isActive: true },
   { id: 'boarding-form', label: '명부 작성', path: '/boarding-form', iconName: 'IoBoatOutline', color: '#007AFF', order: 5, isActive: true },
   { id: 'community', label: '커뮤니티', path: '/community', iconName: 'IoChatbubblesOutline', color: '#00BCD4', order: 6, isActive: true },
-  { id: 'closed-mall', label: '피씽몰', path: '/closed-mall', iconName: 'IoStorefrontOutline', color: '#9C27B0', order: 7, isActive: true },
+  { id: 'market', label: '중고장터', path: '/market', iconName: 'IoStorefrontOutline', color: '#9C27B0', order: 7, isActive: true },
 ];
+
+export function normalizeMenuItem(item: MenuItem): MenuItem {
+  if (item.id === 'closed-mall' || item.path === '/closed-mall') {
+    return {
+      ...item,
+      id: 'market',
+      path: '/market',
+      label: item.label === '피씽몰' ? '중고장터' : item.label,
+    };
+  }
+  return item;
+}
+
+export function normalizeBottomTabIds(ids: string[]): string[] {
+  const mapped = ids.map((id) => (id === 'closed-mall' ? 'market' : id));
+  return [...new Set(mapped)];
+}
 
 export const homeMenuItem: MenuItem = {
   id: 'home',

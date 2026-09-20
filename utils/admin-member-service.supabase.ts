@@ -3,6 +3,7 @@ import type {
   AdminGuestDetail,
   AdminMember,
   AdminMemberStats,
+  DuplicateMemberCandidate,
 } from './admin-member-service.shared';
 
 type ProfileListRow = {
@@ -280,7 +281,7 @@ export async function adjustGuestLegacyStamps(legacyUuid: string, delta: number)
   const ids = ((pending ?? []) as { id: string }[]).map((r) => r.id);
   if (ids.length < need) {
     throw new Error(
-      `회수 가능한 미반영 스탬프가 ${ids.length}개뿐입니다. (이미 OAuth 반영된 스탬프는 구회원 staging에서 회수할 수 없습니다)`
+      `회수 가능한 미반영 스탬프가 ${ids.length}개뿐입니다. (이미 회원 계정에 반영된 스탬프는 구회원 staging에서 회수할 수 없습니다)`
     );
   }
   const { error: delError } = await supabase.from('legacy_stamps').delete().in('id', ids);
@@ -333,7 +334,7 @@ export async function adjustGuestLegacyCoupons(
   const ids = ((pending ?? []) as { id: string }[]).map((r) => r.id);
   if (ids.length < need) {
     throw new Error(
-      `회수 가능한 미반영 쿠폰이 ${ids.length}개뿐입니다. (이미 OAuth 반영된 쿠폰은 구회원 staging에서 회수할 수 없습니다)`
+      `회수 가능한 미반영 쿠폰이 ${ids.length}개뿐입니다. (이미 회원 계정에 반영된 쿠폰은 구회원 staging에서 회수할 수 없습니다)`
     );
   }
   const { error: updError } = await supabase
@@ -342,4 +343,20 @@ export async function adjustGuestLegacyCoupons(
     .in('id', ids);
   if (updError) throw updError;
   return -ids.length;
+}
+
+export async function listAdminMembersActive(): Promise<AdminMember[]> {
+  return listAdminMembers();
+}
+
+export async function findDuplicateUsers(
+  _uuid: string,
+  _name: string,
+  _dob: string
+): Promise<DuplicateMemberCandidate[]> {
+  return [];
+}
+
+export async function mergeDuplicateUsers(_keepUuid: string, _dropUuid: string): Promise<void> {
+  throw new Error('supabase 모드에서는 게스트 계정 연결을 사용해 주세요.');
 }

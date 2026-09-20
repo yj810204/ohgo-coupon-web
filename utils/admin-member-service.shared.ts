@@ -14,11 +14,23 @@ export type AdminMember = {
   stampCount?: number;
   hasMemo?: boolean;
   hasBoarding?: boolean;
-  /** 구앱/승선명부 uuidv5 회원 (OAuth 미가입) */
+  /** 구앱/승선명부 uuidv5 회원 (앱 미가입) */
   isGuest?: boolean;
   phone?: string | null;
-  /** OAuth 회원 중 구앱 legacy_uuid 연결됨 */
+  /** 회원 중 구앱 legacy_uuid 연결됨 */
   isLegacyLinked?: boolean;
+  /** 다른 회원으로 통합된 문서 */
+  mergedTo?: string | null;
+  role?: string | null;
+};
+
+export type DuplicateMemberCandidate = {
+  uuid: string;
+  name: string;
+  dob: string;
+  lastStampTimeMs?: number;
+  stampCount: number;
+  tripCount: number;
 };
 
 export type AdminGuestDetail = {

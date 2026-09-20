@@ -2,10 +2,18 @@ import { cachedFetch, invalidateCache, peekCache } from '@/lib/query-cache';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { isDevAuthBypass } from '@/lib/dev-auth';
 import {
+  DEFAULT_APP_POPUP,
+  DEFAULT_HOME_SECTIONS,
+  DEFAULT_HOME_SECTION_ORDER,
   DEFAULT_MENU_ITEMS,
   DEFAULT_SITE_NAME,
   TRAVELIA_BOTTOM_TAB_IDS,
   homeMenuItem,
+  normalizeAppPopup,
+  normalizeBottomTabIds,
+  normalizeHomeSectionOrder,
+  normalizeHomeSections,
+  normalizeMenuItem,
   type MenuItem,
   type SiteSettings,
 } from './site-settings-shared';
@@ -22,16 +30,22 @@ function mapSettings(value: Record<string, unknown> | null): SiteSettings {
       bottomTabMenuIds: [...TRAVELIA_BOTTOM_TAB_IDS],
       reservationEnabled: false,
       reservationApprovalMode: 'manual',
+      homeSections: { ...DEFAULT_HOME_SECTIONS },
+      homeSectionOrder: [...DEFAULT_HOME_SECTION_ORDER],
+      appPopup: { ...DEFAULT_APP_POPUP },
       updatedAt: new Date(),
     };
   }
 
   return {
     siteName: (value.siteName as string) || DEFAULT_SITE_NAME,
-    userMenuItems: (value.userMenuItems as MenuItem[]) || DEFAULT_MENU_ITEMS,
-    bottomTabMenuIds: (value.bottomTabMenuIds as string[]) || [],
+    userMenuItems: ((value.userMenuItems as MenuItem[]) || DEFAULT_MENU_ITEMS).map(normalizeMenuItem),
+    bottomTabMenuIds: normalizeBottomTabIds((value.bottomTabMenuIds as string[]) || []),
     reservationEnabled: Boolean(value.reservationEnabled),
     reservationApprovalMode: value.reservationApprovalMode === 'auto' ? 'auto' : 'manual',
+    homeSections: normalizeHomeSections(value.homeSections),
+    homeSectionOrder: normalizeHomeSectionOrder(value.homeSectionOrder),
+    appPopup: normalizeAppPopup(value.appPopup),
     updatedAt: (value.updatedAt as string) || new Date().toISOString(),
   };
 }
@@ -73,7 +87,13 @@ export async function getSiteSettings(): Promise<SiteSettings> {
   if (isDevAuthBypass()) {
     return mapSettings(null);
   }
-  return cachedFetch(CACHE_KEY, CACHE_TTL_MS, fetchSiteSettingsFresh);
+  const settings = await cachedFetch(CACHE_KEY, CACHE_TTL_MS, fetchSiteSettingsFresh);
+  return {
+    ...settings,
+    homeSections: normalizeHomeSections(settings.homeSections),
+    homeSectionOrder: normalizeHomeSectionOrder(settings.homeSectionOrder),
+    appPopup: normalizeAppPopup(settings.appPopup),
+  };
 }
 
 export async function saveSiteSettings(settings: Partial<SiteSettings>): Promise<void> {
@@ -82,6 +102,14 @@ export async function saveSiteSettings(settings: Partial<SiteSettings>): Promise
   const updated = {
     ...current,
     ...settings,
+    homeSections: normalizeHomeSections({
+      ...current.homeSections,
+      ...(settings.homeSections ?? {}),
+    }),
+    homeSectionOrder: normalizeHomeSectionOrder(
+      settings.homeSectionOrder ?? current.homeSectionOrder
+    ),
+    appPopup: normalizeAppPopup(settings.appPopup ?? current.appPopup),
     updatedAt: new Date().toISOString(),
   };
 
@@ -161,4 +189,24 @@ export function peekBottomTabMenuItems(): MenuItem[] | undefined {
     .filter((item): item is MenuItem => item !== undefined);
 }
 
-export type { MenuItem, SiteSettings, ReservationApprovalMode } from './site-settings-shared';
+export async function uploadPopupImage(file: File): Promise<string> {
+  const supabase = getSupabaseBrowserClient();
+  const ext = file.name.split('.').pop() || 'jpg';
+  const path = `popups/${Date.now()}_${Math.random().toString(36).slice(2, 9)}.${ext}`;
+  const { error } = await supabase.storage.from('photos').upload(path, file, {
+    upsert: true,
+    contentType: file.type || 'image/jpeg',
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from('photos').getPublicUrl(path);
+  return data.publicUrl;
+}
+
+export type {
+  MenuItem,
+  SiteSettings,
+  ReservationApprovalMode,
+  HomeSectionId,
+  HomeSectionVisibility,
+  AppPopupSettings,
+} from './site-settings-shared';

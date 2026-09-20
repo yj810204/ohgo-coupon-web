@@ -178,7 +178,7 @@ function buildRoutes(ctx) {
     },
     { path: '/notification-history', label: '알림 내역' },
     { path: `/qr-scan?${selfQ}`, label: 'QR 스캔' },
-    { path: '/closed-mall', label: '폐쇄몰' },
+    { path: '/market', label: '중고장터' },
     { path: '/roster-member-search', label: '명부 회원 검색' },
     {
       path: `/roster-list?${q({ date: '2025-09-24', dateDisplay: '2025년 9월 24일', tripNumber: '1' })}`,

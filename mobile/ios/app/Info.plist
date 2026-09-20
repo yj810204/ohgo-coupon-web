@@ -33,11 +33,13 @@
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>10057</string>
+    <string>10065</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>NSAppTransportSecurity</key>
     <dict>
       <key>NSAllowsArbitraryLoads</key>
@@ -48,7 +50,9 @@
     <key>NSCameraUsageDescription</key>
     <string>QR 코드 스캔을 위해 카메라 접근 권한이 필요합니다.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your microphone</string>
+    <string>QR 스캔을 위해 카메라와 함께 마이크 권한이 요청될 수 있습니다.</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>명부 이미지를 사진 앨범에 저장하기 위해 권한이 필요합니다.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>사진 업로드를 위해 사진 라이브러리 접근 권한이 필요합니다.</string>
     <key>NSUserActivityTypes</key>
@@ -57,6 +61,10 @@
     </array>
     <key>RCTNewArchEnabled</key>
     <true/>
+    <key>UIBackgroundModes</key>
+    <array>
+      <string>remote-notification</string>
+    </array>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>
     <key>UIRequiredDeviceCapabilities</key>

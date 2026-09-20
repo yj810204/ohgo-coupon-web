@@ -20,6 +20,8 @@ import {
   IoChevronForwardOutline,
   IoCameraOutline,
   IoSettingsOutline,
+  IoCreateOutline,
+  IoStorefrontOutline,
 } from 'react-icons/io5';
 import { getReservationSettings } from '@/utils/reservation-service';
 import { OHGO_LIST, OHGO_LIST_DIVIDER } from '@/lib/page-styles';
@@ -240,7 +242,7 @@ export default function MyPage() {
               <div className="d-flex align-items-center justify-content-between gap-1 mb-1">
                 <span className="d-inline-flex align-items-center gap-2 min-w-0">
                   <IoGameControllerOutline size={18} color="#1B6FF5" />
-                  <span style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>게임 포인트</span>
+                  <span style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>게임</span>
                 </span>
                 <IoChevronForwardOutline size={16} color="#ABABAB" aria-hidden />
               </div>
@@ -311,6 +313,8 @@ export default function MyPage() {
             ...(reservationEnabled
               ? [{ icon: IoCalendarOutline, color: '#237FFF', label: '나의 예약', path: '/my-reservations' }]
               : []),
+            { icon: IoCreateOutline, color: '#00BCD4', label: '내가쓴글', path: '/community/my' },
+            { icon: IoStorefrontOutline, color: '#9C27B0', label: '판매관리', path: '/market/my' },
             { icon: IoNotificationsOutline, color: '#FF9500', label: '알림 내역', path: '/notification-history' },
           ].map(({ icon: Icon, color, label, path }, idx) => (
             <div key={path}>

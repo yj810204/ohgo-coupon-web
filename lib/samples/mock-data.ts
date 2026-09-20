@@ -149,6 +149,15 @@ export const SAMPLE_TRIPS = [
     price: 120000,
   },
   {
+    id: 'trip-1b',
+    date: sampleTripDate(1),
+    destination: '백령도 인근',
+    departureTime: '13:00',
+    returnTime: '18:00',
+    species: '문어',
+    price: 90000,
+  },
+  {
     id: 'trip-2',
     date: sampleTripDate(3),
     destination: '연평도',

@@ -38,6 +38,30 @@ export function postToNative(type: NativeBridgeMessageType, payload?: unknown): 
   bridge.postMessage(JSON.stringify({ type, payload }));
 }
 
+/** 전화번호를 `tel:` URL로 정규화. 유효하지 않으면 null. */
+export function toTelUrl(phone: string): string | null {
+  const tel = phone.replace(/[^\d+]/g, '');
+  if (!tel) return null;
+  return `tel:${tel}`;
+}
+
+/**
+ * 전화 앱(다이얼러)을 연다.
+ * WebView는 `<a href="tel:">` / `location.href`를 무시하는 경우가 있어,
+ * 이미 배포된 앱의 SHARE 핸들러(`Linking.openURL`)를 사용한다.
+ */
+export function openPhoneDialer(phone: string): boolean {
+  const url = toTelUrl(phone);
+  if (!url) return false;
+  const bridge = getReactNativeWebView();
+  if (bridge) {
+    bridge.postMessage(JSON.stringify({ type: 'SHARE', payload: { url } }));
+    return true;
+  }
+  window.location.href = url;
+  return true;
+}
+
 export function onNativeMessage(handler: NativeMessageHandler): () => void {
   handlers.add(handler);
   return () => handlers.delete(handler);

@@ -47,6 +47,9 @@ export const getTripsByMonth: typeof trips.getTripsByMonth = (yearMonth) =>
 export const getAllTrips: typeof trips.getAllTrips = () =>
   cachedFetch(`${TRIPS_PREFIX}all`, TRIPS_TTL_MS, () => trips.getAllTrips());
 
+export const countTrips: typeof trips.countTrips = () =>
+  cachedFetch(`${TRIPS_PREFIX}count`, TRIPS_TTL_MS, () => trips.countTrips());
+
 export const getTripsInDateRange: typeof trips.getTripsInDateRange = (startDate, endDate) =>
   cachedFetch(`${TRIPS_PREFIX}range:${startDate}:${endDate}`, TRIPS_TTL_MS, () =>
     trips.getTripsInDateRange(startDate, endDate)

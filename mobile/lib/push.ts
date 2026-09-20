@@ -82,6 +82,10 @@ export function pathFromPushData(data: Record<string, unknown> | undefined): str
     'notification-history': '/notification-history',
     community: '/community',
     'mini-games': '/mini-games',
+    market: '/market',
+    'market-my': '/market/my',
+    'admin-market': '/admin-market',
+    'my-reservations': '/my-reservations',
   };
 
   const base = pathMap[screen];

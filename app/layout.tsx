@@ -6,6 +6,8 @@ import SiteTitle from "@/components/SiteTitle";
 import BottomTabBar from "@/components/BottomTabBar";
 import NativeBridgeInit from "@/components/NativeBridgeInit";
 import OhgoDialogHost from "@/components/OhgoDialogHost";
+import AppPopupHost from "@/components/AppPopupHost";
+import ClientErrorBoundary from "@/components/ClientErrorBoundary";
 
 export const metadata: Metadata = {
   title: "오고피씽",
@@ -55,6 +57,9 @@ export default function RootLayout({
           <BottomTabBar />
           <PageLoader />
           <OhgoDialogHost />
+          <ClientErrorBoundary>
+            <AppPopupHost />
+          </ClientErrorBoundary>
         </LoadingProvider>
       </body>
     </html>

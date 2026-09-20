@@ -71,12 +71,22 @@ export const NATIVE_INJECT_SCRIPT = `
     }
     meta.setAttribute('content', content);
   }
+  function lockTextSize() {
+    var root = document.documentElement;
+    root.style.setProperty('-webkit-text-size-adjust', '100%');
+    root.style.setProperty('text-size-adjust', '100%');
+    if (document.body) {
+      document.body.style.setProperty('-webkit-text-size-adjust', '100%');
+      document.body.style.setProperty('text-size-adjust', '100%');
+    }
+  }
   function applyNative() {
     document.documentElement.classList.add('ohgo-native');
     if (document.body) {
       document.body.setAttribute('data-native-app', 'true');
     }
     lockViewportZoom();
+    lockTextSize();
   }
   lockViewportZoom();
   if (document.body) {

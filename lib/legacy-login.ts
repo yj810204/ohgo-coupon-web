@@ -98,7 +98,7 @@ export async function legacyLoginWithNameDob(
   }
 
   // 이미 legacy_uuid 가 연결된 프로필이 있으면 그 id 로 로그인한다.
-  // (firebase 모드에서 uuidv5 를 강제하면 OAuth 등으로 연결된 기존 행과
+  // (firebase 모드에서 uuidv5 를 강제하면 이미 연결된 기존 행과
   //  profiles_legacy_uuid_key 충돌이 난다.)
   // 연결 프로필이 없을 때만 firebase 모드에서 Firestore 문서 id(=uuidv5)를 사용.
   let authUserId: string | null =
@@ -350,7 +350,6 @@ export async function legacyLoginWithNameDob(
     dob: finalProfile?.dob || normalizedDob,
     isAdmin: finalProfile?.role === 'admin',
     isCaptain: finalProfile?.role === 'captain',
-    needsProfileSetup: false,
   };
 
   return {

@@ -6,6 +6,7 @@ import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
 import { resolveAppUser } from '@/lib/auth-session';
 import { getBoardingForm, saveBoardingForm } from '@/utils/boarding-service';
+import { normalizePersonName } from '@/lib/person-name';
 import { IoCheckboxOutline, IoSquareOutline, IoSearchOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal from '@/components/OhgoModal';
@@ -361,7 +362,7 @@ function BoardingFormContent() {
       await saveBoardingForm(
         userUuid,
         {
-          name,
+          name: normalizePersonName(name),
           birth,
           gender,
           phone,
@@ -380,6 +381,10 @@ function BoardingFormContent() {
       // Navigate back to the appropriate screen
       if (returnTo === 'roster-list' && date && dateDisplay && tripNumber) {
         router.push(`/roster-list?date=${date}&dateDisplay=${encodeURIComponent(dateDisplay)}&tripNumber=${tripNumber}`);
+      } else if (returnTo === 'member-detail' && uuid) {
+        router.push(
+          `/member-detail?uuid=${uuid}&name=${encodeURIComponent(name)}&dob=${dob || birth.replace(/\D/g, '')}`
+        );
       } else {
         router.back();
       }

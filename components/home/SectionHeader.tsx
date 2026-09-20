@@ -10,7 +10,7 @@ interface SectionHeaderProps {
 
 export default function SectionHeader({ title, onViewAll, badge }: SectionHeaderProps) {
   return (
-    <div className="d-flex align-items-center justify-content-between mb-3 px-1">
+    <div className="d-flex align-items-center justify-content-between px-1" style={{ marginBottom: 8 }}>
       <div className="d-flex align-items-center gap-2">
         <h2
           className="mb-0"
@@ -37,7 +37,7 @@ export default function SectionHeader({ title, onViewAll, badge }: SectionHeader
             fontFamily: 'var(--font-urbanist), system-ui, sans-serif',
           }}
         >
-          전체보기
+          더보기
           <IoChevronForwardOutline size={16} aria-hidden />
         </button>
       )}

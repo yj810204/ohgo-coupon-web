@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
-import { IoImageOutline, IoBoatOutline, IoChevronForwardOutline } from 'react-icons/io5';
+import { IoImageOutline, IoBoatOutline, IoHelpCircleOutline, IoBookOutline, IoChevronForwardOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import { useNavigation } from '@/hooks/useNavigation';
+import { countPhotos } from '@/utils/community-service';
 import { OHGO_CARD, OHGO_LIST, OHGO_LIST_DIVIDER } from '@/lib/page-styles';
 
 const FONT = "var(--font-ohgo), sans-serif";
@@ -21,6 +22,24 @@ const subMenuItems = [
     bg: '#F5E8FF',
   },
   {
+    id: 'faq',
+    label: '낚시 팁 · FAQ',
+    desc: '출조 준비와 자주 묻는 질문',
+    path: '/community/faq',
+    icon: IoBookOutline,
+    color: '#E65100',
+    bg: '#FFF4E5',
+  },
+  {
+    id: 'qna',
+    label: '낚시 Q&A',
+    desc: '궁금한 점을 물어보세요.',
+    path: '/community/qna',
+    icon: IoHelpCircleOutline,
+    color: '#00BCD4',
+    bg: '#E6F9FC',
+  },
+  {
     id: 'trip-guide',
     label: '출조 안내',
     desc: '출조 일정과 정보를 확인하세요',
@@ -34,6 +53,7 @@ const subMenuItems = [
 export default function CommunityPage() {
   const router = useRouter();
   const { navigate } = useNavigation();
+  const [counts, setCounts] = useState<Partial<Record<string, number>>>({});
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -42,6 +62,22 @@ export default function CommunityPage() {
     };
     checkAuth();
   }, [router]);
+
+  useEffect(() => {
+    const loadCounts = async () => {
+      try {
+        const [photos, faq, qna] = await Promise.all([
+          countPhotos('photo'),
+          countPhotos('faq'),
+          countPhotos('qna'),
+        ]);
+        setCounts({ photos, faq, qna });
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    void loadCounts();
+  }, []);
 
   return (
     <SubPageFrame title="커뮤니티">
@@ -58,7 +94,9 @@ export default function CommunityPage() {
                 <Icon size={OHGO_LIST.iconGlyph} color={color} />
               </div>
               <div className="flex-grow-1 min-w-0">
-                <div className="ohgo-menu-list-row__title">{label}</div>
+                <div className="ohgo-menu-list-row__title">
+                  {counts[id] == null ? label : `${label} (${counts[id]})`}
+                </div>
                 <div className="ohgo-menu-list-row__desc">{desc}</div>
               </div>
               <IoChevronForwardOutline

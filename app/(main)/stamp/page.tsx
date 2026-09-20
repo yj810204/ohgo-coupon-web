@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/hooks/useAppRouter';
-import { getStamps, getCouponCount, issue50PercentCoupon, deleteStamp } from '@/utils/stamp-service';
+import { getStamps, issue50PercentCoupon, deleteStamp } from '@/utils/stamp-service';
 import { getUser } from '@/lib/storage';
-import { IoQrCodeOutline, IoPricetagOutline, IoGiftOutline, IoCheckmarkCircleOutline, IoStarOutline } from 'react-icons/io5';
+import { IoQrCodeOutline, IoPricetagOutline, IoGiftOutline, IoStarOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal, { OhgoModalButton, OhgoModalField } from '@/components/OhgoModal';
 import EmptyState from '@/components/EmptyState';
@@ -113,7 +113,6 @@ function StampPageContent() {
   const { navigate } = useNavigation();
   const searchParams = useSearchParams();
   const [stamps, setStamps] = useState<string[]>([]);
-  const [couponCount, setCouponCount] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedStampInfo, setSelectedStampInfo] = useState<{ date: string; method?: string; value?: string } | null>(null);
   const [user, setUser] = useState<{ uuid?: string; name?: string; dob?: string } | null>(null);
@@ -148,8 +147,6 @@ function StampPageContent() {
         } catch { return 0; }
       });
       setStamps(sorted);
-      const coupons = await getCouponCount(user.uuid);
-      setCouponCount(coupons);
     } catch (err) { console.error(err); }
   }, [user?.uuid]);
 
@@ -183,86 +180,109 @@ function StampPageContent() {
 
   return (
     <SubPageFrame title="스탬프" onRefresh={fetchStamps}>
-        {/* 요약 카드 */}
-        <div className="p-4 mb-4" style={{ ...CARD_STYLE }}>
-          <div className="d-flex align-items-center gap-3 mb-3">
-            <div className="rounded-circle d-flex align-items-center justify-content-center"
-              style={{ width: 48, height: 48, background: 'linear-gradient(135deg,#1B6FF5,#5B8DEF)', flexShrink: 0 }}>
-              <span style={{ fontSize: 22, fontWeight: 700, color: '#fff' }}>{stamps.length}</span>
+        <div className="ohgo-status-card mb-4" style={{ ...CARD_STYLE }}>
+          <div className="d-flex align-items-center gap-3 w-100">
+            <div
+              className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+              style={{ width: 48, height: 48, backgroundColor: '#EBF1FE' }}
+            >
+              <IoPricetagOutline size={22} color="#1B6FF5" />
             </div>
-            <div>
-              <div style={{ fontSize: 13, color: '#6F767E', fontFamily: OHGO_FONT }}>현재 스탬프</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: '#1A1D1F', fontFamily: OHGO_FONT }}>
-                {stamps.length}개 보유
-              </div>
-            </div>
-            <div className="ms-auto text-end">
-              <div style={{ fontSize: 13, color: '#6F767E', fontFamily: OHGO_FONT }}>보유 쿠폰</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: '#1B6FF5', fontFamily: OHGO_FONT }}>
-                {couponCount}장
-              </div>
-            </div>
-          </div>
-          <div className="d-flex gap-2">
-            {!fromAdmin && (
-              <button
-                type="button"
-                disabled={qrOpening}
-                onClick={() => {
-                  if (qrOpening) return;
-                  setQrOpening(true);
-                  navigate(`/qr-scan?${query}`);
-                }}
-                className="btn flex-grow-1 d-flex align-items-center justify-content-center gap-2 fw-semibold"
-                style={{
-                  backgroundColor: '#1B6FF5',
-                  color: '#fff',
-                  borderRadius: 12,
-                  padding: '11px',
-                  border: 'none',
-                  fontFamily: OHGO_FONT,
-                  opacity: qrOpening ? 0.85 : 1,
-                }}
+            <div className="flex-grow-1 min-w-0">
+              <div
+                className="text-truncate"
+                style={{ fontSize: 17, fontWeight: 800, color: '#1A1D1F', fontFamily: OHGO_FONT, lineHeight: 1.25 }}
               >
-                {qrOpening ? (
-                  <>
-                    <span
-                      className="spinner-border spinner-border-sm"
-                      role="status"
-                      style={{ width: 18, height: 18, borderWidth: 2 }}
-                    />
-                    준비 중…
-                  </>
-                ) : (
-                  <>
-                    <IoQrCodeOutline size={20} />
-                    QR 스캔
-                  </>
+                {user.name}
+              </div>
+              <div
+                className="d-flex align-items-center"
+                style={{ fontSize: 12, color: '#6F767E', fontFamily: OHGO_FONT, lineHeight: 1.4, marginTop: 4 }}
+              >
+                <span className="text-truncate">
+                  {user.dob?.length === 8
+                    ? `${user.dob.slice(0, 4)}.${user.dob.slice(4, 6)}.${user.dob.slice(6)}`
+                    : user.dob}
+                </span>
+                {fromAdmin && (
+                  <span className="ms-2 badge rounded-pill flex-shrink-0" style={{ backgroundColor: '#FF9500', fontSize: 10 }}>
+                    관리자 모드
+                  </span>
                 )}
-              </button>
-            )}
-            {!fromAdmin && (
-              <button
-                type="button"
-                onClick={() => navigate(`/coupons?${query}`)}
-                className="btn flex-grow-1 d-flex align-items-center justify-content-center gap-2 fw-semibold"
-                style={{ backgroundColor: '#EBF1FE', color: '#1B6FF5', borderRadius: 12, padding: '11px', border: 'none', fontFamily: OHGO_FONT }}
-              >
-                <IoGiftOutline size={20} />
-                쿠폰 보기
-              </button>
-            )}
+              </div>
+            </div>
+            <div className="flex-shrink-0 text-end">
+              <div style={{ fontSize: 12, color: '#6F767E', fontFamily: OHGO_FONT, lineHeight: 1.2 }}>보유</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#1B6FF5', fontFamily: OHGO_FONT, lineHeight: 1.2 }}>
+                {stamps.length}개
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* 적립 내역 */}
+        {!fromAdmin && (
+          <div className="d-flex gap-2 mb-4">
+            <button
+              type="button"
+              disabled={qrOpening}
+              onClick={() => {
+                if (qrOpening) return;
+                setQrOpening(true);
+                navigate(`/qr-scan?${query}`);
+              }}
+              className="btn flex-grow-1 d-flex align-items-center justify-content-center gap-2 fw-semibold"
+              style={{
+                backgroundColor: '#1B6FF5',
+                color: '#fff',
+                borderRadius: 12,
+                padding: '11px',
+                border: 'none',
+                fontFamily: OHGO_FONT,
+                opacity: qrOpening ? 0.85 : 1,
+              }}
+            >
+              {qrOpening ? (
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm"
+                    role="status"
+                    style={{ width: 18, height: 18, borderWidth: 2 }}
+                  />
+                  준비 중…
+                </>
+              ) : (
+                <>
+                  <IoQrCodeOutline size={20} />
+                  QR 스캔
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(`/coupons?${query}`)}
+              className="btn flex-grow-1 d-flex align-items-center justify-content-center gap-2 fw-semibold"
+              style={{
+                backgroundColor: '#EBF1FE',
+                color: '#1B6FF5',
+                borderRadius: 12,
+                padding: '11px',
+                border: 'none',
+                fontFamily: OHGO_FONT,
+              }}
+            >
+              <IoGiftOutline size={20} />
+              쿠폰 보기
+            </button>
+          </div>
+        )}
+
         <div className="d-flex align-items-center justify-content-between mb-2 px-1">
           <span style={{ fontSize: 17, fontWeight: 700, color: '#1A1D1F', fontFamily: OHGO_FONT }}>
             적립 내역
           </span>
-          {fromAdmin && (
-            <span className="badge rounded-pill" style={{ backgroundColor: '#FF9500', fontSize: 11 }}>관리자 모드</span>
-          )}
+          <span className="badge rounded-pill" style={{ backgroundColor: '#1B6FF5', fontSize: 12 }}>
+            {stamps.length}개
+          </span>
         </div>
 
         {/* 스탬프 목록 */}

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "50117397680",
+    "project_id": "ohgo-dev-bc602",
+    "storage_bucket": "ohgo-dev-bc602.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:50117397680:android:bfe00b7030ba84879dbf75",
+        "android_client_info": {
+          "package_name": "ohgo.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDCamhyaTbSGHAH7VSRkOfz_3V_sUiIvFE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

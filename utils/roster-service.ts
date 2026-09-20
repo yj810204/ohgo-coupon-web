@@ -43,6 +43,8 @@ export const updateAttendanceLocationTime: typeof supa.updateAttendanceLocationT
   impl.updateAttendanceLocationTime(...a);
 export const confirmTripDeparture: typeof supa.confirmTripDeparture = (...a) =>
   impl.confirmTripDeparture(...a);
+export const finalizeConfirmedTrip: typeof fb.finalizeConfirmedTrip = (...a) =>
+  impl.finalizeConfirmedTrip(...a);
 export const getRosterConfig: typeof supa.getRosterConfig = (...a) => impl.getRosterConfig(...a);
 export const loadDailyRoster: typeof supa.loadDailyRoster = (...a) => impl.loadDailyRoster(...a);
 export const removeMemberFromDailyRoster: typeof supa.removeMemberFromDailyRoster = (...a) =>
@@ -55,3 +57,9 @@ export const guestMemberExists: typeof supa.guestMemberExists = (...a) =>
   impl.guestMemberExists(...a);
 export const addMemberToDailyRoster: typeof supa.addMemberToDailyRoster = (...a) =>
   impl.addMemberToDailyRoster(...a);
+export const saveConfirmedTripMembers: typeof supa.saveConfirmedTripMembers = (...a) =>
+  impl.saveConfirmedTripMembers(...a);
+export const getBoardedMemberIds: typeof supa.getBoardedMemberIds = (...a) =>
+  impl.getBoardedMemberIds(...a);
+export const findUserByNameDob: typeof supa.findUserByNameDob = (...a) =>
+  impl.findUserByNameDob(...a);

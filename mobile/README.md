@@ -48,7 +48,7 @@ cd mobile && npx expo start -c
 
 클라우드 EAS 없이 이 Mac에서 서명·패키징합니다. 빌드 전에 **versionCode / buildNumber가 1 증가**합니다.
 
-현재 기준: Android `10062`, iOS `10057` → 다음 AAB는 `10063`, 다음 IPA는 `10058`.
+현재 기준: Android `10065`, iOS `10065` → 다음 AAB는 `10066`, 다음 IPA는 `10066`.
 
 ```bash
 cd mobile
@@ -93,8 +93,8 @@ npx eas build --profile production --platform ios
 
 ```bash
 # Android → Play internal track / iOS → TestFlight
-npx eas submit --profile production --platform android --path dist/ohgo-1.6.0-10063.aab
-npx eas submit --profile production --platform ios --path dist/ohgo-1.6.0-10058.ipa
+npx eas submit --profile production --platform android --path dist/ohgo-1.6.0-10065.aab
+npx eas submit --profile production --platform ios --path dist/ohgo-1.6.0-10065.ipa
 
 # APK 직접 설치 테스트만 필요할 때
 npx eas build --profile preview --platform android

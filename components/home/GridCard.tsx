@@ -3,11 +3,12 @@
 interface GridCardProps {
   title: string;
   subtitle?: string;
+  badge?: string;
   imageUrl?: string;
   onClick?: () => void;
 }
 
-export default function GridCard({ title, subtitle, imageUrl, onClick }: GridCardProps) {
+export default function GridCard({ title, subtitle, badge, imageUrl, onClick }: GridCardProps) {
   return (
     <button
       type="button"
@@ -40,6 +41,19 @@ export default function GridCard({ title, subtitle, imageUrl, onClick }: GridCar
         )}
       </div>
       <div className="p-3">
+        {badge ? (
+          <div
+            className="text-truncate mb-1"
+            style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              color: '#1B6FF5',
+              fontFamily: 'var(--font-ohgo), sans-serif',
+            }}
+          >
+            {badge}
+          </div>
+        ) : null}
         <div
           className="fw-semibold text-truncate mb-1"
           style={{

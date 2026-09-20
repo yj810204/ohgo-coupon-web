@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { personIdentityKey } from '@/lib/person-name';
 import { findCaptains } from './find-captains.supabase';
 import {
   buildAddress,
@@ -201,6 +202,29 @@ export async function confirmTripDeparture(
 
   await clearAttendanceMembers(date);
   return downloadURL;
+}
+
+export async function finalizeConfirmedTrip(
+  date: string,
+  tripNumber: number,
+  imagePath: string,
+  imageUrl: string
+): Promise<string> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.from('confirmed_trips').upsert(
+    {
+      date,
+      trip_number: tripNumber,
+      confirmed: true,
+      confirmed_at: new Date().toISOString(),
+      roster_image_path: imagePath,
+      roster_image_url: imageUrl,
+    },
+    { onConflict: 'date,trip_number' }
+  );
+  if (error) throw error;
+  await clearAttendanceMembers(date);
+  return imageUrl;
 }
 
 export async function getRosterConfig(): Promise<RosterConfig> {
@@ -476,4 +500,76 @@ export async function addMemberToDailyRoster(
   if (attendance.memberIds.includes(memberId)) return false;
   await saveAttendanceMembers(date, [...attendance.memberIds, memberId], tripNumber);
   return true;
+}
+
+export async function saveConfirmedTripMembers(
+  date: string,
+  tripNumber: number,
+  memberIds: string[]
+): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  const { data } = await supabase
+    .from('attendance')
+    .select('confirmed_members')
+    .eq('date', date)
+    .maybeSingle();
+  const prev =
+    data?.confirmed_members && typeof data.confirmed_members === 'object'
+      ? (data.confirmed_members as Record<string, string[]>)
+      : {};
+  const { error } = await supabase.from('attendance').upsert(
+    {
+      date,
+      confirmed_members: { ...prev, [String(tripNumber)]: memberIds },
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'date' }
+  );
+  if (error) console.warn('saveConfirmedTripMembers:', error.message);
+}
+
+export async function findUserByNameDob(name: string, dob: string): Promise<string | null> {
+  const key = personIdentityKey(name, dob);
+  if (key.startsWith('|') || key.endsWith('|')) return null;
+  const supabase = getSupabaseBrowserClient();
+  const digits = String(dob ?? '').replace(/\D/g, '');
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, name, dob')
+    .eq('dob', digits);
+  for (const row of profiles ?? []) {
+    if (personIdentityKey(String(row.name ?? ''), String(row.dob ?? '')) === key) {
+      return row.id;
+    }
+  }
+  const { data: guests } = await supabase
+    .from('guest_profiles')
+    .select('id, name, dob')
+    .eq('dob', digits)
+    .is('merged_to', null);
+  for (const row of guests ?? []) {
+    if (personIdentityKey(String(row.name ?? ''), String(row.dob ?? '')) === key) {
+      return row.id;
+    }
+  }
+  return null;
+}
+
+export async function getBoardedMemberIds(date: string): Promise<string[]> {
+  const attendance = await getAttendance(date);
+  const ids = new Set(attendance.memberIds);
+  const supabase = getSupabaseBrowserClient();
+  const { data } = await supabase
+    .from('attendance')
+    .select('confirmed_members')
+    .eq('date', date)
+    .maybeSingle();
+  const confirmed = data?.confirmed_members;
+  if (confirmed && typeof confirmed === 'object') {
+    for (const value of Object.values(confirmed as Record<string, unknown>)) {
+      if (!Array.isArray(value)) continue;
+      for (const id of value) ids.add(String(id));
+    }
+  }
+  return [...ids];
 }

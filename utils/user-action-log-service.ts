@@ -8,3 +8,7 @@ export const getUserActionLogs: typeof supa.getUserActionLogs = (...a) =>
   impl.getUserActionLogs(...a);
 export const clearUserActionLogs: typeof supa.clearUserActionLogs = (...a) =>
   impl.clearUserActionLogs(...a);
+export const addUserActionLog: typeof supa.addUserActionLog = (...a) =>
+  impl.addUserActionLog(...a);
+export const updateLatestUserActionLog: typeof supa.updateLatestUserActionLog = (...a) =>
+  impl.updateLatestUserActionLog(...a);

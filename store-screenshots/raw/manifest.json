@@ -1,0 +1,123 @@
+{
+  "generatedAt": "2026-09-20T13:38:00.355Z",
+  "allResults": [
+    {
+      "target": "ios-6.9",
+      "results": [
+        {
+          "file": "01-onboarding.png",
+          "label": "안내",
+          "path": "/onboarding",
+          "ok": true
+        },
+        {
+          "file": "02-home.png",
+          "label": "메인 홈",
+          "path": "/main",
+          "ok": true
+        },
+        {
+          "file": "03-stamp.png",
+          "label": "스탬프",
+          "path": "/stamp",
+          "ok": true
+        },
+        {
+          "file": "04-qr-scan.png",
+          "label": "QR 리더",
+          "path": "/qr-scan",
+          "ok": true
+        },
+        {
+          "file": "05-coupons.png",
+          "label": "쿠폰",
+          "path": "/coupons",
+          "ok": true
+        },
+        {
+          "file": "06-community.png",
+          "label": "커뮤니티",
+          "path": "/community",
+          "ok": true
+        },
+        {
+          "file": "07-trip-guide.png",
+          "label": "출조 안내",
+          "path": "/community/trip-guide",
+          "ok": true
+        },
+        {
+          "file": "08-point-mall.png",
+          "label": "포인트몰",
+          "path": "/point-mall",
+          "ok": true
+        },
+        {
+          "file": "09-market.png",
+          "label": "중고장터",
+          "path": "/market",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "target": "android-phone",
+      "results": [
+        {
+          "file": "01-onboarding.jpg",
+          "label": "안내",
+          "path": "/onboarding",
+          "ok": true
+        },
+        {
+          "file": "02-home.jpg",
+          "label": "메인 홈",
+          "path": "/main",
+          "ok": true
+        },
+        {
+          "file": "03-stamp.jpg",
+          "label": "스탬프",
+          "path": "/stamp",
+          "ok": true
+        },
+        {
+          "file": "04-qr-scan.jpg",
+          "label": "QR 리더",
+          "path": "/qr-scan",
+          "ok": true
+        },
+        {
+          "file": "05-coupons.jpg",
+          "label": "쿠폰",
+          "path": "/coupons",
+          "ok": true
+        },
+        {
+          "file": "06-community.jpg",
+          "label": "커뮤니티",
+          "path": "/community",
+          "ok": true
+        },
+        {
+          "file": "07-trip-guide.jpg",
+          "label": "출조 안내",
+          "path": "/community/trip-guide",
+          "ok": true
+        },
+        {
+          "file": "08-point-mall.jpg",
+          "label": "포인트몰",
+          "path": "/point-mall",
+          "ok": true
+        },
+        {
+          "file": "09-market.jpg",
+          "label": "중고장터",
+          "path": "/market",
+          "ok": true
+        }
+      ]
+    }
+  ]
+}

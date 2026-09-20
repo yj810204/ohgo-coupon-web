@@ -2,11 +2,13 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from '@/hooks/useAppRouter';
-import { getUser } from '@/lib/storage';
+import { resolveAppUser } from '@/lib/auth-session';
 import { getPhotos, CommunityPhoto, COMMUNITY_POST_DELETED_MESSAGE } from '@/utils/community-service';
-import { IoChatbubblesOutline, IoImageOutline, IoAddOutline } from 'react-icons/io5';
+import { IoImageOutline, IoAddOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
+import CommunityPhotoCard from '@/components/community/CommunityPhotoCard';
+import { displayMemberName, formatPhotoCardDate } from '@/lib/mask-member-name';
 import { useNavigation } from '@/hooks/useNavigation';
 
 const FONT = "var(--font-ohgo), sans-serif";
@@ -16,10 +18,12 @@ function PhotosPageContent() {
   const { navigate } = useNavigation();
   const [photos, setPhotos] = useState<CommunityPhoto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [canSeeFullNames, setCanSeeFullNames] = useState(false);
   useEffect(() => {
     const checkAuth = async () => {
-      const user = await getUser();
+      const user = await resolveAppUser();
       if (!user?.uuid) { router.replace('/login'); return; }
+      setCanSeeFullNames(Boolean(user.isAdmin || user.isCaptain));
       loadPhotos();
     };
     checkAuth();
@@ -34,12 +38,6 @@ function PhotosPageContent() {
       console.error(err);
       alert('사진을 불러오는 중 오류가 발생했습니다.');
     } finally { setLoading(false); }
-  };
-
-  const formatDate = (date: Date | string | undefined): string => {
-    if (!date) return '';
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric' }).format(d);
   };
 
   if (loading) {
@@ -81,60 +79,22 @@ function PhotosPageContent() {
           />
         ) : (
           <div className="row g-2">
-            {photos.map(photo => (
+            {photos.map((photo) => (
               <div key={photo.photoId} className="col-6">
-                <button
-                  type="button"
+                <CommunityPhotoCard
+                  title={
+                    photo.isDeleted
+                      ? COMMUNITY_POST_DELETED_MESSAGE
+                      : photo.title?.trim() || '조황 사진'
+                  }
+                  imageUrl={photo.imageUrls?.[0] || photo.imageUrl}
+                  author={displayMemberName(photo.uploadedByName, canSeeFullNames)}
+                  date={formatPhotoCardDate(photo.uploadedAt)}
+                  commentCount={photo.commentCount}
+                  isDeleted={photo.isDeleted}
+                  isNotice={Boolean(photo.isNotice)}
                   onClick={() => navigate(`/community/${photo.photoId}`)}
-                  className="btn w-100 p-0"
-                  style={{ borderRadius: 14, overflow: 'hidden', backgroundColor: '#E0E0E0', border: 'none', position: 'relative', aspectRatio: '1 / 1', display: 'block' }}
-                >
-                  {photo.isDeleted || !photo.imageUrl ? (
-                    <div
-                      className="d-flex align-items-center justify-content-center h-100 w-100"
-                      style={{
-                        backgroundColor: '#E8EAED',
-                        color: '#6F767E',
-                        fontFamily: FONT,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        padding: 12,
-                        textAlign: 'center',
-                      }}
-                    >
-                      {COMMUNITY_POST_DELETED_MESSAGE}
-                    </div>
-                  ) : (
-                    <img
-                      src={photo.imageUrl}
-                      alt={photo.title || '조황사진'}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                      loading="lazy"
-                    />
-                  )}
-                  {/* 하단 오버레이 */}
-                  <div style={{
-                    position: 'absolute', bottom: 0, left: 0, right: 0,
-                    background: 'linear-gradient(transparent, rgba(0,0,0,0.55))',
-                    padding: '20px 10px 8px',
-                    textAlign: 'left',
-                  }}>
-                    {!photo.isDeleted && photo.title ? (
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', fontFamily: FONT, lineHeight: 1.3, marginBottom: 3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                        {photo.title}
-                      </div>
-                    ) : null}
-                    <div className="d-flex align-items-center justify-content-between">
-                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', fontFamily: FONT }}>{formatDate(photo.uploadedAt)}</span>
-                      {photo.commentCount > 0 && (
-                        <span className="d-flex align-items-center gap-1" style={{ fontSize: 11, color: 'rgba(255,255,255,0.9)' }}>
-                          <IoChatbubblesOutline size={12} />
-                          {photo.commentCount}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </button>
+                />
               </div>
             ))}
           </div>

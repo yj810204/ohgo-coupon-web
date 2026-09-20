@@ -9,6 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "screenshots": "node scripts/capture-all-screenshots.mjs",
+    "screenshots:store": "node scripts/capture-store-screenshots.mjs",
+    "screenshots:store:marketing": "node scripts/compose-store-marketing.mjs",
     "import:firebase-guests": "node scripts/import-firebase-guests.mjs",
     "import:firebase-stamps": "node scripts/import-firebase-stamps-coupons.mjs",
     "import:apply-staging-sql": "node scripts/apply-legacy-staging-migration.mjs",

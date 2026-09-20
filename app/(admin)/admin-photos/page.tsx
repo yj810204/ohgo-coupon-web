@@ -239,8 +239,10 @@ function AdminPhotosContent() {
   const tabParam = searchParams.get('tab');
   const { navigate } = useNavigation();
   const [photos, setPhotos] = useState<CommunityPhoto[]>([]);
+  const [qnaPosts, setQnaPosts] = useState<CommunityPhoto[]>([]);
+  const [faqPosts, setFaqPosts] = useState<CommunityPhoto[]>([]);
   const [isAdminUser, setIsAdminUser] = useState(true);
-  const [activeTab, setActiveTab] = useState<'community' | 'captain'>('community');
+  const [activeTab, setActiveTab] = useState<'community' | 'qna' | 'faq' | 'captain'>('community');
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -294,7 +296,13 @@ function AdminPhotosContent() {
       const captainOnly = appUser.isCaptain && !appUser.isAdmin;
       setIsAdminUser(appUser.isAdmin);
       setActiveTab(
-        captainOnly || tabParam === 'captain' ? 'captain' : 'community'
+        captainOnly || tabParam === 'captain'
+          ? 'captain'
+          : tabParam === 'qna'
+            ? 'qna'
+            : tabParam === 'faq'
+              ? 'faq'
+              : 'community'
       );
       setUser({ uuid: appUser.uuid, name: appUser.name || (appUser.isAdmin ? '관리자' : '선장') });
       if (appUser.isAdmin) {
@@ -355,8 +363,14 @@ function AdminPhotosContent() {
   const loadPhotos = async () => {
     try {
       setLoading(true);
-      const photosList = await getPhotos();
+      const [photosList, qnaList, faqList] = await Promise.all([
+        getPhotos(),
+        getPhotos(undefined, 'qna'),
+        getPhotos(undefined, 'faq'),
+      ]);
       setPhotos(photosList);
+      setQnaPosts(qnaList);
+      setFaqPosts(faqList);
     } catch (error) {
       console.error('Error loading photos:', error);
       alert('사진을 불러오는 중 오류가 발생했습니다.');
@@ -367,8 +381,14 @@ function AdminPhotosContent() {
 
   const reloadPhotos = async () => {
     try {
-      const photosList = await getPhotos();
+      const [photosList, qnaList, faqList] = await Promise.all([
+        getPhotos(),
+        getPhotos(undefined, 'qna'),
+        getPhotos(undefined, 'faq'),
+      ]);
       setPhotos(photosList);
+      setQnaPosts(qnaList);
+      setFaqPosts(faqList);
     } catch (error) {
       console.error('Error loading photos:', error);
       alert('사진을 불러오는 중 오류가 발생했습니다.');
@@ -973,10 +993,17 @@ function AdminPhotosContent() {
     );
   }
 
+  const boardPosts =
+    activeTab === 'qna' ? qnaPosts : activeTab === 'faq' ? faqPosts : photos;
+  const boardWritePath =
+    activeTab === 'qna' ? '/community/qna/write' : activeTab === 'faq' ? '/community/faq/write' : '/admin-photos?view=upload';
+  const boardWriteLabel =
+    activeTab === 'qna' ? '질문 등록' : activeTab === 'faq' ? '팁 등록' : '새글 등록';
+
   return (
     <SubPageFrame
       title="조황사진 관리"
-      onRefresh={activeTab === 'community' ? reloadPhotos : undefined}
+      onRefresh={activeTab === 'captain' ? undefined : reloadPhotos}
       onBack={() => router.replace('/admin-main')}
     >
       <div
@@ -1001,6 +1028,46 @@ function AdminPhotosContent() {
             }}
           >
             커뮤니티 조황
+          </button>
+        )}
+        {isAdminUser && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('qna')}
+            style={{
+              flex: 1,
+              padding: '10px 12px',
+              borderRadius: 10,
+              border: 'none',
+              fontFamily: FONT,
+              fontSize: 13,
+              fontWeight: 700,
+              backgroundColor: activeTab === 'qna' ? '#FFFFFF' : 'transparent',
+              color: activeTab === 'qna' ? '#1B6FF5' : '#6F767E',
+              boxShadow: activeTab === 'qna' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+            }}
+          >
+            Q&A
+          </button>
+        )}
+        {isAdminUser && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('faq')}
+            style={{
+              flex: 1,
+              padding: '10px 8px',
+              borderRadius: 10,
+              border: 'none',
+              fontFamily: FONT,
+              fontSize: 13,
+              fontWeight: 700,
+              backgroundColor: activeTab === 'faq' ? '#FFFFFF' : 'transparent',
+              color: activeTab === 'faq' ? '#1B6FF5' : '#6F767E',
+              boxShadow: activeTab === 'faq' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+            }}
+          >
+            FAQ
           </button>
         )}
         <button
@@ -1029,26 +1096,38 @@ function AdminPhotosContent() {
         <>
       <button
         type="button"
-        onClick={() => router.push('/admin-photos?view=upload')}
+        onClick={() => router.push(boardWritePath)}
         className={`btn w-100 d-flex align-items-center justify-content-center gap-2 fw-semibold ohgo-modal__btn ohgo-modal__btn--primary ${OHGO_CONFIRM_BTN_CLASS} mb-3`}
         style={OHGO_PRIMARY_BTN}
       >
         <IoAddOutline size={20} aria-hidden />
-        새글 등록
+        {boardWriteLabel}
       </button>
 
-      {photos.length > 0 && (
+      {boardPosts.length > 0 && (
         <p className="mb-3" style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, fontWeight: 600 }}>
-          총 {photos.length}건
+          총 {boardPosts.length}건
         </p>
       )}
 
-      {photos.length === 0 ? (
+      {boardPosts.length === 0 ? (
         <div style={{ ...CARD, padding: '20px 16px' }}>
           <EmptyState
             icon={IoImageOutline}
-            message="등록된 사진이 없습니다."
-            subtitle="위 「+ 새글 등록」 버튼으로 조황을 공유해 보세요."
+            message={
+              activeTab === 'qna'
+                ? '등록된 질문이 없습니다.'
+                : activeTab === 'faq'
+                  ? '등록된 팁이 없습니다.'
+                  : '등록된 사진이 없습니다.'
+            }
+            subtitle={
+              activeTab === 'qna'
+                ? '위 「질문 등록」 버튼으로 Q&A를 등록해 보세요.'
+                : activeTab === 'faq'
+                  ? '위 「팁 등록」 버튼으로 FAQ를 등록해 보세요.'
+                  : '위 「+ 새글 등록」 버튼으로 조황을 공유해 보세요.'
+            }
             compact
           />
         </div>
@@ -1062,7 +1141,7 @@ function AdminPhotosContent() {
             boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
           }}
         >
-          {photos.map((photo, index) => {
+          {boardPosts.map((photo, index) => {
             const thumb = photoThumbUrl(photo);
             const titleText = photo.title?.trim() || '제목 없음';
             const isDeleting = deletingPhotoId === photo.photoId;
@@ -1125,7 +1204,13 @@ function AdminPhotosContent() {
                       </button>
                     </div>
                     <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 6 }}>
-                      댓글 {photo.commentCount ?? 0}개
+                      {activeTab === 'qna'
+                        ? photo.acceptedCommentId
+                          ? '채택완료'
+                          : (photo.commentCount ?? 0) > 0
+                            ? `답변 ${photo.commentCount}개`
+                            : '답변대기'
+                        : `댓글 ${photo.commentCount ?? 0}개`}
                     </div>
                     <div style={{ fontSize: 11, color: '#ABABAB', fontFamily: FONT, marginTop: 4 }}>
                       {formatDate(photo.uploadedAt)}
@@ -1135,7 +1220,15 @@ function AdminPhotosContent() {
                   <div className="d-flex flex-row gap-1 flex-shrink-0 align-self-center">
                     <button
                       type="button"
-                      onClick={() => router.push(`/admin-photos?view=edit&photoId=${photo.photoId}`)}
+                      onClick={() =>
+                        router.push(
+                          activeTab === 'qna'
+                            ? `/community/qna/write?photoId=${photo.photoId}`
+                            : activeTab === 'faq'
+                              ? `/community/faq/write?photoId=${photo.photoId}`
+                              : `/admin-photos?view=edit&photoId=${photo.photoId}`
+                        )
+                      }
                       className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
                       title="수정"
                       style={{ width: 28, height: 28, backgroundColor: '#EBF1FE', border: 'none' }}

@@ -24,3 +24,41 @@ export async function clearUserActionLogs(userId: string): Promise<void> {
   const { error } = await supabase.from('user_action_logs').delete().eq('user_id', userId);
   if (error) throw error;
 }
+
+export async function addUserActionLog(
+  userId: string,
+  action: string,
+  detail: string
+): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  const { error } = await supabase.from('user_action_logs').insert({
+    user_id: userId,
+    action,
+    detail,
+  });
+  if (error) throw error;
+}
+
+export async function updateLatestUserActionLog(
+  userId: string,
+  action: string,
+  fromDetail: string,
+  toDetail: string
+): Promise<boolean> {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from('user_action_logs')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('action', action)
+    .eq('detail', fromDetail)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data?.id) return false;
+  const { error: updateError } = await supabase
+    .from('user_action_logs')
+    .update({ detail: toDetail })
+    .eq('id', data.id);
+  return !updateError;
+}

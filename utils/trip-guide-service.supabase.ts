@@ -59,6 +59,15 @@ export async function getTripsByMonth(yearMonth: string): Promise<TripGuide[]> {
   return (data ?? []).map((row: Record<string, unknown>) => mapRow(row));
 }
 
+export async function countTrips(): Promise<number> {
+  const supabase = getSupabaseBrowserClient();
+  const { count, error } = await supabase
+    .from('trip_guides')
+    .select('id', { count: 'exact', head: true });
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function getAllTrips(): Promise<TripGuide[]> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase

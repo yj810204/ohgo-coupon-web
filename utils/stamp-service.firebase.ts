@@ -467,3 +467,191 @@ export async function deleteStamp(uuid: string, value: string, _p0: string, _p1:
 
   console.warn('❌ 일치하는 스탬프 문서 없음:', value);
 }
+
+export async function attachReasonToRecentStampHistory(
+  uuid: string,
+  action: 'add' | 'recall',
+  count: number,
+  reason: string
+): Promise<void> {
+  if (count < 1 || !reason.trim()) return;
+  const mapped = await resolveFirestoreUserId(uuid);
+  const ids = [...new Set([mapped, uuid].filter((id): id is string => Boolean(id)))];
+  const db = getFirebaseDb();
+  const baseMessage =
+    action === 'add' ? 'ADMIN 방식으로 스탬프 적립' : 'ADMIN 방식으로 스탬프 회수';
+  const withReason = `${baseMessage} (${reason})`;
+
+  for (const id of ids) {
+    const snap = await getDocs(collection(db, `users/${id}/stampHistory`));
+    const matches = snap.docs
+      .filter((d) => {
+        const data = d.data();
+        if (data.action !== action) return false;
+        const message = String(data.message ?? '');
+        return message === baseMessage || (message.startsWith(baseMessage) && !message.includes('('));
+      })
+      .sort((a, b) => (b.data().timestamp?.seconds ?? 0) - (a.data().timestamp?.seconds ?? 0))
+      .slice(0, count);
+    await Promise.all(matches.map((d) => updateDoc(d.ref, { message: withReason }).catch(() => undefined)));
+  }
+}
+
+export async function addStampBatchWithReason(
+  uuid: string,
+  count: number,
+  reason: string
+): Promise<void> {
+  uuid = await mapUuid(uuid);
+  const db = getFirebaseDb();
+  const stampRef = collection(db, `users/${uuid}/stamps`);
+  const userRef = doc(db, 'users', uuid);
+  const now = new Date();
+  const reasonText = reason.trim();
+  const historyMessage = reasonText
+    ? `ADMIN 방식으로 스탬프 적립 (${reasonText})`
+    : 'ADMIN 방식으로 스탬프 적립';
+
+  const stampDataList = Array.from({ length: count }, (_, i) => ({
+    date: getTodayDate(),
+    method: 'ADMIN' as const,
+    timestamp: new Date(now.getTime() + i * 1000),
+  }));
+
+  for (const data of stampDataList) {
+    const stampDocRef = await addDoc(stampRef, data);
+    await addDoc(collection(db, `users/${uuid}/stampHistory`), {
+      action: 'add',
+      stampId: stampDocRef.id,
+      date: data.date,
+      method: data.method,
+      timestamp: Timestamp.now(),
+      message: historyMessage,
+    });
+  }
+
+  await updateDoc(userRef, {
+    lastStampTime: stampDataList[count - 1]!.timestamp,
+  });
+  await logAction(
+    uuid,
+    '스탬프 적립',
+    reasonText ? `ADMIN 방식으로 ${count}개 적립 (${reasonText})` : `ADMIN 방식으로 ${count}개 적립`
+  );
+
+  const allSnap = await getDocs(stampRef);
+  const allStamps = allSnap.docs.sort(
+    (a, b) => (a.data().timestamp?.seconds ?? 0) - (b.data().timestamp?.seconds ?? 0)
+  );
+  const fullCouponCount = Math.floor(allStamps.length / 10);
+
+  for (let i = 0; i < fullCouponCount; i++) {
+    await issueCoupon(uuid);
+    const toDelete = allStamps.splice(0, 10);
+    for (const d of toDelete) {
+      await addDoc(collection(db, `users/${uuid}/stampHistory`), {
+        action: 'remove',
+        stampId: d.id,
+        date: d.data().date,
+        method: d.data().method,
+        timestamp: Timestamp.now(),
+        message: '쿠폰 발급으로 스탬프 삭제',
+      });
+      await deleteDoc(d.ref);
+    }
+  }
+
+  if (fullCouponCount > 0) {
+    await sendPushToUser({
+      uuid,
+      title: '쿠폰이 발급되었습니다~! 🎁',
+      body: `스탬프 ${fullCouponCount * 10}개 적립! 쿠폰 ${fullCouponCount}개가 발급되었어요~!`,
+      data: { screen: 'coupons', uuid },
+    });
+  }
+}
+
+export async function removeStampBatchWithReason(
+  uuid: string,
+  count: number,
+  reason: string
+): Promise<void> {
+  if (count < 1) return;
+  uuid = await mapUuid(uuid);
+  const db = getFirebaseDb();
+  const snap = await getDocs(collection(db, `users/${uuid}/stamps`));
+  const stamps = snap.docs.sort(
+    (a, b) => (b.data().timestamp?.seconds ?? 0) - (a.data().timestamp?.seconds ?? 0)
+  );
+
+  if (stamps.length < count) {
+    throw new Error(`보유 스탬프(${stamps.length}개)보다 많이 회수할 수 없습니다.`);
+  }
+
+  const reasonText = reason.trim();
+  const historyMessage = reasonText
+    ? `ADMIN 방식으로 스탬프 회수 (${reasonText})`
+    : 'ADMIN 방식으로 스탬프 회수';
+
+  const toRemove = stamps.slice(0, count);
+  for (const d of toRemove) {
+    await addDoc(collection(db, `users/${uuid}/stampHistory`), {
+      action: 'recall',
+      stampId: d.id,
+      date: d.data().date,
+      method: d.data().method,
+      timestamp: Timestamp.now(),
+      message: historyMessage,
+    });
+    await deleteDoc(d.ref);
+  }
+
+  await logAction(
+    uuid,
+    '스탬프 회수',
+    reasonText ? `ADMIN 방식으로 ${count}개 회수 (${reasonText})` : `ADMIN 방식으로 ${count}개 회수`
+  );
+}
+
+export async function adjustCouponsWithReason(
+  uuid: string,
+  increment: number,
+  reason: string
+): Promise<void> {
+  if (increment === 0) return;
+  uuid = await mapUuid(uuid);
+  const db = getFirebaseDb();
+  const amount = Math.abs(increment);
+  const reasonText = reason.trim();
+  const verb = increment > 0 ? '지급' : '회수';
+
+  if (increment > 0) {
+    for (let i = 0; i < amount; i++) {
+      await addDoc(collection(db, `users/${uuid}/coupons`), {
+        issuedAt: getTodayDate(),
+        reason: reasonText ? `ADMIN 지급 (${reasonText})` : 'ADMIN 지급',
+        used: false,
+        isHalf: 'N',
+      });
+    }
+  } else {
+    const snap = await getDocs(
+      query(collection(db, `users/${uuid}/coupons`), where('used', '==', false))
+    );
+    const unused = snap.docs
+      .filter((d) => d.data().deleted !== true)
+      .sort((a, b) => String(b.data().issuedAt ?? '').localeCompare(String(a.data().issuedAt ?? '')));
+    if (unused.length < amount) {
+      throw new Error(`보유 쿠폰(${unused.length}개)보다 많이 회수할 수 없습니다.`);
+    }
+    for (const d of unused.slice(0, amount)) {
+      await deleteDoc(d.ref);
+    }
+  }
+
+  await logAction(
+    uuid,
+    increment > 0 ? '쿠폰 지급' : '쿠폰 회수',
+    reasonText ? `ADMIN 방식으로 ${amount}개 ${verb} (${reasonText})` : `ADMIN 방식으로 ${amount}개 ${verb}`
+  );
+}

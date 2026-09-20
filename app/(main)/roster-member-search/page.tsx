@@ -8,9 +8,11 @@ import {
   addMemberToDailyRoster,
   createGuestMember,
   guestMemberExists,
+  findUserByNameDob,
 } from '@/utils/roster-service';
 import { getUser } from '@/lib/storage';
 import { computeLegacyUuid } from '@/lib/legacy-uuid';
+import { normalizePersonName } from '@/lib/person-name';
 import { IoSearchOutline, IoAddOutline, IoPersonOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import {
@@ -189,29 +191,44 @@ function RosterMemberSearchContent() {
 
     setIsSubmitting(true);
     try {
-      // Generate UUID for new member (using name-dob combination, same as login logic)
-      const normalizedDob = newMemberDob.length === 8 ? newMemberDob : newMemberDob;
-      const memberUuid = computeLegacyUuid(newMemberName, normalizedDob);
+      const name = normalizePersonName(newMemberName);
+      const dob = newMemberDob.trim();
+      const phone = newMemberPhone.trim();
+      const emergency = newMemberEmergency.trim();
+      const address = newMemberAddress.trim();
+      const existingId = await findUserByNameDob(name, dob);
+      const memberUuid = existingId ?? computeLegacyUuid(name, dob);
 
-      if (await guestMemberExists(memberUuid)) {
-        alert('이미 존재하는 회원입니다. 기존 회원을 검색해주세요.');
-        setIsSubmitting(false);
+      if (existingId || (await guestMemberExists(memberUuid))) {
+        const added = await addMemberToDailyRoster(
+          String(date),
+          existingId ?? memberUuid,
+          parseInt(tripNumber || '1')
+        );
+        alert(
+          added
+            ? `${name}님은 기존 회원으로 명부에 추가되었습니다.`
+            : `${name}님은 이미 명부에 있습니다.`
+        );
+        router.push(
+          `/roster-list?date=${date}&dateDisplay=${encodeURIComponent(dateDisplay || '')}&tripNumber=${tripNumber}`
+        );
         return;
       }
 
       await createGuestMember({
         uuid: memberUuid,
-        name: newMemberName,
-        dob: newMemberDob,
-        phone: newMemberPhone,
+        name,
+        dob,
+        phone,
         gender: newMemberGender,
-        emergency: newMemberEmergency,
-        address: newMemberAddress,
+        emergency,
+        address,
       });
 
       await addMemberToDailyRoster(String(date), memberUuid, parseInt(tripNumber || '1'));
 
-      alert(`${newMemberName}님이 등록되고 명부에 추가되었습니다.`);
+      alert(`${name}님이 등록되고 명부에 추가되었습니다.`);
       router.push(`/roster-list?date=${date}&dateDisplay=${encodeURIComponent(dateDisplay || '')}&tripNumber=${tripNumber}`);
     } catch (error) {
       console.error('Error creating new member:', error);

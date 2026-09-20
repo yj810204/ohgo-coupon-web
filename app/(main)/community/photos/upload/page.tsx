@@ -10,6 +10,7 @@ import { resolveAppUser } from '@/lib/auth-session';
 import { ohgoAlert } from '@/lib/ohgo-dialog';
 import { getPhoto, updatePhoto, uploadPhoto } from '@/utils/community-service';
 import { useImageEditQueue } from '@/hooks/useImageEditQueue';
+import NoticeCheckRow from '@/components/community/NoticeCheckRow';
 import {
   OHGO_CARD,
   OHGO_CONFIRM_BTN,
@@ -38,6 +39,7 @@ function CommunityPhotoUploadContent() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [existingUrls, setExistingUrls] = useState<string[]>([]);
+  const [isNotice, setIsNotice] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [newPreviewUrls, setNewPreviewUrls] = useState<string[]>([]);
 
@@ -85,6 +87,7 @@ function CommunityPhotoUploadContent() {
           }
           setTitle(photo.title || '');
           setDescription(photo.description || '');
+          setIsNotice(Boolean(photo.isNotice));
           const urls =
             photo.imageUrls && photo.imageUrls.length > 0
               ? photo.imageUrls
@@ -152,6 +155,7 @@ function CommunityPhotoUploadContent() {
         await updatePhoto(editPhotoId, {
           title: title.trim() || '',
           description: description.trim() || '',
+          ...(user.isAdmin ? { isNotice } : {}),
           imageUrls: existingUrls,
           imageFile: files.length > 0 ? files : undefined,
         });
@@ -163,7 +167,14 @@ function CommunityPhotoUploadContent() {
           user.uuid,
           user.name,
           title.trim() || undefined,
-          description.trim() || undefined
+          description.trim() || undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          'photo',
+          undefined,
+          user.isAdmin && isNotice
         );
         await ohgoAlert('사진이 등록되었습니다.');
         router.replace('/community/photos');
@@ -195,6 +206,10 @@ function CommunityPhotoUploadContent() {
           : router.replace('/community/photos')
       }
     >
+      {user?.isAdmin ? (
+        <NoticeCheckRow checked={isNotice} onChange={setIsNotice} disabled={uploading} />
+      ) : null}
+
       <div style={{ ...OHGO_CARD, padding: '14px 16px', marginBottom: 12 }}>
         <span
           style={{

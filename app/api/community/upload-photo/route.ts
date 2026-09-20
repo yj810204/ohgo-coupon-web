@@ -62,7 +62,11 @@ export async function POST(request: NextRequest) {
 
     const fileExtension = file.name.split('.').pop() || 'jpg';
     const photoId = `photo_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const imagePath = `community/photos/${photoId}.${fileExtension}`;
+    const kind = String(form.get('kind') ?? '').trim();
+    const imagePath =
+      kind === 'market'
+        ? `market/${user.id}/${photoId}.${fileExtension}`
+        : `community/photos/${photoId}.${fileExtension}`;
 
     const bytes = await file.arrayBuffer();
     const admin = createAdminClient();

@@ -339,6 +339,148 @@ export async function removeStampBatch(uuid: string, count: number): Promise<voi
   });
 }
 
+export async function addStampBatchWithReason(
+  uuid: string,
+  count: number,
+  reason: string
+): Promise<void> {
+  const supabase = getSupabaseBrowserClient();
+  const now = new Date();
+  const reasonText = reason.trim();
+  const historyMessage = reasonText
+    ? `ADMIN 방식으로 스탬프 적립 (${reasonText})`
+    : 'ADMIN 방식으로 스탬프 적립';
+
+  for (let i = 0; i < count; i++) {
+    const createdAt = new Date(now.getTime() + i * 1000).toISOString();
+    const { data: row, error } = await supabase
+      .from('stamps')
+      .insert({
+        user_id: uuid,
+        date: getTodayDate(),
+        method: 'ADMIN',
+        created_at: createdAt,
+      })
+      .select('id')
+      .single();
+
+    if (error || !row) throw error ?? new Error('스탬프 적립 실패');
+
+    await insertStampHistory(uuid, {
+      stamp_id: row.id,
+      action: 'add',
+      date: getTodayDate(),
+      method: 'ADMIN',
+      message: historyMessage,
+    });
+  }
+
+  await supabase
+    .from('profiles')
+    .update({ last_stamp_time: new Date(now.getTime() + (count - 1) * 1000).toISOString() })
+    .eq('id', uuid);
+
+  await logAction(
+    uuid,
+    '스탬프 적립',
+    reasonText ? `ADMIN 방식으로 ${count}개 적립 (${reasonText})` : `ADMIN 방식으로 ${count}개 적립`
+  );
+
+  const { data: allStamps, error } = await supabase
+    .from('stamps')
+    .select('id, date, method, created_at')
+    .eq('user_id', uuid)
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+
+  const stamps = [...(allStamps ?? [])];
+  const fullCouponCount = Math.floor(stamps.length / 10);
+
+  for (let i = 0; i < fullCouponCount; i++) {
+    await issueCoupon(uuid);
+    const toDelete = stamps.splice(0, 10);
+
+    for (const s of toDelete) {
+      await insertStampHistory(uuid, {
+        stamp_id: s.id,
+        action: 'remove',
+        date: s.date ?? undefined,
+        method: s.method ?? undefined,
+        message: '쿠폰 발급으로 스탬프 삭제',
+      });
+    }
+
+    await supabase
+      .from('stamps')
+      .delete()
+      .in(
+        'id',
+        toDelete.map((s) => s.id)
+      );
+  }
+
+  if (fullCouponCount > 0) {
+    await sendPushToUser({
+      uuid,
+      title: '쿠폰이 발급되었습니다~! 🎁',
+      body: `스탬프 ${fullCouponCount * 10}개 적립! 쿠폰 ${fullCouponCount}개가 발급되었어요~!`,
+      data: { screen: 'coupons', uuid },
+    });
+  }
+}
+
+export async function removeStampBatchWithReason(
+  uuid: string,
+  count: number,
+  reason: string
+): Promise<void> {
+  if (count < 1) return;
+
+  const supabase = getSupabaseBrowserClient();
+  const { data: stamps, error } = await supabase
+    .from('stamps')
+    .select('id, date, method')
+    .eq('user_id', uuid)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  if (!stamps || stamps.length < count) {
+    throw new Error(`보유 스탬프(${stamps?.length ?? 0}개)보다 많이 회수할 수 없습니다.`);
+  }
+
+  const reasonText = reason.trim();
+  const historyMessage = reasonText
+    ? `ADMIN 방식으로 스탬프 회수 (${reasonText})`
+    : 'ADMIN 방식으로 스탬프 회수';
+
+  const toRemove = stamps.slice(0, count);
+
+  for (const s of toRemove) {
+    await insertStampHistory(uuid, {
+      stamp_id: s.id,
+      action: 'recall',
+      date: s.date ?? undefined,
+      method: s.method ?? undefined,
+      message: historyMessage,
+    });
+  }
+
+  await supabase
+    .from('stamps')
+    .delete()
+    .in(
+      'id',
+      toRemove.map((s) => s.id)
+    );
+
+  await logAction(
+    uuid,
+    '스탬프 회수',
+    reasonText ? `ADMIN 방식으로 ${count}개 회수 (${reasonText})` : `ADMIN 방식으로 ${count}개 회수`
+  );
+}
+
 export async function getStamps(uuid: string): Promise<string[]> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase
@@ -554,4 +696,83 @@ export async function deleteStamp(uuid: string, value: string, _p0: string, _p1:
   }
 
   console.warn('❌ 일치하는 스탬프 문서 없음:', value);
+}
+
+export async function attachReasonToRecentStampHistory(
+  uuid: string,
+  action: 'add' | 'recall',
+  count: number,
+  reason: string
+): Promise<void> {
+  if (count < 1 || !reason.trim()) return;
+  const supabase = getSupabaseBrowserClient();
+  const baseMessage =
+    action === 'add' ? 'ADMIN 방식으로 스탬프 적립' : 'ADMIN 방식으로 스탬프 회수';
+  const { data, error } = await supabase
+    .from('stamp_history')
+    .select('id')
+    .eq('user_id', uuid)
+    .eq('action', action)
+    .eq('message', baseMessage)
+    .order('created_at', { ascending: false })
+    .limit(count);
+  if (error || !data?.length) return;
+  await supabase
+    .from('stamp_history')
+    .update({ message: `${baseMessage} (${reason})` })
+    .in(
+      'id',
+      data.map((row) => row.id)
+    );
+}
+
+export async function adjustCouponsWithReason(
+  uuid: string,
+  increment: number,
+  reason: string
+): Promise<void> {
+  if (increment === 0) return;
+  const supabase = getSupabaseBrowserClient();
+  const amount = Math.abs(increment);
+  const reasonText = reason.trim();
+  const verb = increment > 0 ? '지급' : '회수';
+
+  if (increment > 0) {
+    for (let i = 0; i < amount; i++) {
+      const { error } = await supabase.from('coupons').insert({
+        user_id: uuid,
+        issued_at: getTodayDate(),
+        reason: reasonText ? `ADMIN 지급 (${reasonText})` : 'ADMIN 지급',
+        used: false,
+        is_half: false,
+      });
+      if (error) throw error;
+    }
+  } else {
+    const { data, error } = await supabase
+      .from('coupons')
+      .select('id')
+      .eq('user_id', uuid)
+      .eq('used', false)
+      .order('created_at', { ascending: false })
+      .limit(amount);
+    if (error) throw error;
+    if (!data || data.length < amount) {
+      throw new Error(`보유 쿠폰(${data?.length ?? 0}개)보다 많이 회수할 수 없습니다.`);
+    }
+    const { error: deleteError } = await supabase
+      .from('coupons')
+      .delete()
+      .in(
+        'id',
+        data.map((row) => row.id)
+      );
+    if (deleteError) throw deleteError;
+  }
+
+  await logAction(
+    uuid,
+    increment > 0 ? '쿠폰 지급' : '쿠폰 회수',
+    reasonText ? `ADMIN 방식으로 ${amount}개 ${verb} (${reasonText})` : `ADMIN 방식으로 ${amount}개 ${verb}`
+  );
 }

@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from '@/hooks/useAppRouter';
 import { getSupabaseBrowserClient, isSupabaseConfigured } from '@/lib/supabase/client';
-import { signInWithGoogle, signInWithApple } from '@/lib/supabase-auth';
-import { resolveAppUser, getHomePathForUser } from '@/lib/auth-session';
+import { resolveAppUser, getHomePathForUser, primeAppUserCache } from '@/lib/auth-session';
 import { saveUser } from '@/lib/storage';
 import { IoDocumentTextOutline } from 'react-icons/io5';
 import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
@@ -12,15 +11,12 @@ import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
 export default function LoginPage() {
   const [agreed, setAgreed] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [appleLoading, setAppleLoading] = useState(false);
   const [legacyLoading, setLegacyLoading] = useState(false);
   const [name, setName] = useState('');
   const [dob, setDob] = useState('');
   const [checkingAuth, setCheckingAuth] = useState(true);
   const supabaseEnabled = isSupabaseConfigured();
   const router = useRouter();
-  const anyLoading = googleLoading || appleLoading || legacyLoading;
 
   // 로그인 상태 확인 - 이미 로그인되어 있으면 리다이렉트
   useEffect(() => {
@@ -79,36 +75,19 @@ export default function LoginPage() {
         dob: data.user.dob,
         isAdmin: data.user.isAdmin,
       });
+      primeAppUserCache({
+        uuid: data.user.uuid,
+        name: data.user.name,
+        dob: data.user.dob,
+        isAdmin: data.user.isAdmin,
+        isCaptain: data.user.isCaptain,
+      });
 
       router.replace(data.homePath || '/main');
     } catch (e) {
       console.error('일반 로그인 실패:', e);
       alert(e instanceof Error ? e.message : '로그인에 실패했습니다.');
       setLegacyLoading(false);
-    }
-  };
-
-  const handleAppleLogin = async () => {
-    if (!requireAgree()) return;
-    setAppleLoading(true);
-    try {
-      await signInWithApple();
-    } catch (e) {
-      console.error('Apple 로그인 실패:', e);
-      alert('Apple 로그인에 실패했습니다.');
-      setAppleLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    if (!requireAgree()) return;
-    setGoogleLoading(true);
-    try {
-      await signInWithGoogle();
-    } catch (e) {
-      console.error('Google 로그인 실패:', e);
-      alert('Google 로그인에 실패했습니다.');
-      setGoogleLoading(false);
     }
   };
 
@@ -337,7 +316,7 @@ export default function LoginPage() {
           로그인
         </h2>
         <p style={{ fontSize: 13, color: '#9CA3AF', margin: '0 0 20px' }}>
-          기등록 회원은 이름·생년월일로 로그인하세요
+          이름과 생년월일로 로그인하세요
         </p>
 
         <div
@@ -392,7 +371,7 @@ export default function LoginPage() {
               onChange={(e) => setName(e.target.value)}
               placeholder="홍길동"
               autoComplete="name"
-              disabled={anyLoading}
+              disabled={legacyLoading}
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
@@ -415,7 +394,7 @@ export default function LoginPage() {
               onChange={(e) => setDob(e.target.value.replace(/[^\d]/g, '').slice(0, 8))}
               placeholder="YYMMDD 또는 YYYYMMDD"
               autoComplete="bday"
-              disabled={anyLoading}
+              disabled={legacyLoading}
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
@@ -431,7 +410,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={handleLegacyLogin}
-              disabled={anyLoading || !agreed}
+              disabled={legacyLoading || !agreed}
               style={{
                 width: '100%',
                 backgroundColor: '#1B6FF5',
@@ -442,79 +421,14 @@ export default function LoginPage() {
                 fontSize: 15,
                 fontWeight: 700,
                 fontFamily: FONT,
-                opacity: (anyLoading || !agreed) ? 0.45 : 1,
-                cursor: (anyLoading || !agreed) ? 'not-allowed' : 'pointer',
-                marginBottom: 20,
+                opacity: (legacyLoading || !agreed) ? 0.45 : 1,
+                cursor: (legacyLoading || !agreed) ? 'not-allowed' : 'pointer',
               }}
             >
               {legacyLoading ? (
                 <><span className="spinner-border spinner-border-sm" role="status" /> 로그인 중...</>
               ) : (
                 '로그인'
-              )}
-            </button>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <div style={{ flex: 1, height: 1, backgroundColor: '#EFEFEF' }} />
-              <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>또는</span>
-              <div style={{ flex: 1, height: 1, backgroundColor: '#EFEFEF' }} />
-            </div>
-
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={anyLoading || !agreed}
-              style={{
-                width: '100%',
-                backgroundColor: '#FFFFFF',
-                color: '#1A1D1F',
-                borderRadius: 50,
-                padding: '14px',
-                border: '2px solid #EFEFEF',
-                fontSize: 15,
-                fontWeight: 600,
-                fontFamily: FONT,
-                opacity: (anyLoading || !agreed) ? 0.45 : 1,
-                cursor: (anyLoading || !agreed) ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 10,
-                marginBottom: 12,
-              }}
-            >
-              {googleLoading ? (
-                <><span className="spinner-border spinner-border-sm" role="status" />연결 중...</>
-              ) : (
-                <>Google로 계속하기</>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={handleAppleLogin}
-              disabled={anyLoading || !agreed}
-              style={{
-                width: '100%',
-                backgroundColor: '#1A1D1F',
-                color: '#FFFFFF',
-                borderRadius: 50,
-                padding: '14px',
-                border: 'none',
-                fontSize: 15,
-                fontWeight: 600,
-                fontFamily: FONT,
-                opacity: (anyLoading || !agreed) ? 0.45 : 1,
-                cursor: (anyLoading || !agreed) ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 10,
-              }}
-            >
-              {appleLoading ? (
-                <><span className="spinner-border spinner-border-sm" role="status" />연결 중...</>
-              ) : (
-                <>Apple로 계속하기</>
               )}
             </button>
           </>

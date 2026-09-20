@@ -13,10 +13,12 @@ import {
   IoConstructOutline,
   IoBoatOutline,
   IoStorefrontOutline,
+  IoPricetagOutline,
   IoChevronForwardOutline,
   IoHomeOutline,
   IoShieldCheckmarkOutline,
   IoFishOutline,
+  IoPhonePortraitOutline,
 } from 'react-icons/io5';
 import { useNavigation } from '@/hooks/useNavigation';
 import SubPageFrame from '@/components/SubPageFrame';
@@ -129,7 +131,7 @@ const MENU_SECTIONS: MenuSection[] = [
       {
         id: 'community',
         label: '커뮤니티 관리',
-        desc: '댓글 포인트 규칙, 템플릿 설정',
+        desc: '카테고리, 댓글 포인트, 템플릿 설정',
         path: '/admin-community',
         icon: IoChatbubblesOutline,
         color: '#00BCD4',
@@ -162,6 +164,15 @@ const MENU_SECTIONS: MenuSection[] = [
         color: '#5856D6',
         bg: '#EEEDFC',
       },
+      {
+        id: 'market',
+        label: '중고장터 관리',
+        desc: '카테고리 관리, 상품 검수·승인',
+        path: '/admin-market',
+        icon: IoPricetagOutline,
+        color: '#9C27B0',
+        bg: '#F5E8FF',
+      },
     ],
   },
   {
@@ -185,6 +196,15 @@ const MENU_SECTIONS: MenuSection[] = [
         icon: IoConstructOutline,
         color: '#795548',
         bg: '#F5EFEC',
+      },
+      {
+        id: 'screenshot-studio',
+        label: '스토어 스크린샷',
+        desc: '소개 이미지 편집 · 스토어 규격 내보내기',
+        path: '/admin-screenshot-studio',
+        icon: IoPhonePortraitOutline,
+        color: '#0F766E',
+        bg: '#E6F6F3',
       },
     ],
   },

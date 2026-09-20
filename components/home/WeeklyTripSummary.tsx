@@ -59,19 +59,22 @@ function dayDividerColor(dayIdx: number, isPast: boolean, isToday: boolean): str
 
 interface Props {
   onViewAll: () => void;
-  /** 제공 시 API fetch 없이 바로 렌더 (포트폴리오 샘플용) */
+  /** 제공 시 API fetch 없이 바로 렌더 (포트폴리오 샘플·홈 배치 로딩) */
   trips?: TripGuide[];
+  /** true면 부모 로딩 중. trips와 같이 쓰면 자체 fetch 하지 않음 */
+  isLoading?: boolean;
 }
 
-export default function WeeklyTripSummary({ onViewAll, trips: tripsProp }: Props) {
+export default function WeeklyTripSummary({ onViewAll, trips: tripsProp, isLoading }: Props) {
+  const controlled = tripsProp !== undefined || isLoading !== undefined;
   const [trips, setTrips] = useState<TripGuide[]>(tripsProp ?? []);
-  const [loading, setLoading] = useState(!tripsProp);
+  const [loading, setLoading] = useState(controlled ? Boolean(isLoading) : !tripsProp);
   const weekRange = useMemo(() => getWeekRange(new Date()), []);
 
   useEffect(() => {
-    if (tripsProp) {
-      setTrips(tripsProp);
-      setLoading(false);
+    if (controlled) {
+      setTrips(tripsProp ?? []);
+      setLoading(Boolean(isLoading));
       return;
     }
     const load = async () => {
@@ -86,8 +89,8 @@ export default function WeeklyTripSummary({ onViewAll, trips: tripsProp }: Props
         setLoading(false);
       }
     };
-    load();
-  }, [weekRange, tripsProp]);
+    void load();
+  }, [weekRange, tripsProp, isLoading, controlled]);
 
   if (loading) return null;
 
@@ -115,8 +118,8 @@ export default function WeeklyTripSummary({ onViewAll, trips: tripsProp }: Props
   const hiddenCount = Math.max(0, allTrips.length - visibleTrips.length);
 
   return (
-    <section className="mb-3">
-      <div className="d-flex align-items-center justify-content-between mb-2">
+    <section style={{ marginBottom: 30 }}>
+      <div className="d-flex align-items-center justify-content-between" style={{ marginBottom: 8 }}>
         <div className="d-flex align-items-baseline gap-2 flex-wrap" style={{ gap: '6px 8px' }}>
           <span style={{ fontSize: 17, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
             이번 주 출조
@@ -131,7 +134,7 @@ export default function WeeklyTripSummary({ onViewAll, trips: tripsProp }: Props
           className="btn p-0 d-flex align-items-center gap-1 flex-shrink-0"
           style={{ border: 'none', background: 'none', color: '#1B6FF5', fontSize: 13, fontFamily: FONT, fontWeight: 600 }}
         >
-          전체 <IoChevronForwardOutline size={14} />
+          더보기 <IoChevronForwardOutline size={14} />
         </button>
       </div>
 

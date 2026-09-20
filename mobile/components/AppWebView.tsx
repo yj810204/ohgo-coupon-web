@@ -271,6 +271,15 @@ export function AppWebView({ initialPath = '/' }: AppWebViewProps) {
   const onShouldStartLoadWithRequest = useCallback(
     (request: ShouldStartLoadRequest) => {
       const { url } = request;
+      // tel/sms/mailto는 isTopFrame=false로 오는 경우가 있어 서브리소스 허용보다 먼저 처리
+      if (
+        url.startsWith('tel:') ||
+        url.startsWith('sms:') ||
+        url.startsWith('mailto:')
+      ) {
+        void Linking.openURL(url);
+        return false;
+      }
       // 이미지·XHR 등 서브리소스는 외부 호스트(Supabase Storage)여도 허용
       if (request.isTopFrame === false) {
         return true;
@@ -374,6 +383,7 @@ export function AppWebView({ initialPath = '/' }: AppWebViewProps) {
         scalesPageToFit={false}
         setBuiltInZoomControls={false}
         setDisplayZoomControls={false}
+        textZoom={100}
         startInLoadingState
         // iOS 네이티브 PTR은 전체 reload 만 하므로 사용하지 않음.
         // Android는 PTR API가 없음 → 웹 useNativePullToRefresh 제스처 사용.
@@ -386,8 +396,8 @@ export function AppWebView({ initialPath = '/' }: AppWebViewProps) {
       {showBlockingLoader ? (
         <View style={styles.loader}>
           <ActivityIndicator size="large" color="#1B6FF5" />
-          <Text style={styles.loaderHint}>웹앱 연결 중…</Text>
-          <Text style={styles.loaderUrl} numberOfLines={2}>
+          <Text style={styles.loaderHint} allowFontScaling={false}>웹앱 연결 중…</Text>
+          <Text style={styles.loaderUrl} numberOfLines={2} allowFontScaling={false}>
             {initialUri}
           </Text>
         </View>
@@ -395,10 +405,10 @@ export function AppWebView({ initialPath = '/' }: AppWebViewProps) {
 
       {loadError ? (
         <View style={styles.errorBox}>
-          <Text style={styles.errorTitle}>연결 실패</Text>
-          <Text style={styles.errorBody}>{loadError}</Text>
+          <Text style={styles.errorTitle} allowFontScaling={false}>연결 실패</Text>
+          <Text style={styles.errorBody} allowFontScaling={false}>{loadError}</Text>
           <Pressable style={styles.retryBtn} onPress={handleRetry}>
-            <Text style={styles.retryText}>다시 시도</Text>
+            <Text style={styles.retryText} allowFontScaling={false}>다시 시도</Text>
           </Pressable>
         </View>
       ) : null}

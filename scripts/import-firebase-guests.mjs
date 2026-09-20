@@ -2,7 +2,7 @@
 /**
  * Firebase uuidv5 회원 → Supabase guest_profiles 일괄 import
  *
- * 로그인 UX: 신규 앱은 Google/Apple OAuth 유지. 이름+DOB 로그인 복원 안 함.
+ * 로그인 UX: 신규 앱은 이름+생년월일 로그인. 승선명부 비회원은 관리자가 수동 연결.
  * 스탬프/쿠폰은 import:firebase-stamps 스크립트 + staging 전략 사용.
  * 문서: scripts/FIREBASE_MIGRATION.md
  *
@@ -128,7 +128,7 @@ async function main() {
   }
 
   console.log(`\n완료 — import: ${imported}, skip: ${skipped}, errors: ${errors}`);
-  console.log('OAuth 가입 후 profile-setup에서 이름+생년월일 입력 시 자동 병합됩니다.');
+  console.log('이름·생년월일 로그인 또는 관리자 게스트 연결 시 staging이 live로 병합됩니다.');
 }
 
 main().catch((e) => {

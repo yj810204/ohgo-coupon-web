@@ -10,6 +10,7 @@ import {
 } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import { SAMPLE_TRIPS } from '@/lib/samples/mock-data';
+import { OHGO_LIST_DIVIDER } from '@/lib/page-styles';
 import {
   tripPricePerPersonLabel,
   tripScheduleSubtitle,
@@ -208,23 +209,31 @@ export default function SampleTripsPage() {
           </p>
         </div>
       ) : (
-        <div className="d-flex flex-column gap-3">
-          {selectedTrips.map((trip) => (
-            <div key={trip.id} className="p-3" style={{ ...CARD, borderRadius: 14 }}>
-              <div className="d-flex align-items-center gap-3">
+        <div
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: 14,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+            overflow: 'hidden',
+          }}
+        >
+          {selectedTrips.map((trip, index) => (
+            <div key={trip.id}>
+              {index > 0 && <div style={OHGO_LIST_DIVIDER} />}
+              <div className="d-flex align-items-center gap-3" style={{ padding: '12px 16px', minHeight: 64 }}>
                 <div
                   className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                  style={{ width: 44, height: 44, backgroundColor: '#EBF1FE' }}
+                  style={{ width: 40, height: 40, backgroundColor: '#EBF1FE' }}
                 >
-                  <IoBoatOutline size={22} color="#1B6FF5" />
+                  <IoBoatOutline size={20} color="#1B6FF5" />
                 </div>
                 <div className="flex-grow-1 min-w-0">
-                  <div style={{ fontSize: 16, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>
                     {tripSpeciesTitle(trip)}
                   </div>
                   <div
                     className="d-flex align-items-center gap-1 mt-1"
-                    style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}
+                    style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT }}
                   >
                     <IoTimeOutline size={14} className="flex-shrink-0" />
                     <span className="text-truncate">{tripScheduleSubtitle(trip)}</span>
@@ -232,8 +241,8 @@ export default function SampleTripsPage() {
                   {trip.price ? (
                     <div
                       style={{
-                        fontSize: 13,
-                        fontWeight: 700,
+                        fontSize: 12,
+                        fontWeight: 600,
                         color: '#1B6FF5',
                         fontFamily: FONT,
                         marginTop: 2,

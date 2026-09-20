@@ -58,3 +58,17 @@ export async function saveExpoPushToken(userId: string, token: string | null): P
     await updateDoc(userRef, { expoPushToken: deleteField() });
   }
 }
+
+export async function getMemberTripCount(userId: string): Promise<number> {
+  const fbUserId = await resolveFirestoreUserId(userId);
+  if (!fbUserId) return 0;
+  const snap = await getDoc(doc(getFirebaseDb(), 'users', fbUserId));
+  return Number(snap.data()?.tripCount) || 0;
+}
+
+export async function updateTripCount(userId: string, count: number): Promise<void> {
+  const fbUserId = await requireFirestoreUserId(userId);
+  await updateDoc(doc(getFirebaseDb(), 'users', fbUserId), {
+    tripCount: Math.max(0, Math.floor(count)),
+  });
+}
