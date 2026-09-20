@@ -8,14 +8,18 @@ import SubPageFrame from '@/components/SubPageFrame';
 import ImageSwipeSlider from '@/components/ImageSwipeSlider';
 import {
   approveListing,
+  deleteMyListing,
   formatMarketPrice,
   getListing,
   hideListing,
   MARKET_GRADES,
+  MARKET_STATUS_LABELS,
   marketCategoryLabel,
   marketGradeLabel,
+  marketStatusStyle,
   marketTradeMethodLabel,
   rejectListing,
+  unhideListing,
   type MarketConditionGrade,
   type MarketListing,
 } from '@/utils/market-service';
@@ -29,7 +33,7 @@ import {
   OHGO_INPUT,
   OhgoPageLoading,
 } from '@/lib/page-styles';
-import { ohgoAlert } from '@/lib/ohgo-dialog';
+import { ohgoAlert, ohgoConfirm } from '@/lib/ohgo-dialog';
 
 const FONT = OHGO_FONT;
 
@@ -110,6 +114,7 @@ function AdminMarketReviewContent() {
 
   const handleHide = async () => {
     if (!user || !listing) return;
+    if (!(await ohgoConfirm('이 판매글을 숨길까요? 공개 목록에서 내려갑니다.'))) return;
     setActing(true);
     try {
       await hideListing(listing.id, user.uuid);
@@ -122,16 +127,69 @@ function AdminMarketReviewContent() {
     }
   };
 
+  const handleUnhide = async () => {
+    if (!user || !listing) return;
+    if (!(await ohgoConfirm('이 판매글을 다시 게시할까요? 중고장터 목록에 다시 보입니다.'))) return;
+    setActing(true);
+    try {
+      await unhideListing(listing.id, user.uuid);
+      await ohgoAlert('숨김이 해제되어 다시 게시되었습니다.');
+      router.replace('/admin-market');
+    } catch (error) {
+      await ohgoAlert(error instanceof Error ? error.message : '숨김 해제에 실패했습니다.');
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!listing) return;
+    if (!(await ohgoConfirm('이 판매글을 삭제할까요? 삭제하면 복구할 수 없습니다.'))) return;
+    setActing(true);
+    try {
+      await deleteMyListing(listing.id);
+      await ohgoAlert('삭제되었습니다.');
+      router.replace('/admin-market');
+    } catch (error) {
+      await ohgoAlert(error instanceof Error ? error.message : '삭제에 실패했습니다.');
+    } finally {
+      setActing(false);
+    }
+  };
+
   if (!ready || loading) return <OhgoPageLoading />;
   if (!listing) return null;
 
   return (
     <SubPageFrame title="중고장터 검수" onBack={() => router.replace('/admin-market')}>
+      {listing.status === 'hidden' ? (
+        <div
+          style={{
+            ...OHGO_CARD,
+            padding: 14,
+            marginBottom: 12,
+            backgroundColor: '#F8F1FF',
+          }}
+        >
+          <p style={{ fontSize: 12, color: '#7B1FA2', fontFamily: FONT, margin: 0, lineHeight: 1.55 }}>
+            강제 숨김 상태입니다. 공개 중고장터에는 보이지 않습니다. 숨김 해제하면 판매중으로 다시 게시됩니다.
+          </p>
+        </div>
+      ) : null}
+
       <div className="mb-3" style={OHGO_CARD}>
         <div style={{ overflow: 'hidden', borderRadius: '16px 16px 0 0' }}>
           <ImageSwipeSlider urls={listing.imageUrls} alt={listing.title} />
         </div>
         <div style={{ padding: 16 }}>
+          <div className="d-flex align-items-center gap-2 flex-wrap mb-2">
+            <span
+              className="badge rounded-pill"
+              style={{ ...marketStatusStyle(listing.status), fontSize: 11, fontWeight: 700 }}
+            >
+              {MARKET_STATUS_LABELS[listing.status]}
+            </span>
+          </div>
           <h1 style={{ fontSize: 18, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT, margin: 0 }}>
             {listing.title}
           </h1>
@@ -270,6 +328,42 @@ function AdminMarketReviewContent() {
           강제 숨김
         </button>
       ) : null}
+      {listing.status === 'hidden' ? (
+        <button
+          type="button"
+          className="btn w-100 mt-2"
+          style={{
+            backgroundColor: '#F3E8FF',
+            color: '#7B1FA2',
+            border: 'none',
+            borderRadius: 12,
+            padding: 12,
+            fontWeight: 700,
+            fontFamily: FONT,
+          }}
+          disabled={acting}
+          onClick={() => void handleUnhide()}
+        >
+          숨김 해제
+        </button>
+      ) : null}
+      <button
+        type="button"
+        className="btn w-100 mt-2"
+        style={{
+          backgroundColor: '#FFF0F0',
+          color: '#FF3B30',
+          border: 'none',
+          borderRadius: 12,
+          padding: 12,
+          fontWeight: 700,
+          fontFamily: FONT,
+        }}
+        disabled={acting}
+        onClick={() => void handleDelete()}
+      >
+        판매글 삭제
+      </button>
     </SubPageFrame>
   );
 }

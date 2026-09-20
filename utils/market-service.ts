@@ -20,10 +20,14 @@ export {
   MARKET_GRADES,
   MARKET_STATUS_LABELS,
   MARKET_TRADE_METHODS,
+  canSellerDeleteListing,
+  canSellerEditListing,
   formatMarketCreatedAt,
   formatMarketPrice,
+  isForceHiddenListing,
   marketCategoryLabel,
   marketGradeLabel,
+  marketStatusStyle,
   marketTradeMethodLabel,
   parseTradeMethod,
   decodeTradeInfo,
@@ -107,5 +111,10 @@ export async function rejectListing(id: string, reviewerId: string, reason: stri
 
 export async function hideListing(id: string, reviewerId: string): Promise<void> {
   await supa.hideListing(id, reviewerId);
+  bustMarketCache();
+}
+
+export async function unhideListing(id: string, reviewerId: string): Promise<void> {
+  await supa.unhideListing(id, reviewerId);
   bustMarketCache();
 }
