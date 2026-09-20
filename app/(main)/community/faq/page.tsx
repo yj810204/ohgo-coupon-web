@@ -13,13 +13,14 @@ import CategoryChipRow from '@/components/community/CategoryChipRow';
 import { displayMemberName, formatPhotoCardDate } from '@/lib/mask-member-name';
 import { useNavigation } from '@/hooks/useNavigation';
 import { OHGO_CONFIRM_BTN, OHGO_CONFIRM_BTN_CLASS, OHGO_FONT } from '@/lib/page-styles';
+import { communityPageHeaderAction } from '@/lib/page-header-action';
 
 function FaqPageContent() {
   const router = useRouter();
   const { navigate } = useNavigation();
   const [posts, setPosts] = useState<CommunityPhoto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<{ uuid: string; isAdmin?: boolean } | null>(null);
   const [canSeeFullNames, setCanSeeFullNames] = useState(false);
   const [categories, setCategories] = useState<BoardCategory[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string | 'all'>('all');
@@ -31,7 +32,7 @@ function FaqPageContent() {
         router.replace('/login');
         return;
       }
-      setIsAdmin(Boolean(user.isAdmin));
+      setUser({ uuid: user.uuid, isAdmin: user.isAdmin });
       setCanSeeFullNames(Boolean(user.isAdmin || user.isCaptain));
       await loadPosts();
     };
@@ -69,7 +70,16 @@ function FaqPageContent() {
   }
 
   return (
-    <SubPageFrame title="낚시 팁 · FAQ" onRefresh={loadPosts} onBack={() => router.replace('/community')}>
+    <SubPageFrame
+      title="낚시 팁 · FAQ"
+      onRefresh={loadPosts}
+      onBack={() => router.replace('/community')}
+      headerAction={communityPageHeaderAction({
+        board: 'faq',
+        user,
+        onNavigate: (path) => router.push(path),
+      })}
+    >
       {visibleCategories.length > 0 ? (
         <div className="mb-3">
           <CategoryChipRow
@@ -120,7 +130,7 @@ function FaqPageContent() {
         </div>
       )}
 
-      {isAdmin ? (
+      {user?.isAdmin ? (
         <button
           type="button"
           onClick={() => router.push('/community/faq/write')}
