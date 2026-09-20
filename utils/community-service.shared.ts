@@ -26,6 +26,24 @@ export function communityBoardTitle(board?: CommunityBoardType): string {
   return '조황 상세';
 }
 
+/** FAQ는 관리자만 작성. 조황사진·Q&A는 로그인 사용자 작성 가능. */
+export function canWriteCommunityBoard(
+  board: CommunityBoardType | undefined,
+  user: { isAdmin?: boolean } | null | undefined
+): boolean {
+  if (!user) return false;
+  return board === 'faq' ? Boolean(user.isAdmin) : true;
+}
+
+/** 삭제되지 않은 글의 작성자 또는 관리자만 수정. */
+export function canEditCommunityPost(
+  post: { uploadedBy?: string; isDeleted?: boolean } | null | undefined,
+  user: { uuid?: string; isAdmin?: boolean } | null | undefined
+): boolean {
+  if (!post || !user?.uuid || post.isDeleted) return false;
+  return post.uploadedBy === user.uuid || Boolean(user.isAdmin);
+}
+
 export interface CommunityPhoto {
   photoId: string;
   imageUrl: string;

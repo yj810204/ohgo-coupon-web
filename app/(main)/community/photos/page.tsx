@@ -10,6 +10,7 @@ import EmptyState from '@/components/EmptyState';
 import CommunityPhotoCard from '@/components/community/CommunityPhotoCard';
 import { displayMemberName, formatPhotoCardDate } from '@/lib/mask-member-name';
 import { useNavigation } from '@/hooks/useNavigation';
+import { communityPageHeaderAction } from '@/lib/page-header-action';
 
 const FONT = "var(--font-ohgo), sans-serif";
 
@@ -19,11 +20,13 @@ function PhotosPageContent() {
   const [photos, setPhotos] = useState<CommunityPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [canSeeFullNames, setCanSeeFullNames] = useState(false);
+  const [user, setUser] = useState<{ uuid: string; isAdmin?: boolean } | null>(null);
   useEffect(() => {
     const checkAuth = async () => {
-      const user = await resolveAppUser();
-      if (!user?.uuid) { router.replace('/login'); return; }
-      setCanSeeFullNames(Boolean(user.isAdmin || user.isCaptain));
+      const appUser = await resolveAppUser();
+      if (!appUser?.uuid) { router.replace('/login'); return; }
+      setUser({ uuid: appUser.uuid, isAdmin: appUser.isAdmin });
+      setCanSeeFullNames(Boolean(appUser.isAdmin || appUser.isCaptain));
       loadPhotos();
     };
     checkAuth();
@@ -53,6 +56,11 @@ function PhotosPageContent() {
       title="조황 사진"
       onRefresh={loadPhotos}
       onBack={() => router.replace('/community')}
+      headerAction={communityPageHeaderAction({
+        board: 'photo',
+        user,
+        onNavigate: (path) => router.push(path),
+      })}
     >
         {/* 툴바 */}
         <div className="d-flex align-items-center justify-content-between mb-3">
