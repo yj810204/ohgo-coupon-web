@@ -9,7 +9,7 @@ import {
   type TideRegion,
 } from '@/lib/dadaepo-tide';
 import type { TideCurveAnchor, TideForecastEvent, TideForecastPayload } from '@/lib/tide-forecast';
-import { interpolateTideCurve } from '@/lib/tide-forecast';
+import { formatKstClock, interpolateTideCurve, kstDateTimeMs, slackWindows } from '@/lib/tide-forecast';
 import { estimateDayTideFlow, tideFlowFeel } from '@/lib/tide-fish-recommend';
 import { getSiteSettings } from '@/utils/site-settings-service';
 import { tripDateToStr } from '@/utils/trip-guide-service';
@@ -87,29 +87,6 @@ function TideFlowBar({ level }: { level: number }) {
 
 const BOAT_START_HOUR = 4;
 const BOAT_END_HOUR = 18;
-const SLACK_MS = 60 * 60 * 1000;
-
-function clockLabel(at: number): string {
-  const date = new Date(at);
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-}
-
-function slackWindows(events: TideForecastEvent[], viewStart: number, viewEnd: number) {
-  return events
-    .map((event) => {
-      const from = event.at - SLACK_MS;
-      const to = event.at + SLACK_MS;
-      if (to <= viewStart || from >= viewEnd) return null;
-      return {
-        event,
-        from,
-        to,
-        clipFrom: Math.max(from, viewStart),
-        clipTo: Math.min(to, viewEnd),
-      };
-    })
-    .filter((item): item is NonNullable<typeof item> => item != null);
-}
 
 function TideChart({
   date,
@@ -120,8 +97,8 @@ function TideChart({
   events: TideForecastEvent[];
   anchors: TideCurveAnchor[];
 }) {
-  const viewStart = Date.parse(`${date}T${String(BOAT_START_HOUR).padStart(2, '0')}:00:00`);
-  const viewEnd = Date.parse(`${date}T${String(BOAT_END_HOUR).padStart(2, '0')}:00:00`);
+  const viewStart = kstDateTimeMs(date, BOAT_START_HOUR);
+  const viewEnd = kstDateTimeMs(date, BOAT_END_HOUR);
   const viewSpan = viewEnd - viewStart;
   const width = 360;
   const height = 176;
@@ -221,7 +198,7 @@ function TideChart({
           );
         })}
         {hourMarks.map((hour) => {
-          const x = xOf(Date.parse(`${date}T${String(hour).padStart(2, '0')}:00:00`));
+          const x = xOf(kstDateTimeMs(date, hour));
           return (
             <text
               key={hour}
@@ -342,7 +319,7 @@ function TideChart({
                   padding: '4px 8px',
                 }}
               >
-                {`${clockLabel(slack.from)}–${clockLabel(slack.to)}`}
+                {`${formatKstClock(slack.from)}–${formatKstClock(slack.to)}`}
               </span>
             ))}
           </div>
@@ -412,8 +389,8 @@ export default function TripTidePanel({
   const dayFlow = estimateDayTideFlow(tideLabel, events, date, anchors);
   const flowLevel = dayFlow.level;
   const title = formatTideTitle(date);
-  const boatStart = Date.parse(`${date}T${String(BOAT_START_HOUR).padStart(2, '0')}:00:00`);
-  const boatEnd = Date.parse(`${date}T${String(BOAT_END_HOUR).padStart(2, '0')}:00:00`);
+  const boatStart = kstDateTimeMs(date, BOAT_START_HOUR);
+  const boatEnd = kstDateTimeMs(date, BOAT_END_HOUR);
   const headerEvents = events.filter((event) => event.at >= boatStart && event.at <= boatEnd);
   const headerHigh = [...headerEvents.filter((event) => event.type === 'high')].sort((a, b) => a.at - b.at)[0];
   const headerLow = [...headerEvents.filter((event) => event.type === 'low')].sort((a, b) => a.at - b.at)[0];

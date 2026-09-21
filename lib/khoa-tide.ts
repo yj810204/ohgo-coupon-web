@@ -1,5 +1,11 @@
 import { getTideRegion } from '@/lib/dadaepo-tide';
-import type { TideCurveAnchor, TideEventType, TideForecastEvent, TideForecastPayload } from '@/lib/tide-forecast';
+import {
+  parseKstDateTime,
+  type TideCurveAnchor,
+  type TideEventType,
+  type TideForecastEvent,
+  type TideForecastPayload,
+} from '@/lib/tide-forecast';
 
 const KHOA_TIDE_URL = 'https://apis.data.go.kr/1192136/tideFcstHghLw/GetTideFcstHghLwApiService';
 
@@ -46,9 +52,7 @@ function parseClock(predcDt: string): string | null {
 }
 
 function parseDateTime(predcDt: string): number {
-  const normalized = predcDt.includes('T') ? predcDt : predcDt.replace(' ', 'T');
-  const ms = Date.parse(normalized);
-  return Number.isNaN(ms) ? 0 : ms;
+  return parseKstDateTime(predcDt);
 }
 
 function asItemList(value: unknown): KhoaTideItem[] {
