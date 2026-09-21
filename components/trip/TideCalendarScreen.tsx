@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import {
   IoChevronBackOutline,
@@ -16,16 +16,49 @@ import {
 } from '@/lib/dadaepo-tide';
 import {
   DEFAULT_DEPARTURE,
+  formatAdviceBriefing,
+  formatTideGround,
   getTideFishAdvice,
+  isTideAiDateOpen,
   isTideFishAdvice,
+  recommendedRigFlow,
+  TIDE_AI_LOCK_MESSAGE,
+  tideAiCacheKey,
   type TideFishAdvice,
 } from '@/lib/tide-fish-recommend';
+import { resolveAppUser } from '@/lib/auth-session';
 import { getSiteSettings } from '@/utils/site-settings-service';
 import { getTripsByMonth, tripDateToStr } from '@/utils/trip-guide-service';
 import { OHGO_CARD, OHGO_FONT } from '@/lib/page-styles';
 import TripTidePanel from '@/components/trip/TripTidePanel';
 
 const FONT = OHGO_FONT;
+const LOCAL_AI_KEY = 'ohgo-tide-ai-v7';
+
+function readLocalAi(key: string): TideFishAdvice | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(LOCAL_AI_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const item = parsed[key];
+    return isTideFishAdvice(item) && item.source === 'ai' ? item : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalAi(key: string, advice: TideFishAdvice) {
+  if (typeof window === 'undefined' || advice.source !== 'ai') return;
+  try {
+    const raw = window.localStorage.getItem(LOCAL_AI_KEY);
+    const parsed = raw ? JSON.parse(raw) as Record<string, TideFishAdvice> : {};
+    parsed[key] = advice;
+    window.localStorage.setItem(LOCAL_AI_KEY, JSON.stringify(parsed));
+  } catch {
+    // ignore quota
+  }
+}
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 const TODAY_ACCENT = '#E65100';
 const TODAY_BG = '#FFF3E0';
@@ -74,6 +107,10 @@ export default function TideCalendarScreen({
   const [calendarExpanded, setCalendarExpanded] = useState(false);
   const [region, setRegion] = useState<TideRegion>(() => getTideRegion(tideRegionId));
   const [departures, setDepartures] = useState<string[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const refreshGen = useRef(0);
 
   useEffect(() => {
     if (tideRegionId) {
@@ -92,6 +129,12 @@ export default function TideCalendarScreen({
       cancelled = true;
     };
   }, [tideRegionId]);
+
+  useEffect(() => {
+    void resolveAppUser()
+      .then((user) => setIsAdmin(Boolean(user?.isAdmin)))
+      .catch(() => setIsAdmin(false));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,24 +163,80 @@ export default function TideCalendarScreen({
   const [advice, setAdvice] = useState<TideFishAdvice | null>(baseAdvice);
 
   useEffect(() => {
+    refreshGen.current += 1;
+    setRefreshError(null);
+    setRefreshing(false);
+    if (!baseAdvice) {
+      setAdvice(null);
+      return;
+    }
+    const cacheKey = tideAiCacheKey(selectedDate, region.id, departureTime);
+    const local = readLocalAi(cacheKey);
+    if (local) {
+      setAdvice(local);
+      return;
+    }
+    const open = isTideAiDateOpen(selectedDate, today);
+    if (!open) {
+      setAdvice({
+        ...baseAdvice,
+        locked: true,
+        lockMessage: TIDE_AI_LOCK_MESSAGE,
+      });
+      return;
+    }
+
     setAdvice(baseAdvice);
-    if (!baseAdvice) return;
     const params = new URLSearchParams({
       date: selectedDate,
       region: region.id,
       depart: departureTime,
     });
     let cancelled = false;
-    void fetch(`/api/tide/recommend?${params}`)
+    void fetch(`/api/tide/recommend?${params}`, { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
       .then((payload) => {
-        if (!cancelled && isTideFishAdvice(payload)) setAdvice(payload);
+        if (cancelled || !isTideFishAdvice(payload)) return;
+        setAdvice(payload);
+        writeLocalAi(cacheKey, payload);
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [baseAdvice, selectedDate, region.id, departureTime]);
+  }, [baseAdvice, selectedDate, region.id, departureTime, today]);
+
+  const requestAiRefresh = () => {
+    if (!isAdmin || !isTideAiDateOpen(selectedDate, today) || refreshing || !baseAdvice) return;
+    const cacheKey = tideAiCacheKey(selectedDate, region.id, departureTime);
+    const params = new URLSearchParams({
+      date: selectedDate,
+      region: region.id,
+      depart: departureTime,
+      refresh: '1',
+      _: String(Date.now()),
+    });
+    const gen = ++refreshGen.current;
+    setRefreshError(null);
+    setRefreshing(true);
+    void fetch(`/api/tide/recommend?${params}`, { cache: 'no-store' })
+      .then(async (res) => {
+        const payload = await res.json().catch(() => null);
+        if (gen !== refreshGen.current) return;
+        if (!res.ok || !isTideFishAdvice(payload) || payload.source !== 'ai') {
+          throw new Error('ai_failed');
+        }
+        setAdvice(payload);
+        writeLocalAi(cacheKey, payload);
+      })
+      .catch(() => {
+        if (gen !== refreshGen.current) return;
+        setRefreshError('AI 추천을 다시 받지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      })
+      .finally(() => {
+        if (gen === refreshGen.current) setRefreshing(false);
+      });
+  };
 
   const firstDow = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -243,12 +342,33 @@ export default function TideCalendarScreen({
   return (
     <>
       <div className="position-relative mb-2" style={{ ...OHGO_CARD, overflow: 'hidden', width: '100%', minWidth: 0 }}>
-        <div className="d-flex align-items-center justify-content-center px-2 pt-2 pb-1">
-          <span style={{ fontSize: 16, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
+        <div className="d-flex align-items-center px-1 pt-1 pb-1">
+          <button
+            type="button"
+            onClick={() => (calendarExpanded ? shiftMonth(-1) : goToDay(-1))}
+            className="btn p-0 d-flex align-items-center justify-content-center flex-shrink-0"
+            aria-label={calendarExpanded ? '이전 달' : '이전일'}
+            style={{ width: 40, height: 40, border: 'none', background: 'none', color: '#1A1D1F' }}
+          >
+            <IoChevronBackOutline size={22} />
+          </button>
+          <span
+            className="flex-grow-1 text-center"
+            style={{ fontSize: 16, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}
+          >
             {calendarExpanded
               ? format(currentMonthDate, 'yyyy년 M월')
               : formatSunSatWeekLabel(selectedDate)}
           </span>
+          <button
+            type="button"
+            onClick={() => (calendarExpanded ? shiftMonth(1) : goToDay(1))}
+            className="btn p-0 d-flex align-items-center justify-content-center flex-shrink-0"
+            aria-label={calendarExpanded ? '다음 달' : '다음일'}
+            style={{ width: 40, height: 40, border: 'none', background: 'none', color: '#1A1D1F' }}
+          >
+            <IoChevronForwardOutline size={22} />
+          </button>
         </div>
         <div className="d-flex" style={{ borderTop: '1px solid #F7F8FA', borderBottom: '1px solid #F7F8FA' }}>
           {DAY_LABELS.map((label, index) => (
@@ -325,16 +445,69 @@ export default function TideCalendarScreen({
 
       {advice ? (
         <div className="mt-3" style={{ ...OHGO_CARD, padding: 16 }}>
-          <div className="d-flex align-items-center justify-content-between">
+          <div className="d-flex align-items-center justify-content-between gap-2">
             <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
-              선상 추천 (내만 15–20m)
+              AI 추천 공략
             </div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#9A9FA5', fontFamily: FONT }}>
-              {advice.source === 'ai' ? 'AI 추천' : '물때·출항 기준'}
-            </span>
+            <div className="d-flex align-items-center gap-2">
+              {isAdmin && isTideAiDateOpen(selectedDate, today) ? (
+                <button
+                  type="button"
+                  onClick={requestAiRefresh}
+                  disabled={refreshing}
+                  style={{
+                    border: 0,
+                    background: 'none',
+                    padding: 0,
+                    fontSize: 11,
+                    fontWeight: 800,
+                    color: refreshing ? '#9A9FA5' : '#0F4C81',
+                    fontFamily: FONT,
+                  }}
+                >
+                  {refreshing ? '다시 받는 중…' : '다시 받기'}
+                </button>
+              ) : null}
+              {advice.locked ? null : (
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#9A9FA5', fontFamily: FONT }}>
+                  {advice.source === 'ai' ? 'AI 추천' : '물때·출항 기준'}
+                </span>
+              )}
+            </div>
           </div>
+          {refreshError ? (
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#C62828',
+                fontFamily: FONT,
+                marginTop: 8,
+              }}
+            >
+              {refreshError}
+            </div>
+          ) : null}
+          {advice.locked && advice.lockMessage ? (
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: '#8A4B08',
+                fontFamily: FONT,
+                backgroundColor: '#FFF6E5',
+                borderRadius: 10,
+                padding: '10px 12px',
+                marginTop: 10,
+                lineHeight: 1.55,
+              }}
+            >
+              {advice.lockMessage}
+            </div>
+          ) : (
+            <>
           <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 6 }}>
-            {advice.ground || `${region.label} · 다대포항 내만권 선상`}
+            {advice.ground || formatTideGround(region)}
             {` · 출항 ${advice.departureTime || departureTime}`}
           </div>
           <div className="d-flex flex-wrap gap-2 mt-2 mb-2">
@@ -372,7 +545,7 @@ export default function TideCalendarScreen({
             >
               {advice.currentLabel ? `추정 조류\n${advice.currentLabel}` : ''}
               {advice.currentLabel && advice.rig ? '\n\n' : ''}
-              {advice.rig ? `찌낚시\n${advice.rig.replace(/ · /g, '\n')}` : ''}
+              {advice.rig ? `오늘 채비 · ${recommendedRigFlow(advice.rig)}\n${advice.rig.replace(/ · /g, '\n')}` : ''}
             </div>
           ) : null}
           <p
@@ -386,45 +559,15 @@ export default function TideCalendarScreen({
               whiteSpace: 'pre-line',
             }}
           >
-            {advice.headline}
+            {formatAdviceBriefing(advice)}
           </p>
-          {advice.tips.map((tip) => (
-            <p
-              key={tip}
-              className="mb-2"
-              style={{
-                fontSize: 13,
-                color: '#6F767E',
-                fontFamily: FONT,
-                lineHeight: 1.65,
-                whiteSpace: 'pre-line',
-              }}
-            >
-              {tip}
-            </p>
-          ))}
           <div style={{ fontSize: 11, color: '#9A9FA5', fontFamily: FONT, marginTop: 10 }}>
             다대포 내만 선상 찌낚시 참고입니다. 실제 조류·조과는 바람·물색에 따라 달라집니다.
           </div>
+            </>
+          )}
         </div>
       ) : null}
-
-      <button
-        type="button"
-        onClick={() => (calendarExpanded ? shiftMonth(-1) : goToDay(-1))}
-        className="trip-week-nav trip-week-nav--prev"
-        aria-label={calendarExpanded ? '이전 달' : '이전일'}
-      >
-        <IoChevronBackOutline size={22} />
-      </button>
-      <button
-        type="button"
-        onClick={() => (calendarExpanded ? shiftMonth(1) : goToDay(1))}
-        className="trip-week-nav trip-week-nav--next"
-        aria-label={calendarExpanded ? '다음 달' : '다음일'}
-      >
-        <IoChevronForwardOutline size={22} />
-      </button>
     </>
   );
 }

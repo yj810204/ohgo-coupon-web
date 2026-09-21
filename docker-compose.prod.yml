@@ -20,4 +20,7 @@ services:
       - "127.0.0.1:3030:3000"
     env_file:
       - .env.production
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      KHOA_TIDE_API_KEY: ${KHOA_TIDE_API_KEY:-}
     restart: unless-stopped

@@ -2098,39 +2098,6 @@ html body .btn:not(.ohgo-modal__btn):not([class*="btn-outline-"]):not(.btn-prima
   flex-direction: row;
 }
 
-.trip-week-nav {
-  position: fixed;
-  top: 50%;
-  z-index: 40;
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.14);
-  color: #1a1d1f;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transform: translateY(-50%);
-  cursor: pointer;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-.trip-week-nav:active {
-  background: #f4f5f7;
-}
-
-.trip-week-nav--prev {
-  left: max(10px, calc(50% - (var(--ohgo-app-max-width) / 2) + 8px));
-}
-
-.trip-week-nav--next {
-  right: max(10px, calc(50% - (var(--ohgo-app-max-width) / 2) + 8px));
-}
-
 .ohgo-photo-lightbox {
   position: fixed;
   inset: 0;

@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { IoChevronForwardOutline } from 'react-icons/io5';
 import {
-  getTideFlowLevel,
   getTideLabel,
   getTideRegion,
   getTideTextColor,
@@ -11,6 +10,7 @@ import {
 } from '@/lib/dadaepo-tide';
 import type { TideCurveAnchor, TideForecastEvent, TideForecastPayload } from '@/lib/tide-forecast';
 import { interpolateTideCurve } from '@/lib/tide-forecast';
+import { estimateDayTideFlow, tideFlowFeel } from '@/lib/tide-fish-recommend';
 import { getSiteSettings } from '@/utils/site-settings-service';
 import { tripDateToStr } from '@/utils/trip-guide-service';
 
@@ -85,6 +85,32 @@ function TideFlowBar({ level }: { level: number }) {
   );
 }
 
+const BOAT_START_HOUR = 4;
+const BOAT_END_HOUR = 18;
+const SLACK_MS = 60 * 60 * 1000;
+
+function clockLabel(at: number): string {
+  const date = new Date(at);
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function slackWindows(events: TideForecastEvent[], viewStart: number, viewEnd: number) {
+  return events
+    .map((event) => {
+      const from = event.at - SLACK_MS;
+      const to = event.at + SLACK_MS;
+      if (to <= viewStart || from >= viewEnd) return null;
+      return {
+        event,
+        from,
+        to,
+        clipFrom: Math.max(from, viewStart),
+        clipTo: Math.min(to, viewEnd),
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => item != null);
+}
+
 function TideChart({
   date,
   events,
@@ -94,14 +120,12 @@ function TideChart({
   events: TideForecastEvent[];
   anchors: TideCurveAnchor[];
 }) {
-  const dayStart = Date.parse(`${date}T00:00:00`);
-  const dayEnd = dayStart + 86_400_000;
-  const viewStart = dayStart - 3 * 3_600_000;
-  const viewEnd = dayStart + 27 * 3_600_000;
+  const viewStart = Date.parse(`${date}T${String(BOAT_START_HOUR).padStart(2, '0')}:00:00`);
+  const viewEnd = Date.parse(`${date}T${String(BOAT_END_HOUR).padStart(2, '0')}:00:00`);
   const viewSpan = viewEnd - viewStart;
   const width = 360;
-  const height = 188;
-  const pad = { l: 6, r: 8, t: 22, b: 20 };
+  const height = 176;
+  const pad = { l: 0, r: 0, t: 4, b: 22 };
   const innerW = width - pad.l - pad.r;
   const innerH = height - pad.t - pad.b;
   const source = anchors.length > 0 ? anchors : events.map((event) => ({
@@ -150,113 +174,182 @@ function TideChart({
     .join(' ');
   const area = `${line} L${points[points.length - 1].x.toFixed(1)},${(pad.t + innerH).toFixed(1)} L${points[0].x.toFixed(1)},${(pad.t + innerH).toFixed(1)} Z`;
   const now = Date.now();
-  const showNow = now >= dayStart && now < dayEnd;
+  const showNow = now >= viewStart && now <= viewEnd;
   const nowX = xOf(now);
+  const nowH = heightAt(now);
+  const windows = slackWindows(events, viewStart, viewEnd);
+  const boatEvents = events.filter((event) => event.at >= viewStart && event.at <= viewEnd);
+  const hourMarks = [4, 8, 12, 16, 18];
 
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      width="100%"
-      height="188"
-      preserveAspectRatio="xMidYMid meet"
-      role="img"
-      aria-label={`${date} 조위 그래프`}
-    >
-      <defs>
-        <linearGradient id={`tide-fill-${date}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#1B6FF5" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#1B6FF5" stopOpacity="0.02" />
-        </linearGradient>
-      </defs>
-      {[0, 6, 12, 18, 24].map((hour) => {
-        const x = xOf(dayStart + hour * 3_600_000);
-        return (
-          <g key={hour}>
-            {hour > 0 && hour < 24 ? (
-              <line x1={x} y1={pad.t} x2={x} y2={pad.t + innerH} stroke="#EEF1F4" strokeWidth="1" />
-            ) : null}
+    <div>
+      <div style={{ padding: '2px 16px 0' }}>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        width="100%"
+        preserveAspectRatio="xMidYMid meet"
+        role="img"
+        aria-label={`${date} 출조 시간 조위`}
+        style={{ display: 'block', width: '100%', height: 'auto', aspectRatio: `${width} / ${height}` }}
+      >
+        <defs>
+          <linearGradient id={`tide-fill-${date}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#1B6FF5" stopOpacity="0.16" />
+            <stop offset="100%" stopColor="#1B6FF5" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {windows.map((slack) => {
+          const x = xOf(slack.clipFrom);
+          const w = Math.max(2, xOf(slack.clipTo) - x);
+          return (
+            <g key={`slack-${slack.event.at}`}>
+              <rect x={x} y={pad.t} width={w} height={innerH} fill="#D8F3E4" />
+              {w >= 28 ? (
+                <text
+                  x={x + w / 2}
+                  y={pad.t + 11}
+                  textAnchor="middle"
+                  fill="#1B7A4A"
+                  fontSize="9"
+                  fontWeight="800"
+                  fontFamily={FONT}
+                >
+                  물돌이
+                </text>
+              ) : null}
+            </g>
+          );
+        })}
+        {hourMarks.map((hour) => {
+          const x = xOf(Date.parse(`${date}T${String(hour).padStart(2, '0')}:00:00`));
+          return (
             <text
+              key={hour}
               x={x}
-              y={height - 3}
-              textAnchor="middle"
+              y={height - 4}
+              textAnchor={hour === BOAT_START_HOUR ? 'start' : hour === BOAT_END_HOUR ? 'end' : 'middle'}
               fill="#9A9FA5"
               fontSize="10"
               fontFamily={FONT}
             >
-              {String(hour).padStart(2, '0')}시
+              {hour}시
             </text>
-          </g>
-        );
-      })}
-      <path d={area} fill={`url(#tide-fill-${date})`} />
-      <path d={line} fill="none" stroke="#1B6FF5" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
-      {showNow ? (
-        <line
-          x1={nowX}
-          y1={pad.t}
-          x2={nowX}
-          y2={pad.t + innerH}
-          stroke="#E65100"
-          strokeWidth="1.2"
-          strokeDasharray="3 3"
-        />
-      ) : null}
-      {events.map((event) => {
-        const isHigh = event.type === 'high';
-        const x = xOf(event.at);
-        const y = yOf(event.heightCm);
-        if (x < pad.l - 4 || x > width - pad.r + 4) return null;
-        const accent = isHigh ? '#DC2626' : '#0F4C81';
-        const fill = isHigh ? '#FEECEC' : '#E8F0FE';
-        const cmLabel = `${isHigh ? '↑' : '↓'}${event.heightCm}cm`;
-        const badgeW = event.heightCm >= 100 ? 50 : 46;
-        const badgeH = 16;
-        const timeW = 34;
-        const groupW = timeW + 4 + badgeW;
-        const leader = isHigh ? 12 : 40;
-        let gx = x - groupW / 2;
-        let gy = y - leader - badgeH;
-        if (gy < 2) gy = 2;
-        gx = Math.min(Math.max(pad.l, gx), width - pad.r - groupW);
-        const bx = gx + timeW + 4;
-        return (
-          <g key={`${event.type}-${event.at}`}>
+          );
+        })}
+        <path d={area} fill={`url(#tide-fill-${date})`} />
+        <path d={line} fill="none" stroke="#1B6FF5" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+        {boatEvents.map((event) => {
+          const isHigh = event.type === 'high';
+          const x = xOf(event.at);
+          const y = yOf(event.heightCm);
+          const accent = isHigh ? '#DC2626' : '#0F4C81';
+          const cmLabel = `${isHigh ? '↑' : '↓'}${event.heightCm}cm`;
+          const badgeW = event.heightCm >= 100 ? 84 : 78;
+          const badgeH = 16;
+          let gx = x - badgeW / 2;
+          let gy = isHigh ? y + 10 : y - 36 - badgeH;
+          if (isHigh) {
+            gy = Math.min(gy, height - pad.b - badgeH);
+          } else if (gy < 2) {
+            gy = 2;
+          }
+          gx = Math.min(Math.max(2, gx), width - 2 - badgeW);
+          const lineY1 = isHigh ? y + 5 : gy + badgeH;
+          const lineY2 = isHigh ? gy : y - 5;
+          return (
+            <g key={`${event.type}-${event.at}`}>
+              <line x1={x} y1={lineY1} x2={x} y2={lineY2} stroke={accent} strokeWidth="1" />
+              <circle cx={x} cy={y} r="3.5" fill="#FFFFFF" stroke={accent} strokeWidth="2" />
+              <rect x={gx} y={gy} width={badgeW} height={badgeH} rx={8} fill="#FFFFFF" />
+              <text
+                x={gx + 8}
+                y={gy + 11.5}
+                fill="#6F767E"
+                fontSize="9"
+                fontWeight="700"
+                fontFamily={FONT}
+              >
+                {event.time}
+              </text>
+              <text
+                x={gx + badgeW - 8}
+                y={gy + 11.5}
+                textAnchor="end"
+                fill={accent}
+                fontSize="9"
+                fontWeight="800"
+                fontFamily={FONT}
+              >
+                {cmLabel}
+              </text>
+            </g>
+          );
+        })}
+        {showNow ? (
+          <g>
             <line
-              x1={x}
-              y1={gy + badgeH}
-              x2={x}
-              y2={y - 6}
-              stroke={accent}
-              strokeWidth="1"
+              x1={nowX}
+              y1={pad.t}
+              x2={nowX}
+              y2={pad.t + innerH}
+              stroke="#E65100"
+              strokeWidth="1.4"
+              strokeDasharray="3 3"
             />
-            <circle cx={x} cy={y} r="4.5" fill="#FFFFFF" stroke={accent} strokeWidth="2" />
+            {nowH != null ? (
+              <circle cx={nowX} cy={yOf(nowH)} r="3" fill="#E65100" />
+            ) : null}
             <text
-              x={gx + timeW}
-              y={gy + 11.5}
-              textAnchor="end"
-              fill="#6F767E"
-              fontSize="9"
-              fontWeight="700"
-              fontFamily={FONT}
-            >
-              {event.time}
-            </text>
-            <rect x={bx} y={gy} width={badgeW} height={badgeH} rx={8} fill={fill} />
-            <text
-              x={bx + badgeW / 2}
-              y={gy + 11.5}
+              x={Math.min(Math.max(nowX, pad.l + 14), pad.l + innerW - 14)}
+              y={pad.t + 11}
               textAnchor="middle"
-              fill={accent}
+              fill="#E65100"
               fontSize="9"
               fontWeight="800"
               fontFamily={FONT}
             >
-              {cmLabel}
+              지금
             </text>
           </g>
-        );
-      })}
-    </svg>
+        ) : null}
+      </svg>
+      </div>
+
+      {windows.length > 0 ? (
+        <div style={{ padding: '4px 16px 16px' }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 800,
+              color: '#1B7A4A',
+              fontFamily: FONT,
+              marginBottom: 6,
+            }}
+          >
+            집중할 시간
+          </div>
+          <div className="d-flex flex-wrap" style={{ gap: 6 }}>
+            {windows.map((slack) => (
+              <span
+                key={`range-${slack.event.at}`}
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  fontFamily: FONT,
+                  color: '#1B7A4A',
+                  backgroundColor: '#E7F6EE',
+                  borderRadius: 99,
+                  padding: '4px 8px',
+                }}
+              >
+                {`${clockLabel(slack.from)}–${clockLabel(slack.to)}`}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+    </div>
   );
 }
 
@@ -267,7 +360,6 @@ export default function TripTidePanel({
   variant = 'section',
 }: Props) {
   const tideLabel = getTideLabel(date);
-  const flowLevel = getTideFlowLevel(tideLabel);
   const [region, setRegion] = useState<TideRegion>(() => getTideRegion(tideRegionId));
   const [events, setEvents] = useState<TideForecastEvent[]>([]);
   const [anchors, setAnchors] = useState<TideCurveAnchor[]>([]);
@@ -317,12 +409,19 @@ export default function TripTidePanel({
 
   if (!tideLabel && events.length === 0) return null;
 
+  const dayFlow = estimateDayTideFlow(tideLabel, events, date, anchors);
+  const flowLevel = dayFlow.level;
   const title = formatTideTitle(date);
+  const boatStart = Date.parse(`${date}T${String(BOAT_START_HOUR).padStart(2, '0')}:00:00`);
+  const boatEnd = Date.parse(`${date}T${String(BOAT_END_HOUR).padStart(2, '0')}:00:00`);
+  const headerEvents = events.filter((event) => event.at >= boatStart && event.at <= boatEnd);
+  const headerHigh = [...headerEvents.filter((event) => event.type === 'high')].sort((a, b) => a.at - b.at)[0];
+  const headerLow = [...headerEvents.filter((event) => event.type === 'low')].sort((a, b) => a.at - b.at)[0];
   const card = (
     <div style={variant === 'embedded' ? { ...CARD, boxShadow: 'none', border: '1px solid #EFEFEF' } : CARD}>
       <div
-        className="d-flex align-items-end justify-content-between gap-3"
-        style={{ padding: '16px 16px 14px' }}
+        className="d-flex align-items-center justify-content-between gap-2"
+        style={{ padding: '8px 16px' }}
       >
         <div className="min-w-0">
           <div style={{ fontSize: 12, fontWeight: 700, color: '#6F767E', fontFamily: FONT }}>
@@ -332,6 +431,33 @@ export default function TripTidePanel({
             {formatDateLine(date)}
           </div>
         </div>
+        {headerHigh || headerLow || dayFlow.rangeCm != null ? (
+          <div
+            className="min-w-0"
+            style={{
+              flex: '1 1 auto',
+              textAlign: 'center',
+              fontFamily: FONT,
+              lineHeight: 1.35,
+            }}
+          >
+            {headerHigh ? (
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#DC2626' }}>
+                {`만조 ${headerHigh.time}`}
+              </div>
+            ) : null}
+            {headerLow ? (
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#0F4C81' }}>
+                {`간조 ${headerLow.time}`}
+              </div>
+            ) : null}
+            {dayFlow.rangeCm != null ? (
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#9A9FA5', marginTop: 1 }}>
+                {`고저 ${dayFlow.rangeCm}cm`}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {tideLabel ? (
           <span
             style={{
@@ -350,7 +476,7 @@ export default function TripTidePanel({
       </div>
 
       {flowLevel > 0 ? (
-        <div style={{ padding: '0 16px 4px' }}>
+        <div style={{ padding: '0 16px 0' }}>
           <div
             className="d-flex align-items-center justify-content-between"
             style={{ marginBottom: 8 }}
@@ -366,10 +492,23 @@ export default function TripTidePanel({
                 fontFamily: FONT,
               }}
             >
-              {Math.round((flowLevel / 8) * 100)}%
+              {tideFlowFeel(dayFlow.peakKn)}
             </span>
           </div>
           <TideFlowBar level={flowLevel} />
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#9A9FA5',
+              fontFamily: FONT,
+            }}
+          >
+            {dayFlow.rangeCm != null && dayFlow.hours != null
+              ? `고저 ${dayFlow.rangeCm}cm 기준 추정`
+              : '물때 기준 추정'}
+          </div>
         </div>
       ) : null}
 

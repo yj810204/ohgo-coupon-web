@@ -16,13 +16,6 @@ import {
   tripWeekdayNumberColor,
 } from '@/utils/trip-guide-service';
 import { IoTimeOutline, IoChevronForwardOutline, IoBoatOutline } from 'react-icons/io5';
-import {
-  getTideLabel,
-  getTideRegion,
-  getTideTextColor,
-  type TideRegion,
-} from '@/lib/dadaepo-tide';
-import { getSiteSettings } from '@/utils/site-settings-service';
 
 const FONT = "var(--font-ohgo), sans-serif";
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -70,19 +63,16 @@ interface Props {
   trips?: TripGuide[];
   /** true면 부모 로딩 중. trips와 같이 쓰면 자체 fetch 하지 않음 */
   isLoading?: boolean;
-  tideRegionId?: string;
 }
 
 export default function WeeklyTripSummary({
   onViewAll,
   trips: tripsProp,
   isLoading,
-  tideRegionId,
 }: Props) {
   const controlled = tripsProp !== undefined || isLoading !== undefined;
   const [trips, setTrips] = useState<TripGuide[]>(tripsProp ?? []);
   const [loading, setLoading] = useState(controlled ? Boolean(isLoading) : !tripsProp);
-  const [tideRegion, setTideRegion] = useState<TideRegion>(() => getTideRegion(tideRegionId));
   const weekRange = useMemo(() => getWeekRange(new Date()), []);
 
   useEffect(() => {
@@ -105,24 +95,6 @@ export default function WeeklyTripSummary({
     };
     void load();
   }, [weekRange, tripsProp, isLoading, controlled]);
-
-  useEffect(() => {
-    if (tideRegionId) {
-      setTideRegion(getTideRegion(tideRegionId));
-      return;
-    }
-    let cancelled = false;
-    void getSiteSettings()
-      .then((settings) => {
-        if (!cancelled) setTideRegion(getTideRegion(settings.tideRegionId));
-      })
-      .catch(() => {
-        if (!cancelled) setTideRegion(getTideRegion());
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [tideRegionId]);
 
   if (loading) return null;
 
@@ -199,7 +171,6 @@ export default function WeeklyTripSummary({
           }
 
           const groupBg = isPast ? '#F7F8FA' : '#FFFFFF';
-          const tideLabel = getTideLabel(group.date);
 
           return (
             <div key={group.date}>
@@ -243,22 +214,6 @@ export default function WeeklyTripSummary({
                       {parseInt(group.date.split('-')[2], 10)}
                     </span>
                   </div>
-                  {tideLabel ? (
-                    <span
-                      title={`${tideRegion.label} 물때`}
-                      style={{
-                        marginTop: 4,
-                        fontSize: 12,
-                        fontWeight: 800,
-                        letterSpacing: tideLabel.length > 2 ? -0.3 : 0,
-                        color: getTideTextColor(tideLabel, { muted: isPast }),
-                        fontFamily: FONT,
-                        lineHeight: 1,
-                      }}
-                    >
-                      {tideLabel}
-                    </span>
-                  ) : null}
                 </div>
                 <div
                   style={{

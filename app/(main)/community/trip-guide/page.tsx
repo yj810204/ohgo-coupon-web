@@ -513,12 +513,33 @@ export default function TripGuidePage() {
             </div>
           )}
 
-          <div className="d-flex align-items-center justify-content-center px-2 pt-2 pb-1">
-            <span style={{ fontSize: 16, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
+          <div className="d-flex align-items-center px-1 pt-1 pb-1">
+            <button
+              type="button"
+              onClick={goPrev}
+              className="btn p-0 d-flex align-items-center justify-content-center flex-shrink-0"
+              aria-label={calendarExpanded ? '이전 달' : '이전일'}
+              style={{ width: 40, height: 40, border: 'none', background: 'none', color: '#1A1D1F' }}
+            >
+              <IoChevronBackOutline size={22} />
+            </button>
+            <span
+              className="flex-grow-1 text-center"
+              style={{ fontSize: 16, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}
+            >
               {calendarExpanded
                 ? format(currentMonthDate, 'yyyy년 M월')
                 : formatSunSatWeekLabel(selectedDate)}
             </span>
+            <button
+              type="button"
+              onClick={goNext}
+              className="btn p-0 d-flex align-items-center justify-content-center flex-shrink-0"
+              aria-label={calendarExpanded ? '다음 달' : '다음일'}
+              style={{ width: 40, height: 40, border: 'none', background: 'none', color: '#1A1D1F' }}
+            >
+              <IoChevronForwardOutline size={22} />
+            </button>
           </div>
 
           <div className="d-flex" style={{ borderTop: '1px solid #F7F8FA', borderBottom: '1px solid #F7F8FA' }}>
@@ -702,27 +723,6 @@ export default function TripGuidePage() {
             )}
           </>
         )}
-
-      {!modalTrip && (
-        <>
-          <button
-            type="button"
-            onClick={goPrev}
-            className="trip-week-nav trip-week-nav--prev"
-            aria-label={calendarExpanded ? '이전 달' : '이전일'}
-          >
-            <IoChevronBackOutline size={22} />
-          </button>
-          <button
-            type="button"
-            onClick={goNext}
-            className="trip-week-nav trip-week-nav--next"
-            aria-label={calendarExpanded ? '다음 달' : '다음일'}
-          >
-            <IoChevronForwardOutline size={22} />
-          </button>
-        </>
-      )}
 
       <OhgoModal
         open={!!modalTrip}
