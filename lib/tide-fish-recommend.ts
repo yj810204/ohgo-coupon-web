@@ -1,5 +1,5 @@
 import { getTideLabel, type TideRegion } from '@/lib/dadaepo-tide';
-import type { TideCurveAnchor, TideForecastEvent } from '@/lib/tide-forecast';
+import { kstDateTimeMs, type TideCurveAnchor, type TideForecastEvent } from '@/lib/tide-forecast';
 
 export const TIDE_FISH_GROUND = '다대포항 내만권 선상/수심 15–20m';
 export const DEFAULT_DEPARTURE = '06:00';
@@ -124,8 +124,8 @@ function tideExchanges(events?: TideForecastEvent[], anchors?: TideCurveAnchor[]
 
 function pickTideExchange(exchanges: TideExchange[], date?: string): TideExchange | null {
   if (exchanges.length === 0) return null;
-  const boatStart = date ? Date.parse(`${date}T04:00:00`) : null;
-  const boatEnd = date ? Date.parse(`${date}T18:00:00`) : null;
+  const boatStart = date ? kstDateTimeMs(date, 4) : null;
+  const boatEnd = date ? kstDateTimeMs(date, 18) : null;
   const pool = boatStart != null && boatEnd != null
     ? exchanges.filter((item) => item.toAt > boatStart && item.fromAt < boatEnd)
     : exchanges;

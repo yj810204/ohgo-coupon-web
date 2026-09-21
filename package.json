@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:tide": "node --experimental-strip-types lib/tide-kst.test.mts",
     "screenshots": "node scripts/capture-all-screenshots.mjs",
     "screenshots:store": "node scripts/capture-store-screenshots.mjs",
     "screenshots:store:marketing": "node scripts/compose-store-marketing.mjs",
