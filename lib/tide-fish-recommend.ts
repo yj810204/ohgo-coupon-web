@@ -1,18 +1,29 @@
 import { getTideLabel, type TideRegion } from '@/lib/dadaepo-tide';
 import { kstDateTimeMs, type TideCurveAnchor, type TideForecastEvent } from '@/lib/tide-forecast';
 
-export const TIDE_FISH_GROUND = '다대포항 내만권 선상/수심 15–20m';
+export const TIDE_FISH_GROUND = '다대포항 내만권 선상';
 export const DEFAULT_DEPARTURE = '06:00';
+export const TIDE_ADVICE_TITLE = '물때 추천';
+export const TIDE_BOT_POINTER = '상세 채비·운용은 봇 브리핑을 참고하세요.';
+const BOAT_START_HOUR = 4;
+const BOAT_END_HOUR = 18;
 
 export function recommendedRigFlow(rig: string): '전유동' | '반유동' {
   return rig.includes('전유동') ? '전유동' : '반유동';
 }
 
 export function formatTideGround(region: TideRegion): string {
-  if (region.id === 'dadaepo') return '부산 다대포항 내만권 선상/수심 15–20m';
-  return `${region.label} 내만권 선상/수심 15–20m`;
+  if (region.id === 'dadaepo') return '부산 다대포항 내만권 선상';
+  return `${region.label} 내만권 선상`;
 }
 
+export type TideMarkFact = {
+  type: 'high' | 'low';
+  time: string;
+  heightCm: number;
+};
+
+/** 앱·API가 모으는 물때 사실. 조법 에세이는 넣지 않는다. */
 export type TideFishAdvice = {
   species: string[];
   headline: string;
@@ -23,25 +34,45 @@ export type TideFishAdvice = {
   currentKn: number;
   currentLabel: string;
   rig: string;
+  date?: string;
+  tideLabel?: string;
+  marks?: TideMarkFact[];
+  rangeCm?: number | null;
   locked?: boolean;
   lockMessage?: string;
 };
 
-export function formatAdviceBriefing(advice: Pick<TideFishAdvice, 'headline' | 'tips'>): string {
-  return [advice.headline, ...advice.tips]
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join('\n\n');
-}
-
 export type TideFishAdviceInput = {
   events?: TideForecastEvent[];
   departureTime?: string;
+  /** 당일 trip_guides.species. 비어 있으면 계절 기본 어종 */
+  species?: string[];
 };
 
-function eun(label: string): string {
-  if (label === '사리' || label === '조금') return `${label}는`;
-  return `${label}은`;
+/** 출조 안내·쿼리의 어종 문자열을 칩 배열로 나눈다. */
+export function parseTripSpecies(value?: string | string[] | null): string[] {
+  const chunks = Array.isArray(value) ? value : value ? [value] : [];
+  const names = chunks.flatMap((chunk) =>
+    String(chunk)
+      .split(/[,，、/|·]/)
+      .map((name) => name.trim())
+      .filter(Boolean),
+  );
+  return [...new Set(names)];
+}
+
+export function seasonalBoatSpecies(month: number): string[] {
+  if (month >= 9 && month <= 11) return ['감성돔', '노래미', '볼락'];
+  if (month >= 12 || month <= 2) return ['감성돔', '볼락', '학꽁치'];
+  if (month >= 3 && month <= 5) return ['감성돔', '도다리', '노래미'];
+  return ['볼락', '전갱이', '노래미'];
+}
+
+export function resolveAdviceSpecies(dateStr: string, tripSpecies?: string[] | null): string[] {
+  const fromTrip = parseTripSpecies(tripSpecies ?? []);
+  if (fromTrip.length > 0) return fromTrip;
+  const month = Number(dateStr.slice(5, 7));
+  return seasonalBoatSpecies(Number.isFinite(month) ? month : 1);
 }
 
 function parseHm(value?: string): number | null {
@@ -240,16 +271,9 @@ export function estimateTideCurrent(options: {
   };
 }
 
-function boatSpecies(month: number): string[] {
-  if (month >= 9 && month <= 11) return ['감성돔', '노래미', '볼락'];
-  if (month >= 12 || month <= 2) return ['감성돔', '볼락', '학꽁치'];
-  if (month >= 3 && month <= 5) return ['감성돔', '도다리', '노래미'];
-  return ['볼락', '전갱이', '노래미'];
-}
-
-function floatRig(kn: number): string {
+export function floatRig(kn: number): string {
   if (kn < 0.3) {
-    return '1.5~2호 구멍찌(막대찌) · 전유동 · 수중 G2';
+    return '1.5~2호 구멍찌 · 전유동 · 수중 G2';
   }
   if (kn < 0.6) {
     return '2호 구멍찌(막대찌) · 반유동 · 수중 2B';
@@ -257,26 +281,25 @@ function floatRig(kn: number): string {
   return '2.5~3호 구멍찌(막대찌) · 반유동 고정 · 수중 3B';
 }
 
-function leaderAndShot(kn: number): { leader: string; shot: string; how: string } {
-  if (kn < 0.3) {
-    return {
-      leader: '2.5~3m',
-      shot: 'B~G2',
-      how: '찌를 배에서 멀리 흘려 층을 훑고, 멈칫하면 한 번만 견제하세요.',
-    };
+function boatMarks(events: TideForecastEvent[] | undefined, dateStr: string): TideMarkFact[] {
+  if (!events || events.length === 0) return [];
+  const viewStart = kstDateTimeMs(dateStr, BOAT_START_HOUR);
+  const viewEnd = kstDateTimeMs(dateStr, BOAT_END_HOUR);
+  return [...events]
+    .filter((event) => event.at >= viewStart && event.at <= viewEnd)
+    .sort((a, b) => a.at - b.at)
+    .map((event) => ({ type: event.type, time: event.time, heightCm: event.heightCm }));
+}
+
+export function formatTideFactsLine(advice: Pick<TideFishAdvice, 'tideLabel' | 'marks' | 'rangeCm'>): string {
+  const parts: string[] = [];
+  if (advice.tideLabel) parts.push(advice.tideLabel);
+  for (const mark of advice.marks ?? []) {
+    const kind = mark.type === 'high' ? '만조' : '간조';
+    parts.push(`${kind} ${mark.time} (${mark.heightCm}cm)`);
   }
-  if (kn < 0.6) {
-    return {
-      leader: '1.8~2.2m',
-      shot: 'G2',
-      how: '원하는 수심에 미끼가 머물게 반유동으로 잡고, 밀리면 수중을 한 호 올리세요.',
-    };
-  }
-  return {
-    leader: '1.5m',
-    shot: 'G3~2B',
-    how: '목줄을 짧게 잡고 바닥을 긁지 않게 수중을 올려 고정하세요.',
-  };
+  if (advice.rangeCm != null) parts.push(`고저 ${advice.rangeCm}cm`);
+  return parts.join(' · ');
 }
 
 export function getTideFishAdvice(
@@ -286,25 +309,19 @@ export function getTideFishAdvice(
 ): TideFishAdvice | null {
   const label = getTideLabel(dateStr);
   if (!label) return null;
-  const month = Number(dateStr.slice(5, 7));
-  const species = boatSpecies(month);
+  const species = resolveAdviceSpecies(dateStr, input.species);
   const current = estimateTideCurrent({
     label,
     events: input.events,
     departureTime: input.departureTime,
   });
+  const dayFlow = estimateDayTideFlow(label, input.events, dateStr);
+  const marks = boatMarks(input.events, dateStr);
   const rig = floatRig(current.kn);
-  const kit = leaderAndShot(current.kn);
-  const flowName = recommendedRigFlow(rig);
 
   return {
     species,
-    headline: [
-      `${eun(label)} 출항 ${current.departureTime}, 조류 ${current.label}.`,
-      `오늘은 ${flowName}. 구멍찌는 ${rig.split(' · ')[0]}, 목줄 ${kit.leader}, 좁쌀봉돌 ${kit.shot}.`,
-      kit.how,
-      '물색이 맑으면 목줄을 조금 더 길게 하고 미끼는 작게, 탁하면 목줄을 짧게 잡고 밑밥을 앞에 두세요.',
-    ].join('\n'),
+    headline: `${label} · 출항 ${current.departureTime}`,
     tips: [],
     source: 'rules',
     ground: formatTideGround(region),
@@ -312,6 +329,10 @@ export function getTideFishAdvice(
     currentKn: current.kn,
     currentLabel: current.label,
     rig,
+    date: dateStr,
+    tideLabel: label,
+    marks,
+    rangeCm: dayFlow.rangeCm,
   };
 }
 
@@ -333,4 +354,9 @@ export function isTideFishAdvice(value: unknown): value is TideFishAdvice {
 export function normalizeDepartQuery(value: string | null): string | undefined {
   if (!value || parseHm(value) == null) return undefined;
   return formatHm(parseHm(value) ?? 0);
+}
+
+export function normalizeSpeciesQuery(value: string | string[] | null): string[] | undefined {
+  const parsed = parseTripSpecies(value);
+  return parsed.length > 0 ? parsed : undefined;
 }
