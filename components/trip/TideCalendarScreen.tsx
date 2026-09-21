@@ -20,7 +20,9 @@ import {
   formatTideGround,
   getTideFishAdvice,
   isTideFishAdvice,
+  parseTripSpecies,
   recommendedRigFlow,
+  TIDE_ADVICE_TITLE,
   type TideFishAdvice,
 } from '@/lib/tide-fish-recommend';
 import { getSiteSettings } from '@/utils/site-settings-service';
@@ -77,6 +79,7 @@ export default function TideCalendarScreen({
   const [calendarExpanded, setCalendarExpanded] = useState(false);
   const [region, setRegion] = useState<TideRegion>(() => getTideRegion(tideRegionId));
   const [departures, setDepartures] = useState<string[]>([]);
+  const [tripSpecies, setTripSpecies] = useState<string[]>([]);
 
   useEffect(() => {
     if (tideRegionId) {
@@ -98,17 +101,24 @@ export default function TideCalendarScreen({
 
   useEffect(() => {
     let cancelled = false;
+    setDepartures([]);
+    setTripSpecies([]);
     void getTripsByMonth(selectedDate.slice(0, 7))
       .then((trips) => {
         if (cancelled) return;
-        const times = trips
-          .filter((trip) => trip.date === selectedDate && trip.departureTime)
+        const dayTrips = trips.filter((trip) => trip.date === selectedDate);
+        const times = dayTrips
+          .filter((trip) => trip.departureTime)
           .map((trip) => trip.departureTime)
           .sort();
         setDepartures(times);
+        setTripSpecies(parseTripSpecies(dayTrips.map((trip) => trip.species ?? '')));
       })
       .catch(() => {
-        if (!cancelled) setDepartures([]);
+        if (!cancelled) {
+          setDepartures([]);
+          setTripSpecies([]);
+        }
       });
     return () => {
       cancelled = true;
@@ -117,8 +127,8 @@ export default function TideCalendarScreen({
 
   const departureTime = departures[0] || DEFAULT_DEPARTURE;
   const baseAdvice = useMemo(
-    () => getTideFishAdvice(selectedDate, region, { departureTime }),
-    [selectedDate, region, departureTime],
+    () => getTideFishAdvice(selectedDate, region, { departureTime, species: tripSpecies }),
+    [selectedDate, region, departureTime, tripSpecies],
   );
   const [advice, setAdvice] = useState<TideFishAdvice | null>(baseAdvice);
 
@@ -133,6 +143,7 @@ export default function TideCalendarScreen({
       region: region.id,
       depart: departureTime,
     });
+    tripSpecies.forEach((name) => params.append('species', name));
     let cancelled = false;
     void fetch(`/api/tide/recommend?${params}`, { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
@@ -144,7 +155,7 @@ export default function TideCalendarScreen({
     return () => {
       cancelled = true;
     };
-  }, [baseAdvice, selectedDate, region.id, departureTime]);
+  }, [baseAdvice, selectedDate, region.id, departureTime, tripSpecies]);
 
   const firstDow = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -354,7 +365,7 @@ export default function TideCalendarScreen({
       {advice ? (
         <div className="mt-3" style={{ ...OHGO_CARD, padding: 16 }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
-            AI 추천 공략
+            {TIDE_ADVICE_TITLE}
           </div>
           <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 6 }}>
             {advice.ground || formatTideGround(region)}
@@ -414,25 +425,38 @@ export default function TideCalendarScreen({
                     {advice.rig
                       .split(' · ')
                       .filter((part) => part !== '전유동' && part !== '반유동' && part !== '반유동 고정')
+                      .map((part) =>
+                        recommendedRigFlow(advice.rig) === '전유동'
+                          ? part.replace(/\(막대찌\)/g, '')
+                          : part,
+                      )
                       .join('\n')}
                   </div>
                 </div>
               ) : null}
             </div>
           ) : null}
-          <p
-            className="mb-2"
-            style={{
-              fontSize: 13,
-              fontWeight: 700,
-              color: '#1A1D1F',
-              fontFamily: FONT,
-              lineHeight: 1.65,
-              whiteSpace: 'pre-line',
-            }}
-          >
-            {formatAdviceBriefing(advice)}
-          </p>
+          {formatAdviceBriefing(advice)
+            .split(/\n{2,}/)
+            .map((part) => part.trim())
+            .filter(Boolean)
+            .map((part, index) => (
+              <p
+                key={`${index}-${part.slice(0, 24)}`}
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: '#1A1D1F',
+                  fontFamily: FONT,
+                  lineHeight: 1.65,
+                  whiteSpace: 'pre-line',
+                  marginTop: index === 0 ? 0 : 12,
+                  marginBottom: 0,
+                }}
+              >
+                {part}
+              </p>
+            ))}
           <div style={{ fontSize: 11, color: '#9A9FA5', fontFamily: FONT, marginTop: 10 }}>
             다대포 내만 선상 찌낚시 참고입니다. 실제 조류·조과는 바람·물색에 따라 달라집니다.
           </div>

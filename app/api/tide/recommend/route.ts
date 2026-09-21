@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getTideRegion, normalizeTideRegionId } from '@/lib/dadaepo-tide';
 import { getTideForecast } from '@/lib/khoa-tide';
-import { getTideFishAdvice, normalizeDepartQuery } from '@/lib/tide-fish-recommend';
+import { getTideFishAdvice, normalizeDepartQuery, normalizeSpeciesQuery } from '@/lib/tide-fish-recommend';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,6 +24,7 @@ export async function GET(request: Request) {
 
   const regionId = normalizeTideRegionId(searchParams.get('region'));
   const departureTime = normalizeDepartQuery(searchParams.get('depart'));
+  const species = normalizeSpeciesQuery(searchParams.getAll('species'));
   let events;
   try {
     const forecast = await getTideForecast(date, regionId);
@@ -32,7 +33,11 @@ export async function GET(request: Request) {
     events = undefined;
   }
 
-  const advice = getTideFishAdvice(date, getTideRegion(regionId), { events, departureTime });
+  const advice = getTideFishAdvice(date, getTideRegion(regionId), {
+    events,
+    departureTime,
+    species,
+  });
   if (!advice) {
     return jsonAdvice({ error: '물때 정보를 찾을 수 없습니다.' }, 404);
   }
