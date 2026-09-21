@@ -157,6 +157,17 @@ export async function purgeSupabasePersonalData(admin: SupabaseClient, userId: s
 
   await deleteAvatarFiles(admin, userId);
 
+  const leftoverListings = await admin
+    .from('market_listings')
+    .select('id')
+    .eq('seller_id', userId)
+    .limit(1);
+  if (leftoverListings.data?.length) {
+    throw new Error(
+      '중고장터 판매글을 유지하려면 seller_id ON DELETE SET NULL 마이그레이션(027)을 적용해 주세요.'
+    );
+  }
+
   const { error } = await admin.from('profiles').delete().eq('id', userId);
   if (error && !/does not exist|schema cache/i.test(error.message || '')) {
     throw error;
