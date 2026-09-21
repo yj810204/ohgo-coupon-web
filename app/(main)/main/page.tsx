@@ -19,6 +19,7 @@ import QnaListItem from '@/components/community/QnaListItem';
 import FeaturedCard from '@/components/home/FeaturedCard';
 import HorizontalScroll from '@/components/home/HorizontalScroll';
 import WeeklyTripSummary from '@/components/home/WeeklyTripSummary';
+import TripTidePanel from '@/components/trip/TripTidePanel';
 import MarketListingCard from '@/components/market/MarketListingCard';
 import {
   getTripsInDateRange,
@@ -280,6 +281,16 @@ export default function MainPage() {
                 onViewAll={() => navigate('/community/trip-guide')}
                 trips={weekTrips}
                 isLoading={weekTripsLoading}
+              />
+            );
+          }
+
+          if (sectionId === 'tide' && homeSections.tide) {
+            return (
+              <TripTidePanel
+                key={sectionId}
+                date={tripDateToStr()}
+                onViewAll={() => navigate('/community/trip-guide')}
               />
             );
           }

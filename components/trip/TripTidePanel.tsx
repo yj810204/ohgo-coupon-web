@@ -1,0 +1,362 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { IoChevronForwardOutline } from 'react-icons/io5';
+import {
+  getTideFlowLevel,
+  getTideLabel,
+  getTideRegion,
+  getTideTextColor,
+  type TideRegion,
+} from '@/lib/dadaepo-tide';
+import type { TideCurveAnchor, TideForecastEvent, TideForecastPayload } from '@/lib/tide-forecast';
+import { interpolateTideCurve } from '@/lib/tide-forecast';
+import { getSiteSettings } from '@/utils/site-settings-service';
+import { tripDateToStr } from '@/utils/trip-guide-service';
+
+const FONT = 'var(--font-ohgo), sans-serif';
+const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+const CARD: React.CSSProperties = {
+  backgroundColor: '#FFFFFF',
+  borderRadius: 14,
+  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+  overflow: 'hidden',
+};
+
+/** 약함(남색) → 강함(빨강) */
+const FLOW_SEGMENT_COLORS = [
+  '#3D7AB5',
+  '#2F6F9C',
+  '#2A6B7A',
+  '#C9A227',
+  '#E08A1A',
+  '#E86A1A',
+  '#E24B4A',
+  '#DC2626',
+];
+
+type Props = {
+  date: string;
+  tideRegionId?: string;
+  onViewAll?: () => void;
+  /** section: 홈 위젯(제목+카드). embedded: 모달·예약 안 카드 */
+  variant?: 'section' | 'embedded';
+};
+
+function formatTideTitle(date: string): string {
+  const today = tripDateToStr();
+  if (date === today) return '오늘의 물때';
+  const month = Number(date.slice(5, 7));
+  const day = Number(date.slice(8, 10));
+  return `${month}월 ${day}일 물때`;
+}
+
+function formatDateLine(date: string): string {
+  const month = Number(date.slice(5, 7));
+  const day = Number(date.slice(8, 10));
+  const weekday = DAY_LABELS[new Date(`${date}T12:00:00`).getDay()];
+  return `${month}월 ${day}일 (${weekday})`;
+}
+
+function TideFlowBar({ level }: { level: number }) {
+  return (
+    <div className="d-flex align-items-center" style={{ gap: 3 }} aria-hidden>
+      {Array.from({ length: 8 }, (_, i) => (
+        <span
+          key={i}
+          style={{
+            flex: 1,
+            height: 14,
+            borderRadius: 99,
+            background:
+              i < level
+                ? `linear-gradient(180deg, ${FLOW_SEGMENT_COLORS[i]}CC, ${FLOW_SEGMENT_COLORS[i]})`
+                : '#E8EAED',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function TideChart({
+  date,
+  events,
+  anchors,
+}: {
+  date: string;
+  events: TideForecastEvent[];
+  anchors: TideCurveAnchor[];
+}) {
+  const dayStart = Date.parse(`${date}T00:00:00`);
+  const dayEnd = dayStart + 86_400_000;
+  const width = 320;
+  const height = 156;
+  const pad = { l: 8, r: 8, t: 28, b: 24 };
+  const innerW = width - pad.l - pad.r;
+  const innerH = height - pad.t - pad.b;
+  const source = anchors.length > 0 ? anchors : events.map((event) => ({
+    at: event.at,
+    heightCm: event.heightCm,
+    type: event.type,
+  }));
+  const heights = source.map((item) => item.heightCm);
+  if (heights.length === 0) return null;
+
+  const minH = Math.min(...heights) - 12;
+  const maxH = Math.max(...heights) + 12;
+  const range = Math.max(1, maxH - minH);
+  const xOf = (at: number) => pad.l + ((at - dayStart) / 86_400_000) * innerW;
+  const yOf = (cm: number) => pad.t + (1 - (cm - minH) / range) * innerH;
+
+  const points = interpolateTideCurve(source)
+    .map((point) => ({ x: xOf(point.at), y: yOf(point.heightCm) }))
+    .filter((point) => point.x >= pad.l - 8 && point.x <= width - pad.r + 8);
+  if (points.length < 2) return null;
+
+  const line = points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x.toFixed(1)},${point.y.toFixed(1)}`)
+    .join(' ');
+  const area = `${line} L${points[points.length - 1].x.toFixed(1)},${(pad.t + innerH).toFixed(1)} L${points[0].x.toFixed(1)},${(pad.t + innerH).toFixed(1)} Z`;
+  const now = Date.now();
+  const showNow = now >= dayStart && now < dayEnd;
+  const nowX = xOf(now);
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      width="100%"
+      height="156"
+      role="img"
+      aria-label={`${date} 조위 그래프`}
+    >
+      <defs>
+        <linearGradient id="tide-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#1B6FF5" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="#1B6FF5" stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      {[6, 12, 18].map((hour) => {
+        const x = xOf(dayStart + hour * 3_600_000);
+        return (
+          <g key={hour}>
+            <line x1={x} y1={pad.t} x2={x} y2={pad.t + innerH} stroke="#EEF1F4" strokeWidth="1" />
+            <text x={x} y={height - 6} textAnchor="middle" fill="#9A9FA5" fontSize="10" fontFamily={FONT}>
+              {String(hour).padStart(2, '0')}시
+            </text>
+          </g>
+        );
+      })}
+      <path d={area} fill="url(#tide-fill)" />
+      <path d={line} fill="none" stroke="#1B6FF5" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
+      {showNow ? (
+        <line
+          x1={nowX}
+          y1={pad.t}
+          x2={nowX}
+          y2={pad.t + innerH}
+          stroke="#E65100"
+          strokeWidth="1.2"
+          strokeDasharray="3 3"
+        />
+      ) : null}
+      {events.map((event) => {
+        const isHigh = event.type === 'high';
+        const x = xOf(event.at);
+        const y = yOf(event.heightCm);
+        if (x < pad.l || x > width - pad.r) return null;
+        const accent = isHigh ? '#DC2626' : '#0F4C81';
+        return (
+          <g key={`${event.type}-${event.at}`}>
+            <circle cx={x} cy={y} r="4.5" fill="#FFFFFF" stroke={accent} strokeWidth="2" />
+            <text
+              x={x}
+              y={isHigh ? y - 10 : y + 16}
+              textAnchor="middle"
+              fill={accent}
+              fontSize="10"
+              fontWeight="800"
+              fontFamily={FONT}
+            >
+              {event.time} {event.heightCm}cm
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+export default function TripTidePanel({
+  date,
+  tideRegionId,
+  onViewAll,
+  variant = 'section',
+}: Props) {
+  const tideLabel = getTideLabel(date);
+  const flowLevel = getTideFlowLevel(tideLabel);
+  const [region, setRegion] = useState<TideRegion>(() => getTideRegion(tideRegionId));
+  const [events, setEvents] = useState<TideForecastEvent[]>([]);
+  const [anchors, setAnchors] = useState<TideCurveAnchor[]>([]);
+  const [stationLabel, setStationLabel] = useState(region.stationLabel);
+
+  useEffect(() => {
+    if (tideRegionId) {
+      setRegion(getTideRegion(tideRegionId));
+      return;
+    }
+    let cancelled = false;
+    void getSiteSettings()
+      .then((settings) => {
+        if (!cancelled) setRegion(getTideRegion(settings.tideRegionId));
+      })
+      .catch(() => {
+        if (!cancelled) setRegion(getTideRegion());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tideRegionId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setEvents([]);
+    setAnchors([]);
+    const params = new URLSearchParams({ date, region: region.id });
+    void fetch(`/api/tide?${params}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: TideForecastPayload | null) => {
+        if (cancelled || !data?.ok) return;
+        setEvents(data.events);
+        setAnchors(data.anchors ?? []);
+        if (data.region?.stationLabel) setStationLabel(data.region.stationLabel);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setEvents([]);
+          setAnchors([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [date, region.id]);
+
+  if (!tideLabel && events.length === 0) return null;
+
+  const title = formatTideTitle(date);
+  const card = (
+    <div style={variant === 'embedded' ? { ...CARD, boxShadow: 'none', border: '1px solid #EFEFEF' } : CARD}>
+      <div
+        className="d-flex align-items-end justify-content-between gap-3"
+        style={{ padding: '16px 16px 14px' }}
+      >
+        <div className="min-w-0">
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#6F767E', fontFamily: FONT }}>
+            {region.label}
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#9A9FA5', fontFamily: FONT, marginTop: 2 }}>
+            {formatDateLine(date)}
+          </div>
+        </div>
+        {tideLabel ? (
+          <span
+            style={{
+              fontSize: 28,
+              fontWeight: 800,
+              color: getTideTextColor(tideLabel),
+              fontFamily: FONT,
+              lineHeight: 1,
+              letterSpacing: -0.6,
+              flexShrink: 0,
+            }}
+          >
+            {tideLabel}
+          </span>
+        ) : null}
+      </div>
+
+      {flowLevel > 0 ? (
+        <div style={{ padding: '0 16px 16px' }}>
+          <div
+            className="d-flex align-items-center justify-content-between"
+            style={{ marginBottom: 8 }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#6F767E', fontFamily: FONT }}>
+              물흐름
+            </span>
+            <span
+              style={{
+                fontSize: 14,
+                fontWeight: 800,
+                color: FLOW_SEGMENT_COLORS[Math.max(0, flowLevel - 1)],
+                fontFamily: FONT,
+              }}
+            >
+              {Math.round((flowLevel / 8) * 100)}%
+            </span>
+          </div>
+          <TideFlowBar level={flowLevel} />
+        </div>
+      ) : null}
+
+      {events.length > 0 || anchors.length > 0 ? (
+        <div style={{ padding: '0 8px 8px' }}>
+          <TideChart date={date} events={events} anchors={anchors} />
+        </div>
+      ) : null}
+
+      <div
+        style={{
+          padding: '10px 16px 12px',
+          borderTop: '1px solid #F2F3F5',
+          fontSize: 11,
+          color: '#9A9FA5',
+          fontFamily: FONT,
+        }}
+      >
+        조위 국립해양조사원
+        {stationLabel ? ` · 기준 ${stationLabel}` : ''}
+      </div>
+    </div>
+  );
+
+  if (variant === 'embedded') {
+    return (
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT, marginBottom: 8 }}>
+          {title}
+        </div>
+        {card}
+      </div>
+    );
+  }
+
+  return (
+    <section style={{ marginBottom: 30 }}>
+      <div className="d-flex align-items-center justify-content-between" style={{ marginBottom: 8 }}>
+        <span style={{ fontSize: 17, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
+          {title}
+        </span>
+        {onViewAll ? (
+          <button
+            type="button"
+            onClick={onViewAll}
+            className="btn p-0 d-flex align-items-center gap-1 flex-shrink-0"
+            style={{
+              border: 'none',
+              background: 'none',
+              color: '#1B6FF5',
+              fontSize: 13,
+              fontFamily: FONT,
+              fontWeight: 600,
+            }}
+          >
+            더보기 <IoChevronForwardOutline size={14} />
+          </button>
+        ) : null}
+      </div>
+      {card}
+    </section>
+  );
+}

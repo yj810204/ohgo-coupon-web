@@ -39,7 +39,13 @@ import {
   IoReorderTwoOutline,
   IoMegaphoneOutline,
   IoLockClosedOutline,
+  IoWaterOutline,
 } from 'react-icons/io5';
+import {
+  DEFAULT_TIDE_REGION_ID,
+  TIDE_REGIONS,
+  normalizeTideRegionId,
+} from '@/lib/dadaepo-tide';
 import { ADMIN_EDIT_ICON } from '@/lib/admin-icons';
 import SubPageFrame from '@/components/SubPageFrame';
 import {
@@ -170,6 +176,7 @@ function AdminSiteSettingsContent() {
     ...DEFAULT_HOME_SECTION_ORDER,
   ]);
   const [appPopup, setAppPopup] = useState<AppPopupSettings>({ ...DEFAULT_APP_POPUP });
+  const [tideRegionId, setTideRegionId] = useState(DEFAULT_TIDE_REGION_ID);
   const [adminGateEnabled, setAdminGateEnabled] = useState(true);
   const [adminGatePasswordConfigured, setAdminGatePasswordConfigured] = useState(true);
   const [adminGatePassword, setAdminGatePassword] = useState('');
@@ -212,6 +219,7 @@ function AdminSiteSettingsContent() {
       setHomeSections(settings.homeSections);
       setHomeSectionOrder(normalizeHomeSectionOrder(settings.homeSectionOrder));
       setAppPopup(settings.appPopup);
+      setTideRegionId(normalizeTideRegionId(settings.tideRegionId));
       try {
         const res = await fetch('/api/admin-gate', { credentials: 'include' });
         const data = (await res.json()) as { enabled?: boolean; passwordConfigured?: boolean };
@@ -1367,6 +1375,52 @@ function AdminSiteSettingsContent() {
               </button>
             </>
           )}
+        </div>
+
+        <div className="p-4 mb-4" style={CARD}>
+          <SectionHeader icon={IoWaterOutline} title="물때 지역" />
+          <p className="mb-3" style={HINT}>
+            홈 위젯·출조 상세의 몇물·만조/간조 근거지를 고릅니다. 전용 관측소가 없으면 가장 가까운 조위관측소(다대포→부산 등) 기준입니다.
+          </p>
+          <label htmlFor="tide-region" style={LABEL}>지역</label>
+          <select
+            id="tide-region"
+            className="form-select mb-3"
+            value={tideRegionId}
+            onChange={(e) => setTideRegionId(e.target.value)}
+            disabled={saving}
+            style={OHGO_INPUT}
+          >
+            {Array.from(new Set(TIDE_REGIONS.map((region) => region.area))).map((area) => (
+              <optgroup key={area} label={area}>
+                {TIDE_REGIONS.filter((region) => region.area === area).map((region) => (
+                  <option key={region.id} value={region.id}>
+                    {region.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <button
+            type="button"
+            className={`btn w-100 fw-semibold ${OHGO_CONFIRM_BTN_CLASS}`}
+            onClick={async () => {
+              try {
+                setSaving(true);
+                await saveSiteSettings({ tideRegionId: normalizeTideRegionId(tideRegionId) });
+                alert('물때 지역이 저장되었습니다.');
+              } catch (error: unknown) {
+                console.error(error);
+                alert('저장 중 오류가 발생했습니다.');
+              } finally {
+                setSaving(false);
+              }
+            }}
+            disabled={saving}
+            style={OHGO_PRIMARY_BTN}
+          >
+            {saving ? '저장 중...' : '물때 지역 저장'}
+          </button>
         </div>
 
         <div className="p-4 mb-4" style={CARD}>

@@ -13,6 +13,7 @@ export type ReservationApprovalMode = 'auto' | 'manual';
 export type HomeSectionId =
   | 'stampCoupon'
   | 'weeklyTrip'
+  | 'tide'
   | 'myPhotos'
   | 'community'
   | 'miniGames'
@@ -23,6 +24,7 @@ export type HomeSectionVisibility = Record<HomeSectionId, boolean>;
 export const DEFAULT_HOME_SECTIONS: HomeSectionVisibility = {
   stampCoupon: true,
   weeklyTrip: true,
+  tide: true,
   myPhotos: true,
   community: true,
   miniGames: true,
@@ -32,6 +34,7 @@ export const DEFAULT_HOME_SECTIONS: HomeSectionVisibility = {
 export const DEFAULT_HOME_SECTION_ORDER: HomeSectionId[] = [
   'stampCoupon',
   'weeklyTrip',
+  'tide',
   'myPhotos',
   'community',
   'miniGames',
@@ -45,6 +48,7 @@ export const HOME_SECTION_OPTIONS: Array<{
 }> = [
   { id: 'stampCoupon', label: '스탬프·쿠폰', hint: '스탬프·쿠폰 현황과 QR 스캔 버튼을 표시합니다.' },
   { id: 'weeklyTrip', label: '이번 주 출조', hint: '이번 주 출조 일정을 표시합니다.' },
+  { id: 'tide', label: '오늘의 물때', hint: '몇물·물흐름·만조/간조를 표시합니다. 지역은 아래 물때 지역에서 고릅니다.' },
   { id: 'myPhotos', label: '내 조황 사진', hint: '선장이 태그한 내 조황 사진을 표시합니다. 사진이 있을 때만 나타납니다.' },
   { id: 'community', label: '커뮤니티', hint: '조황 사진, 낚시 팁, Q&A를 표시합니다.' },
   { id: 'miniGames', label: '미니게임', hint: '진행 중인 미니게임을 표시합니다.' },
@@ -56,6 +60,7 @@ export function normalizeHomeSections(value: unknown): HomeSectionVisibility {
   return {
     stampCoupon: src.stampCoupon !== false,
     weeklyTrip: src.weeklyTrip !== false,
+    tide: src.tide !== false,
     myPhotos: src.myPhotos !== false,
     community: src.community !== false,
     miniGames: src.miniGames !== false,
@@ -77,6 +82,15 @@ export function normalizeHomeSectionOrder(value: unknown): HomeSectionId[] {
   }
   for (const id of DEFAULT_HOME_SECTION_ORDER) {
     if (seen.has(id)) continue;
+    if (id === 'tide') {
+      const weeklyIdx = ordered.indexOf('weeklyTrip');
+      if (weeklyIdx >= 0) {
+        ordered.splice(weeklyIdx + 1, 0, id);
+        seen.add(id);
+        continue;
+      }
+    }
+    seen.add(id);
     ordered.push(id);
   }
   return ordered;
@@ -135,6 +149,8 @@ export interface SiteSettings {
   homeSections: HomeSectionVisibility;
   homeSectionOrder: HomeSectionId[];
   appPopup: AppPopupSettings;
+  /** 이번 주 출조 리스트에 표시할 물때 지역 */
+  tideRegionId?: string;
   /** 관리자 메뉴 2차 확인. 저장 전이면 undefined → 서버는 .env ADMIN_GATE 값을 씀 */
   adminGateEnabled?: boolean;
   updatedAt: Date | string;

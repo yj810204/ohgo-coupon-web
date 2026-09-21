@@ -4,6 +4,8 @@ import { useRouter } from '@/hooks/useAppRouter';
 import AvatarHeader from '@/components/home/AvatarHeader';
 import StampCouponSummary from '@/components/home/StampCouponSummary';
 import WeeklyTripSummary from '@/components/home/WeeklyTripSummary';
+import TripTidePanel from '@/components/trip/TripTidePanel';
+import { tripDateToStr } from '@/utils/trip-guide-service';
 import SectionHeader from '@/components/home/SectionHeader';
 import GridCard from '@/components/home/GridCard';
 import FeaturedCard from '@/components/home/FeaturedCard';
@@ -52,6 +54,12 @@ export default function SampleMainPage() {
 
         <WeeklyTripSummary
           trips={SAMPLE_TRIPS as TripGuide[]}
+          onViewAll={() => router.push('/samples/trips')}
+        />
+
+        <TripTidePanel
+          date={tripDateToStr()}
+          tideRegionId="dadaepo"
           onViewAll={() => router.push('/samples/trips')}
         />
 

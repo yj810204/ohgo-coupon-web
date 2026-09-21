@@ -1,6 +1,7 @@
 import { cachedFetch, invalidateCache, peekCache } from '@/lib/query-cache';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { isDevAuthBypass } from '@/lib/dev-auth';
+import { DEFAULT_TIDE_REGION_ID, normalizeTideRegionId } from '@/lib/dadaepo-tide';
 import {
   DEFAULT_APP_POPUP,
   DEFAULT_HOME_SECTIONS,
@@ -34,6 +35,7 @@ function mapSettings(value: Record<string, unknown> | null): SiteSettings {
       homeSections: { ...DEFAULT_HOME_SECTIONS },
       homeSectionOrder: [...DEFAULT_HOME_SECTION_ORDER],
       appPopup: { ...DEFAULT_APP_POPUP },
+      tideRegionId: DEFAULT_TIDE_REGION_ID,
       adminGateEnabled: undefined,
       updatedAt: new Date(),
     };
@@ -48,6 +50,7 @@ function mapSettings(value: Record<string, unknown> | null): SiteSettings {
     homeSections: normalizeHomeSections(value.homeSections),
     homeSectionOrder: normalizeHomeSectionOrder(value.homeSectionOrder),
     appPopup: normalizeAppPopup(value.appPopup),
+    tideRegionId: normalizeTideRegionId(value.tideRegionId),
     adminGateEnabled: normalizeAdminGateEnabled(value.adminGateEnabled),
     updatedAt: (value.updatedAt as string) || new Date().toISOString(),
   };
@@ -96,6 +99,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
     homeSections: normalizeHomeSections(settings.homeSections),
     homeSectionOrder: normalizeHomeSectionOrder(settings.homeSectionOrder),
     appPopup: normalizeAppPopup(settings.appPopup),
+    tideRegionId: normalizeTideRegionId(settings.tideRegionId),
     adminGateEnabled: normalizeAdminGateEnabled(settings.adminGateEnabled),
   };
 }
@@ -128,6 +132,7 @@ export async function saveSiteSettings(settings: Partial<SiteSettings>): Promise
       settings.homeSectionOrder ?? current.homeSectionOrder
     ),
     appPopup: normalizeAppPopup(settings.appPopup ?? current.appPopup),
+    tideRegionId: normalizeTideRegionId(settings.tideRegionId ?? current.tideRegionId),
     updatedAt: new Date().toISOString(),
   };
   delete updated.adminGatePassword;

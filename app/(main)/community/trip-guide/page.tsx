@@ -42,6 +42,7 @@ import OhgoModal, {
   OhgoModalInfoRow,
 } from '@/components/OhgoModal';
 import EmptyState from '@/components/EmptyState';
+import TripTidePanel from '@/components/trip/TripTidePanel';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 const FONT = OHGO_FONT;
@@ -747,6 +748,7 @@ export default function TripGuidePage() {
                 <OhgoModalInfoRow icon={IoCallOutline} label="예약 문의" value={modalTrip.contact} />
               ) : null}
             </OhgoModalInfoList>
+            <TripTidePanel date={modalTrip.date} variant="embedded" />
             {modalTrip.price ? (
               <div
                 className="p-3 rounded-3 d-flex align-items-center justify-content-between"
