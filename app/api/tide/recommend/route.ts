@@ -33,6 +33,7 @@ export async function GET(request: Request) {
     events = undefined;
   }
 
+  // 사실만 반환한다. 조법·운용 브리핑은 외부 봇이 맡는다.
   const advice = getTideFishAdvice(date, getTideRegion(regionId), {
     events,
     departureTime,

@@ -1,18 +1,12 @@
 import { getTideLabel, type TideRegion } from '@/lib/dadaepo-tide';
-import {
-  formatKstClock,
-  kstDateTimeMs,
-  slackWindows,
-  type TideCurveAnchor,
-  type TideForecastEvent,
-} from '@/lib/tide-forecast';
+import { kstDateTimeMs, type TideCurveAnchor, type TideForecastEvent } from '@/lib/tide-forecast';
 
 export const TIDE_FISH_GROUND = '다대포항 내만권 선상';
 export const DEFAULT_DEPARTURE = '06:00';
-export const TIDE_ADVICE_TITLE = '물때 추천 공략';
+export const TIDE_ADVICE_TITLE = '물때 추천';
+export const TIDE_BOT_POINTER = '상세 채비·운용은 봇 브리핑을 참고하세요.';
 const BOAT_START_HOUR = 4;
 const BOAT_END_HOUR = 18;
-const MIN_TACTIC_SLOT_MS = 25 * 60 * 1000;
 
 export function recommendedRigFlow(rig: string): '전유동' | '반유동' {
   return rig.includes('전유동') ? '전유동' : '반유동';
@@ -23,6 +17,13 @@ export function formatTideGround(region: TideRegion): string {
   return `${region.label} 내만권 선상`;
 }
 
+export type TideMarkFact = {
+  type: 'high' | 'low';
+  time: string;
+  heightCm: number;
+};
+
+/** 앱·API가 모으는 물때 사실. 조법 에세이는 넣지 않는다. */
 export type TideFishAdvice = {
   species: string[];
   headline: string;
@@ -33,16 +34,13 @@ export type TideFishAdvice = {
   currentKn: number;
   currentLabel: string;
   rig: string;
+  date?: string;
+  tideLabel?: string;
+  marks?: TideMarkFact[];
+  rangeCm?: number | null;
   locked?: boolean;
   lockMessage?: string;
 };
-
-export function formatAdviceBriefing(advice: Pick<TideFishAdvice, 'headline' | 'tips'>): string {
-  return [advice.headline, ...advice.tips]
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join('\n\n');
-}
 
 export type TideFishAdviceInput = {
   events?: TideForecastEvent[];
@@ -75,11 +73,6 @@ export function resolveAdviceSpecies(dateStr: string, tripSpecies?: string[] | n
   if (fromTrip.length > 0) return fromTrip;
   const month = Number(dateStr.slice(5, 7));
   return seasonalBoatSpecies(Number.isFinite(month) ? month : 1);
-}
-
-function eun(label: string): string {
-  if (label === '사리') return `${label}는`;
-  return `${label}은`;
 }
 
 function parseHm(value?: string): number | null {
@@ -288,165 +281,25 @@ export function floatRig(kn: number): string {
   return '2.5~3호 구멍찌(막대찌) · 반유동 고정 · 수중 3B';
 }
 
-function rigFloatLabel(rig: string): string {
-  const first = rig.split(' · ')[0] ?? '';
-  return first.replace(/\s*구멍찌/, '').trim();
-}
-
-type TacticKind = '물돌이' | '초물' | '중조' | '말물';
-
-type TacticSlot = {
-  from: number;
-  to: number;
-  kind: TacticKind;
-};
-
-function tacticTip(kind: TacticKind, flow: '전유동' | '반유동'): string {
-  if (flow === '전유동') {
-    if (kind === '물돌이') return '찌를 배에서 멀리 흘려 층을 훑고, 멈칫하면 한 번만 견제하세요.';
-    if (kind === '초물') return '살아나는 흐름에 맞춰 전층을 천천히 탐색하세요.';
-    if (kind === '중조') return '미끼가 자연스럽게 내려가게 두고 입질만 기다리세요.';
-    return '흐름이 죽기 전에 한 번 더 층을 훑어 보세요.';
-  }
-  if (kind === '물돌이') return '원하는 수심에 미끼가 머물게 잡고, 천천히 탐색하세요.';
-  if (kind === '초물') return '밀리기 시작하면 수중을 맞춰 층을 유지하세요.';
-  if (kind === '중조') return '밀리면 수중을 한 호 올리세요.';
-  return '흐름이 약해지면 수중을 내려 바닥 가까이 유지하세요.';
-}
-
-function splitFlowPeriod(from: number, to: number, mode: 'full' | 'lead' | 'trail'): TacticSlot[] {
-  const span = to - from;
-  if (span < MIN_TACTIC_SLOT_MS) return [];
-  const hour = 60 * 60 * 1000;
-  if (mode === 'lead') {
-    if (span < 1.5 * hour) return [{ from, to, kind: '말물' }];
-    const mid = from + span / 2;
-    return [
-      { from, to: mid, kind: '중조' },
-      { from: mid, to, kind: '말물' },
-    ];
-  }
-  if (mode === 'trail') {
-    if (span < 1.5 * hour) return [{ from, to, kind: '초물' }];
-    const mid = from + span / 2;
-    return [
-      { from, to: mid, kind: '초물' },
-      { from: mid, to, kind: '중조' },
-    ];
-  }
-  if (span < hour) return [{ from, to, kind: '초물' }];
-  if (span < 2.5 * hour) {
-    const mid = from + span / 2;
-    return [
-      { from, to: mid, kind: '초물' },
-      { from: mid, to, kind: '말물' },
-    ];
-  }
-  const third = span / 3;
-  return [
-    { from, to: from + third, kind: '초물' },
-    { from: from + third, to: from + 2 * third, kind: '중조' },
-    { from: from + 2 * third, to, kind: '말물' },
-  ];
-}
-
-function mergeSlackRanges(ranges: Array<{ from: number; to: number }>): Array<{ from: number; to: number }> {
-  const sorted = [...ranges].sort((a, b) => a.from - b.from);
-  const out: Array<{ from: number; to: number }> = [];
-  for (const range of sorted) {
-    const last = out[out.length - 1];
-    if (last && range.from <= last.to) {
-      last.to = Math.max(last.to, range.to);
-      continue;
-    }
-    out.push({ ...range });
-  }
-  return out;
-}
-
-export function buildTideTacticSlots(
-  events: TideForecastEvent[] | undefined,
-  dateStr: string,
-): TacticSlot[] {
+function boatMarks(events: TideForecastEvent[] | undefined, dateStr: string): TideMarkFact[] {
   if (!events || events.length === 0) return [];
   const viewStart = kstDateTimeMs(dateStr, BOAT_START_HOUR);
   const viewEnd = kstDateTimeMs(dateStr, BOAT_END_HOUR);
-  const slacks = mergeSlackRanges(
-    slackWindows(events, viewStart, viewEnd).map((window) => ({
-      from: window.clipFrom,
-      to: window.clipTo,
-    })),
-  );
-  if (slacks.length === 0) return [];
+  return [...events]
+    .filter((event) => event.at >= viewStart && event.at <= viewEnd)
+    .sort((a, b) => a.at - b.at)
+    .map((event) => ({ type: event.type, time: event.time, heightCm: event.heightCm }));
+}
 
-  const slots: TacticSlot[] = [];
-  const first = slacks[0];
-  if (first.from > viewStart) {
-    slots.push(...splitFlowPeriod(viewStart, first.from, 'lead'));
+export function formatTideFactsLine(advice: Pick<TideFishAdvice, 'tideLabel' | 'marks' | 'rangeCm'>): string {
+  const parts: string[] = [];
+  if (advice.tideLabel) parts.push(advice.tideLabel);
+  for (const mark of advice.marks ?? []) {
+    const kind = mark.type === 'high' ? '만조' : '간조';
+    parts.push(`${kind} ${mark.time} (${mark.heightCm}cm)`);
   }
-  slacks.forEach((slack, index) => {
-    slots.push({ from: slack.from, to: slack.to, kind: '물돌이' });
-    const next = slacks[index + 1];
-    if (next) {
-      slots.push(...splitFlowPeriod(slack.to, next.from, 'full'));
-    }
-  });
-  const last = slacks[slacks.length - 1];
-  if (last.to < viewEnd) {
-    slots.push(...splitFlowPeriod(last.to, viewEnd, 'trail'));
-  }
-  return slots.filter((slot) => slot.to - slot.from >= MIN_TACTIC_SLOT_MS);
-}
-
-export function formatTideTacticLine(
-  slot: TacticSlot,
-  flow: '전유동' | '반유동',
-): string {
-  return `${formatKstClock(slot.from)}~${formatKstClock(slot.to)} ${slot.kind}: ${tacticTip(slot.kind, flow)}`;
-}
-
-function currentStrengthPhrase(strength: string): string {
-  if (strength === '약함') return '약한 편';
-  if (strength === '강함') return '센 편';
-  return '보통';
-}
-
-function currentPhasePhrase(phase: string): string {
-  if (phase === '초·말물') return '초물·말물';
-  return phase;
-}
-
-export function formatMulBriefing(
-  label: string,
-  current: { departureTime: string; label: string; phase: string },
-): string {
-  const strength = current.label.split(' · ')[0] ?? '보통';
-  return [
-    `오늘은 ${label}입니다.`,
-    `${eun(label)} 조류가 ${currentStrengthPhrase(strength)}이고, 출항 ${current.departureTime} 무렵은 ${currentPhasePhrase(current.phase)}에 가깝습니다.`,
-  ].join(' ');
-}
-
-function leaderAndShot(kn: number): { leader: string; shot: string; how: string } {
-  if (kn < 0.3) {
-    return {
-      leader: '2.5~3m',
-      shot: 'B~G2',
-      how: '찌를 배에서 멀리 흘려 층을 훑고, 멈칫하면 한 번만 견제하세요.',
-    };
-  }
-  if (kn < 0.6) {
-    return {
-      leader: '1.8~2.2m',
-      shot: 'G2',
-      how: '원하는 수심에 미끼가 머물게 반유동으로 잡고, 밀리면 수중을 한 호 올리세요.',
-    };
-  }
-  return {
-    leader: '1.5m',
-    shot: 'G3~2B',
-    how: '목줄을 짧게 잡고 바닥을 긁지 않게 수중을 올려 고정하세요.',
-  };
+  if (advice.rangeCm != null) parts.push(`고저 ${advice.rangeCm}cm`);
+  return parts.join(' · ');
 }
 
 export function getTideFishAdvice(
@@ -462,29 +315,24 @@ export function getTideFishAdvice(
     events: input.events,
     departureTime: input.departureTime,
   });
+  const dayFlow = estimateDayTideFlow(label, input.events, dateStr);
+  const marks = boatMarks(input.events, dateStr);
   const rig = floatRig(current.kn);
-  const kit = leaderAndShot(current.kn);
-  const flowName = recommendedRigFlow(rig);
-  const floatLabel = rigFloatLabel(rig);
-  const kitLine = flowName === '전유동'
-    ? `오늘은 전유동 운용을 도전해 보세요! 구멍찌는 ${floatLabel}, 목줄 ${kit.leader}, 좁쌀봉돌 ${kit.shot}.`
-    : `오늘은 반유동으로 운용해 보세요. 구멍찌는 ${floatLabel}, 목줄 ${kit.leader}, 좁쌀봉돌 ${kit.shot}.`;
-  const slots = buildTideTacticSlots(input.events, dateStr).map((slot) =>
-    formatTideTacticLine(slot, flowName),
-  );
-  const waterTip =
-    '물색이 맑으면 목줄을 조금 더 길게 하고 미끼는 작게, 탁하면 목줄을 짧게 잡고 밑밥을 앞에 두세요.';
 
   return {
     species,
-    headline: formatMulBriefing(label, current),
-    tips: [kitLine, ...(slots.length > 0 ? slots : [kit.how]), waterTip],
+    headline: `${label} · 출항 ${current.departureTime}`,
+    tips: [],
     source: 'rules',
     ground: formatTideGround(region),
     departureTime: current.departureTime,
     currentKn: current.kn,
     currentLabel: current.label,
     rig,
+    date: dateStr,
+    tideLabel: label,
+    marks,
+    rangeCm: dayFlow.rangeCm,
   };
 }
 

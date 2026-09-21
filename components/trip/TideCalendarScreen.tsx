@@ -16,13 +16,14 @@ import {
 } from '@/lib/dadaepo-tide';
 import {
   DEFAULT_DEPARTURE,
-  formatAdviceBriefing,
+  formatTideFactsLine,
   formatTideGround,
   getTideFishAdvice,
   isTideFishAdvice,
   parseTripSpecies,
   recommendedRigFlow,
   TIDE_ADVICE_TITLE,
+  TIDE_BOT_POINTER,
   type TideFishAdvice,
 } from '@/lib/tide-fish-recommend';
 import { getSiteSettings } from '@/utils/site-settings-service';
@@ -389,6 +390,20 @@ export default function TideCalendarScreen({
               </span>
             ))}
           </div>
+          {formatTideFactsLine(advice) ? (
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#1A1D1F',
+                fontFamily: FONT,
+                lineHeight: 1.55,
+                marginBottom: 8,
+              }}
+            >
+              {formatTideFactsLine(advice)}
+            </div>
+          ) : null}
           {advice.currentLabel || advice.rig ? (
             <div
               className="d-flex"
@@ -436,29 +451,8 @@ export default function TideCalendarScreen({
               ) : null}
             </div>
           ) : null}
-          {formatAdviceBriefing(advice)
-            .split(/\n{2,}/)
-            .map((part) => part.trim())
-            .filter(Boolean)
-            .map((part, index) => (
-              <p
-                key={`${index}-${part.slice(0, 24)}`}
-                style={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: '#1A1D1F',
-                  fontFamily: FONT,
-                  lineHeight: 1.65,
-                  whiteSpace: 'pre-line',
-                  marginTop: index === 0 ? 0 : 12,
-                  marginBottom: 0,
-                }}
-              >
-                {part}
-              </p>
-            ))}
-          <div style={{ fontSize: 11, color: '#9A9FA5', fontFamily: FONT, marginTop: 10 }}>
-            다대포 내만 선상 찌낚시 참고입니다. 실제 조류·조과는 바람·물색에 따라 달라집니다.
+          <div style={{ fontSize: 11, color: '#9A9FA5', fontFamily: FONT, marginTop: 4 }}>
+            {TIDE_BOT_POINTER}
           </div>
         </div>
       ) : null}
