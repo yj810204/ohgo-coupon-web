@@ -1,11 +1,13 @@
 import { createHash, createHmac } from 'crypto';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { isFirebaseDataSource } from '@/lib/data-source';
 import { getFirebaseDb } from '@/lib/firebase/client';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { computeLegacyUuid, normalizeDob } from '@/lib/legacy-uuid';
 import { applyLegacyStagingToProfile } from '@/lib/apply-legacy-staging';
 import { getHomePathForUser, type AppUser } from '@/lib/auth-session';
+import { isUnregisteredLegacyIdentity } from '@/lib/legacy-identity';
+import { notifyAllAdmins } from '@/utils/send-push';
 
 const LEGACY_EMAIL_DOMAIN = 'legacy.ohgo.local';
 
@@ -44,9 +46,9 @@ export type LegacyLoginResult = {
 };
 
 /**
- * 구앱과 동일한 이름+생년월일 로그인 (기등록 회원만).
- * - supabase 모드: guest_profiles 또는 profiles.legacy_uuid
- * - firebase 모드: Firestore users/{uuidv5} 존재 (역할을 Supabase profiles에 동기화)
+ * 구앱 `loginOrRegisterUser` 와 동일: 이름+생년월일로 로그인하거나 없으면 가입.
+ * - 기등록: guest_profiles / profiles.legacy_uuid / Firestore users/{uuidv5}
+ * - 미등록: auth+profiles 생성, firebase 모드면 users/{uuidv5} 도 생성
  */
 export async function legacyLoginWithNameDob(
   nameInput: string,
@@ -89,12 +91,22 @@ export async function legacyLoginWithNameDob(
     }
   }
 
-  if (!existingProfile && !guest && !firebaseUser) {
-    throw new Error(
-      isFirebaseDataSource()
-        ? '등록된 회원을 찾을 수 없습니다. 구앱에 등록된 이름·생년월일로 로그인해 주세요.'
-        : '등록된 회원을 찾을 수 없습니다. 구앱 회원 이관 후 이용하거나 Google 로그인을 사용해 주세요.'
-    );
+  const isNew = isUnregisteredLegacyIdentity({
+    existingProfile,
+    guest,
+    firebaseUser,
+  });
+
+  if (isNew && isFirebaseDataSource()) {
+    const created = {
+      uuid: legacyUuid,
+      name,
+      dob: normalizedDob,
+      createdAt: new Date().toISOString(),
+      isAdmin: false,
+    };
+    await setDoc(doc(getFirebaseDb(), 'users', legacyUuid), created);
+    firebaseUser = created;
   }
 
   // 이미 legacy_uuid 가 연결된 프로필이 있으면 그 id 로 로그인한다.
@@ -351,6 +363,14 @@ export async function legacyLoginWithNameDob(
     isAdmin: finalProfile?.role === 'admin',
     isCaptain: finalProfile?.role === 'captain',
   };
+
+  if (isNew && !appUser.isAdmin) {
+    try {
+      await notifyAllAdmins(`${appUser.name}님이 새로 가입했어요!`, '회원 가입 알림', 'admin-main');
+    } catch (e) {
+      console.warn('legacy-login new-member notify:', e);
+    }
+  }
 
   return {
     access_token: sessionData.session.access_token,

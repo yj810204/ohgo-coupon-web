@@ -17,6 +17,7 @@ import {
 import { getFirebaseDb } from '@/lib/firebase/client';
 import { requireFirestoreUserId, resolveFirestoreUserId } from '@/lib/firebase/resolve-user-id';
 import { sendPushToUser } from './send-push';
+import { firebaseQrStampWriteFields } from '@/lib/stamps/firebase-qr-stamp';
 
 function getTodayDate(): string {
   return new Date().toISOString().split('T')[0];
@@ -149,11 +150,14 @@ export async function addStamp(uuid: string, method: 'QR' | 'ADMIN' = 'QR'): Pro
     );
   }
 
-  const stampData = {
-    date: getTodayDate(),
-    method,
-    timestamp: new Date(),
-  };
+  const stampData =
+    method === 'QR'
+      ? firebaseQrStampWriteFields({ date: getTodayDate(), timestamp: new Date() })
+      : {
+          date: getTodayDate(),
+          method,
+          timestamp: new Date(),
+        };
 
   const stampDocRef = await addDoc(stampRef, stampData);
   await addDoc(collection(db, `users/${uuid}/stampHistory`), {
