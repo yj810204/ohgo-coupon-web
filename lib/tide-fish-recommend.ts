@@ -234,7 +234,7 @@ export function estimateTideCurrent(options: {
   const strength = kn < 0.3 ? '약함' : kn < 0.6 ? '보통' : '강함';
   return {
     kn,
-    label: `${kn.toFixed(2)}kn · ${strength} · ${phase}`,
+    label: `${strength} · ${phase}`,
     phase,
     departureTime,
   };

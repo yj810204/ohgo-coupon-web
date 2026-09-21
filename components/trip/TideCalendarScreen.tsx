@@ -353,13 +353,8 @@ export default function TideCalendarScreen({
 
       {advice ? (
         <div className="mt-3" style={{ ...OHGO_CARD, padding: 16 }}>
-          <div className="d-flex align-items-center justify-content-between gap-2">
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
-              물때 추천 공략
-            </div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#9A9FA5', fontFamily: FONT }}>
-              물때·출항 기준
-            </span>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
+            AI 추천 공략
           </div>
           <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 6 }}>
             {advice.ground || formatTideGround(region)}
@@ -385,6 +380,7 @@ export default function TideCalendarScreen({
           </div>
           {advice.currentLabel || advice.rig ? (
             <div
+              className="d-flex"
               style={{
                 fontSize: 12,
                 fontWeight: 700,
@@ -394,13 +390,34 @@ export default function TideCalendarScreen({
                 borderRadius: 10,
                 padding: '8px 10px',
                 marginBottom: 8,
-                lineHeight: 1.65,
-                whiteSpace: 'pre-line',
+                lineHeight: 1.55,
+                gap: 12,
               }}
             >
-              {advice.currentLabel ? `추정 조류\n${advice.currentLabel}` : ''}
-              {advice.currentLabel && advice.rig ? '\n\n' : ''}
-              {advice.rig ? `오늘 채비 · ${recommendedRigFlow(advice.rig)}\n${advice.rig.replace(/ · /g, '\n')}` : ''}
+              {advice.currentLabel ? (
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#6F767E' }}>추정 조류</div>
+                  <div style={{ marginTop: 4, whiteSpace: 'pre-line' }}>
+                    {advice.currentLabel.replace(/\d+(?:\.\d+)?kn\s*·\s*/gi, '').replace(/ · /g, '\n')}
+                  </div>
+                </div>
+              ) : null}
+              {advice.currentLabel && advice.rig ? (
+                <div style={{ width: 1, backgroundColor: '#E6E8EC', alignSelf: 'stretch' }} />
+              ) : null}
+              {advice.rig ? (
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#6F767E' }}>
+                    {`오늘 채비 · ${recommendedRigFlow(advice.rig)}`}
+                  </div>
+                  <div style={{ marginTop: 4, whiteSpace: 'pre-line' }}>
+                    {advice.rig
+                      .split(' · ')
+                      .filter((part) => part !== '전유동' && part !== '반유동' && part !== '반유동 고정')
+                      .join('\n')}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : null}
           <p

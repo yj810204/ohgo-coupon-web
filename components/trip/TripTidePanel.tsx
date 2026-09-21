@@ -101,8 +101,8 @@ function TideChart({
   const viewEnd = kstDateTimeMs(date, BOAT_END_HOUR);
   const viewSpan = viewEnd - viewStart;
   const width = 360;
-  const height = 176;
-  const pad = { l: 0, r: 0, t: 4, b: 22 };
+  const height = 192;
+  const pad = { l: 0, r: 0, t: 20, b: 22 };
   const innerW = width - pad.l - pad.r;
   const innerH = height - pad.t - pad.b;
   const source = anchors.length > 0 ? anchors : events.map((event) => ({
@@ -154,6 +154,10 @@ function TideChart({
   const showNow = now >= viewStart && now <= viewEnd;
   const nowX = xOf(now);
   const nowH = heightAt(now);
+  const nowLabelW = 24;
+  const nowLabelH = 16;
+  const nowLabelX = Math.min(Math.max(nowX - nowLabelW / 2, 2), width - 2 - nowLabelW);
+  const nowLabelY = 2;
   const windows = slackWindows(events, viewStart, viewEnd);
   const boatEvents = events.filter((event) => event.at >= viewStart && event.at <= viewEnd);
   const hourMarks = [4, 8, 12, 16, 18];
@@ -215,6 +219,22 @@ function TideChart({
         })}
         <path d={area} fill={`url(#tide-fill-${date})`} />
         <path d={line} fill="none" stroke="#1B6FF5" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+        {showNow ? (
+          <g>
+            <line
+              x1={nowX}
+              y1={nowLabelY + nowLabelH}
+              x2={nowX}
+              y2={pad.t + innerH}
+              stroke="#E65100"
+              strokeWidth="1.4"
+              strokeDasharray="3 3"
+            />
+            {nowH != null ? (
+              <circle cx={nowX} cy={yOf(nowH)} r="3" fill="#E65100" />
+            ) : null}
+          </g>
+        ) : null}
         {boatEvents.map((event) => {
           const isHigh = event.type === 'high';
           const x = xOf(event.at);
@@ -227,8 +247,8 @@ function TideChart({
           let gy = isHigh ? y + 10 : y - 36 - badgeH;
           if (isHigh) {
             gy = Math.min(gy, height - pad.b - badgeH);
-          } else if (gy < 2) {
-            gy = 2;
+          } else if (gy < pad.t + 1) {
+            gy = pad.t + 1;
           }
           gx = Math.min(Math.max(2, gx), width - 2 - badgeW);
           const lineY1 = isHigh ? y + 5 : gy + badgeH;
@@ -264,21 +284,10 @@ function TideChart({
         })}
         {showNow ? (
           <g>
-            <line
-              x1={nowX}
-              y1={pad.t}
-              x2={nowX}
-              y2={pad.t + innerH}
-              stroke="#E65100"
-              strokeWidth="1.4"
-              strokeDasharray="3 3"
-            />
-            {nowH != null ? (
-              <circle cx={nowX} cy={yOf(nowH)} r="3" fill="#E65100" />
-            ) : null}
+            <rect x={nowLabelX} y={nowLabelY} width={nowLabelW} height={nowLabelH} rx={8} fill="#FFFFFF" />
             <text
-              x={Math.min(Math.max(nowX, pad.l + 14), pad.l + innerW - 14)}
-              y={pad.t + 11}
+              x={nowLabelX + nowLabelW / 2}
+              y={nowLabelY + 11.5}
               textAnchor="middle"
               fill="#E65100"
               fontSize="9"
@@ -473,19 +482,6 @@ export default function TripTidePanel({
             </span>
           </div>
           <TideFlowBar level={flowLevel} />
-          <div
-            style={{
-              marginTop: 6,
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#9A9FA5',
-              fontFamily: FONT,
-            }}
-          >
-            {dayFlow.rangeCm != null && dayFlow.hours != null
-              ? `고저 ${dayFlow.rangeCm}cm 기준 추정`
-              : '물때 기준 추정'}
-          </div>
         </div>
       ) : null}
 
