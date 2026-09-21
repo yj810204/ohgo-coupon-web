@@ -34,27 +34,6 @@ export function formatAdviceBriefing(advice: Pick<TideFishAdvice, 'headline' | '
     .join('\n\n');
 }
 
-export const TIDE_AI_CACHE_VERSION = 'v7';
-export const TIDE_AI_MAX_AHEAD_DAYS = 2;
-export const TIDE_AI_LOCK_MESSAGE = 'AI 추천은 오늘부터 이틀 뒤까지만 볼 수 있습니다.';
-
-export function shiftTideDate(dateStr: string, days: number): string {
-  const date = new Date(`${dateStr}T12:00:00`);
-  date.setDate(date.getDate() + days);
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-export function isTideAiDateOpen(date: string, today: string): boolean {
-  return date >= today && date <= shiftTideDate(today, TIDE_AI_MAX_AHEAD_DAYS);
-}
-
-export function tideAiCacheKey(date: string, regionId: string, depart: string): string {
-  return `${TIDE_AI_CACHE_VERSION}:${date}:${regionId}:${depart}`;
-}
-
 export type TideFishAdviceInput = {
   events?: TideForecastEvent[];
   departureTime?: string;
