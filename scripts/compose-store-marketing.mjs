@@ -118,8 +118,8 @@ const TARGETS = [
   {
     key: 'android-phone',
     width: 1080,
-    height: 1920,
-    variant: 'short',
+    height: 2220,
+    variant: 'tall',
     ext: 'jpg',
     screenshot: { type: 'jpeg', quality: 92 },
   },
@@ -345,7 +345,7 @@ async function main() {
 |------|--------|------|------|
 | \`ios-6.9/\` | App Store iPhone 6.9" | 1320×2868 | PNG |
 | \`ios-ipad-13/\` | App Store iPad 13" | 2064×2752 | PNG |
-| \`android-phone/\` | Play 휴대전화 | 1080×1920 | JPEG |
+| \`android-phone/\` | Play 휴대전화 | 1080×2220 | JPEG |
 
 > Android에는 \`android-phone/\` JPEG만 올리세요. iPhone 6.9" PNG는 Play 가로세로 비율 제한(2:1)에 걸립니다.
 

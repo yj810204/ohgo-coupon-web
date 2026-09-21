@@ -6,7 +6,7 @@
  * 출력:
  *   store-screenshots/ios-6.9/      1320×2868 PNG  (iPhone 6.9" 필수)
  *   store-screenshots/ios-ipad-13/  2064×2752 PNG  (iPad 13" — 태블릿 지원 시 필수)
- *   store-screenshots/android-phone/ 1080×1920 JPEG (Play 폰 권장 9:16, 알파 없음)
+ *   store-screenshots/android-phone/ 1080×2220 JPEG (갤럭시 S26 CSS 360×740 ×3)
  */
 import { chromium } from 'playwright';
 import { mkdirSync, writeFileSync, rmSync, cpSync } from 'fs';
@@ -161,9 +161,9 @@ const TARGETS = [
   },
   {
     key: 'android-phone',
-    label: 'Android phone (Play 권장 9:16)',
-    spec: '1080×1920 JPEG',
-    viewport: { width: 360, height: 640 },
+    label: 'Galaxy S26 (360×740)',
+    spec: '1080×2220 JPEG',
+    viewport: { width: 360, height: 740 },
     deviceScaleFactor: 3,
     isMobile: true,
     hasTouch: true,
@@ -361,7 +361,7 @@ BASE_URL: ${BASE_URL}
 |------|--------|------|------|------|
 | \`ios-6.9/\` | App Store Connect → iPhone 6.9" | 1320×2868 | PNG | **필수.** 1~10장. 이 세트가 있으면 더 작은 iPhone 크기는 자동 스케일됩니다. |
 | \`ios-ipad-13/\` | App Store Connect → iPad 13" | 2064×2752 | PNG | 앱이 iPad를 지원하면 **필수.** UI는 폰 폭(480px) 기준이라 좌우 여백이 보일 수 있습니다. |
-| \`android-phone/\` | Play Console → 휴대전화 | 1080×1920 | JPEG | **권장 9:16.** 2~8장. JPEG라 알파 채널이 없어 Play 규격(24-bit PNG/JPEG, 긴 변 ≤ 짧은 변×2)을 만족합니다. |
+| \`android-phone/\` | Play Console → 휴대전화 | 1080×2220 | JPEG | 갤럭시 S26 CSS(360×740) ×3. 2~8장. |
 
 > iPhone 6.9" PNG(1320×2868)는 가로:세로가 약 1:2.17이라 Play의 “긴 변은 짧은 변의 2배를 넘을 수 없음” 규칙에 걸립니다. Android에는 \`android-phone/\` JPEG만 올리세요.
 

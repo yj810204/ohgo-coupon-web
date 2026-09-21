@@ -118,10 +118,10 @@ export const STORE_PRESETS: StorePreset[] = [
   },
   {
     id: 'aos-phone',
-    label: 'Android 폰 9:16',
+    label: '갤럭시 S26 · 360×740',
     group: 'Android',
     width: 1080,
-    height: 1920,
+    height: 2220,
     format: 'jpeg',
     quality: 0.92,
     mockup: 'phone',
@@ -260,7 +260,7 @@ export function getDeviceAspect(preset: StorePreset): number {
     case 'ios-ipad-13':
       return 3 / 4;
     case 'aos-phone':
-      return 9 / 16;
+      return 360 / 740;
     case 'aos-tablet-7':
       return 1200 / 1920;
     case 'aos-tablet-10':
