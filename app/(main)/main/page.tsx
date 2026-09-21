@@ -290,7 +290,7 @@ export default function MainPage() {
               <TripTidePanel
                 key={sectionId}
                 date={tripDateToStr()}
-                onViewAll={() => navigate('/community/trip-guide')}
+                onViewAll={() => navigate('/tide')}
               />
             );
           }

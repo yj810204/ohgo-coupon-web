@@ -16,7 +16,7 @@ export type TideCurveAnchor = {
 
 export function interpolateTideCurve(
   anchors: TideCurveAnchor[],
-  samplesPerSegment = 20,
+  samplesPerSegment = 32,
 ): Array<{ at: number; heightCm: number }> {
   const sorted = [...anchors].sort((a, b) => a.at - b.at);
   if (sorted.length === 0) return [];

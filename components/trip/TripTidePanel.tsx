@@ -59,22 +59,28 @@ function formatDateLine(date: string): string {
 }
 
 function TideFlowBar({ level }: { level: number }) {
+  const pct = Math.max(0, Math.min(100, (level / 8) * 100));
   return (
-    <div className="d-flex align-items-center" style={{ gap: 3 }} aria-hidden>
-      {Array.from({ length: 8 }, (_, i) => (
-        <span
-          key={i}
-          style={{
-            flex: 1,
-            height: 14,
-            borderRadius: 99,
-            background:
-              i < level
-                ? `linear-gradient(180deg, ${FLOW_SEGMENT_COLORS[i]}CC, ${FLOW_SEGMENT_COLORS[i]})`
-                : '#E8EAED',
-          }}
-        />
-      ))}
+    <div
+      aria-hidden
+      style={{
+        position: 'relative',
+        height: 14,
+        borderRadius: 99,
+        overflow: 'hidden',
+        background: `linear-gradient(90deg, ${FLOW_SEGMENT_COLORS.join(', ')})`,
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          left: `${pct}%`,
+          right: 0,
+          backgroundColor: '#E8EAED',
+        }}
+      />
     </div>
   );
 }
@@ -90,9 +96,12 @@ function TideChart({
 }) {
   const dayStart = Date.parse(`${date}T00:00:00`);
   const dayEnd = dayStart + 86_400_000;
-  const width = 320;
-  const height = 156;
-  const pad = { l: 8, r: 8, t: 28, b: 24 };
+  const viewStart = dayStart - 3 * 3_600_000;
+  const viewEnd = dayStart + 27 * 3_600_000;
+  const viewSpan = viewEnd - viewStart;
+  const width = 360;
+  const height = 188;
+  const pad = { l: 6, r: 8, t: 22, b: 20 };
   const innerW = width - pad.l - pad.r;
   const innerH = height - pad.t - pad.b;
   const source = anchors.length > 0 ? anchors : events.map((event) => ({
@@ -103,15 +112,37 @@ function TideChart({
   const heights = source.map((item) => item.heightCm);
   if (heights.length === 0) return null;
 
-  const minH = Math.min(...heights) - 12;
-  const maxH = Math.max(...heights) + 12;
+  const minH = Math.min(...heights) - 4;
+  const maxH = Math.max(...heights) + 4;
   const range = Math.max(1, maxH - minH);
-  const xOf = (at: number) => pad.l + ((at - dayStart) / 86_400_000) * innerW;
+  const xOf = (at: number) => pad.l + ((at - viewStart) / viewSpan) * innerW;
   const yOf = (cm: number) => pad.t + (1 - (cm - minH) / range) * innerH;
 
-  const points = interpolateTideCurve(source)
-    .map((point) => ({ x: xOf(point.at), y: yOf(point.heightCm) }))
-    .filter((point) => point.x >= pad.l - 8 && point.x <= width - pad.r + 8);
+  const curve = interpolateTideCurve(source);
+  const heightAt = (at: number): number | null => {
+    if (curve.length === 0) return null;
+    if (at <= curve[0].at) return curve[0].heightCm;
+    const lastPoint = curve[curve.length - 1];
+    if (at >= lastPoint.at) return lastPoint.heightCm;
+    for (let i = 1; i < curve.length; i += 1) {
+      const next = curve[i];
+      const prev = curve[i - 1];
+      if (next.at < at) continue;
+      const span = next.at - prev.at;
+      if (span <= 0) return next.heightCm;
+      const u = (at - prev.at) / span;
+      return prev.heightCm + (next.heightCm - prev.heightCm) * u;
+    }
+    return lastPoint.heightCm;
+  };
+  const startH = heightAt(viewStart);
+  const endH = heightAt(viewEnd);
+  const dayCurve = curve.filter((point) => point.at > viewStart && point.at < viewEnd);
+  const points = [
+    startH != null ? { x: pad.l, y: yOf(startH) } : null,
+    ...dayCurve.map((point) => ({ x: xOf(point.at), y: yOf(point.heightCm) })),
+    endH != null ? { x: pad.l + innerW, y: yOf(endH) } : null,
+  ].filter((point): point is { x: number; y: number } => point != null);
   if (points.length < 2) return null;
 
   const line = points
@@ -126,28 +157,38 @@ function TideChart({
     <svg
       viewBox={`0 0 ${width} ${height}`}
       width="100%"
-      height="156"
+      height="188"
+      preserveAspectRatio="xMidYMid meet"
       role="img"
       aria-label={`${date} 조위 그래프`}
     >
       <defs>
-        <linearGradient id="tide-fill" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={`tide-fill-${date}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#1B6FF5" stopOpacity="0.22" />
           <stop offset="100%" stopColor="#1B6FF5" stopOpacity="0.02" />
         </linearGradient>
       </defs>
-      {[6, 12, 18].map((hour) => {
+      {[0, 6, 12, 18, 24].map((hour) => {
         const x = xOf(dayStart + hour * 3_600_000);
         return (
           <g key={hour}>
-            <line x1={x} y1={pad.t} x2={x} y2={pad.t + innerH} stroke="#EEF1F4" strokeWidth="1" />
-            <text x={x} y={height - 6} textAnchor="middle" fill="#9A9FA5" fontSize="10" fontFamily={FONT}>
+            {hour > 0 && hour < 24 ? (
+              <line x1={x} y1={pad.t} x2={x} y2={pad.t + innerH} stroke="#EEF1F4" strokeWidth="1" />
+            ) : null}
+            <text
+              x={x}
+              y={height - 3}
+              textAnchor="middle"
+              fill="#9A9FA5"
+              fontSize="10"
+              fontFamily={FONT}
+            >
               {String(hour).padStart(2, '0')}시
             </text>
           </g>
         );
       })}
-      <path d={area} fill="url(#tide-fill)" />
+      <path d={area} fill={`url(#tide-fill-${date})`} />
       <path d={line} fill="none" stroke="#1B6FF5" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
       {showNow ? (
         <line
@@ -164,21 +205,53 @@ function TideChart({
         const isHigh = event.type === 'high';
         const x = xOf(event.at);
         const y = yOf(event.heightCm);
-        if (x < pad.l || x > width - pad.r) return null;
+        if (x < pad.l - 4 || x > width - pad.r + 4) return null;
         const accent = isHigh ? '#DC2626' : '#0F4C81';
+        const fill = isHigh ? '#FEECEC' : '#E8F0FE';
+        const cmLabel = `${isHigh ? '↑' : '↓'}${event.heightCm}cm`;
+        const badgeW = event.heightCm >= 100 ? 50 : 46;
+        const badgeH = 16;
+        const timeW = 34;
+        const groupW = timeW + 4 + badgeW;
+        const leader = isHigh ? 12 : 40;
+        let gx = x - groupW / 2;
+        let gy = y - leader - badgeH;
+        if (gy < 2) gy = 2;
+        gx = Math.min(Math.max(pad.l, gx), width - pad.r - groupW);
+        const bx = gx + timeW + 4;
         return (
           <g key={`${event.type}-${event.at}`}>
+            <line
+              x1={x}
+              y1={gy + badgeH}
+              x2={x}
+              y2={y - 6}
+              stroke={accent}
+              strokeWidth="1"
+            />
             <circle cx={x} cy={y} r="4.5" fill="#FFFFFF" stroke={accent} strokeWidth="2" />
             <text
-              x={x}
-              y={isHigh ? y - 10 : y + 16}
+              x={gx + timeW}
+              y={gy + 11.5}
+              textAnchor="end"
+              fill="#6F767E"
+              fontSize="9"
+              fontWeight="700"
+              fontFamily={FONT}
+            >
+              {event.time}
+            </text>
+            <rect x={bx} y={gy} width={badgeW} height={badgeH} rx={8} fill={fill} />
+            <text
+              x={bx + badgeW / 2}
+              y={gy + 11.5}
               textAnchor="middle"
               fill={accent}
-              fontSize="10"
+              fontSize="9"
               fontWeight="800"
               fontFamily={FONT}
             >
-              {event.time} {event.heightCm}cm
+              {cmLabel}
             </text>
           </g>
         );
@@ -277,7 +350,7 @@ export default function TripTidePanel({
       </div>
 
       {flowLevel > 0 ? (
-        <div style={{ padding: '0 16px 16px' }}>
+        <div style={{ padding: '0 16px 4px' }}>
           <div
             className="d-flex align-items-center justify-content-between"
             style={{ marginBottom: 8 }}
@@ -301,7 +374,7 @@ export default function TripTidePanel({
       ) : null}
 
       {events.length > 0 || anchors.length > 0 ? (
-        <div style={{ padding: '0 8px 8px' }}>
+        <div>
           <TideChart date={date} events={events} anchors={anchors} />
         </div>
       ) : null}

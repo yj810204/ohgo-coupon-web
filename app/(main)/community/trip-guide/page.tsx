@@ -43,6 +43,7 @@ import OhgoModal, {
 } from '@/components/OhgoModal';
 import EmptyState from '@/components/EmptyState';
 import TripTidePanel from '@/components/trip/TripTidePanel';
+import { getTideLabel, getTideTextColor } from '@/lib/dadaepo-tide';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 const FONT = OHGO_FONT;
@@ -644,6 +645,7 @@ export default function TripGuidePage() {
                 {weekTripGroups.map((group, groupIndex) => {
                   const isSelectedDay = group.date === selectedDate;
                   const isTodayGroup = group.date === todayStr;
+                  const tideLabel = getTideLabel(group.date);
                   return (
                   <div
                     key={group.date}
@@ -683,6 +685,9 @@ export default function TripGuidePage() {
                     >
                       {formatTripModalDate(group.date)}
                       {isTodayGroup ? ' · 오늘' : ''}
+                      {tideLabel ? (
+                        <span style={{ color: getTideTextColor(tideLabel) }}>{` · ${tideLabel}`}</span>
+                      ) : null}
                     </div>
                     {group.trips.map((trip, index) => (
                       <div key={trip.id}>

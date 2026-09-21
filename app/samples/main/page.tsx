@@ -60,7 +60,7 @@ export default function SampleMainPage() {
         <TripTidePanel
           date={tripDateToStr()}
           tideRegionId="dadaepo"
-          onViewAll={() => router.push('/samples/trips')}
+          onViewAll={() => router.push('/samples/tide')}
         />
 
         <section className="mb-4">

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
-import { IoImageOutline, IoBoatOutline, IoHelpCircleOutline, IoBookOutline, IoChevronForwardOutline } from 'react-icons/io5';
+import { IoImageOutline, IoBoatOutline, IoHelpCircleOutline, IoBookOutline, IoChevronForwardOutline, IoWaterOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import { useNavigation } from '@/hooks/useNavigation';
 import { countPhotos } from '@/utils/community-service';
@@ -47,6 +47,15 @@ const subMenuItems = [
     icon: IoBoatOutline,
     color: '#1B6FF5',
     bg: '#EBF1FE',
+  },
+  {
+    id: 'tide',
+    label: '물때',
+    desc: '몇물·조위와 추천 어종을 확인하세요',
+    path: '/tide',
+    icon: IoWaterOutline,
+    color: '#0F4C81',
+    bg: '#E8F0F8',
   },
 ];
 
