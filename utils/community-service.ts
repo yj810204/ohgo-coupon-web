@@ -5,7 +5,5 @@ export {
   communityWritePath,
   communityBoardTitle,
   sortBoardList,
-  canWriteCommunityBoard,
-  canEditCommunityPost,
 } from './community-service.shared';
 export * from './community-service.supabase';

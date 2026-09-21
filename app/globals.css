@@ -253,7 +253,7 @@ button:focus-visible,
   box-shadow: none !important;
 }
 
-/* 서브페이지 상단 바: 고정, 뒤로가기·타이틀·우상단 액션(기본 마이페이지) */
+/* 서브페이지 상단 바: 고정, 뒤로가기·타이틀·마이페이지 */
 .ohgo-page-header {
   position: fixed;
   top: 0;

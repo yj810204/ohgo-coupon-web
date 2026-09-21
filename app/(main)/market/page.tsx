@@ -16,7 +16,6 @@ import CategoryChipRow from '@/components/community/CategoryChipRow';
 import { IoAddOutline, IoListOutline, IoStorefrontOutline } from 'react-icons/io5';
 import { useNavigation } from '@/hooks/useNavigation';
 import { OHGO_FONT } from '@/lib/page-styles';
-import { writeHeaderAction } from '@/lib/page-header-action';
 
 const FONT = OHGO_FONT;
 
@@ -69,11 +68,7 @@ export default function MarketPage() {
   }
 
   return (
-    <SubPageFrame
-      title="중고장터"
-      onRefresh={() => load(category)}
-      headerAction={writeHeaderAction(() => navigate('/market/sell'), '판매 등록')}
-    >
+    <SubPageFrame title="중고장터" onRefresh={() => load(category)}>
       <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
         <p className="mb-0 flex-grow-1 min-w-0" style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>
           관리자 승인 후 게시됩니다.

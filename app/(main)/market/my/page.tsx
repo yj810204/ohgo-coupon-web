@@ -21,7 +21,6 @@ import StorageThumb from '@/components/StorageThumb';
 import { useNavigation } from '@/hooks/useNavigation';
 import { OHGO_CARD, OHGO_FONT, OHGO_LIST_DIVIDER } from '@/lib/page-styles';
 import { IoStorefrontOutline } from 'react-icons/io5';
-import { writeHeaderAction } from '@/lib/page-header-action';
 
 const FONT = OHGO_FONT;
 
@@ -100,12 +99,7 @@ export default function MyMarketListingsPage() {
   };
 
   return (
-    <SubPageFrame
-      title="판매관리"
-      onRefresh={() => (userId ? load(userId) : undefined)}
-      onBack={() => router.replace('/market')}
-      headerAction={writeHeaderAction(() => navigate('/market/sell'), '판매 등록')}
-    >
+    <SubPageFrame title="판매관리" onRefresh={() => (userId ? load(userId) : undefined)} onBack={() => router.replace('/market')}>
       {loading ? (
         <div className="py-5 text-center">
           <div className="spinner-border text-primary" role="status" />

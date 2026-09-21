@@ -55,7 +55,6 @@ import EmptyState from '@/components/EmptyState';
 import ImageSwipeSlider from '@/components/ImageSwipeSlider';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
 import { displayMemberName, maskAuthorName } from '@/lib/mask-member-name';
-import { communityPageHeaderAction } from '@/lib/page-header-action';
 
 const SECTION_TITLE: CSSProperties = {
   fontSize: 15,
@@ -859,12 +858,6 @@ function PhotoDetailContent() {
     <SubPageFrame
       title={communityBoardTitle(photo.boardType)}
       onBack={() => router.replace(listPath)}
-      headerAction={communityPageHeaderAction({
-        board: photo.boardType,
-        user,
-        post: photo,
-        onNavigate: (path) => router.push(path),
-      })}
     >
       {/* 사진 */}
       <div className="mb-3" style={OHGO_CARD}>

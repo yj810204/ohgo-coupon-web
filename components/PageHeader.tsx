@@ -3,25 +3,19 @@
 import { useEffect } from 'react';
 import { IoChevronBackOutline, IoPersonOutline } from 'react-icons/io5';
 import { useNavigation } from '@/hooks/useNavigation';
-import type { PageHeaderAction } from '@/lib/page-header-action';
 
 interface PageHeaderProps {
   title?: string;
   showBackButton?: boolean;
   onBack?: () => void;
   showMyPage?: boolean;
-  /** 있으면 우상단 아이콘을 이 액션으로 대체. 없으면 마이페이지(기본) */
-  headerAction?: PageHeaderAction | null;
 }
-
-export type { PageHeaderAction };
 
 export default function PageHeader({
   title,
   showBackButton = true,
   onBack,
   showMyPage = true,
-  headerAction,
 }: PageHeaderProps) {
   const { navigateBack, navigate } = useNavigation();
 
@@ -36,16 +30,6 @@ export default function PageHeader({
     if (onBack) onBack();
     else navigateBack();
   };
-
-  const fallbackAction: PageHeaderAction | null = showMyPage
-    ? {
-        ariaLabel: '마이페이지',
-        onClick: () => navigate('/my-page'),
-        icon: IoPersonOutline,
-      }
-    : null;
-  const action = headerAction ?? fallbackAction;
-  const ActionIcon = action?.icon;
 
   return (
     <>
@@ -70,16 +54,16 @@ export default function PageHeader({
               <div className="ohgo-page-header__title-spacer" aria-hidden="true" />
             )}
             <div className="ohgo-page-header__side ohgo-page-header__side--end">
-              {action && ActionIcon ? (
+              {showMyPage && (
                 <button
                   type="button"
-                  onClick={action.onClick}
+                  onClick={() => navigate('/my-page')}
                   className="btn p-0 d-flex align-items-center justify-content-center ohgo-page-header__icon-btn"
-                  aria-label={action.ariaLabel}
+                  aria-label="마이페이지"
                 >
-                  <ActionIcon size={22} />
+                  <IoPersonOutline size={22} />
                 </button>
-              ) : null}
+              )}
             </div>
           </div>
         </div>

@@ -25,7 +25,6 @@ import {
   OhgoPageLoading,
 } from '@/lib/page-styles';
 import { IoCallOutline, IoShieldCheckmarkOutline } from 'react-icons/io5';
-import { editHeaderAction, writeHeaderAction } from '@/lib/page-header-action';
 import { openPhoneDialer } from '@/lib/native-bridge';
 
 const FONT = OHGO_FONT;
@@ -37,7 +36,6 @@ export default function MarketListingDetailPage() {
   const [listing, setListing] = useState<MarketListing | null>(null);
   const [loading, setLoading] = useState(true);
   const [canSeeFullNames, setCanSeeFullNames] = useState(false);
-  const [userId, setUserId] = useState('');
 
   useEffect(() => {
     const init = async () => {
@@ -46,7 +44,6 @@ export default function MarketListingDetailPage() {
         router.replace('/login');
         return;
       }
-      setUserId(user.uuid);
       setCanSeeFullNames(Boolean(user.isAdmin || user.isCaptain));
       if (!listingId) return;
       try {
@@ -77,21 +74,9 @@ export default function MarketListingDetailPage() {
   const sold = listing.status === 'sold';
   const grade = listing.adminConditionGrade || listing.conditionGrade;
   const phone = listing.contactPhone?.trim();
-  const isOwner = Boolean(userId && listing.sellerId === userId);
-  const canEditListing =
-    isOwner &&
-    (listing.status === 'pending' || listing.status === 'rejected' || listing.status === 'approved');
 
   return (
-    <SubPageFrame
-      title="중고장터"
-      onBack={() => router.replace('/market')}
-      headerAction={
-        canEditListing
-          ? editHeaderAction(() => router.push(`/market/sell?id=${encodeURIComponent(listing.id)}`))
-          : writeHeaderAction(() => router.push('/market/sell'), '판매 등록')
-      }
-    >
+    <SubPageFrame title="중고장터" onBack={() => router.replace('/market')}>
       <div className="mb-3" style={OHGO_CARD}>
         <div style={{ overflow: 'hidden', borderRadius: '16px 16px 0 0', position: 'relative' }}>
           <ImageSwipeSlider urls={listing.imageUrls} alt={listing.title} />
