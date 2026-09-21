@@ -20,6 +20,7 @@ export {
   normalizeHomeSections,
   normalizeHomeSectionOrder,
   normalizeAppPopup,
+  normalizeAdminGateEnabled,
   isAppPopupContentReady,
 } from './site-settings-shared';
 export * from './site-settings-service.supabase';

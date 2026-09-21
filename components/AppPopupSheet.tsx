@@ -55,7 +55,7 @@ export default function AppPopupSheet({
           <img
             src={imageUrl}
             alt=""
-            style={{ width: '100%', display: 'block', objectFit: 'cover', maxHeight: 280 }}
+            style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain' }}
           />
         </div>
       ) : null}

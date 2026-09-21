@@ -9,6 +9,7 @@ import {
   DEFAULT_SITE_NAME,
   TRAVELIA_BOTTOM_TAB_IDS,
   homeMenuItem,
+  normalizeAdminGateEnabled,
   normalizeAppPopup,
   normalizeBottomTabIds,
   normalizeHomeSectionOrder,
@@ -33,6 +34,7 @@ function mapSettings(value: Record<string, unknown> | null): SiteSettings {
       homeSections: { ...DEFAULT_HOME_SECTIONS },
       homeSectionOrder: [...DEFAULT_HOME_SECTION_ORDER],
       appPopup: { ...DEFAULT_APP_POPUP },
+      adminGateEnabled: undefined,
       updatedAt: new Date(),
     };
   }
@@ -46,6 +48,7 @@ function mapSettings(value: Record<string, unknown> | null): SiteSettings {
     homeSections: normalizeHomeSections(value.homeSections),
     homeSectionOrder: normalizeHomeSectionOrder(value.homeSectionOrder),
     appPopup: normalizeAppPopup(value.appPopup),
+    adminGateEnabled: normalizeAdminGateEnabled(value.adminGateEnabled),
     updatedAt: (value.updatedAt as string) || new Date().toISOString(),
   };
 }
@@ -93,13 +96,28 @@ export async function getSiteSettings(): Promise<SiteSettings> {
     homeSections: normalizeHomeSections(settings.homeSections),
     homeSectionOrder: normalizeHomeSectionOrder(settings.homeSectionOrder),
     appPopup: normalizeAppPopup(settings.appPopup),
+    adminGateEnabled: normalizeAdminGateEnabled(settings.adminGateEnabled),
   };
 }
 
 export async function saveSiteSettings(settings: Partial<SiteSettings>): Promise<void> {
-  // 캐시된 값으로 병합하면 다른 관리자 변경을 덮어쓸 수 있으므로 항상 서버에서 읽음
-  const current = await getSiteSettingsFresh();
-  const updated = {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error: readError } = await supabase
+    .from('site_settings')
+    .select('value')
+    .eq('key', SETTINGS_KEY)
+    .maybeSingle();
+  if (readError) throw readError;
+
+  const raw =
+    data?.value && typeof data.value === 'object'
+      ? (data.value as Record<string, unknown>)
+      : {};
+  const current = mapSettings(raw);
+  const preservedHash =
+    typeof raw.adminGatePasswordHash === 'string' ? raw.adminGatePasswordHash : undefined;
+  const updated: Record<string, unknown> = {
+    ...raw,
     ...current,
     ...settings,
     homeSections: normalizeHomeSections({
@@ -112,8 +130,9 @@ export async function saveSiteSettings(settings: Partial<SiteSettings>): Promise
     appPopup: normalizeAppPopup(settings.appPopup ?? current.appPopup),
     updatedAt: new Date().toISOString(),
   };
+  delete updated.adminGatePassword;
+  if (preservedHash) updated.adminGatePasswordHash = preservedHash;
 
-  const supabase = getSupabaseBrowserClient();
   const { error } = await supabase.from('site_settings').upsert({
     key: SETTINGS_KEY,
     value: updated,

@@ -13,7 +13,6 @@ import {
 import { format } from 'date-fns';
 import {
   getTripsByMonth,
-  getTripScheduleDateBadge,
   isPastTripDate,
   isPastTripSchedule,
   TripGuide,
@@ -224,6 +223,8 @@ export default function TripGuidePage() {
   }, [modalTrip]);
 
   const firstLoadRef = useRef(true);
+  const dayGroupRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const pendingScrollDateRef = useRef<string | null>(null);
   const loadMonthsKey = useMemo(() => {
     if (calendarExpanded) return toYM(year, month);
     return [...new Set(weekDateStrs(selectedDate).map((d) => d.slice(0, 7)))].sort().join(',');
@@ -272,12 +273,23 @@ export default function TripGuidePage() {
     } else setMonth(m => m + 1);
   };
 
+  const scrollToDayGroup = (dateStr: string) => {
+    pendingScrollDateRef.current = dateStr;
+    const node = dayGroupRefs.current[dateStr];
+    if (!node) return;
+    pendingScrollDateRef.current = null;
+    node.style.scrollMarginTop = 'calc(var(--ohgo-page-header-height, 56px) + 12px)';
+    node.style.scrollMarginBottom = 'calc(var(--ohgo-content-bottom-inset, 60px) + 12px)';
+    node.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  };
+
   const goToDay = (deltaDays: number) => {
     const pick = addDays(selectedDate, deltaDays);
     const d = new Date(`${pick}T12:00:00`);
     setSelectedDate(pick);
     setYear(d.getFullYear());
     setMonth(d.getMonth());
+    scrollToDayGroup(pick);
   };
 
   const goPrev = () => (calendarExpanded ? prevMonth() : goToDay(-1));
@@ -305,17 +317,18 @@ export default function TripGuidePage() {
   const getDateStr = (day: number) =>
     `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-  const selectedTrips = tripMap[selectedDate] || [];
-  const selectedIsPast =
-    isPastTripDate(selectedDate, todayStr) ||
-    (selectedDate === todayStr &&
-      selectedTrips.length > 0 &&
-      selectedTrips.every(t => isPastTripSchedule(t.date, t.departureTime)));
-  const selectedIsClosed = selectedTrips.length === 0;
-  const selectedDateBadge = selectedIsPast
-    ? { label: '지난 일정', variant: 'past' as const }
-    : getTripScheduleDateBadge(selectedDate, todayStr);
+  const weekTripGroups = weekDates
+    .map((date) => ({ date, trips: tripMap[date] || [] }))
+    .filter((group) => group.trips.length > 0);
+  const weekTripCount = weekTripGroups.reduce((sum, group) => sum + group.trips.length, 0);
   const currentMonthDate = useMemo(() => new Date(year, month, 1), [year, month]);
+
+  useEffect(() => {
+    if (loading) return;
+    const target = pendingScrollDateRef.current;
+    if (!target) return;
+    scrollToDayGroup(target);
+  }, [selectedDate, loading, weekTripCount]);
 
   const canShowReserveButton =
     reservationEnabled &&
@@ -362,6 +375,7 @@ export default function TripGuidePage() {
     setSelectedDate(dateStr);
     setYear(d.getFullYear());
     setMonth(d.getMonth());
+    scrollToDayGroup(dateStr);
   };
 
   const renderDayCell = (dateStr: string, col: number, outsideMonth: boolean) => {
@@ -480,14 +494,6 @@ export default function TripGuidePage() {
     );
   };
 
-  const dateBadgeStyle = selectedDateBadge
-    ? selectedDateBadge.variant === 'past'
-      ? { backgroundColor: '#E8EAED', color: '#6F767E' }
-      : selectedDateBadge.variant === 'today'
-        ? { backgroundColor: TODAY_BG, color: TODAY_ACCENT }
-        : { backgroundColor: '#EBF1FE', color: '#1B6FF5' }
-    : null;
-
   return (
     <SubPageFrame title="출조 안내" onRefresh={loadTrips} dense>
         <div className="position-relative mb-2" style={{ ...CARD, overflow: 'hidden', width: '100%', minWidth: 0 }}>
@@ -588,7 +594,7 @@ export default function TripGuidePage() {
           </div>
         </div>
 
-        {/* 선택한 날짜 출조 리스트 */}
+        {/* 이번 주 출조 리스트 */}
         {!loading && (
           <>
             <div className="d-flex align-items-center gap-2 mb-2 px-1">
@@ -596,31 +602,32 @@ export default function TripGuidePage() {
                 style={{
                   fontSize: 15,
                   fontWeight: 700,
-                  color: selectedIsPast || selectedIsClosed ? '#6F767E' : '#1A1D1F',
+                  color: '#1A1D1F',
                   fontFamily: FONT,
                 }}
               >
-                {parseInt(selectedDate.split('-')[1])}월 {parseInt(selectedDate.split('-')[2])}일 출조 일정
+                {formatSunSatWeekLabel(selectedDate)} 출조 일정
               </span>
-              {selectedDateBadge && dateBadgeStyle && (
+              {weekTripCount > 0 ? (
                 <span
                   className="badge rounded-pill"
                   style={{
-                    ...dateBadgeStyle,
+                    backgroundColor: '#EBF1FE',
+                    color: '#1B6FF5',
                     fontSize: 11,
                     fontFamily: FONT,
                     fontWeight: 600,
                   }}
                 >
-                  {selectedDateBadge.label}
+                  {weekTripCount}건
                 </span>
-              )}
+              ) : null}
             </div>
 
-            {selectedIsClosed ? (
+            {weekTripCount === 0 ? (
               <EmptyState
                 icon={IoBoatOutline}
-                message="아직 공개되지 않은 날짜입니다."
+                message="이번 주 등록된 출조 일정이 없습니다."
                 compact
                 style={{ backgroundColor: '#F7F8FA', borderRadius: 14, border: '1px solid #EFEFEF', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
               />
@@ -633,12 +640,58 @@ export default function TripGuidePage() {
                   overflow: 'hidden',
                 }}
               >
-                {selectedTrips.map((trip, index) => (
-                  <div key={trip.id}>
-                    {index > 0 && <div style={OHGO_LIST_DIVIDER} />}
-                    <TripScheduleRow trip={trip} onClick={() => setModalTrip(trip)} />
+                {weekTripGroups.map((group, groupIndex) => {
+                  const isSelectedDay = group.date === selectedDate;
+                  const isTodayGroup = group.date === todayStr;
+                  return (
+                  <div
+                    key={group.date}
+                    ref={(el) => {
+                      dayGroupRefs.current[group.date] = el;
+                    }}
+                    id={`trip-day-${group.date}`}
+                    style={{
+                      backgroundColor: isSelectedDay
+                        ? isTodayGroup
+                          ? TODAY_BG
+                          : '#EBF1FE'
+                        : 'transparent',
+                      boxShadow: isSelectedDay
+                        ? `inset 3px 0 0 ${isTodayGroup ? TODAY_ACCENT : '#1B6FF5'}`
+                        : undefined,
+                      scrollMarginTop: 'calc(var(--ohgo-page-header-height, 56px) + 12px)',
+                      scrollMarginBottom: 'calc(var(--ohgo-content-bottom-inset, 60px) + 12px)',
+                      transition: 'background-color 0.2s ease',
+                    }}
+                  >
+                    {groupIndex > 0 ? <div style={OHGO_LIST_DIVIDER} /> : null}
+                    <div
+                      style={{
+                        padding: '10px 16px 4px',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: isSelectedDay
+                          ? isTodayGroup
+                            ? TODAY_ACCENT
+                            : '#1B6FF5'
+                          : isTodayGroup
+                            ? TODAY_ACCENT
+                            : '#6F767E',
+                        fontFamily: FONT,
+                      }}
+                    >
+                      {formatTripModalDate(group.date)}
+                      {isTodayGroup ? ' · 오늘' : ''}
+                    </div>
+                    {group.trips.map((trip, index) => (
+                      <div key={trip.id}>
+                        {index > 0 && <div style={OHGO_LIST_DIVIDER} />}
+                        <TripScheduleRow trip={trip} onClick={() => setModalTrip(trip)} />
+                      </div>
+                    ))}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>

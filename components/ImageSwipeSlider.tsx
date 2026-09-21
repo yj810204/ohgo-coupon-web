@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState, type CSSProperties } from 'react';
 import { OHGO_FONT } from '@/lib/page-styles';
+import BlurFillImage from '@/components/BlurFillImage';
 
 type ImageSwipeSliderProps = {
   urls: string[];
@@ -33,23 +34,20 @@ export default function ImageSwipeSlider({
 
   if (urls.length === 0) return null;
 
-  const frameStyle: CSSProperties = {
+  const frame: CSSProperties = {
     width: '100%',
     aspectRatio: String(aspectRatio),
-    objectFit: 'cover',
-    display: 'block',
-    backgroundColor: '#111',
     cursor: onImageClick ? 'pointer' : undefined,
   };
 
   if (urls.length === 1) {
     return (
-      <div className={className} style={{ position: 'relative', backgroundColor: '#111', ...style }}>
-        <img
+      <div className={className} style={{ position: 'relative', ...style }}>
+        <BlurFillImage
           src={urls[0]}
           alt={alt}
-          className="w-100"
-          style={frameStyle}
+          tone="light"
+          style={frame}
           onClick={() => onImageClick?.(urls[0], 0)}
         />
       </div>
@@ -57,7 +55,7 @@ export default function ImageSwipeSlider({
   }
 
   return (
-    <div className={className} style={{ position: 'relative', backgroundColor: '#111', ...style }}>
+    <div className={className} style={{ position: 'relative', ...style }}>
       <div
         ref={scrollerRef}
         onScroll={syncIndex}
@@ -77,15 +75,15 @@ export default function ImageSwipeSlider({
               width: '100%',
               scrollSnapAlign: 'start',
               scrollSnapStop: 'always',
-              backgroundColor: '#111',
             }}
           >
-            <img
+            <BlurFillImage
               src={url}
               alt={`${alt} ${i + 1}`}
+              tone="light"
               draggable={false}
               loading={i === 0 ? 'eager' : 'lazy'}
-              style={{ ...frameStyle, userSelect: 'none' }}
+              style={frame}
               onClick={() => onImageClick?.(url, i)}
             />
           </div>

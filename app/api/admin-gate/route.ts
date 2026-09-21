@@ -5,7 +5,9 @@ import {
   adminGateCookieValue,
   isAdminGateConfigured,
   isAdminGateEnabled,
+  isAdminGatePasswordConfigured,
   isAdminGateUnlocked,
+  saveAdminGateSettings,
   verifyAdminGatePassword,
 } from '@/lib/admin-gate';
 
@@ -30,21 +32,22 @@ function tooManyAttempts(key: string) {
 }
 
 export async function GET() {
-  const enabled = isAdminGateEnabled();
+  const enabled = await isAdminGateEnabled();
   return NextResponse.json({
     enabled,
-    configured: isAdminGateConfigured(),
+    configured: await isAdminGateConfigured(),
+    passwordConfigured: await isAdminGatePasswordConfigured(),
     unlocked: await isAdminGateUnlocked(),
   });
 }
 
 export async function POST(request: Request) {
-  if (!isAdminGateEnabled()) {
+  if (!(await isAdminGateEnabled())) {
     return NextResponse.json({ ok: true, enabled: false });
   }
-  if (!isAdminGateConfigured()) {
+  if (!(await isAdminGateConfigured())) {
     return NextResponse.json(
-      { error: '관리자 비밀번호가 설정되지 않았습니다. .env 파일에 ADMIN_GATE_PASSWORD를 넣어 주세요.' },
+      { error: '관리자 비밀번호가 설정되지 않았습니다. 사이트 설정에서 비밀번호를 저장해 주세요.' },
       { status: 503 },
     );
   }
@@ -69,13 +72,60 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '비밀번호를 입력해 주세요.' }, { status: 400 });
   }
 
-  if (verifyAdminGatePassword(password) !== 'ok') {
+  if ((await verifyAdminGatePassword(password)) !== 'ok') {
     return NextResponse.json({ error: '비밀번호가 올바르지 않습니다.' }, { status: 401 });
   }
 
   attempts.delete(key);
+  const token = await adminGateCookieValue();
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(ADMIN_GATE_COOKIE, adminGateCookieValue(), adminGateCookieOptions());
+  if (token) {
+    response.cookies.set(ADMIN_GATE_COOKIE, token, adminGateCookieOptions());
+  }
+  return response;
+}
+
+export async function PUT(request: Request) {
+  const unlocked = await isAdminGateUnlocked();
+  const passwordConfigured = await isAdminGatePasswordConfigured();
+  if (!unlocked && passwordConfigured) {
+    return NextResponse.json({ error: '관리자 확인이 필요합니다.' }, { status: 401 });
+  }
+
+  let enabled = false;
+  let password = '';
+  let passwordConfirm = '';
+  try {
+    const body = await request.json();
+    enabled = body?.enabled === true;
+    password = typeof body?.password === 'string' ? body.password : '';
+    passwordConfirm = typeof body?.passwordConfirm === 'string' ? body.passwordConfirm : '';
+  } catch {
+    return NextResponse.json({ error: '요청을 확인하지 못했습니다.' }, { status: 400 });
+  }
+
+  if (password || passwordConfirm) {
+    if (password !== passwordConfirm) {
+      return NextResponse.json({ error: '비밀번호 확인이 일치하지 않습니다.' }, { status: 400 });
+    }
+  }
+
+  const result = await saveAdminGateSettings({ enabled, password });
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
+
+  const response = NextResponse.json({
+    ok: true,
+    enabled,
+    passwordConfigured: await isAdminGatePasswordConfigured(),
+  });
+  if (result.passwordUpdated) {
+    const token = await adminGateCookieValue();
+    if (token) {
+      response.cookies.set(ADMIN_GATE_COOKIE, token, adminGateCookieOptions());
+    }
+  }
   return response;
 }
 

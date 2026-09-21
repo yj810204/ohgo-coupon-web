@@ -31,14 +31,23 @@ export default function AdminGateGuard({ children }: { children: ReactNode }) {
     }
 
     const res = await fetch('/api/admin-gate', { credentials: 'include' });
-    const data = (await res.json()) as { enabled?: boolean; configured?: boolean; unlocked?: boolean };
+    const data = (await res.json()) as {
+      enabled?: boolean;
+      configured?: boolean;
+      passwordConfigured?: boolean;
+      unlocked?: boolean;
+    };
     setConfigured(data.configured !== false);
     if (data.enabled === false || data.unlocked) {
       setState('open');
       return;
     }
+    if (data.passwordConfigured === false && pathname === '/admin-site-settings') {
+      setState('open');
+      return;
+    }
     setState('form');
-  }, [router]);
+  }, [router, pathname]);
 
   useEffect(() => {
     void checkGate();
@@ -127,7 +136,7 @@ export default function AdminGateGuard({ children }: { children: ReactNode }) {
         >
           {configured
             ? '관리자 메뉴에 들어가려면 비밀번호를 한 번 더 입력하세요.'
-            : '관리자 비밀번호가 없습니다. 설정 파일에 ADMIN_GATE_PASSWORD를 넣어 주세요.'}
+            : '관리자 비밀번호가 없습니다. 사이트 설정에서 비밀번호를 저장해 주세요.'}
         </p>
         <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#6F767E', marginBottom: 6 }}>
           비밀번호

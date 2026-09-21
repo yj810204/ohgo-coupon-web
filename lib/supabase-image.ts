@@ -15,12 +15,16 @@ export function supabaseOriginalImageUrl(url: string | undefined): string | unde
 }
 
 /** 목록·카드용 리사이즈 URL. 변환 실패 시 원본으로 떨어지도록 onError에서 원본을 쓰세요. */
-export function supabaseListImageUrl(url: string | undefined, width = 480): string | undefined {
+export function supabaseListImageUrl(
+  url: string | undefined,
+  width = 480,
+  resize: 'cover' | 'contain' = 'cover',
+): string | undefined {
   if (!url) return undefined;
   const original = supabaseOriginalImageUrl(url) || url;
   const idx = original.indexOf(OBJECT_MARKER);
   if (idx === -1) return original;
   const origin = original.slice(0, idx);
   const path = original.slice(idx + OBJECT_MARKER.length);
-  return `${origin}${RENDER_MARKER}${path}?width=${width}&resize=cover`;
+  return `${origin}${RENDER_MARKER}${path}?width=${width}&resize=${resize}`;
 }

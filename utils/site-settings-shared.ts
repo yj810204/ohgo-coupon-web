@@ -120,6 +120,12 @@ export function isAppPopupContentReady(popup: AppPopupSettings): boolean {
   return Boolean(popup.title.trim() || popup.body.trim() || popup.imageUrl.trim());
 }
 
+export function normalizeAdminGateEnabled(value: unknown): boolean | undefined {
+  if (value === true) return true;
+  if (value === false) return false;
+  return undefined;
+}
+
 export interface SiteSettings {
   siteName: string;
   userMenuItems: MenuItem[];
@@ -129,6 +135,8 @@ export interface SiteSettings {
   homeSections: HomeSectionVisibility;
   homeSectionOrder: HomeSectionId[];
   appPopup: AppPopupSettings;
+  /** 관리자 메뉴 2차 확인. 저장 전이면 undefined → 서버는 .env ADMIN_GATE 값을 씀 */
+  adminGateEnabled?: boolean;
   updatedAt: Date | string;
 }
 

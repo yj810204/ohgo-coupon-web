@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { IoChatbubblesOutline } from 'react-icons/io5';
 import { COMMUNITY_POST_DELETED_MESSAGE } from '@/utils/community-service';
 import { supabaseListImageUrl } from '@/lib/supabase-image';
+import BlurFillImage from '@/components/BlurFillImage';
 
 const FONT = "var(--font-ohgo), sans-serif";
 
@@ -29,7 +30,7 @@ export default function CommunityPhotoCard({
   onClick,
 }: CommunityPhotoCardProps) {
   const meta = [author, date].filter(Boolean).join(' · ');
-  const thumbUrl = supabaseListImageUrl(imageUrl);
+  const thumbUrl = supabaseListImageUrl(imageUrl, 480, 'contain');
   const [imgSrc, setImgSrc] = useState(thumbUrl || imageUrl);
 
   return (
@@ -52,7 +53,7 @@ export default function CommunityPhotoCard({
             style={{
               top: 8,
               left: 8,
-              zIndex: 1,
+              zIndex: 2,
               fontSize: 11,
               fontWeight: 800,
               fontFamily: FONT,
@@ -80,10 +81,9 @@ export default function CommunityPhotoCard({
             {isDeleted ? COMMUNITY_POST_DELETED_MESSAGE : title}
           </div>
         ) : (
-          <img
+          <BlurFillImage
             src={imgSrc}
             alt={title}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             loading="lazy"
             onError={() => {
               if (imageUrl && imgSrc !== imageUrl) setImgSrc(imageUrl);

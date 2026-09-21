@@ -38,6 +38,7 @@ import {
   IoGridOutline,
   IoReorderTwoOutline,
   IoMegaphoneOutline,
+  IoLockClosedOutline,
 } from 'react-icons/io5';
 import { ADMIN_EDIT_ICON } from '@/lib/admin-icons';
 import SubPageFrame from '@/components/SubPageFrame';
@@ -169,6 +170,10 @@ function AdminSiteSettingsContent() {
     ...DEFAULT_HOME_SECTION_ORDER,
   ]);
   const [appPopup, setAppPopup] = useState<AppPopupSettings>({ ...DEFAULT_APP_POPUP });
+  const [adminGateEnabled, setAdminGateEnabled] = useState(true);
+  const [adminGatePasswordConfigured, setAdminGatePasswordConfigured] = useState(true);
+  const [adminGatePassword, setAdminGatePassword] = useState('');
+  const [adminGatePasswordConfirm, setAdminGatePasswordConfirm] = useState('');
   const [popupPreview, setPopupPreview] = useState(false);
   const [popupUploading, setPopupUploading] = useState(false);
   const [draggingSectionId, setDraggingSectionId] = useState<HomeSectionId | null>(null);
@@ -207,6 +212,20 @@ function AdminSiteSettingsContent() {
       setHomeSections(settings.homeSections);
       setHomeSectionOrder(normalizeHomeSectionOrder(settings.homeSectionOrder));
       setAppPopup(settings.appPopup);
+      try {
+        const res = await fetch('/api/admin-gate', { credentials: 'include' });
+        const data = (await res.json()) as { enabled?: boolean; passwordConfigured?: boolean };
+        setAdminGatePasswordConfigured(data.passwordConfigured !== false);
+        if (typeof settings.adminGateEnabled === 'boolean') {
+          setAdminGateEnabled(settings.adminGateEnabled);
+        } else {
+          setAdminGateEnabled(data.enabled === true);
+        }
+      } catch {
+        if (typeof settings.adminGateEnabled === 'boolean') {
+          setAdminGateEnabled(settings.adminGateEnabled);
+        }
+      }
     } catch (error) {
       console.error('Error loading settings:', error);
       alert('설정을 불러오는 중 오류가 발생했습니다.');
@@ -501,6 +520,133 @@ function AdminSiteSettingsContent() {
         </div>
 
         <div className="p-4 mb-4" style={CARD}>
+          <SectionHeader icon={IoLockClosedOutline} title="관리자 확인" />
+          <p className="mb-3" style={HINT}>
+            켜면 관리자 메뉴에 들어갈 때 비밀번호를 한 번 더 묻습니다. 비밀번호는 이 화면에서 정합니다.
+          </p>
+          <div className="form-check form-switch mb-3">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              role="switch"
+              id="admin-gate-enabled"
+              checked={adminGateEnabled}
+              onChange={(e) => {
+                const next = e.target.checked;
+                setAdminGateEnabled(next);
+                if (!next) {
+                  setAdminGatePassword('');
+                  setAdminGatePasswordConfirm('');
+                }
+              }}
+              disabled={saving}
+            />
+            <label
+              className="form-check-label"
+              htmlFor="admin-gate-enabled"
+              style={{ fontFamily: OHGO_FONT, fontSize: 14 }}
+            >
+              관리자 확인 사용
+            </label>
+          </div>
+          {adminGateEnabled ? (
+            <>
+              <label htmlFor="admin-gate-password" style={LABEL}>
+                비밀번호
+              </label>
+              <input
+                id="admin-gate-password"
+                type="password"
+                className="form-control mb-3"
+                value={adminGatePassword}
+                onChange={(e) => setAdminGatePassword(e.target.value)}
+                autoComplete="new-password"
+                placeholder={adminGatePasswordConfigured ? '변경할 때만 입력' : '비밀번호 입력'}
+                disabled={saving}
+                style={OHGO_INPUT}
+              />
+              <label htmlFor="admin-gate-password-confirm" style={LABEL}>
+                비밀번호 확인
+              </label>
+              <input
+                id="admin-gate-password-confirm"
+                type="password"
+                className="form-control mb-3"
+                value={adminGatePasswordConfirm}
+                onChange={(e) => setAdminGatePasswordConfirm(e.target.value)}
+                autoComplete="new-password"
+                placeholder={adminGatePasswordConfigured ? '변경할 때만 입력' : '비밀번호 다시 입력'}
+                disabled={saving}
+                style={OHGO_INPUT}
+              />
+              <p className="mb-3" style={HINT}>
+                {adminGatePasswordConfigured
+                  ? '이미 비밀번호가 있습니다. 바꿀 때만 입력하고 저장하세요.'
+                  : '켜 둔 상태로 저장하려면 비밀번호를 입력하세요. 4자 이상.'}
+              </p>
+            </>
+          ) : null}
+          <button
+            type="button"
+            className={`btn w-100 fw-semibold ${OHGO_CONFIRM_BTN_CLASS}`}
+            onClick={async () => {
+              try {
+                if (adminGateEnabled) {
+                  if (adminGatePassword || adminGatePasswordConfirm) {
+                    if (adminGatePassword !== adminGatePasswordConfirm) {
+                      alert('비밀번호 확인이 일치하지 않습니다.');
+                      return;
+                    }
+                    if (adminGatePassword.trim().length < 4) {
+                      alert('비밀번호는 4자 이상이어야 합니다.');
+                      return;
+                    }
+                  } else if (!adminGatePasswordConfigured) {
+                    alert('관리자 확인을 켜려면 비밀번호를 입력해 주세요.');
+                    return;
+                  }
+                }
+                setSaving(true);
+                const res = await fetch('/api/admin-gate', {
+                  method: 'PUT',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    enabled: adminGateEnabled,
+                    password: adminGatePassword,
+                    passwordConfirm: adminGatePasswordConfirm,
+                  }),
+                });
+                const data = (await res.json()) as { error?: string; passwordConfigured?: boolean };
+                if (!res.ok) {
+                  alert(data.error || '저장 중 오류가 발생했습니다.');
+                  return;
+                }
+                setAdminGatePasswordConfigured(data.passwordConfigured !== false);
+                setAdminGatePassword('');
+                setAdminGatePasswordConfirm('');
+                alert(
+                  adminGateEnabled
+                    ? adminGatePassword.trim()
+                      ? '관리자 확인과 비밀번호를 저장했습니다. 다음부터 이 비밀번호를 묻습니다.'
+                      : '관리자 확인을 사용합니다. 다음부터 비밀번호를 묻습니다.'
+                    : '관리자 확인을 끄었습니다. 관리자 메뉴에 바로 들어갑니다.'
+                );
+              } catch (error) {
+                console.error(error);
+                alert('저장 중 오류가 발생했습니다.');
+              } finally {
+                setSaving(false);
+              }
+            }}
+            disabled={saving}
+            style={OHGO_PRIMARY_BTN}
+          >
+            {saving ? '저장 중...' : '관리자 확인 저장'}
+          </button>
+        </div>
+
+        <div className="p-4 mb-4" style={CARD}>
           <SectionHeader icon={IoMegaphoneOutline} title="앱 팝업" />
           <p className="mb-3" style={HINT}>
             로그인 후 하단 패널로 보여 줍니다. 내용을 저장하면 이전에 닫았던 사용자에게도 다시 표시됩니다.
@@ -556,7 +702,7 @@ function AdminSiteSettingsContent() {
                 <img
                   src={appPopup.imageUrl}
                   alt=""
-                  style={{ width: '100%', display: 'block', maxHeight: 180, objectFit: 'cover' }}
+                  style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain' }}
                 />
               </div>
               <button
