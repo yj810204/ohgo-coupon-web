@@ -1,6 +1,9 @@
+import { displayWithdrawnAwareName, isWithdrawnMemberLabel, WITHDRAWN_MEMBER_LABEL } from '@/lib/withdrawn-member';
+
 export function maskAuthorName(name: string | undefined): string {
   const t = (name || '').trim();
   if (!t) return '';
+  if (isWithdrawnMemberLabel(t)) return WITHDRAWN_MEMBER_LABEL;
   if (t.length === 1) return t;
   return `${t[0]}**`;
 }
@@ -9,8 +12,7 @@ export function displayMemberName(
   name: string | undefined,
   canSeeFullNames: boolean
 ): string {
-  if (canSeeFullNames) return (name || '').trim();
-  return maskAuthorName(name);
+  return displayWithdrawnAwareName(name, canSeeFullNames, maskAuthorName);
 }
 
 export function formatPhotoCardDate(date: Date | string | undefined): string {

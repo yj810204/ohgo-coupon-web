@@ -9,8 +9,14 @@ import {
   addStampBatchWithReason,
   removeStampBatchWithReason,
   adjustCouponsWithReason,
-  deleteUser,
 } from '@/utils/stamp-service';
+import { requestMemberPurge } from '@/utils/member-purge-client';
+import { resolveAppUser } from '@/lib/auth-session';
+import {
+  adminDeleteConfirmMessage,
+  adminDeleteSecondConfirmMessage,
+  MEMBER_PURGE_CONFIRM_TITLE,
+} from '@/lib/member-purge.shared';
 import {
   getMemberProfile,
   getMemberTripCount,
@@ -423,6 +429,7 @@ function MemberDetailContent() {
   const [keepMergeUuid, setKeepMergeUuid] = useState(uuid);
   const [duplicateMergeLoading, setDuplicateMergeLoading] = useState(false);
   const [memoCount, setMemoCount] = useState(0);
+  const [canAdminDelete, setCanAdminDelete] = useState(false);
 
   const name = displayName || nameParam;
   const dob = displayDob || dobParam;
@@ -445,6 +452,12 @@ function MemberDetailContent() {
   const loadTargetUserInfo = async () => {
     if (isGuestMember) return;
     try {
+      try {
+        const actor = await resolveAppUser();
+        setCanAdminDelete(Boolean(actor?.isAdmin));
+      } catch {
+        setCanAdminDelete(false);
+      }
       const profile = await getMemberProfile(uuid);
       if (profile) {
         setProfileImageUrl(profile.profileImageUrl);
@@ -913,24 +926,25 @@ function MemberDetailContent() {
       alert('기존 회원 원본 데이터는 삭제할 수 없습니다.');
       return;
     }
+    if (!canAdminDelete) {
+      alert('관리자만 회원을 삭제할 수 있습니다.');
+      return;
+    }
     if (targetUserIsAdmin) {
       alert('삭제 불가: 관리자는 삭제할 수 없습니다.');
       return;
     }
-    if (legacyUuid) {
-      alert('구앱과 연결된 기존 회원은 삭제할 수 없습니다. (원본 데이터 보호)');
-      return;
-    }
 
-    if (!(await ohgoConfirm(`${name}님의 모든 데이터가 삭제됩니다.\n진행할까요?`))) return;
+    if (!(await ohgoConfirm(adminDeleteConfirmMessage(name), MEMBER_PURGE_CONFIRM_TITLE))) return;
+    if (!(await ohgoConfirm(adminDeleteSecondConfirmMessage(name), MEMBER_PURGE_CONFIRM_TITLE))) return;
 
     setIsDeleting(true);
     try {
-      await deleteUser(uuid);
+      await requestMemberPurge({ userId: uuid, mode: 'admin', confirmName: name });
       alert('삭제 완료: ' + name + '님의 정보가 삭제되었습니다.');
       navigateBack();
-    } catch (err: any) {
-      alert('삭제 실패: ' + err.message);
+    } catch (err: unknown) {
+      alert('삭제 실패: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsDeleting(false);
     }
@@ -1418,7 +1432,7 @@ function MemberDetailContent() {
           </div>
         )}
 
-        {!isGuestMember && !legacyUuid && (
+        {canAdminDelete && !isGuestMember && !targetUserIsAdmin && (
         <button
           type="button"
           className="btn w-100 d-flex align-items-center justify-content-center gap-2 mb-3"

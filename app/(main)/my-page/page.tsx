@@ -26,6 +26,13 @@ import {
 import { getReservationSettings } from '@/utils/reservation-service';
 import { OHGO_LIST, OHGO_LIST_DIVIDER } from '@/lib/page-styles';
 import { useImageEditQueue } from '@/hooks/useImageEditQueue';
+import { requestMemberPurge } from '@/utils/member-purge-client';
+import {
+  MEMBER_WITHDRAW_CONFIRM_TITLE,
+  selfWithdrawConfirmMessage,
+  selfWithdrawSecondConfirmMessage,
+} from '@/lib/member-purge.shared';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 const ImageEditor = dynamic(() => import('@/components/ImageEditor'), { ssr: false });
 
@@ -49,6 +56,8 @@ export default function MyPage() {
   const [reservationEnabled, setReservationEnabled] = useState(false);
   const [canAccessAdmin, setCanAccessAdmin] = useState(false);
   const [adminMenuLabel, setAdminMenuLabel] = useState('관리자 화면');
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [isAdminAccount, setIsAdminAccount] = useState(false);
 
   const loadUser = useCallback(async () => {
     const user = await getUser();
@@ -60,6 +69,7 @@ export default function MyPage() {
       const appUser = await resolveAppUser();
       const isStaff = !!appUser && (appUser.isAdmin || !!appUser.isCaptain);
       setCanAccessAdmin(isStaff);
+      setIsAdminAccount(Boolean(appUser?.isAdmin));
       setAdminMenuLabel(appUser?.isAdmin ? '관리자 화면' : '선장 화면');
 
       const profile = await getMemberProfile(user.uuid);
@@ -131,6 +141,33 @@ export default function MyPage() {
     } catch (e) {
       console.error(e);
       alert('로그아웃 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!userInfo?.uuid) return;
+    if (isAdminAccount) {
+      alert('관리자 계정은 탈퇴할 수 없습니다.');
+      return;
+    }
+    if (!(await ohgoConfirm(selfWithdrawConfirmMessage(), MEMBER_WITHDRAW_CONFIRM_TITLE))) return;
+    if (!(await ohgoConfirm(selfWithdrawSecondConfirmMessage(), MEMBER_WITHDRAW_CONFIRM_TITLE))) return;
+
+    setIsWithdrawing(true);
+    try {
+      await requestMemberPurge({
+        userId: userInfo.uuid,
+        mode: 'self',
+        confirmName: userInfo.name,
+      });
+      await signOutApp({ uuid: userInfo.uuid });
+      alert('회원탈퇴가 완료되었습니다.');
+      navigateReplace('/login');
+    } catch (e) {
+      console.error(e);
+      alert(e instanceof Error ? e.message : '탈퇴 처리 중 오류가 발생했습니다.');
+    } finally {
+      setIsWithdrawing(false);
     }
   };
 
@@ -355,6 +392,27 @@ export default function MyPage() {
           <IoLogOutOutline size={20} color="#FFFFFF" />
           로그아웃
         </button>
+
+        {!isAdminAccount ? (
+          <button
+            type="button"
+            onClick={() => void handleWithdraw()}
+            disabled={isWithdrawing}
+            className="btn w-100 border-0 bg-transparent"
+            style={{
+              marginTop: 8,
+              padding: '10px',
+              color: '#9A9A9A',
+              fontFamily: FONT,
+              fontSize: 13,
+              fontWeight: 600,
+              textDecoration: 'underline',
+              textUnderlineOffset: 3,
+            }}
+          >
+            {isWithdrawing ? '탈퇴 처리 중...' : '회원탈퇴'}
+          </button>
+        ) : null}
 
       {avatarEditQueue.current ? (
         <ImageEditor

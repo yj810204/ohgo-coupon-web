@@ -10,6 +10,7 @@
     "lint": "eslint",
     "test:tide": "node --experimental-strip-types lib/tide-kst.test.mts && node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/tide-fish-recommend.test.mts",
     "test:signup-stamp": "node --experimental-strip-types lib/legacy-identity.test.mts && node --experimental-strip-types lib/stamps/firebase-qr-stamp.test.mts",
+    "test:member-purge": "node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/member-purge.shared.test.mts",
     "screenshots": "node scripts/capture-all-screenshots.mjs",
     "screenshots:store": "node scripts/capture-store-screenshots.mjs",
     "screenshots:store:marketing": "node scripts/compose-store-marketing.mjs",
