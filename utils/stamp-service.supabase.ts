@@ -597,12 +597,8 @@ export async function getCouponCount(uuid: string): Promise<number> {
 }
 
 export async function deleteUser(uuid: string): Promise<void> {
-  const supabase = getSupabaseBrowserClient();
-  await supabase.from('stamps').delete().eq('user_id', uuid);
-  await supabase.from('coupons').delete().eq('user_id', uuid);
-  await supabase.from('stamp_history').delete().eq('user_id', uuid);
-  await supabase.from('user_action_logs').delete().eq('user_id', uuid);
-  await supabase.from('profiles').delete().eq('id', uuid);
+  const { requestMemberPurge } = await import('@/utils/member-purge-client');
+  await requestMemberPurge({ userId: uuid, mode: 'admin' });
 }
 
 export async function useOneCoupon(uuid: string): Promise<void> {

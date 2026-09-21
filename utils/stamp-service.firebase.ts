@@ -384,13 +384,9 @@ export async function getCouponCount(uuid: string): Promise<number> {
 }
 
 export async function deleteUser(uuid: string): Promise<void> {
-  uuid = await mapUuid(uuid);
-  const db = getFirebaseDb();
-  for (const sub of ['stamps', 'coupons', 'stampHistory', 'logs', 'memo'] as const) {
-    const snap = await getDocs(collection(db, `users/${uuid}/${sub}`));
-    await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
-  }
-  await deleteDoc(doc(db, 'users', uuid));
+  const { purgeFirebaseMemberData } = await import('@/lib/member-purge.firebase');
+  const mapped = await resolveFirestoreUserId(uuid);
+  await purgeFirebaseMemberData([uuid, mapped].filter((id): id is string => Boolean(id)));
 }
 
 export async function useOneCoupon(uuid: string): Promise<void> {
