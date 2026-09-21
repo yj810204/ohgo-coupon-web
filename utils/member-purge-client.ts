@@ -31,5 +31,14 @@ export async function requestMemberPurge(input: {
     }
   }
 
+  try {
+    const { invalidateAdminMemberStatsCache } = await import('@/utils/admin-member-service');
+    invalidateAdminMemberStatsCache();
+    const { invalidateRosterSummaryCache } = await import('@/utils/roster-service');
+    invalidateRosterSummaryCache();
+  } catch {
+    // ignore
+  }
+
   return data;
 }
