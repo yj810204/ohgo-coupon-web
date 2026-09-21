@@ -6,12 +6,15 @@ import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import {
+  deleteMyListing,
   getListingsForAdmin,
   hideListing,
   MARKET_STATUS_LABELS,
   formatMarketCreatedAt,
   formatMarketPrice,
   marketCategoryLabel,
+  marketStatusStyle,
+  unhideListing,
   type MarketListing,
   type MarketStatus,
 } from '@/utils/market-service';
@@ -33,21 +36,9 @@ const TABS: { id: MarketStatus; label: string }[] = [
   { id: 'pending', label: '심사대기' },
   { id: 'approved', label: '판매중' },
   { id: 'rejected', label: '반려' },
+  { id: 'hidden', label: '강제숨김' },
   { id: 'sold', label: '판매완료' },
 ];
-
-function statusStyle(status: MarketStatus): React.CSSProperties {
-  switch (status) {
-    case 'pending':
-      return { backgroundColor: '#FFF8E6', color: '#E65100' };
-    case 'approved':
-      return { backgroundColor: '#E8F8EE', color: '#2E7D32' };
-    case 'rejected':
-      return { backgroundColor: '#FFEBEA', color: '#FF3B30' };
-    default:
-      return { backgroundColor: '#F2F3F5', color: '#6F767E' };
-  }
-}
 
 export default function AdminMarketPage() {
   const router = useRouter();
@@ -96,13 +87,40 @@ export default function AdminMarketPage() {
 
   const handleHide = async (id: string) => {
     if (!user) return;
-    if (!(await ohgoConfirm('이 판매글을 숨길까요? 목록에서 내려갑니다.'))) return;
+    if (!(await ohgoConfirm('이 판매글을 숨길까요? 공개 목록에서 내려갑니다.'))) return;
     setActingId(id);
     try {
       await hideListing(id, user.uuid);
       await load();
     } catch (error) {
       alert(error instanceof Error ? error.message : '숨김 처리에 실패했습니다.');
+    } finally {
+      setActingId(null);
+    }
+  };
+
+  const handleUnhide = async (id: string) => {
+    if (!user) return;
+    if (!(await ohgoConfirm('이 판매글을 다시 게시할까요? 중고장터 목록에 다시 보입니다.'))) return;
+    setActingId(id);
+    try {
+      await unhideListing(id, user.uuid);
+      await load();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '숨김 해제에 실패했습니다.');
+    } finally {
+      setActingId(null);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!(await ohgoConfirm('이 판매글을 삭제할까요? 삭제하면 복구할 수 없습니다.'))) return;
+    setActingId(id);
+    try {
+      await deleteMyListing(id);
+      await load();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '삭제에 실패했습니다.');
     } finally {
       setActingId(null);
     }
@@ -204,7 +222,7 @@ export default function AdminMarketPage() {
                         </span>
                         <span
                           className="badge rounded-pill flex-shrink-0"
-                          style={{ ...statusStyle(listing.status), fontSize: 10, fontWeight: 700 }}
+                          style={{ ...marketStatusStyle(listing.status), fontSize: 10, fontWeight: 700 }}
                         >
                           {MARKET_STATUS_LABELS[listing.status]}
                         </span>
@@ -223,13 +241,51 @@ export default function AdminMarketPage() {
                       </div>
                     </div>
                   </button>
-                  {listing.status === 'approved' ? (
+                  <div className="d-flex gap-2 mt-2">
+                    {listing.status === 'approved' ? (
+                      <button
+                        type="button"
+                        className="btn flex-grow-1"
+                        style={{
+                          backgroundColor: '#F2F3F5',
+                          color: '#6F767E',
+                          border: 'none',
+                          borderRadius: 10,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          fontFamily: FONT,
+                        }}
+                        disabled={actingId === listing.id}
+                        onClick={() => void handleHide(listing.id)}
+                      >
+                        강제 숨김
+                      </button>
+                    ) : null}
+                    {listing.status === 'hidden' ? (
+                      <button
+                        type="button"
+                        className="btn flex-grow-1"
+                        style={{
+                          backgroundColor: '#F3E8FF',
+                          color: '#7B1FA2',
+                          border: 'none',
+                          borderRadius: 10,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          fontFamily: FONT,
+                        }}
+                        disabled={actingId === listing.id}
+                        onClick={() => void handleUnhide(listing.id)}
+                      >
+                        숨김 해제
+                      </button>
+                    ) : null}
                     <button
                       type="button"
-                      className="btn w-100 mt-2"
+                      className="btn flex-grow-1"
                       style={{
-                        backgroundColor: '#F2F3F5',
-                        color: '#6F767E',
+                        backgroundColor: '#FFF0F0',
+                        color: '#FF3B30',
                         border: 'none',
                         borderRadius: 10,
                         fontSize: 12,
@@ -237,11 +293,11 @@ export default function AdminMarketPage() {
                         fontFamily: FONT,
                       }}
                       disabled={actingId === listing.id}
-                      onClick={() => void handleHide(listing.id)}
+                      onClick={() => void handleDelete(listing.id)}
                     >
-                      강제 숨김
+                      삭제
                     </button>
-                  ) : null}
+                  </div>
                 </div>
               </div>
             );

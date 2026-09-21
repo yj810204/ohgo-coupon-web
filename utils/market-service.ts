@@ -5,6 +5,7 @@ import type {
   MarketListingInput,
   MarketStatus,
 } from './market-service.shared';
+import * as fixtures from './market-service.dev-fixtures';
 import * as supa from './market-service.supabase';
 
 export type {
@@ -20,10 +21,14 @@ export {
   MARKET_GRADES,
   MARKET_STATUS_LABELS,
   MARKET_TRADE_METHODS,
+  canSellerDeleteListing,
+  canSellerEditListing,
   formatMarketCreatedAt,
   formatMarketPrice,
+  isForceHiddenListing,
   marketCategoryLabel,
   marketGradeLabel,
+  marketStatusStyle,
   marketTradeMethodLabel,
   parseTradeMethod,
   decodeTradeInfo,
@@ -38,15 +43,29 @@ function bustMarketCache() {
 }
 
 export function getApprovedListings(category?: MarketCategory): Promise<MarketListing[]> {
+  if (fixtures.isMarketDevFixtureMode()) {
+    return Promise.resolve(
+      fixtures
+        .getDevMarketFixtures()
+        .filter((item) => item.status === 'approved' || item.status === 'sold')
+        .filter((item) => (category ? item.category === category : true))
+    );
+  }
   const key = `${MARKET_PREFIX}approved:${category ?? 'all'}`;
   return cachedFetch(key, MARKET_TTL_MS, () => supa.getApprovedListings(category));
 }
 
 export function getListing(id: string): Promise<MarketListing | null> {
+  if (fixtures.isMarketDevFixtureMode()) {
+    return Promise.resolve(fixtures.getDevMarketListing(id));
+  }
   return supa.getListing(id);
 }
 
 export function getMyListings(userId: string): Promise<MarketListing[]> {
+  if (fixtures.isMarketDevFixtureMode()) {
+    return Promise.resolve(fixtures.getDevMarketFixtures().filter((item) => item.sellerId === userId));
+  }
   return cachedFetch(`${MARKET_PREFIX}mine:${userId}`, MARKET_TTL_MS, () =>
     supa.getMyListings(userId)
   );
@@ -74,20 +93,36 @@ export async function updateMyListing(
 }
 
 export async function markAsSold(id: string): Promise<void> {
+  if (fixtures.isMarketDevFixtureMode()) {
+    fixtures.markDevMarketListingSold(id);
+    bustMarketCache();
+    return;
+  }
   await supa.markAsSold(id);
   bustMarketCache();
 }
 
 export async function deleteMyListing(id: string): Promise<void> {
+  if (fixtures.isMarketDevFixtureMode()) {
+    fixtures.deleteDevMarketListing(id);
+    bustMarketCache();
+    return;
+  }
   await supa.deleteMyListing(id);
   bustMarketCache();
 }
 
 export function incrementViewCount(id: string): Promise<void> {
+  if (fixtures.isMarketDevFixtureMode()) {
+    return Promise.resolve();
+  }
   return supa.incrementViewCount(id);
 }
 
 export function getListingsForAdmin(status?: MarketStatus): Promise<MarketListing[]> {
+  if (fixtures.isMarketDevFixtureMode()) {
+    return Promise.resolve(fixtures.getDevMarketFixtures(status));
+  }
   return supa.getListingsForAdmin(status);
 }
 
@@ -106,6 +141,21 @@ export async function rejectListing(id: string, reviewerId: string, reason: stri
 }
 
 export async function hideListing(id: string, reviewerId: string): Promise<void> {
+  if (fixtures.isMarketDevFixtureMode()) {
+    fixtures.hideDevMarketListing(id);
+    bustMarketCache();
+    return;
+  }
   await supa.hideListing(id, reviewerId);
+  bustMarketCache();
+}
+
+export async function unhideListing(id: string, reviewerId: string): Promise<void> {
+  if (fixtures.isMarketDevFixtureMode()) {
+    fixtures.unhideDevMarketListing(id);
+    bustMarketCache();
+    return;
+  }
+  await supa.unhideListing(id, reviewerId);
   bustMarketCache();
 }

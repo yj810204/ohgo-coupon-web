@@ -237,10 +237,41 @@ export async function markAsSold(id: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function deleteMyListing(id: string): Promise<void> {
+const PHOTOS_BUCKET = 'photos';
+const PHOTOS_OBJECT_MARKER = `/storage/v1/object/public/${PHOTOS_BUCKET}/`;
+
+function extractMarketImagePath(publicUrl: string): string | null {
+  const original = publicUrl.split('?')[0];
+  const idx = original.indexOf(PHOTOS_OBJECT_MARKER);
+  if (idx === -1) return null;
+  const path = decodeURIComponent(original.slice(idx + PHOTOS_OBJECT_MARKER.length));
+  return path.startsWith('market/') ? path : null;
+}
+
+async function removeListingImages(imageUrls: string[]): Promise<void> {
+  const paths = imageUrls
+    .map((url) => extractMarketImagePath(url))
+    .filter((path): path is string => Boolean(path));
+  if (paths.length === 0) return;
   const supabase = getSupabaseBrowserClient();
-  const { error } = await supabase.from('market_listings').delete().eq('id', id);
+  const { error } = await supabase.storage.from(PHOTOS_BUCKET).remove(paths);
+  if (error) {
+    console.warn('[market] image cleanup failed:', error);
+  }
+}
+
+export async function deleteMyListing(id: string): Promise<void> {
+  const current = await getListing(id);
+  if (!current) throw new Error('판매글을 찾을 수 없습니다.');
+
+  const supabase = getSupabaseBrowserClient();
+  const { error, data } = await supabase.from('market_listings').delete().eq('id', id).select('id');
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error('삭제 권한이 없거나 이미 삭제된 판매글입니다.');
+  }
+
+  await removeListingImages(current.imageUrls);
 }
 
 export async function incrementViewCount(id: string): Promise<void> {
@@ -341,4 +372,30 @@ export async function hideListing(id: string, reviewerId: string): Promise<void>
     })
     .eq('id', id);
   if (error) throw error;
+}
+
+/** 강제숨김을 해제하고 판매중(approved)으로 되돌린다. */
+export async function unhideListing(id: string, reviewerId: string): Promise<void> {
+  const current = await getListing(id);
+  if (!current) throw new Error('판매글을 찾을 수 없습니다.');
+  if (current.status !== 'hidden') {
+    throw new Error('강제숨김 상태가 아닙니다.');
+  }
+
+  const supabase = getSupabaseBrowserClient();
+  const { error, data } = await supabase
+    .from('market_listings')
+    .update({
+      status: 'approved',
+      reviewed_by: reviewerId,
+      reviewed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('status', 'hidden')
+    .select('id');
+  if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error('숨김 해제 권한이 없거나 이미 다른 상태입니다.');
+  }
 }

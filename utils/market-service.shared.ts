@@ -61,8 +61,41 @@ export const MARKET_STATUS_LABELS: Record<MarketStatus, string> = {
   approved: '판매중',
   rejected: '반려',
   sold: '판매완료',
-  hidden: '숨김',
+  hidden: '강제숨김',
 };
+
+/** 판매자가 본문 수정 후 재심사를 요청할 수 있는 상태 */
+export function canSellerEditListing(status: MarketStatus): boolean {
+  return status === 'pending' || status === 'rejected' || status === 'approved';
+}
+
+/** 판매자는 본인 글을 상태와 관계없이 삭제할 수 있다 (강제숨김 포함) */
+export function canSellerDeleteListing(): boolean {
+  return true;
+}
+
+export function isForceHiddenListing(status: MarketStatus): boolean {
+  return status === 'hidden';
+}
+
+export function marketStatusStyle(status: MarketStatus): {
+  backgroundColor: string;
+  color: string;
+} {
+  switch (status) {
+    case 'pending':
+      return { backgroundColor: '#FFF8E6', color: '#E65100' };
+    case 'approved':
+      return { backgroundColor: '#E8F8EE', color: '#2E7D32' };
+    case 'rejected':
+      return { backgroundColor: '#FFEBEA', color: '#FF3B30' };
+    case 'hidden':
+      return { backgroundColor: '#F3E8FF', color: '#7B1FA2' };
+    case 'sold':
+    default:
+      return { backgroundColor: '#F2F3F5', color: '#6F767E' };
+  }
+}
 
 export function marketCategoryLabel(category: string): string {
   return categoryLabel('market', category) || '기타';

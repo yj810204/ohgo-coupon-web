@@ -7,15 +7,18 @@ import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
 import {
+  canSellerDeleteListing,
+  canSellerEditListing,
   deleteMyListing,
   formatMarketCreatedAt,
   formatMarketPrice,
   getMyListings,
+  isForceHiddenListing,
   marketCategoryLabel,
+  marketStatusStyle,
   markAsSold,
   MARKET_STATUS_LABELS,
   type MarketListing,
-  type MarketStatus,
 } from '@/utils/market-service';
 import StorageThumb from '@/components/StorageThumb';
 import { useNavigation } from '@/hooks/useNavigation';
@@ -23,21 +26,6 @@ import { OHGO_CARD, OHGO_FONT, OHGO_LIST_DIVIDER } from '@/lib/page-styles';
 import { IoStorefrontOutline } from 'react-icons/io5';
 
 const FONT = OHGO_FONT;
-
-function statusStyle(status: MarketStatus): React.CSSProperties {
-  switch (status) {
-    case 'pending':
-      return { backgroundColor: '#FFF8E6', color: '#E65100' };
-    case 'approved':
-      return { backgroundColor: '#E8F8EE', color: '#2E7D32' };
-    case 'rejected':
-      return { backgroundColor: '#FFEBEA', color: '#FF3B30' };
-    case 'sold':
-      return { backgroundColor: '#F2F3F5', color: '#6F767E' };
-    default:
-      return { backgroundColor: '#F2F3F5', color: '#6F767E' };
-  }
-}
 
 export default function MyMarketListingsPage() {
   const router = useRouter();
@@ -86,7 +74,7 @@ export default function MyMarketListingsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!(await ohgoConfirm('이 판매글을 삭제할까요?'))) return;
+    if (!(await ohgoConfirm('이 판매글을 삭제할까요? 삭제하면 복구할 수 없습니다.'))) return;
     setActingId(id);
     try {
       await deleteMyListing(id);
@@ -115,8 +103,9 @@ export default function MyMarketListingsPage() {
           {listings.map((listing, index) => {
             const busy = actingId === listing.id;
             const createdLabel = formatMarketCreatedAt(listing.createdAt);
-            const canEdit = listing.status === 'pending' || listing.status === 'rejected' || listing.status === 'approved';
-            const canDelete = listing.status === 'pending' || listing.status === 'rejected';
+            const canEdit = canSellerEditListing(listing.status);
+            const canDelete = canSellerDeleteListing();
+            const forceHidden = isForceHiddenListing(listing.status);
             return (
               <div key={listing.id}>
                 {index > 0 && <div style={OHGO_LIST_DIVIDER} />}
@@ -137,7 +126,7 @@ export default function MyMarketListingsPage() {
                         </span>
                         <span
                           className="badge rounded-pill flex-shrink-0"
-                          style={{ ...statusStyle(listing.status), fontSize: 10, fontWeight: 700 }}
+                          style={{ ...marketStatusStyle(listing.status), fontSize: 10, fontWeight: 700 }}
                         >
                           {MARKET_STATUS_LABELS[listing.status]}
                         </span>
@@ -153,6 +142,11 @@ export default function MyMarketListingsPage() {
                   {listing.status === 'rejected' && listing.rejectReason ? (
                     <p style={{ fontSize: 12, color: '#FF3B30', fontFamily: FONT, margin: '8px 0 0' }}>
                       반려 사유: {listing.rejectReason}
+                    </p>
+                  ) : null}
+                  {forceHidden ? (
+                    <p style={{ fontSize: 12, color: '#7B1FA2', fontFamily: FONT, margin: '8px 0 0' }}>
+                      관리자가 강제 숨김했습니다. 공개 목록에는 보이지 않으며, 삭제할 수 있습니다.
                     </p>
                   ) : null}
                   <div className="d-flex gap-2 mt-3">

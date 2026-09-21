@@ -7,9 +7,9 @@ export const DEV_MOCK_USER = {
   uuid: '00000000-0000-4000-8000-000000000001',
   name: '개발용 사용자',
   dob: '1990-01-01',
-  isAdmin: false,
+  isAdmin: process.env.NEXT_PUBLIC_DEV_AUTH_ADMIN === 'true',
   isCaptain: false,
-} as const;
+};
 
 export function isDevAuthBypass(): boolean {
   return (
