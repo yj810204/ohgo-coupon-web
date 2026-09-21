@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 
@@ -17,14 +18,24 @@ function sanitizeFilename(name: string): string {
     : `${cleaned}.jpg`;
 }
 
-export async function saveImageToLibrary(payload: SaveImagePayload): Promise<void> {
-  const filename = sanitizeFilename(payload.filename || `ohgo_roster_${Date.now()}.jpg`);
-  const target = `${FileSystem.cacheDirectory}${filename}`;
+async function ensureWritePermission(): Promise<void> {
+  // Android 13+(API 33): MediaStore 저장은 광범위 미디어 권한 없이 가능.
+  // Play 사진 선택 도구 정책 — READ_MEDIA_IMAGES/VIDEO 를 요청하지 않는다.
+  if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
+    return;
+  }
 
   const permission = await MediaLibrary.requestPermissionsAsync(true);
   if (!permission.granted) {
     throw new Error('사진 앨범 저장 권한이 필요합니다. 설정에서 허용해 주세요.');
   }
+}
+
+export async function saveImageToLibrary(payload: SaveImagePayload): Promise<void> {
+  const filename = sanitizeFilename(payload.filename || `ohgo_roster_${Date.now()}.jpg`);
+  const target = `${FileSystem.cacheDirectory}${filename}`;
+
+  await ensureWritePermission();
 
   if (payload.base64) {
     const raw = payload.base64.replace(/^data:image\/\w+;base64,/, '');

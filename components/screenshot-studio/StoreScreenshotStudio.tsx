@@ -405,16 +405,27 @@ export default function StoreScreenshotStudio({ backHref }: { backHref?: string 
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {slides.map((s, i) => (
-              <div key={s.id} style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+              <div
+                key={s.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  border: i === index ? '1.5px solid #1B6FF5' : '1.5px solid #EFEFEF',
+                  background: i === index ? '#EBF1FE' : '#fff',
+                  borderRadius: 12,
+                  padding: '8px 8px 8px 10px',
+                  minWidth: 0,
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => setIndex(i)}
                   style={{
                     textAlign: 'left',
-                    border: i === index ? '1.5px solid #1B6FF5' : '1.5px solid #EFEFEF',
-                    background: i === index ? '#EBF1FE' : '#fff',
-                    borderRadius: 12,
-                    padding: 10,
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
                     cursor: 'pointer',
                     fontFamily: FONT,
                     flex: 1,
@@ -435,10 +446,12 @@ export default function StoreScreenshotStudio({ backHref }: { backHref?: string 
                   disabled={slides.length <= 1}
                   onClick={() => void removeSlide(i)}
                   style={{
-                    ...btnGhost,
-                    padding: '8px',
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 4,
                     color: slides.length <= 1 ? '#D1D5DB' : '#DC2626',
                     flexShrink: 0,
+                    borderRadius: 8,
                   }}
                 >
                   <IoTrashOutline size={16} />
