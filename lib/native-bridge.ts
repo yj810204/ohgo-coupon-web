@@ -32,6 +32,14 @@ export function isNativeApp(): boolean {
   return !!(window as Window & { __OHGO_NATIVE_APP__?: boolean }).__OHGO_NATIVE_APP__;
 }
 
+/** 공용폰에서 계정 전환 후 푸시 토큰을 현재 회원에 다시 묶을 때 사용 */
+export const USER_CHANGED_EVENT = 'ohgo-user-changed';
+
+export function notifyUserChanged() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(USER_CHANGED_EVENT));
+}
+
 export function postToNative(type: NativeBridgeMessageType, payload?: unknown): void {
   const bridge = getReactNativeWebView();
   if (!bridge) return;

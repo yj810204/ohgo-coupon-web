@@ -7,6 +7,7 @@ import { resolveAppUser, getHomePathForUser, primeAppUserCache } from '@/lib/aut
 import { saveUser } from '@/lib/storage';
 import { IoDocumentTextOutline } from 'react-icons/io5';
 import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import { notifyUserChanged } from '@/lib/native-bridge';
 
 export default function LoginPage() {
   const [agreed, setAgreed] = useState(false);
@@ -82,6 +83,8 @@ export default function LoginPage() {
         isAdmin: data.user.isAdmin,
         isCaptain: data.user.isCaptain,
       });
+
+      notifyUserChanged();
 
       router.replace(data.homePath || '/main');
     } catch (e) {
@@ -316,7 +319,7 @@ export default function LoginPage() {
           로그인
         </h2>
         <p style={{ fontSize: 13, color: '#9CA3AF', margin: '0 0 20px' }}>
-          이름과 생년월일로 로그인하세요
+          이름과 생년월일로 로그인하거나 새로 가입하세요
         </p>
 
         <div

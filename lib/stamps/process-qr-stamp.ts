@@ -16,6 +16,7 @@ import { getFirebaseDb } from '@/lib/firebase/client';
 import { requireFirestoreUserId } from '@/lib/firebase/resolve-user-id';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendPushToUser } from '@/utils/send-push';
+import { firebaseQrStampWriteFields } from '@/lib/stamps/firebase-qr-stamp';
 
 const BOAT_QR_CODE = 'OHGO-STAMP-BOAT19033326262005';
 
@@ -85,7 +86,10 @@ async function addStampFirebase(userId: string): Promise<void> {
     );
   }
 
-  const stampData = { date: getTodayDate(), method: 'QR' as const, timestamp: new Date() };
+  const stampData = firebaseQrStampWriteFields({
+    date: getTodayDate(),
+    timestamp: new Date(),
+  });
   const stampDocRef = await addDoc(stampRef, stampData);
   await addDoc(collection(db, `users/${firestoreUserId}/stampHistory`), {
     action: 'add',

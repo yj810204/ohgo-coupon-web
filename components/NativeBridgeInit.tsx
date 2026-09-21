@@ -1,7 +1,14 @@
 'use client';
 
 import { useEffect } from 'react';
-import { initNativeBridge, isNativeApp, onNativeMessage, requestPushTokenFromNative, savePushTokenToUser } from '@/lib/native-bridge';
+import {
+  initNativeBridge,
+  isNativeApp,
+  onNativeMessage,
+  requestPushTokenFromNative,
+  savePushTokenToUser,
+  USER_CHANGED_EVENT,
+} from '@/lib/native-bridge';
 import { getUser } from '@/lib/storage';
 
 export default function NativeBridgeInit() {
@@ -30,7 +37,15 @@ export default function NativeBridgeInit() {
       }
     });
 
-    return () => unsub();
+    const onUserChanged = () => {
+      void syncPushToken();
+    };
+    window.addEventListener(USER_CHANGED_EVENT, onUserChanged);
+
+    return () => {
+      unsub();
+      window.removeEventListener(USER_CHANGED_EVENT, onUserChanged);
+    };
   }, []);
 
   return null;
