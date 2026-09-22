@@ -24,7 +24,7 @@ type OhgoModalProps = {
   closeOnBackdrop?: boolean;
   /** false면 body 좌우 패딩 없음 (목록형 본문) */
   bodyPadding?: boolean;
-  /** footer 버튼 가로 배치 (기본: row — Travelia bottom sheet) */
+  /** footer 배치 (기본: stack — 확인 버튼 위, 취소 링크 아래) */
   footerLayout?: 'stack' | 'row';
   /** 제목 색 (위험·강조 액션 등) */
   titleTone?: OhgoModalTitleTone;
@@ -40,7 +40,7 @@ export default function OhgoModal({
   scrollable = true,
   closeOnBackdrop = true,
   bodyPadding = true,
-  footerLayout = 'row',
+  footerLayout = 'stack',
   titleTone = 'default',
 }: OhgoModalProps) {
   const [mounted, setMounted] = useState(false);
@@ -157,6 +157,22 @@ const VARIANT_STYLES: Record<NonNullable<OhgoModalButtonProps['variant']>, React
     backgroundColor: '#FF9500',
   },
 };
+
+export function OhgoModalCancelLink({
+  children = '취소',
+  onClick,
+  disabled,
+}: {
+  children?: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button type="button" className="ohgo-modal__cancel-link" onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
+  );
+}
 
 export function OhgoModalButton({
   children,

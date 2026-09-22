@@ -4,6 +4,7 @@ import * as supa from './boarding-service.supabase';
 import * as fb from './boarding-service.firebase';
 
 export type { BoardingFormData, BoardingFormRecord };
+export { isBoardingComplete } from './boarding-service.shared';
 
 const impl = DATA_SOURCE === 'firebase' ? fb : supa;
 

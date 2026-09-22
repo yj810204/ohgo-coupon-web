@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { IoQrCodeOutline, IoPricetagOutline, IoGiftOutline } from 'react-icons/io5';
 
 interface StampCouponSummaryProps {
@@ -8,7 +8,7 @@ interface StampCouponSummaryProps {
   couponCount: number;
   onStampClick: () => void;
   onCouponClick: () => void;
-  onQrScan: () => void;
+  onQrScan: () => void | boolean | Promise<void | boolean>;
 }
 
 const FONT = "var(--font-urbanist), system-ui, sans-serif";
@@ -62,10 +62,15 @@ export default function StampCouponSummary({
 }: StampCouponSummaryProps) {
   const [qrOpening, setQrOpening] = useState(false);
 
-  const handleQrScan = () => {
+  const handleQrScan = async () => {
     if (qrOpening) return;
     setQrOpening(true);
-    onQrScan();
+    try {
+      const proceeded = await onQrScan();
+      if (proceeded === false) setQrOpening(false);
+    } catch {
+      setQrOpening(false);
+    }
   };
 
   return (

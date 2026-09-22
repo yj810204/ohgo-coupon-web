@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 import { IoCameraOutline, IoShareOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
-import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
 import { resolveAppUser } from '@/lib/auth-session';
 import { isNativeApp, postToNative } from '@/lib/native-bridge';
 import { OHGO_FONT, OhgoPageLoading } from '@/lib/page-styles';
@@ -162,12 +162,10 @@ function MyPhotosContent() {
         size="lg"
         footer={
           <>
-            <OhgoModalButton variant="secondary" onClick={() => setDetail(null)}>
-              닫기
-            </OhgoModalButton>
             <OhgoModalButton onClick={() => void shareCurrent()} disabled={sharing}>
               {sharing ? '공유 중...' : '공유하기'}
             </OhgoModalButton>
+            <OhgoModalCancelLink onClick={() => setDetail(null)}>닫기</OhgoModalCancelLink>
           </>
         }
       >

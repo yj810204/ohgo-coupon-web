@@ -29,7 +29,7 @@ import {
 import { IoAddOutline, IoBoatOutline, IoCopyOutline, IoChevronBackOutline, IoChevronForwardOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
-import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import { OHGO_CONFIRM_BTN_CLASS, OHGO_INPUT, OHGO_PRIMARY_BTN, OHGO_SECONDARY_BTN } from '@/lib/page-styles';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
@@ -830,6 +830,13 @@ export default function AdminTripGuidePage() {
             >
               거절
             </OhgoModalButton>
+            <OhgoModalCancelLink
+              disabled={acting}
+              onClick={() => {
+                setRejectTarget(null);
+                setRejectReason('');
+              }}
+            />
           </>
         }
       >

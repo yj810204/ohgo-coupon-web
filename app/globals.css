@@ -1115,6 +1115,7 @@ button:focus-visible,
   flex-direction: column;
   background-color: #ffffff;
   width: 100%;
+  container-type: inline-size;
 }
 
 /* fixed 하단 액션바 — 페이지 셸과 동일 폭·중앙 정렬 (탭바 위에 붙음) */
@@ -1329,6 +1330,34 @@ body[data-native-app='true'] .ohgo-modal .modal-footer.ohgo-modal__footer {
   width: 100% !important;
 }
 
+.ohgo-modal__cancel-link {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 6px 4px 2px;
+  background: none;
+  border: none;
+  font-family: var(--font-ohgo), sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #6f767e;
+  text-align: center;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.ohgo-modal__cancel-link:hover:not(:disabled),
+.ohgo-modal__cancel-link:active:not(:disabled) {
+  color: #1a1d1f;
+}
+
+.ohgo-modal__cancel-link:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .ohgo-modal__btn {
   width: 100% !important;
   font-family: var(--font-ohgo), sans-serif;
@@ -1414,6 +1443,18 @@ body[data-native-app='true'] .ohgo-modal .modal-footer.ohgo-modal__footer {
 
 .ohgo-modal .modal-footer.ohgo-modal__footer.ohgo-modal__footer--row .ohgo-modal__btn {
   width: auto !important;
+}
+
+@container (max-width: 360px) {
+  .ohgo-modal .modal-footer.ohgo-modal__footer.ohgo-modal__footer--row {
+    flex-direction: column !important;
+  }
+
+  .ohgo-modal .modal-footer.ohgo-modal__footer.ohgo-modal__footer--row > .ohgo-modal__btn,
+  .ohgo-modal .modal-footer.ohgo-modal__footer.ohgo-modal__footer--row .ohgo-modal__btn {
+    width: 100% !important;
+    flex: 1 1 auto;
+  }
 }
 
 .ohgo-modal__btn.ohgo-modal__btn--success {
@@ -2192,4 +2233,26 @@ html body .btn:not(.ohgo-modal__btn):not([class*="btn-outline-"]):not(.btn-prima
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
+}
+
+/* 명부 작성: 카드가 좁으면 2열을 2행으로 */
+.ohgo-boarding-card {
+  container-type: inline-size;
+}
+
+.ohgo-stack-pair {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+@container (max-width: 360px) {
+  .ohgo-boarding-card .ohgo-stack-pair {
+    flex-direction: column;
+  }
+
+  .ohgo-boarding-card .ohgo-stack-pair > * {
+    width: 100%;
+    flex: 1 1 auto;
+  }
 }

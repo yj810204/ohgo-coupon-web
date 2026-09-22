@@ -12,7 +12,7 @@ import {
 } from '@/utils/roster-service';
 import { loadRosterPreviewImage } from '@/lib/roster-preview-image';
 import { uploadRosterImage } from '@/lib/roster-upload';
-import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
 import { isNativeApp, saveImageToDevice } from '@/lib/native-bridge';
 import {
   OHGO_CONFIRM_BTN,
@@ -607,16 +607,10 @@ function RosterPreviewContent() {
         closeOnBackdrop={!savingImage}
         footer={
           <>
-            <OhgoModalButton
-              variant="secondary"
-              disabled={savingImage}
-              onClick={() => setConfirmOpen(false)}
-            >
-              취소
-            </OhgoModalButton>
             <OhgoModalButton disabled={savingImage} onClick={() => void confirmDeparture()}>
               {savingImage ? '저장 중...' : '확정'}
             </OhgoModalButton>
+            <OhgoModalCancelLink disabled={savingImage} onClick={() => setConfirmOpen(false)} />
           </>
         }
       >

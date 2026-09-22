@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
 import {
   installOhgoDialogGlobals,
   resolveOhgoDialog,
@@ -56,10 +56,8 @@ export default function OhgoDialogHost() {
       closeOnBackdrop={false}
       footer={
         <>
-          <OhgoModalButton variant="secondary" onClick={confirmCancel}>
-            취소
-          </OhgoModalButton>
           <OhgoModalButton onClick={confirmOk}>확인</OhgoModalButton>
+          <OhgoModalCancelLink onClick={confirmCancel} />
         </>
       }
     >

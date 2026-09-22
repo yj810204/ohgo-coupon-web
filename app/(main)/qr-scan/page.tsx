@@ -6,6 +6,11 @@ import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
 import { isNativeApp } from '@/lib/native-bridge';
 import { invalidateCache } from '@/lib/query-cache';
+import { ohgoConfirm } from '@/lib/ohgo-dialog';
+import {
+  confirmBoardingForStampScan,
+  STAMP_BOARDING_CONFIRM,
+} from '@/lib/stamps/confirm-boarding-for-scan';
 
 type Html5QrcodeClass = typeof import('html5-qrcode').Html5Qrcode;
 
@@ -101,17 +106,25 @@ function QRScanPageContent() {
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
-        if (data.code === 'INVALID_QR') {
-          setMessage('유효하지 않은 QR 코드입니다.');
-          setMessageColor('#f44336');
-        } else {
-          setErrorMessage(data.message || '적립 실패');
-          setShowErrorModal(true);
-        }
         setIsScanning(false);
         setScanning(false);
         setIsProcessing(false);
         processingRef.current = false;
+
+        if (data.code === 'INVALID_QR') {
+          setMessage('유효하지 않은 QR 코드입니다.');
+          setMessageColor('#f44336');
+          return;
+        }
+
+        if (data.code === 'NO_BOARDING') {
+          const go = await ohgoConfirm(STAMP_BOARDING_CONFIRM);
+          if (go) router.replace('/boarding-form');
+          return;
+        }
+
+        setErrorMessage(data.message || '적립 실패');
+        setShowErrorModal(true);
         return;
       }
 
@@ -150,6 +163,12 @@ function QRScanPageContent() {
       const u = await getUser();
       if (!u?.uuid) {
         router.replace('/login');
+        return;
+      }
+      const gate = await confirmBoardingForStampScan(u.uuid);
+      if (gate !== 'ok') {
+        if (gate === 'go_form') router.replace('/boarding-form');
+        else router.back();
         return;
       }
       setUser(u);

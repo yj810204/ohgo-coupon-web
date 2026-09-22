@@ -5,7 +5,7 @@ import { useRouter } from '@/hooks/useAppRouter';
 import { resolveAppUser } from '@/lib/auth-session';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
-import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
 import {
   adminCancelReservation,
   adminDeleteCancelledReservation,
@@ -261,6 +261,7 @@ export default function AdminReservationsPage() {
             <OhgoModalButton variant="danger" disabled={acting} onClick={() => void handleReject()}>
               {acting ? '처리 중...' : '거절'}
             </OhgoModalButton>
+            <OhgoModalCancelLink disabled={acting} onClick={() => setRejectTarget(null)} />
           </>
         }
       >

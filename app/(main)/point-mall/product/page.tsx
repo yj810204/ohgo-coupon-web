@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
 import SubPageFrame from '@/components/SubPageFrame';
-import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
 import {
   formatPointPrice,
   formatProductStock,
@@ -396,15 +396,12 @@ function PointMallProductContent() {
         closeOnBackdrop
         title="구매 확인"
         titleTone="brand"
-        footerLayout="row"
         footer={
           <>
-            <OhgoModalButton variant="secondary" disabled={purchasing} onClick={() => setConfirmOpen(false)}>
-              취소
-            </OhgoModalButton>
             <OhgoModalButton disabled={purchasing || !canPurchase} onClick={() => void handlePurchase()}>
               {purchasing ? '처리 중...' : '구매하기'}
             </OhgoModalButton>
+            <OhgoModalCancelLink disabled={purchasing} onClick={() => setConfirmOpen(false)} />
           </>
         }
       >

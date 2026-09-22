@@ -50,9 +50,19 @@ export type LegacyLoginResult = {
  * - 기등록: guest_profiles / profiles.legacy_uuid / Firestore users/{uuidv5}
  * - 미등록: auth+profiles 생성, firebase 모드면 users/{uuidv5} 도 생성
  */
+export class LegacyLoginError extends Error {
+  code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = 'LegacyLoginError';
+    this.code = code;
+  }
+}
+
 export async function legacyLoginWithNameDob(
   nameInput: string,
-  dobInput: string
+  dobInput: string,
+  options?: { register?: boolean }
 ): Promise<LegacyLoginResult> {
   const name = nameInput.trim();
   const normalizedDob = normalizeDob(dobInput);
@@ -96,6 +106,10 @@ export async function legacyLoginWithNameDob(
     guest,
     firebaseUser,
   });
+
+  if (isNew && !options?.register) {
+    throw new LegacyLoginError('NOT_REGISTERED', '등록된 회원 정보가 없습니다.');
+  }
 
   if (isNew && isFirebaseDataSource()) {
     const created = {

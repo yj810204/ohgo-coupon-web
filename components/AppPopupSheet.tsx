@@ -1,6 +1,6 @@
 'use client';
 
-import OhgoModal, { OhgoModalActions, OhgoModalButton } from '@/components/OhgoModal';
+import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
 import { supabaseOriginalImageUrl } from '@/lib/supabase-image';
 import type { AppPopupSettings } from '@/utils/site-settings-service';
 
@@ -31,10 +31,7 @@ export default function AppPopupSheet({
       title={title}
       size="lg"
       footer={
-        <OhgoModalActions>
-          <OhgoModalButton variant="secondary" onClick={onDismissForever}>
-            다시 보지 않기
-          </OhgoModalButton>
+        <>
           {hasCta ? (
             <OhgoModalButton variant="primary" onClick={onCta}>
               {ctaLabel}
@@ -44,7 +41,8 @@ export default function AppPopupSheet({
               확인
             </OhgoModalButton>
           )}
-        </OhgoModalActions>
+          <OhgoModalCancelLink onClick={onDismissForever}>다시 보지 않기</OhgoModalCancelLink>
+        </>
       }
     >
       {imageUrl ? (

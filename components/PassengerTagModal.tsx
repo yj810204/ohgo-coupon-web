@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
 import { OHGO_FONT } from '@/lib/page-styles';
 import { getAttendance, loadDailyRoster, type RosterItem } from '@/utils/roster-service';
 import { IoCheckmarkCircleOutline, IoPersonOutline } from 'react-icons/io5';
@@ -84,12 +84,10 @@ export default function PassengerTagModal({
       closeOnBackdrop={!loading}
       footer={
         <>
-          <OhgoModalButton variant="secondary" onClick={onClose} disabled={loading}>
-            취소
-          </OhgoModalButton>
           <OhgoModalButton onClick={handleConfirm} disabled={loading || selected.size === 0}>
             {loading ? '저장 중...' : `${selected.size}명 태깅`}
           </OhgoModalButton>
+          <OhgoModalCancelLink onClick={onClose} disabled={loading} />
         </>
       }
     >

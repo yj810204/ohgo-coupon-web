@@ -41,7 +41,7 @@ import {
 } from '@/lib/person-name';
 import { sendPushToUser } from '@/utils/send-push';
 import SubPageFrame from '@/components/SubPageFrame';
-import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
 import { addUserActionLog } from '@/utils/user-action-log-service';
 import { getMemos } from '@/utils/memo-service';
 import BoardingInfoModal from '@/components/BoardingInfoModal';
@@ -1469,12 +1469,10 @@ function MemberDetailContent() {
         title="UUID"
         footer={
           <>
-            <OhgoModalButton variant="secondary" onClick={closeUuidModal}>
-              닫기
-            </OhgoModalButton>
             <OhgoModalButton variant="primary" onClick={() => void copyUuid()}>
               {uuidCopied ? '복사됨' : '복사'}
             </OhgoModalButton>
+            <OhgoModalCancelLink onClick={closeUuidModal}>닫기</OhgoModalCancelLink>
           </>
         }
       >
@@ -1516,19 +1514,13 @@ function MemberDetailContent() {
         footer={
           <>
             <OhgoModalButton
-              variant="secondary"
-              onClick={closeAdjustModal}
-              disabled={adjustBusy}
-            >
-              취소
-            </OhgoModalButton>
-            <OhgoModalButton
               variant="primary"
               onClick={() => void confirmAdjust()}
               disabled={!adjustReason || adjustDelta === 0 || adjustBusy}
             >
               {adjustBusy ? '처리 중...' : '확인'}
             </OhgoModalButton>
+            <OhgoModalCancelLink onClick={closeAdjustModal} disabled={adjustBusy} />
           </>
         }
       >

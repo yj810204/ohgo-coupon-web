@@ -5,7 +5,7 @@ import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
-import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
 import {
   cancelReservation,
   deleteCancelledReservation,
@@ -230,6 +230,7 @@ export default function MyReservationsPage() {
             <OhgoModalButton variant="danger" disabled={cancelling} onClick={() => void handleCancel()}>
               {cancelling ? '처리 중...' : '취소하기'}
             </OhgoModalButton>
+            <OhgoModalCancelLink disabled={cancelling} onClick={() => setCancelTarget(null)} />
           </>
         }
       >
@@ -251,6 +252,7 @@ export default function MyReservationsPage() {
             <OhgoModalButton variant="danger" disabled={deleting} onClick={() => void handleDelete()}>
               {deleting ? '처리 중...' : '삭제하기'}
             </OhgoModalButton>
+            <OhgoModalCancelLink disabled={deleting} onClick={() => setDeleteTarget(null)} />
           </>
         }
       >

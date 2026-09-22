@@ -12,7 +12,7 @@ import {
 } from '@/utils/trip-guide-service';
 import { IoCalendarOutline, IoCheckmarkOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
-import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
 import DateRangeCalendar from '@/components/DateRangeCalendar';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import {
@@ -455,12 +455,10 @@ function TripGuideFormContent() {
         closeOnBackdrop
         footer={
           <>
-            <OhgoModalButton variant="secondary" onClick={() => setShowRangeModal(false)}>
-              취소
-            </OhgoModalButton>
             <OhgoModalButton variant="primary" onClick={applyRange}>
               적용
             </OhgoModalButton>
+            <OhgoModalCancelLink onClick={() => setShowRangeModal(false)} />
           </>
         }
       >

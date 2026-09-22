@@ -14,7 +14,7 @@ import {
 import { verifyUseCouponPassword } from '@/utils/use-coupon-password';
 import { IoGiftOutline, IoCheckmarkCircleOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
-import OhgoModal, { OhgoModalButton, OhgoModalField } from '@/components/OhgoModal';
+import OhgoModal, { OhgoModalButton, OhgoModalCancelLink, OhgoModalField } from '@/components/OhgoModal';
 import EmptyState from '@/components/EmptyState';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
@@ -213,6 +213,7 @@ function CouponsPageContent() {
         onClose={() => setModalVisible(false)}
         closeOnBackdrop
         title="쿠폰 정보"
+        footerLayout={fromAdmin ? 'row' : 'stack'}
         footer={
           selectedCoupon && !selectedCoupon.used ? (
             <>
@@ -251,16 +252,13 @@ function CouponsPageContent() {
         title="비밀번호 입력"
         footer={
           <>
-            <OhgoModalButton
-              variant="secondary"
+            <OhgoModalButton onClick={handlePasswordSubmit}>확인</OhgoModalButton>
+            <OhgoModalCancelLink
               onClick={() => {
                 setPasswordModalVisible(false);
                 setPassword('');
               }}
-            >
-              취소
-            </OhgoModalButton>
-            <OhgoModalButton onClick={handlePasswordSubmit}>확인</OhgoModalButton>
+            />
           </>
         }
       >

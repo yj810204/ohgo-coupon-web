@@ -7,6 +7,7 @@ import {
   getDoc,
   getDocs,
   query,
+  setDoc,
   Timestamp,
   updateDoc,
   where,
@@ -15,13 +16,104 @@ import { isFirebaseDataSource } from '@/lib/data-source';
 import { getFirebaseDb } from '@/lib/firebase/client';
 import { requireFirestoreUserId } from '@/lib/firebase/resolve-user-id';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { sendPushToUser } from '@/utils/send-push';
+import { notifyStampStaff, sendPushToUser } from '@/utils/send-push';
 import { firebaseQrStampWriteFields } from '@/lib/stamps/firebase-qr-stamp';
 
 const BOAT_QR_CODE = 'OHGO-STAMP-BOAT19033326262005';
 
 function getTodayDate(): string {
   return new Date().toISOString().split('T')[0];
+}
+
+/** 관리자 명부 화면과 맞추기 위한 KST YYYY-MM-DD. UTC getTodayDate()와 섞지 않는다. */
+function todayKstDate(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+function throwNoBoarding(): never {
+  const err = new Error('스탬프 적립 전에 승선정보(명부)를 작성해 주세요.');
+  (err as Error & { code: string }).code = 'NO_BOARDING';
+  throw err;
+}
+
+async function requireBoardingInfo(userId: string): Promise<{ name: string }> {
+  if (isFirebaseDataSource()) {
+    const firestoreUserId = await requireFirestoreUserId(userId);
+    const db = getFirebaseDb();
+    const snap = await getDoc(doc(db, 'users', firestoreUserId, 'boarding', 'info'));
+    if (!snap.exists()) throwNoBoarding();
+    const data = snap.data();
+    const name = String(data?.name ?? '').trim();
+    const phone = String(data?.phone ?? '').trim();
+    if (!name || !phone) throwNoBoarding();
+    return { name };
+  }
+
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from('boarding_info')
+    .select('name, phone')
+    .eq('user_id', userId)
+    .maybeSingle();
+  const name = String(data?.name ?? '').trim();
+  const phone = String(data?.phone ?? '').trim();
+  if (!name || !phone) throwNoBoarding();
+  return { name };
+}
+
+async function addUserToTodayAttendance(userId: string): Promise<void> {
+  const date = todayKstDate();
+
+  if (isFirebaseDataSource()) {
+    const firestoreUserId = await requireFirestoreUserId(userId);
+    const db = getFirebaseDb();
+    const ref = doc(db, 'attendance', date);
+    const snap = await getDoc(ref);
+    const members = Array.isArray(snap.data()?.members)
+      ? snap.data()!.members.map(String)
+      : [];
+    if (members.includes(firestoreUserId)) return;
+
+    if (snap.exists()) {
+      await updateDoc(ref, {
+        members: [...members, firestoreUserId],
+        updatedAt: new Date(),
+      });
+      return;
+    }
+
+    await setDoc(ref, {
+      members: [firestoreUserId],
+      tripNumber: 1,
+      updatedAt: new Date(),
+    });
+    return;
+  }
+
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from('attendance')
+    .select('members, trip_number')
+    .eq('date', date)
+    .maybeSingle();
+  const members = Array.isArray(data?.members) ? data.members.map(String) : [];
+  if (members.includes(userId)) return;
+
+  const { error } = await admin.from('attendance').upsert(
+    {
+      date,
+      members: [...members, userId],
+      trip_number: data?.trip_number ?? 1,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'date' }
+  );
+  if (error) throw error;
 }
 
 function getTodayRange(): { start: Date; end: Date } {
@@ -305,10 +397,23 @@ export async function processQrStamp(userId: string, qrData: string): Promise<vo
     throw err;
   }
 
+  const boarding = await requireBoardingInfo(userId);
+
   if (isFirebaseDataSource()) {
     await addStampFirebase(userId);
-    return;
+  } else {
+    await addStampSupabase(userId);
   }
 
-  await addStampSupabase(userId);
+  try {
+    await addUserToTodayAttendance(userId);
+  } catch (e) {
+    console.error('당일 명부 등록 실패:', e);
+  }
+
+  try {
+    await notifyStampStaff(boarding.name);
+  } catch (e) {
+    console.error('스태프 푸시 실패:', e);
+  }
 }

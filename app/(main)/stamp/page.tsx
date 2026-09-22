@@ -12,6 +12,7 @@ import EmptyState from '@/components/EmptyState';
 import { OHGO_FONT } from '@/lib/page-styles';
 import { useNavigation } from '@/hooks/useNavigation';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
+import { confirmBoardingForStampScan } from '@/lib/stamps/confirm-boarding-for-scan';
 
 const CARD_STYLE: React.CSSProperties = {
   backgroundColor: '#FFFFFF',
@@ -225,9 +226,15 @@ function StampPageContent() {
             <button
               type="button"
               disabled={qrOpening}
-              onClick={() => {
+              onClick={async () => {
                 if (qrOpening) return;
                 setQrOpening(true);
+                const gate = await confirmBoardingForStampScan(user.uuid!);
+                if (gate !== 'ok') {
+                  setQrOpening(false);
+                  if (gate === 'go_form') navigate('/boarding-form');
+                  return;
+                }
                 navigate(`/qr-scan?${query}`);
               }}
               className="btn flex-grow-1 d-flex align-items-center justify-content-center gap-2 fw-semibold"

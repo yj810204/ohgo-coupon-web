@@ -39,6 +39,15 @@ async function sendExpoPush(
   return response;
 }
 
+function isStaffUser(u: { isAdmin?: unknown; isCaptain?: unknown; role?: unknown }): boolean {
+  return (
+    u.isAdmin === true ||
+    u.isCaptain === true ||
+    u.role === 'admin' ||
+    u.role === 'captain'
+  );
+}
+
 async function getAdminPushTokens(): Promise<string[]> {
   if (isFirebaseDataSource()) {
     const db = getFirebaseDb();
@@ -58,6 +67,33 @@ async function getAdminPushTokens(): Promise<string[]> {
 
   if (error) {
     console.error('관리자 토큰 조회 실패:', error);
+    return [];
+  }
+
+  return (data ?? [])
+    .map((row: { expo_push_token: string | null }) => row.expo_push_token)
+    .filter((token: string | null): token is string => Boolean(token));
+}
+
+async function getStaffPushTokens(): Promise<string[]> {
+  if (isFirebaseDataSource()) {
+    const db = getFirebaseDb();
+    const snap = await getDocs(collection(db, 'users'));
+    return snap.docs
+      .map((d) => d.data())
+      .filter((u) => isStaffUser(u) && u.expoPushToken)
+      .map((u) => String(u.expoPushToken));
+  }
+
+  const supabase = getProfilesClient();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('expo_push_token')
+    .in('role', ['admin', 'captain'])
+    .not('expo_push_token', 'is', null);
+
+  if (error) {
+    console.error('스태프 토큰 조회 실패:', error);
     return [];
   }
 
@@ -111,6 +147,25 @@ async function getAllPushTokens(): Promise<string[]> {
     .map((row: { expo_push_token: string | null }) => row.expo_push_token)
     .filter((token: string | null): token is string => Boolean(token));
 }
+
+export const notifyStampStaff = async (name: string) => {
+  try {
+    const tokens = [...new Set(await getStaffPushTokens())];
+    const displayName = name.trim() || '회원';
+
+    for (const token of tokens) {
+      await sendExpoPush(token, {
+        title: '스탬프 적립',
+        body: `${displayName}님이 스탬프를 적립했습니다.`,
+        data: { screen: 'today-roster' },
+      });
+    }
+
+    console.log(`✅ 스태프 스탬프 알림 전송: ${displayName} (${tokens.length}명)`);
+  } catch (err) {
+    console.error('❗ 스태프 푸시 전송 실패:', err);
+  }
+};
 
 export const notifyAllAdmins = async (
   message: string,

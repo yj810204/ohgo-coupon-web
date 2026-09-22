@@ -81,6 +81,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (err.code === 'NO_BOARDING') {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: 'NO_BOARDING',
+          message: err.message || '스탬프 적립 전에 승선정보(명부)를 작성해 주세요.',
+        },
+        { status: 400 }
+      );
+    }
+
     console.error('stamps/process error:', error);
     return NextResponse.json(
       { ok: false, code: 'STAMP_ERROR', message: err.message || '스탬프 적립 중 오류가 발생했습니다.' },

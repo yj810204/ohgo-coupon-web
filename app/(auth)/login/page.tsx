@@ -6,7 +6,7 @@ import { getSupabaseBrowserClient, isSupabaseConfigured } from '@/lib/supabase/c
 import { resolveAppUser, getHomePathForUser, primeAppUserCache } from '@/lib/auth-session';
 import { saveUser } from '@/lib/storage';
 import { IoDocumentTextOutline } from 'react-icons/io5';
-import OhgoModal, { OhgoModalButton } from '@/components/OhgoModal';
+import OhgoModal, { OhgoModalButton, OhgoModalCancelLink, OhgoModalText } from '@/components/OhgoModal';
 import { notifyUserChanged } from '@/lib/native-bridge';
 
 export default function LoginPage() {
@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [legacyLoading, setLegacyLoading] = useState(false);
   const [name, setName] = useState('');
   const [dob, setDob] = useState('');
+  const [showSignupSheet, setShowSignupSheet] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const supabaseEnabled = isSupabaseConfigured();
   const router = useRouter();
@@ -45,7 +46,7 @@ export default function LoginPage() {
     return true;
   };
 
-  const handleLegacyLogin = async () => {
+  const handleLegacyLogin = async (options?: { register?: boolean }) => {
     if (!requireAgree()) return;
     if (!name.trim() || !dob.trim()) {
       alert('이름과 생년월일을 입력해 주세요.');
@@ -56,9 +57,18 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/legacy-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), dob: dob.trim() }),
+        body: JSON.stringify({
+          name: name.trim(),
+          dob: dob.trim(),
+          register: options?.register === true,
+        }),
       });
       const data = await res.json();
+      if (data.code === 'NOT_REGISTERED') {
+        setLegacyLoading(false);
+        setShowSignupSheet(true);
+        return;
+      }
       if (!res.ok) {
         throw new Error(data.error || '로그인에 실패했습니다.');
       }
@@ -92,6 +102,11 @@ export default function LoginPage() {
       alert(e instanceof Error ? e.message : '로그인에 실패했습니다.');
       setLegacyLoading(false);
     }
+  };
+
+  const handleSignupConfirm = () => {
+    setShowSignupSheet(false);
+    void handleLegacyLogin({ register: true });
   };
 
   const privacyHtml = `
@@ -441,6 +456,23 @@ export default function LoginPage() {
           </p>
         )}
       </div>
+
+      <OhgoModal
+        open={showSignupSheet}
+        onClose={() => setShowSignupSheet(false)}
+        title="신규 가입"
+        closeOnBackdrop
+        footer={
+          <>
+            <OhgoModalButton onClick={handleSignupConfirm} disabled={legacyLoading}>
+              확인
+            </OhgoModalButton>
+            <OhgoModalCancelLink onClick={() => setShowSignupSheet(false)} />
+          </>
+        }
+      >
+        <OhgoModalText>등록된 회원 정보가 없습니다. 신규가입 하시겠습니까?</OhgoModalText>
+      </OhgoModal>
 
       {/* 개인정보 처리방침 모달 */}
       <OhgoModal

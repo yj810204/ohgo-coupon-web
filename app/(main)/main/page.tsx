@@ -46,6 +46,7 @@ import {
 import { IoBookOutline, IoGameControllerOutline, IoHelpCircleOutline, IoStorefrontOutline } from 'react-icons/io5';
 import EmptyState from '@/components/EmptyState';
 import { OHGO_CARD, OHGO_LIST_DIVIDER, OhgoPageLoading } from '@/lib/page-styles';
+import { confirmBoardingForStampScan } from '@/lib/stamps/confirm-boarding-for-scan';
 
 function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
   return result.status === 'fulfilled' ? result.value : fallback;
@@ -268,7 +269,14 @@ export default function MainPage() {
                   couponCount={couponCount}
                   onStampClick={() => navigate(`/stamp?${query}`)}
                   onCouponClick={() => navigate(`/coupons?${query}`)}
-                  onQrScan={() => navigate(`/qr-scan?${query}`)}
+                  onQrScan={async () => {
+                    if (!user?.uuid) return false;
+                    const gate = await confirmBoardingForStampScan(user.uuid);
+                    if (gate === 'go_form') navigate('/boarding-form');
+                    if (gate !== 'ok') return false;
+                    navigate(`/qr-scan?${query}`);
+                    return true;
+                  }}
                 />
               </div>
             );

@@ -7,9 +7,9 @@ import { getUser } from '@/lib/storage';
 import { resolveAppUser } from '@/lib/auth-session';
 import { getBoardingForm, saveBoardingForm } from '@/utils/boarding-service';
 import { normalizePersonName } from '@/lib/person-name';
-import { IoCheckboxOutline, IoSquareOutline, IoSearchOutline } from 'react-icons/io5';
+import { IoSearchOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
-import OhgoModal from '@/components/OhgoModal';
+import OhgoModal, { OhgoModalButton, OhgoModalCancelLink, OhgoModalText } from '@/components/OhgoModal';
 import {
   OHGO_CARD,
   OHGO_CONFIRM_BTN,
@@ -184,9 +184,10 @@ function BoardingFormContent() {
   const [agreedThirdParty, setAgreedThirdParty] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showThirdPartyModal, setShowThirdPartyModal] = useState(false);
+  const [showConsentSheet, setShowConsentSheet] = useState(false);
   const [showPostcodeModal, setShowPostcodeModal] = useState(false);
   const [loading, setLoading] = useState(true);
-  const addressDetailRef = useRef<HTMLInputElement>(null);
+  const addressDetailRef = useRef<HTMLTextAreaElement>(null);
   const postcodeEmbedRef = useRef<HTMLDivElement>(null);
 
   // 다음 우편번호 스크립트 로드
@@ -254,16 +255,27 @@ function BoardingFormContent() {
   }, []);
 
   useEffect(() => {
+    const formatSignupDob = (raw?: string | null) => {
+      if (!raw) return '';
+      const cleaned = String(raw).replace(/\D/g, '');
+      if (cleaned.length === 8) {
+        return `${cleaned.slice(0, 4)}-${cleaned.slice(4, 6)}-${cleaned.slice(6, 8)}`;
+      }
+      return String(raw);
+    };
+
     const loadData = async () => {
       try {
-        // Set initial values from params if available
-        if (paramName) setName(decodeURIComponent(paramName));
-        if (dob) setBirth(decodeURIComponent(dob));
+        const urlName = paramName ? decodeURIComponent(paramName) : '';
+        const urlDob = dob ? formatSignupDob(decodeURIComponent(dob)) : '';
+        if (urlName) setName(urlName);
+        if (urlDob) setBirth(urlDob);
 
         let userUuid = '';
 
         const appUser = await resolveAppUser();
-        if (appUser?.isAdmin) {
+        const localUser = await getUser();
+        if (appUser?.isAdmin || localUser?.isAdmin) {
           setIsAdmin(true);
         }
 
@@ -271,13 +283,19 @@ function BoardingFormContent() {
           userUuid = uuid.toString();
         } else if (appUser?.uuid) {
           userUuid = appUser.uuid;
+        } else if (localUser?.uuid) {
+          userUuid = localUser.uuid;
         }
+
+        const signupName = (appUser?.name || localUser?.name || '').trim();
+        const signupDob = formatSignupDob(appUser?.dob || localUser?.dob);
+        const editingOther = Boolean(uuid && (appUser?.uuid || localUser?.uuid) && uuid !== (appUser?.uuid || localUser?.uuid));
 
         if (userUuid) {
           const record = await getBoardingForm(userUuid);
           if (record) {
-            setName(record.name || paramName || '');
-            setBirth(record.birth || dob || '');
+            setName(record.name || urlName || '');
+            setBirth(record.birth || urlDob || '');
             setGender(record.gender || '');
             setPhone(record.phone || '');
             setEmergency(record.emergency || '');
@@ -286,6 +304,9 @@ function BoardingFormContent() {
             setAgreed(record.agreed);
             setAgreedThirdParty(record.agreedThirdParty);
             setRole(record.tripRole || '');
+          } else if (!editingOther) {
+            if (!urlName && signupName) setName(signupName);
+            if (!urlDob && signupDob) setBirth(signupDob);
           }
         }
       } catch (e) {
@@ -326,27 +347,7 @@ function BoardingFormContent() {
     return formatted;
   };
 
-  const handleSubmit = async () => {
-    if (!name || !birth || !gender || !phone || !emergency || !address) {
-      alert('모든 항목을 빠짐없이 입력해 주세요.');
-      return;
-    }
-    if (!agreed) {
-      alert('개인정보 수집 및 이용에 동의하셔야 합니다.');
-      return;
-    }
-    if (!agreedThirdParty) {
-      alert('제3자 개인정보 제공에 동의하셔야 합니다.');
-      return;
-    }
-
-    // Validate birth format
-    const birthClean = birth.replace(/-/g, '');
-    if (!/^[0-9]{6}$|^[0-9]{8}$/.test(birthClean)) {
-      alert('생년월일은 6자리 또는 8자리여야 합니다.');
-      return;
-    }
-
+  const persistBoarding = async (consent: { agreed: boolean; agreedThirdParty: boolean }) => {
     setIsSubmitting(true);
     try {
       // Use the UUID from params if available, otherwise use the logged-in user's UUID
@@ -369,8 +370,8 @@ function BoardingFormContent() {
           emergency,
           address,
           addressDetail: addressDetail.trim() || undefined,
-          agreed,
-          agreedThirdParty,
+          agreed: consent.agreed,
+          agreedThirdParty: consent.agreedThirdParty,
           tripRole: isAdmin && role ? role : undefined,
         },
         { updateProfileRole: true, isAdmin },
@@ -378,15 +379,14 @@ function BoardingFormContent() {
 
       alert('승선 정보가 저장되었습니다.');
 
-      // Navigate back to the appropriate screen
       if (returnTo === 'roster-list' && date && dateDisplay && tripNumber) {
-        router.push(`/roster-list?date=${date}&dateDisplay=${encodeURIComponent(dateDisplay)}&tripNumber=${tripNumber}`);
+        router.replace(`/roster-list?date=${date}&dateDisplay=${encodeURIComponent(dateDisplay)}&tripNumber=${tripNumber}`);
       } else if (returnTo === 'member-detail' && uuid) {
-        router.push(
+        router.replace(
           `/member-detail?uuid=${uuid}&name=${encodeURIComponent(name)}&dob=${dob || birth.replace(/\D/g, '')}`
         );
       } else {
-        router.back();
+        router.replace('/main');
       }
     } catch (e) {
       console.error('저장 오류:', e);
@@ -396,13 +396,40 @@ function BoardingFormContent() {
     }
   };
 
+  const handleSubmit = () => {
+    if (!name || !birth || !gender || !phone || !emergency || !address) {
+      alert('모든 항목을 빠짐없이 입력해 주세요.');
+      return;
+    }
+
+    const birthClean = birth.replace(/-/g, '');
+    if (!/^[0-9]{6}$|^[0-9]{8}$/.test(birthClean)) {
+      alert('생년월일은 6자리 또는 8자리여야 합니다.');
+      return;
+    }
+
+    if (agreed && agreedThirdParty) {
+      void persistBoarding({ agreed: true, agreedThirdParty: true });
+      return;
+    }
+
+    setShowConsentSheet(true);
+  };
+
+  const handleConsentConfirm = () => {
+    setAgreed(true);
+    setAgreedThirdParty(true);
+    setShowConsentSheet(false);
+    void persistBoarding({ agreed: true, agreedThirdParty: true });
+  };
+
   if (loading) {
     return <OhgoPageLoading />;
   }
 
   return (
     <SubPageFrame title="명부 작성">
-      <div className="p-3 mb-3" style={OHGO_CARD}>
+      <div className="p-3 mb-3 ohgo-boarding-card" style={OHGO_CARD}>
         <div className="mb-3">
           <label style={FIELD_LABEL}>이름 *</label>
           <input
@@ -429,7 +456,7 @@ function BoardingFormContent() {
 
         <div className="mb-3">
           <label style={FIELD_LABEL}>성별 *</label>
-          <div className="d-flex gap-2">
+          <div className="ohgo-stack-pair">
             <SegmentButton label="남" active={gender === '남'} onClick={() => setGender('남')} />
             <SegmentButton label="여" active={gender === '여'} onClick={() => setGender('여')} />
           </div>
@@ -459,7 +486,7 @@ function BoardingFormContent() {
 
         <div className="mb-3">
           <label style={FIELD_LABEL}>주소 *</label>
-          <div className="d-flex gap-2 mb-2 align-items-stretch">
+          <div className="ohgo-stack-pair mb-2">
             <input
               type="text"
               placeholder="주소 검색 버튼을 눌러주세요"
@@ -491,9 +518,9 @@ function BoardingFormContent() {
               검색
             </button>
           </div>
-          <input
+          <textarea
             ref={addressDetailRef}
-            type="text"
+            rows={3}
             placeholder={address ? '상세 주소 입력 (동/호수 등)' : '주소 검색 후 상세 주소를 입력하세요'}
             value={addressDetail}
             onChange={(e) => setAddressDetail(e.target.value)}
@@ -503,6 +530,8 @@ function BoardingFormContent() {
               ...OHGO_INPUT,
               width: '100%',
               backgroundColor: '#FFFFFF',
+              resize: 'vertical',
+              minHeight: 72,
             }}
           />
         </div>
@@ -517,62 +546,6 @@ function BoardingFormContent() {
             </div>
           </div>
         )}
-
-        <div className="mb-3 d-flex align-items-start">
-          <button
-            type="button"
-            className="btn btn-link p-0 me-2"
-            onClick={() => setAgreed(!agreed)}
-            style={{ border: 'none', background: 'none' }}
-          >
-            {agreed ? (
-              <IoCheckboxOutline size={22} color="#1B6FF5" />
-            ) : (
-              <IoSquareOutline size={22} color="#9A9FA5" />
-            )}
-          </button>
-          <div className="flex-grow-1">
-            <span style={{ fontSize: 13, color: '#1A1D1F', fontFamily: OHGO_FONT }}>
-              <button
-                type="button"
-                className="btn btn-link p-0 text-decoration-underline"
-                onClick={() => setShowPrivacyModal(true)}
-                style={{ fontSize: 'inherit', color: '#1B6FF5', fontFamily: OHGO_FONT }}
-              >
-                개인정보 수집 및 이용
-              </button>
-              에 동의합니다.
-            </span>
-          </div>
-        </div>
-
-        <div className="mb-1 d-flex align-items-start">
-          <button
-            type="button"
-            className="btn btn-link p-0 me-2"
-            onClick={() => setAgreedThirdParty(!agreedThirdParty)}
-            style={{ border: 'none', background: 'none' }}
-          >
-            {agreedThirdParty ? (
-              <IoCheckboxOutline size={22} color="#1B6FF5" />
-            ) : (
-              <IoSquareOutline size={22} color="#9A9FA5" />
-            )}
-          </button>
-          <div className="flex-grow-1">
-            <span style={{ fontSize: 13, color: '#1A1D1F', fontFamily: OHGO_FONT }}>
-              <button
-                type="button"
-                className="btn btn-link p-0 text-decoration-underline"
-                onClick={() => setShowThirdPartyModal(true)}
-                style={{ fontSize: 'inherit', color: '#1B6FF5', fontFamily: OHGO_FONT }}
-              >
-                제3자 개인정보 제공
-              </button>
-              에 동의합니다.
-            </span>
-          </div>
-        </div>
       </div>
 
       <button
@@ -594,6 +567,57 @@ function BoardingFormContent() {
           '저장'
         )}
       </button>
+
+      <OhgoModal
+        open={showConsentSheet}
+        onClose={() => setShowConsentSheet(false)}
+        title="개인정보 동의"
+        closeOnBackdrop
+        footer={
+          <>
+            <OhgoModalButton onClick={handleConsentConfirm} disabled={isSubmitting}>
+              {isSubmitting ? '저장 중...' : '동의하고 저장'}
+            </OhgoModalButton>
+            <OhgoModalCancelLink onClick={() => setShowConsentSheet(false)} />
+          </>
+        }
+      >
+        <OhgoModalText>
+          승선명부 저장을 위해 개인정보 수집·이용 및 제3자 제공에 동의하시겠습니까?
+        </OhgoModalText>
+        <div className="mt-2 d-flex flex-column" style={{ gap: 2 }}>
+          <button
+            type="button"
+            className="btn btn-link p-0 text-start text-decoration-underline"
+            onClick={() => setShowPrivacyModal(true)}
+            style={{
+              fontSize: 14,
+              color: '#1B6FF5',
+              fontFamily: OHGO_FONT,
+              lineHeight: 1.35,
+              minHeight: 0,
+              padding: '2px 0',
+            }}
+          >
+            개인정보 수집 및 이용 내용 보기
+          </button>
+          <button
+            type="button"
+            className="btn btn-link p-0 text-start text-decoration-underline"
+            onClick={() => setShowThirdPartyModal(true)}
+            style={{
+              fontSize: 14,
+              color: '#1B6FF5',
+              fontFamily: OHGO_FONT,
+              lineHeight: 1.35,
+              minHeight: 0,
+              padding: '2px 0',
+            }}
+          >
+            제3자 개인정보 제공 내용 보기
+          </button>
+        </div>
+      </OhgoModal>
 
       <OhgoModal
         open={showPrivacyModal}
