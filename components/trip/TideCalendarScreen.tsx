@@ -28,6 +28,7 @@ import {
   type TideFishAdvice,
 } from '@/lib/tide-fish-recommend';
 import {
+  briefingDisplaySections,
   hasTideAiBriefingContent,
   isTideAiBriefing,
   TIDE_BRIEFING_EMPTY,
@@ -75,18 +76,6 @@ function formatSunSatWeekLabel(dateStr: string): string {
   const ed = Number(end.slice(8, 10));
   if (sm === em) return `${sm}월 ${sd}일 – ${ed}일`;
   return `${sm}월 ${sd}일 – ${em}월 ${ed}일`;
-}
-
-function briefingSections(briefing: TideAiBriefing) {
-  const sections = [
-    { key: 'summary', label: '요약', body: briefing.summary },
-    { key: 'rig', label: '채비', body: briefing.rig },
-    { key: 'operation', label: '운용', body: briefing.operation },
-  ].filter((section) => section.body);
-  if (sections.length === 0 && briefing.markdown) {
-    return [{ key: 'markdown', label: TIDE_BRIEFING_TITLE, body: briefing.markdown }];
-  }
-  return sections;
 }
 
 function TideAdviceCard({
@@ -251,7 +240,7 @@ function TideAdviceCard({
           {TIDE_BRIEFING_TITLE}
         </div>
         {published ? (
-          briefingSections(published).map((section) => (
+          briefingDisplaySections(published).map((section) => (
             <div key={section.key} style={{ marginTop: 10 }}>
               {section.label !== TIDE_BRIEFING_TITLE ? (
                 <div style={{ fontSize: 11, fontWeight: 800, color: '#6F767E', fontFamily: FONT }}>
@@ -261,11 +250,11 @@ function TideAdviceCard({
               <div
                 style={{
                   fontSize: 13,
-                  fontWeight: 600,
+                  fontWeight: section.key === 'markdown' ? 500 : 600,
                   color: '#1A1D1F',
                   fontFamily: FONT,
                   marginTop: 4,
-                  lineHeight: 1.6,
+                  lineHeight: section.key === 'markdown' ? 1.7 : 1.6,
                   whiteSpace: 'pre-line',
                   wordBreak: 'keep-all',
                 }}

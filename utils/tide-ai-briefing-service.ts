@@ -24,6 +24,8 @@ export {
   normalizeTideAiBriefingInput,
   omitUndefinedNull,
   parseBriefingMarkdown,
+  briefingDisplaySections,
+  formatBriefingProse,
   toBriefingWritePayload,
   TIDE_AI_BRIEFING_COLLECTION,
   TIDE_BRIEFING_DATE_RE,

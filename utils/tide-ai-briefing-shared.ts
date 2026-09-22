@@ -102,6 +102,43 @@ export function hasTideAiBriefingContent(
   return Boolean(value.summary || value.rig || value.operation || value.markdown);
 }
 
+function hasOwn(raw: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(raw, key);
+}
+
+function readTextField(raw: TideAiBriefingInput, key: 'summary' | 'rig' | 'operation' | 'markdown'): string | undefined {
+  if (!hasOwn(raw, key)) return undefined;
+  return cleanText(raw[key], key === 'markdown' ? MAX_MARKDOWN : MAX_TEXT);
+}
+
+/** 카드에는 긴 글을 그대로 보여 주고, 제목 마크만 걷어낸다. */
+export function formatBriefingProse(markdown: string): string {
+  return cleanText(markdown, MAX_MARKDOWN)
+    .replace(/^\s{0,3}#{1,3}\s+/gm, '')
+    .replace(/^\s*\*\*(.+?)\*\*\s*$/gm, '$1')
+    .replace(/^\s*【\s*(.+?)\s*】\s*$/gm, '$1')
+    .trim();
+}
+
+export type TideBriefingDisplaySection = {
+  key: string;
+  label: string;
+  body: string;
+};
+
+/** markdown이 있으면 한 편의 긴 글로 보여 주고, 짧은 칸은 쓰지 않는다. */
+export function briefingDisplaySections(briefing: TideAiBriefing): TideBriefingDisplaySection[] {
+  const prose = formatBriefingProse(briefing.markdown);
+  if (prose) {
+    return [{ key: 'markdown', label: TIDE_BRIEFING_TITLE, body: prose }];
+  }
+  return [
+    { key: 'summary', label: '요약', body: briefing.summary },
+    { key: 'rig', label: '채비', body: briefing.rig },
+    { key: 'operation', label: '운용', body: briefing.operation },
+  ].filter((section) => section.body);
+}
+
 /** Firestore setDoc은 undefined를 거절한다. null도 쓰지 않는다. */
 export function omitUndefinedNull<T extends object>(data: T): T {
   return Object.fromEntries(
@@ -111,14 +148,18 @@ export function omitUndefinedNull<T extends object>(data: T): T {
 
 export function normalizeTideAiBriefingInput(raw: TideAiBriefingInput): TideAiBriefingInput & { date: string } {
   const date = typeof raw.date === 'string' ? raw.date.trim() : '';
-  const markdown = cleanText(raw.markdown, MAX_MARKDOWN);
-  const parsed = parseBriefingMarkdown(markdown);
+  const markdown = readTextField(raw, 'markdown') ?? '';
   const title = cleanText(raw.title, 80);
+  function shortField(key: 'summary' | 'rig' | 'operation'): string {
+    if (hasOwn(raw, key)) return cleanText(raw[key]);
+    return '';
+  }
+
   return omitUndefinedNull({
     date,
-    summary: cleanText(raw.summary) || parsed.summary,
-    rig: cleanText(raw.rig) || parsed.rig,
-    operation: cleanText(raw.operation) || parsed.operation,
+    summary: shortField('summary'),
+    rig: shortField('rig'),
+    operation: shortField('operation'),
     markdown,
     species: parseTripSpecies(raw.species ?? []),
     title: title || undefined,
@@ -179,13 +220,12 @@ export function briefingFromUnknown(value: unknown): TideAiBriefing | null {
   const date = typeof dateRaw === 'string' ? dateRaw.split('T')[0] : '';
   if (!TIDE_BRIEFING_DATE_RE.test(date)) return null;
   const markdown = cleanText(row.markdown, MAX_MARKDOWN);
-  const parsed = parseBriefingMarkdown(markdown);
   const briefing = toTideAiBriefing(
     {
       date,
-      summary: cleanText(row.summary) || parsed.summary,
-      rig: cleanText(row.rig) || parsed.rig,
-      operation: cleanText(row.operation) || parsed.operation,
+      summary: cleanText(row.summary),
+      rig: cleanText(row.rig),
+      operation: cleanText(row.operation),
       markdown,
       species: parseTripSpecies((row.species as string[] | string | undefined) ?? []),
       title: cleanText(row.title, 80) || undefined,
