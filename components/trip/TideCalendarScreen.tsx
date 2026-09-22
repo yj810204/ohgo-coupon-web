@@ -451,7 +451,16 @@ export default function TideCalendarScreen({
               ) : null}
             </div>
           ) : null}
-          <div style={{ fontSize: 11, color: '#9A9FA5', fontFamily: FONT, marginTop: 4 }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: '#9A9FA5',
+              fontFamily: FONT,
+              marginTop: 4,
+              lineHeight: 1.4,
+              wordBreak: 'keep-all',
+            }}
+          >
             {TIDE_BOT_POINTER}
           </div>
         </div>
