@@ -21,7 +21,6 @@ import {
   getTideFishAdvice,
   isTideFishAdvice,
   parseTripSpecies,
-  recommendedRigFlow,
   TIDE_ADVICE_PENDING,
   TIDE_ADVICE_TITLE,
   TIDE_BOT_POINTER,
@@ -191,9 +190,8 @@ function TideAdviceCard({
               {formatTideFactsLine(advice)}
             </div>
           ) : null}
-          {advice.currentLabel || advice.rig ? (
+          {advice.currentLabel ? (
             <div
-              className="d-flex"
               style={{
                 fontSize: 12,
                 fontWeight: 700,
@@ -204,38 +202,12 @@ function TideAdviceCard({
                 padding: '8px 10px',
                 marginBottom: 8,
                 lineHeight: 1.55,
-                gap: 12,
               }}
             >
-              {advice.currentLabel ? (
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#6F767E' }}>추정 조류</div>
-                  <div style={{ marginTop: 4, whiteSpace: 'pre-line' }}>
-                    {advice.currentLabel.replace(/\d+(?:\.\d+)?kn\s*·\s*/gi, '').replace(/ · /g, '\n')}
-                  </div>
-                </div>
-              ) : null}
-              {advice.currentLabel && advice.rig ? (
-                <div style={{ width: 1, backgroundColor: '#E6E8EC', alignSelf: 'stretch' }} />
-              ) : null}
-              {advice.rig ? (
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#6F767E' }}>
-                    {`오늘 채비 · ${recommendedRigFlow(advice.rig)}`}
-                  </div>
-                  <div style={{ marginTop: 4, whiteSpace: 'pre-line' }}>
-                    {advice.rig
-                      .split(' · ')
-                      .filter((part) => part !== '전유동' && part !== '반유동' && part !== '반유동 고정')
-                      .map((part) =>
-                        recommendedRigFlow(advice.rig) === '전유동'
-                          ? part.replace(/\(막대찌\)/g, '')
-                          : part,
-                      )
-                      .join('\n')}
-                  </div>
-                </div>
-              ) : null}
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#6F767E' }}>추정 조류</div>
+              <div style={{ marginTop: 4, whiteSpace: 'pre-line' }}>
+                {advice.currentLabel.replace(/\d+(?:\.\d+)?kn\s*·\s*/gi, '').replace(/ · /g, '\n')}
+              </div>
             </div>
           ) : null}
         </>
