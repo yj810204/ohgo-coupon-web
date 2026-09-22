@@ -8,15 +8,10 @@ export const MEMBER_WITHDRAW_CONFIRM_TITLE = '회원탈퇴';
 export function adminDeleteConfirmMessage(memberName: string): string {
   const name = memberName.trim() || '이 회원';
   return [
-    `${name} 님을 영구 삭제할까요?`,
+    `${name} 님을 삭제할까요?`,
     '',
-    '삭제되는 정보',
-    '• 회원정보, 승선명부, 스탬프, 쿠폰, 예약, 포인트 등 개인·운영 데이터',
-    '• 계정 로그인 정보',
-    '',
-    '남는 정보',
-    `• 커뮤니티·중고장터·조황 등 게시글은 삭제되지 않습니다`,
-    `• 작성자는 「${WITHDRAWN_MEMBER_LABEL}」으로 표시됩니다`,
+    '회원정보·명부·스탬프·쿠폰 등 개인 데이터가 삭제됩니다.',
+    `게시글은 남고, 작성자는 「${WITHDRAWN_MEMBER_LABEL}」으로 표시됩니다.`,
     '',
     '이 작업은 되돌릴 수 없습니다.',
   ].join('\n');
@@ -29,14 +24,12 @@ export function adminDeleteSecondConfirmMessage(memberName: string): string {
 
 export function selfWithdrawConfirmMessage(): string {
   return [
-    '탈퇴하면 회원정보·명부·승선·스탬프 등 개인 데이터가 삭제됩니다.',
-    '',
-    `커뮤니티·중고장터 게시글은 삭제되지 않으며, 작성자는 「${WITHDRAWN_MEMBER_LABEL}」으로 남습니다.`,
-    '',
-    '같은 계정으로는 다시 로그인할 수 없습니다.',
-    '이 작업은 되돌릴 수 없습니다.',
-    '',
     '탈퇴하시겠습니까?',
+    '',
+    '회원정보·명부·스탬프 등 개인 데이터가 삭제됩니다.',
+    `게시글은 남고, 작성자는 「${WITHDRAWN_MEMBER_LABEL}」으로 표시됩니다.`,
+    '',
+    '이 작업은 되돌릴 수 없습니다.',
   ].join('\n');
 }
 

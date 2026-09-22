@@ -53,10 +53,16 @@ const confirmedSame = removeIdsFromConfirmedMembers({ '1': ['u1'] }, ['gone']);
 assert.equal(confirmedSame.changed, false);
 assert.deepEqual(confirmedSame.next, { '1': ['u1'] });
 
-assert.match(adminDeleteConfirmMessage('홍길동'), /홍길동/);
+assert.match(adminDeleteConfirmMessage('홍길동'), /홍길동 님을 삭제할까요/);
 assert.match(adminDeleteConfirmMessage('홍길동'), new RegExp(WITHDRAWN_MEMBER_LABEL));
 assert.match(adminDeleteConfirmMessage('홍길동'), /스탬프/);
-assert.match(selfWithdrawConfirmMessage(), new RegExp(WITHDRAWN_MEMBER_LABEL));
+assert.match(adminDeleteConfirmMessage('홍길동'), /되돌릴 수 없습니다/);
+assert.doesNotMatch(adminDeleteConfirmMessage('홍길동'), /삭제되는 정보/);
+assert.doesNotMatch(adminDeleteConfirmMessage('홍길동'), /남는 정보/);
 assert.doesNotMatch(adminDeleteConfirmMessage('홍길동'), /게시글을 삭제/);
+assert.match(selfWithdrawConfirmMessage(), /탈퇴하시겠습니까/);
+assert.match(selfWithdrawConfirmMessage(), new RegExp(WITHDRAWN_MEMBER_LABEL));
+assert.match(selfWithdrawConfirmMessage(), /되돌릴 수 없습니다/);
+assert.doesNotMatch(selfWithdrawConfirmMessage(), /삭제되는 정보/);
 
 console.log('member-purge shared tests passed');

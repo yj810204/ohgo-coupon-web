@@ -26,6 +26,11 @@ export default function OhgoDialogHost() {
   const closeAlert = () => resolveOhgoDialog(req.id, true);
   const confirmOk = () => resolveOhgoDialog(req.id, true);
   const confirmCancel = () => resolveOhgoDialog(req.id, false);
+  const body = (
+    <p className="ohgo-modal__text ohgo-modal__text--start mb-0" style={{ whiteSpace: 'pre-line' }}>
+      {req.message}
+    </p>
+  );
 
   if (req.kind === 'alert') {
     return (
@@ -37,9 +42,7 @@ export default function OhgoDialogHost() {
         closeOnBackdrop={false}
         footer={<OhgoModalButton onClick={closeAlert}>확인</OhgoModalButton>}
       >
-        <p className="ohgo-modal__text mb-0" style={{ whiteSpace: 'pre-line' }}>
-          {req.message}
-        </p>
+        {body}
       </OhgoModal>
     );
   }
@@ -60,9 +63,7 @@ export default function OhgoDialogHost() {
         </>
       }
     >
-      <p className="ohgo-modal__text mb-0" style={{ whiteSpace: 'pre-line' }}>
-        {req.message}
-      </p>
+      {body}
     </OhgoModal>
   );
 }
