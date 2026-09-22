@@ -1486,6 +1486,10 @@ body[data-native-app='true'] .ohgo-modal .modal-footer.ohgo-modal__footer {
   white-space: pre-line;
 }
 
+.ohgo-modal__text--start {
+  text-align: start;
+}
+
 .ohgo-modal__text--muted {
   font-size: 14px;
   font-weight: 500;
