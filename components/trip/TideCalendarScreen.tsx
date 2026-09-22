@@ -80,16 +80,25 @@ function formatSunSatWeekLabel(dateStr: string): string {
   return `${sm}월 ${sd}일 – ${em}월 ${ed}일`;
 }
 
+const BRIEFING_BODY_WEIGHT = 400;
+const BRIEFING_EMPHASIS_WEIGHT = 600;
+
 function renderBriefingNodes(nodes: BriefingMarkupNode[], keyPrefix: string): ReactNode[] {
   return nodes.map((node, index) => {
     const key = `${keyPrefix}-${index}`;
     if (node.type === 'text') return <span key={key}>{node.text}</span>;
     if (node.type === 'br') return <br key={key} />;
     const children = renderBriefingNodes(node.children, key);
-    if (node.type === 'u') return <u key={key}>{children}</u>;
+    if (node.type === 'u') {
+      return (
+        <u key={key} style={{ fontWeight: BRIEFING_EMPHASIS_WEIGHT, textDecoration: 'underline' }}>
+          {children}
+        </u>
+      );
+    }
     if (node.type === 'em') return <em key={key}>{children}</em>;
     return (
-      <strong key={key} style={{ fontWeight: 800 }}>
+      <strong key={key} style={{ fontWeight: BRIEFING_EMPHASIS_WEIGHT }}>
         {children}
       </strong>
     );
@@ -272,7 +281,7 @@ function TideAdviceCard({
               <div
                 style={{
                   fontSize: 13,
-                  fontWeight: section.key === 'markdown' ? 500 : 600,
+                  fontWeight: BRIEFING_BODY_WEIGHT,
                   color: '#1A1D1F',
                   fontFamily: FONT,
                   marginTop: section.key === 'markdown' ? 8 : 4,
