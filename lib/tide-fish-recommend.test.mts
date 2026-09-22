@@ -16,7 +16,13 @@ import {
 assert.equal(TIDE_ADVICE_TITLE, '물때 추천');
 assert.doesNotMatch(TIDE_ADVICE_TITLE, /AI/);
 assert.doesNotMatch(TIDE_FISH_GROUND, /15|20m|수심/);
-assert.match(TIDE_BOT_POINTER, /봇 브리핑/);
+assert.equal(
+  TIDE_BOT_POINTER,
+  '상세 채비·운용은 전날 오후 8시 오고피씽 AI 브리핑에서 확인하세요.',
+);
+assert.match(TIDE_BOT_POINTER, /전날 오후 8시/);
+assert.match(TIDE_BOT_POINTER, /오고피씽 AI 브리핑/);
+assert.doesNotMatch(TIDE_BOT_POINTER, /봇 브리핑/);
 
 assert.deepEqual(parseTripSpecies('감성돔, 노래미 / 볼락'), ['감성돔', '노래미', '볼락']);
 assert.deepEqual(parseTripSpecies(['참돔 · 광어', '참돔']), ['참돔', '광어']);
