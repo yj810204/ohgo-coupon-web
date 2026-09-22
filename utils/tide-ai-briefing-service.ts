@@ -26,6 +26,7 @@ export {
   parseBriefingMarkdown,
   briefingDisplaySections,
   formatBriefingProse,
+  parseBriefingEmphasis,
   toBriefingWritePayload,
   TIDE_AI_BRIEFING_COLLECTION,
   TIDE_BRIEFING_DATE_RE,

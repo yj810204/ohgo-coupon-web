@@ -6,6 +6,7 @@ import {
   briefingDisplaySections,
   formatBriefingProse,
   hasTideAiBriefingContent,
+  parseBriefingEmphasis,
   isTideAiBriefing,
   normalizeTideAiBriefingInput,
   omitUndefinedNull,
@@ -96,7 +97,26 @@ assert.equal(display[0].key, 'markdown');
 assert.match(display[0].body, /초보라면 전유동/);
 assert.match(display[0].body, /만조 전후/);
 assert.doesNotMatch(display[0].body, /^## /m);
-assert.equal(formatBriefingProse('## 요약\n긴 글'), '요약\n긴 글');
+assert.doesNotMatch(display[0].body, /^요약$/m);
+assert.doesNotMatch(display[0].label, /요약/);
+assert.equal(display[0].label, TIDE_BRIEFING_TITLE);
+assert.equal(formatBriefingProse('## 요약\n긴 글'), '긴 글');
+assert.equal(
+  formatBriefingProse('오늘은 **전유동**이 맞습니다.'),
+  '오늘은 **전유동**이 맞습니다.',
+);
+assert.deepEqual(parseBriefingEmphasis('오늘은 **전유동**이 맞습니다.'), [
+  { text: '오늘은 ' },
+  { text: '전유동', bold: true },
+  { text: '이 맞습니다.' },
+]);
+assert.deepEqual(parseBriefingEmphasis('핵심은 __밑줄__과 <u>태그</u>입니다.'), [
+  { text: '핵심은 ' },
+  { text: '밑줄', underline: true },
+  { text: '과 ' },
+  { text: '태그', underline: true },
+  { text: '입니다.' },
+]);
 
 const shortsOnly = briefingDisplaySections(
   toTideAiBriefing(

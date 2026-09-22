@@ -31,6 +31,7 @@ import {
   briefingDisplaySections,
   hasTideAiBriefingContent,
   isTideAiBriefing,
+  parseBriefingEmphasis,
   TIDE_BRIEFING_EMPTY,
   TIDE_BRIEFING_ONPAGE_FOOTER,
   TIDE_BRIEFING_TITLE,
@@ -76,6 +77,33 @@ function formatSunSatWeekLabel(dateStr: string): string {
   const ed = Number(end.slice(8, 10));
   if (sm === em) return `${sm}월 ${sd}일 – ${ed}일`;
   return `${sm}월 ${sd}일 – ${em}월 ${ed}일`;
+}
+
+function BriefingRichText({ text }: { text: string }) {
+  return (
+    <>
+      {parseBriefingEmphasis(text).map((part, index) => {
+        if (part.bold && part.underline) {
+          return (
+            <strong key={index} style={{ fontWeight: 800 }}>
+              <u>{part.text}</u>
+            </strong>
+          );
+        }
+        if (part.bold) {
+          return (
+            <strong key={index} style={{ fontWeight: 800 }}>
+              {part.text}
+            </strong>
+          );
+        }
+        if (part.underline) {
+          return <u key={index}>{part.text}</u>;
+        }
+        return <span key={index}>{part.text}</span>;
+      })}
+    </>
+  );
 }
 
 function TideAdviceCard({
@@ -242,7 +270,7 @@ function TideAdviceCard({
         {published ? (
           briefingDisplaySections(published).map((section) => (
             <div key={section.key} style={{ marginTop: 10 }}>
-              {section.label !== TIDE_BRIEFING_TITLE ? (
+              {section.key !== 'markdown' && section.label !== TIDE_BRIEFING_TITLE ? (
                 <div style={{ fontSize: 11, fontWeight: 800, color: '#6F767E', fontFamily: FONT }}>
                   {section.label}
                 </div>
@@ -253,13 +281,13 @@ function TideAdviceCard({
                   fontWeight: section.key === 'markdown' ? 500 : 600,
                   color: '#1A1D1F',
                   fontFamily: FONT,
-                  marginTop: 4,
+                  marginTop: section.key === 'markdown' ? 8 : 4,
                   lineHeight: section.key === 'markdown' ? 1.7 : 1.6,
                   whiteSpace: 'pre-line',
                   wordBreak: 'keep-all',
                 }}
               >
-                {section.body}
+                <BriefingRichText text={section.body} />
               </div>
             </div>
           ))

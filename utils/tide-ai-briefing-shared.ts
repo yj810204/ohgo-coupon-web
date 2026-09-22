@@ -111,13 +111,53 @@ function readTextField(raw: TideAiBriefingInput, key: 'summary' | 'rig' | 'opera
   return cleanText(raw[key], key === 'markdown' ? MAX_MARKDOWN : MAX_TEXT);
 }
 
-/** 카드에는 긴 글을 그대로 보여 주고, 제목 마크만 걷어낸다. */
+const SECTION_HEADING_RE = /^(요약|채비|운용|브리핑|개요|총평)$/;
+
+function stripSectionHeadingMarks(line: string): string {
+  return line
+    .replace(/^\s{0,3}#{1,3}\s+/, '')
+    .replace(/^\s*【\s*(.+?)\s*】\s*$/, '$1')
+    .replace(/^\s*\*\*(.+?)\*\*\s*$/, '$1')
+    .replace(/^\s*__(.+?)__\s*$/, '$1')
+    .replace(/^\s*<u>(.+?)<\/u>\s*$/i, '$1')
+    .trim();
+}
+
+/** 카드에는 긴 글을 그대로 보여 주고, 칸 제목(요약·채비·운용)과 제목 마크만 걷어낸다. `**강조**`는 남긴다. */
 export function formatBriefingProse(markdown: string): string {
   return cleanText(markdown, MAX_MARKDOWN)
     .replace(/^\s{0,3}#{1,3}\s+/gm, '')
-    .replace(/^\s*\*\*(.+?)\*\*\s*$/gm, '$1')
     .replace(/^\s*【\s*(.+?)\s*】\s*$/gm, '$1')
+    .split('\n')
+    .filter((line) => !SECTION_HEADING_RE.test(stripSectionHeadingMarks(line)))
+    .join('\n')
     .trim();
+}
+
+export type BriefingInlinePart = {
+  text: string;
+  bold?: boolean;
+  underline?: boolean;
+};
+
+/** `**굵게**` · `__밑줄__` · `<u>밑줄</u>`만 해석한다. 다른 태그는 텍스트로 둔다. */
+export function parseBriefingEmphasis(text: string): BriefingInlinePart[] {
+  const parts: BriefingInlinePart[] = [];
+  const pattern = /\*\*(.+?)\*\*|__(.+?)__|<u>(.+?)<\/u>/gi;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null = pattern.exec(text);
+  while (match) {
+    if (match.index > lastIndex) {
+      parts.push({ text: text.slice(lastIndex, match.index) });
+    }
+    if (match[1] != null) parts.push({ text: match[1], bold: true });
+    else if (match[2] != null) parts.push({ text: match[2], underline: true });
+    else parts.push({ text: match[3], underline: true });
+    lastIndex = match.index + match[0].length;
+    match = pattern.exec(text);
+  }
+  if (lastIndex < text.length) parts.push({ text: text.slice(lastIndex) });
+  return parts.length > 0 ? parts : [{ text }];
 }
 
 export type TideBriefingDisplaySection = {
