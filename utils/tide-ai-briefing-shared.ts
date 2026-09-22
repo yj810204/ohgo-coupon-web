@@ -102,6 +102,174 @@ export function hasTideAiBriefingContent(
   return Boolean(value.summary || value.rig || value.operation || value.markdown);
 }
 
+function hasOwn(raw: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(raw, key);
+}
+
+function readTextField(raw: TideAiBriefingInput, key: 'summary' | 'rig' | 'operation' | 'markdown'): string | undefined {
+  if (!hasOwn(raw, key)) return undefined;
+  return cleanText(raw[key], key === 'markdown' ? MAX_MARKDOWN : MAX_TEXT);
+}
+
+const SECTION_HEADING_RE = /^(요약|채비|운용|브리핑|개요|총평)$/;
+const BRIEFING_TITLE_LINE_RE = /^[「"']?AI\s*출조\s*브리핑/;
+const FULL_GUIDE_MARK_RE = /<(?:u|b|strong|em|br)\b|\*\*|^\s{0,3}#/im;
+
+function stripSectionHeadingMarks(line: string): string {
+  return line
+    .replace(/^\s{0,3}#{1,3}\s+/, '')
+    .replace(/^\s*【\s*(.+?)\s*】\s*$/, '$1')
+    .replace(/^\s*\*\*(.+?)\*\*\s*$/, '$1')
+    .replace(/^\s*__(.+?)__\s*$/, '$1')
+    .replace(/^\s*<(?:u|b|strong|em)>(.+?)<\/(?:u|b|strong|em)>\s*$/i, '$1')
+    .trim();
+}
+
+function isDroppedHeadingLine(line: string): boolean {
+  const bare = stripSectionHeadingMarks(line);
+  return SECTION_HEADING_RE.test(bare) || BRIEFING_TITLE_LINE_RE.test(bare);
+}
+
+/** 카드에는 긴 글을 그대로 보여 주고, 칸 제목·문서 제목 줄만 걷어낸다. `<u>`/`**강조**`는 남긴다. */
+export function formatBriefingProse(markdown: string): string {
+  return cleanText(markdown, MAX_MARKDOWN)
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s*【\s*(.+?)\s*】\s*$/gm, '$1')
+    .split('\n')
+    .filter((line) => !isDroppedHeadingLine(line))
+    .join('\n')
+    .trim();
+}
+
+export function isFullGuideBody(text: string): boolean {
+  const value = text.trim();
+  if (!value) return false;
+  if (FULL_GUIDE_MARK_RE.test(value)) return true;
+  return value.length >= 160;
+}
+
+export const BRIEFING_HTML_TAGS = ['u', 'b', 'strong', 'em', 'br'] as const;
+type BriefingHtmlTag = (typeof BRIEFING_HTML_TAGS)[number];
+
+const BRIEFING_HTML_TAG_SET = new Set<string>(BRIEFING_HTML_TAGS);
+
+export type BriefingMarkupNode =
+  | { type: 'text'; text: string }
+  | { type: 'br' }
+  | { type: Exclude<BriefingHtmlTag, 'br'>; children: BriefingMarkupNode[] };
+
+function isWrapperTag(name: string): name is Exclude<BriefingHtmlTag, 'br'> {
+  return name === 'u' || name === 'b' || name === 'strong' || name === 'em';
+}
+
+/** `**굵게**`만 HTML로 바꾼다. 밑줄은 `<u>`를 쓴다. */
+export function expandBriefingMarkdown(text: string): string {
+  return text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+}
+
+/**
+ * 허용 태그만 남긴다: u, b, strong, em, br.
+ * 속성·스크립트·링크·이미지는 버리고 안쪽 글만 살린다.
+ */
+export function parseBriefingMarkup(text: string): BriefingMarkupNode[] {
+  const source = expandBriefingMarkdown(text);
+  const root: BriefingMarkupNode[] = [];
+  const stack: Array<{ type: Exclude<BriefingHtmlTag, 'br'>; children: BriefingMarkupNode[] }> = [];
+
+  const current = () => (stack.length > 0 ? stack[stack.length - 1].children : root);
+  const pushText = (value: string) => {
+    if (value) current().push({ type: 'text', text: value });
+  };
+
+  const tagRe = /<(\/)?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null = tagRe.exec(source);
+  while (match) {
+    pushText(source.slice(lastIndex, match.index));
+    lastIndex = match.index + match[0].length;
+    const closing = Boolean(match[1]);
+    const name = match[2].toLowerCase();
+    if (!BRIEFING_HTML_TAG_SET.has(name)) {
+      match = tagRe.exec(source);
+      continue;
+    }
+    if (name === 'br') {
+      if (!closing) current().push({ type: 'br' });
+      match = tagRe.exec(source);
+      continue;
+    }
+    if (!isWrapperTag(name)) {
+      match = tagRe.exec(source);
+      continue;
+    }
+    if (closing) {
+      for (let index = stack.length - 1; index >= 0; index -= 1) {
+        if (stack[index].type === name) {
+          stack.length = index;
+          break;
+        }
+      }
+      match = tagRe.exec(source);
+      continue;
+    }
+    const node = { type: name, children: [] as BriefingMarkupNode[] };
+    current().push(node);
+    stack.push(node);
+    match = tagRe.exec(source);
+  }
+  pushText(source.slice(lastIndex));
+  return root;
+}
+
+/** 테스트·간단 렌더용. 트리를 굵게/밑줄 플래그로 펼친다. */
+export function parseBriefingEmphasis(text: string): Array<{ text: string; bold?: boolean; underline?: boolean }> {
+  const parts: Array<{ text: string; bold?: boolean; underline?: boolean }> = [];
+  const walk = (nodes: BriefingMarkupNode[], bold: boolean, underline: boolean) => {
+    for (const node of nodes) {
+      if (node.type === 'text') {
+        const prev = parts[parts.length - 1];
+        if (prev && Boolean(prev.bold) === bold && Boolean(prev.underline) === underline) {
+          prev.text += node.text;
+          continue;
+        }
+        const part: { text: string; bold?: boolean; underline?: boolean } = { text: node.text };
+        if (bold) part.bold = true;
+        if (underline) part.underline = true;
+        parts.push(part);
+        continue;
+      }
+      if (node.type === 'br') {
+        parts.push({ text: '\n' });
+        continue;
+      }
+      walk(node.children, bold || node.type === 'b' || node.type === 'strong', underline || node.type === 'u');
+    }
+  };
+  walk(parseBriefingMarkup(text), false, false);
+  return parts.length > 0 ? parts : [{ text }];
+}
+
+export type TideBriefingDisplaySection = {
+  key: string;
+  label: string;
+  body: string;
+};
+
+/** 긴 markdown/HTML 본문(또는 그 내용이 summary에만 있는 경우)을 한 편의 글로 보여 준다. */
+export function briefingDisplaySections(briefing: TideAiBriefing): TideBriefingDisplaySection[] {
+  const fromMarkdown = formatBriefingProse(briefing.markdown);
+  const fromSummary = isFullGuideBody(briefing.summary) ? formatBriefingProse(briefing.summary) : '';
+  const prose = fromMarkdown || fromSummary;
+  if (prose) {
+    return [{ key: 'markdown', label: TIDE_BRIEFING_TITLE, body: prose }];
+  }
+  return [
+    { key: 'summary', label: '요약', body: briefing.summary },
+    { key: 'rig', label: '채비', body: briefing.rig },
+    { key: 'operation', label: '운용', body: briefing.operation },
+  ].filter((section) => section.body);
+}
+
 /** Firestore setDoc은 undefined를 거절한다. null도 쓰지 않는다. */
 export function omitUndefinedNull<T extends object>(data: T): T {
   return Object.fromEntries(
@@ -111,14 +279,18 @@ export function omitUndefinedNull<T extends object>(data: T): T {
 
 export function normalizeTideAiBriefingInput(raw: TideAiBriefingInput): TideAiBriefingInput & { date: string } {
   const date = typeof raw.date === 'string' ? raw.date.trim() : '';
-  const markdown = cleanText(raw.markdown, MAX_MARKDOWN);
-  const parsed = parseBriefingMarkdown(markdown);
+  const markdown = readTextField(raw, 'markdown') ?? '';
   const title = cleanText(raw.title, 80);
+  function shortField(key: 'summary' | 'rig' | 'operation'): string {
+    if (hasOwn(raw, key)) return cleanText(raw[key]);
+    return '';
+  }
+
   return omitUndefinedNull({
     date,
-    summary: cleanText(raw.summary) || parsed.summary,
-    rig: cleanText(raw.rig) || parsed.rig,
-    operation: cleanText(raw.operation) || parsed.operation,
+    summary: shortField('summary'),
+    rig: shortField('rig'),
+    operation: shortField('operation'),
     markdown,
     species: parseTripSpecies(raw.species ?? []),
     title: title || undefined,
@@ -179,13 +351,12 @@ export function briefingFromUnknown(value: unknown): TideAiBriefing | null {
   const date = typeof dateRaw === 'string' ? dateRaw.split('T')[0] : '';
   if (!TIDE_BRIEFING_DATE_RE.test(date)) return null;
   const markdown = cleanText(row.markdown, MAX_MARKDOWN);
-  const parsed = parseBriefingMarkdown(markdown);
   const briefing = toTideAiBriefing(
     {
       date,
-      summary: cleanText(row.summary) || parsed.summary,
-      rig: cleanText(row.rig) || parsed.rig,
-      operation: cleanText(row.operation) || parsed.operation,
+      summary: cleanText(row.summary),
+      rig: cleanText(row.rig),
+      operation: cleanText(row.operation),
       markdown,
       species: parseTripSpecies((row.species as string[] | string | undefined) ?? []),
       title: cleanText(row.title, 80) || undefined,

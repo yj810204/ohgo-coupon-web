@@ -3,7 +3,11 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  briefingDisplaySections,
+  formatBriefingProse,
   hasTideAiBriefingContent,
+  parseBriefingEmphasis,
+  parseBriefingMarkup,
   isTideAiBriefing,
   normalizeTideAiBriefingInput,
   omitUndefinedNull,
@@ -40,20 +44,151 @@ assert.deepEqual(parseBriefingMarkdown('본문만 있는 경우'), {
   operation: '',
 });
 
-const fromMarkdown = normalizeTideAiBriefingInput({
-  date: '2026-09-23',
-  markdown: `【요약】
-4물 약류
+const longMarkdown = `【요약】
+4물이라 조류가 약합니다. 초보라면 전유동으로 천천히 내려보세요.
 
 **채비**
-전유동
+1.5~2호 구멍찌 전유동, 수중 G2
 
 # 운용
-입질은 만조 전`,
+만조 전후에 입질이 납니다. 정조에는 미끼를 오래 두지 마세요.`;
+
+const fromMarkdown = normalizeTideAiBriefingInput({
+  date: '2026-09-23',
+  markdown: longMarkdown,
 });
-assert.equal(fromMarkdown.summary, '4물 약류');
-assert.equal(fromMarkdown.rig, '전유동');
-assert.equal(fromMarkdown.operation, '입질은 만조 전');
+assert.equal(fromMarkdown.summary, '');
+assert.equal(fromMarkdown.rig, '');
+assert.equal(fromMarkdown.operation, '');
+assert.match(fromMarkdown.markdown ?? '', /초보라면 전유동/);
+
+const cleared = normalizeTideAiBriefingInput({
+  date: '2026-09-23',
+  markdown: longMarkdown,
+  summary: '',
+  rig: '',
+  operation: '',
+});
+assert.equal(cleared.summary, '');
+assert.equal(cleared.rig, '');
+assert.equal(cleared.operation, '');
+
+const keepShorts = normalizeTideAiBriefingInput({
+  date: '2026-09-23',
+  markdown: longMarkdown,
+  summary: '짧은 요약',
+});
+assert.equal(keepShorts.summary, '짧은 요약');
+assert.equal(keepShorts.rig, '');
+assert.equal(keepShorts.operation, '');
+
+const display = briefingDisplaySections(
+  toTideAiBriefing(
+    normalizeTideAiBriefingInput({
+      date: '2026-09-23',
+      summary: '짧은 요약',
+      rig: '짧은 채비',
+      operation: '짧은 운용',
+      markdown: longMarkdown,
+    }),
+  ),
+);
+assert.equal(display.length, 1);
+assert.equal(display[0].key, 'markdown');
+assert.match(display[0].body, /초보라면 전유동/);
+assert.match(display[0].body, /만조 전후/);
+assert.doesNotMatch(display[0].body, /^## /m);
+assert.doesNotMatch(display[0].body, /^요약$/m);
+assert.doesNotMatch(display[0].label, /요약/);
+assert.equal(display[0].label, TIDE_BRIEFING_TITLE);
+assert.equal(formatBriefingProse('## 요약\n긴 글'), '긴 글');
+assert.equal(
+  formatBriefingProse('오늘은 **전유동**이 맞습니다.'),
+  '오늘은 **전유동**이 맞습니다.',
+);
+assert.deepEqual(parseBriefingEmphasis('오늘은 **전유동**이 맞습니다.'), [
+  { text: '오늘은 ' },
+  { text: '전유동', bold: true },
+  { text: '이 맞습니다.' },
+]);
+assert.deepEqual(parseBriefingEmphasis('핵심은 <u>밑줄</u>과 <b>굵게</b>입니다.'), [
+  { text: '핵심은 ' },
+  { text: '밑줄', underline: true },
+  { text: '과 ' },
+  { text: '굵게', bold: true },
+  { text: '입니다.' },
+]);
+assert.deepEqual(parseBriefingMarkup('<u onclick="alert(1)">핵심</u>'), [
+  { type: 'u', children: [{ type: 'text', text: '핵심' }] },
+]);
+assert.deepEqual(
+  parseBriefingEmphasis('클릭 <script>alert(1)</script> <img src=x> <a href="http://x">링크</a> <u>남김</u>'),
+  [{ text: '클릭 alert(1)  링크 ' }, { text: '남김', underline: true }],
+);
+assert.deepEqual(parseBriefingMarkup('한줄<br>다음'), [
+  { type: 'text', text: '한줄' },
+  { type: 'br' },
+  { type: 'text', text: '다음' },
+]);
+assert.deepEqual(parseBriefingMarkup('<strong>굵게</strong>와 <em>기울임</em>'), [
+  { type: 'strong', children: [{ type: 'text', text: '굵게' }] },
+  { type: 'text', text: '와 ' },
+  { type: 'em', children: [{ type: 'text', text: '기울임' }] },
+]);
+
+const productionLikeBody = `# 「AI 출조 브리핑」 — 2026-09-23 (수)
+
+내일은 <u>5물</u>입니다. 물 높이는 새벽 0시 27분 간조 45cm, <u>오전 6시 22분 만조 104cm</u>입니다.`;
+
+const productionDisplay = briefingDisplaySections(
+  toTideAiBriefing({
+    date: '2026-09-23',
+    summary: productionLikeBody,
+    rig: '',
+    operation: '',
+    markdown: productionLikeBody,
+  }),
+);
+assert.equal(productionDisplay.length, 1);
+assert.equal(productionDisplay[0].key, 'markdown');
+assert.equal(productionDisplay[0].label, TIDE_BRIEFING_TITLE);
+assert.doesNotMatch(productionDisplay[0].label, /요약/);
+assert.doesNotMatch(productionDisplay[0].body, /#\s*「AI 출조 브리핑」/);
+assert.doesNotMatch(productionDisplay[0].body, /^「AI 출조 브리핑」/m);
+assert.match(productionDisplay[0].body, /<u>5물<\/u>/);
+assert.deepEqual(parseBriefingEmphasis('내일은 <u>5물</u>입니다.'), [
+  { text: '내일은 ' },
+  { text: '5물', underline: true },
+  { text: '입니다.' },
+]);
+
+const summaryOnlyDisplay = briefingDisplaySections(
+  toTideAiBriefing({
+    date: '2026-09-23',
+    summary: productionLikeBody,
+    markdown: '',
+  }),
+);
+assert.equal(summaryOnlyDisplay[0].key, 'markdown');
+assert.doesNotMatch(summaryOnlyDisplay[0].label, /요약/);
+
+const shortsOnly = briefingDisplaySections(
+  toTideAiBriefing(
+    normalizeTideAiBriefingInput({
+      date: '2026-09-23',
+      summary: '짧은 요약',
+      rig: '짧은 채비',
+      operation: '짧은 운용',
+    }),
+  ),
+);
+assert.deepEqual(shortsOnly.map((section) => section.key), ['summary', 'rig', 'operation']);
+
+const writeCleared = toBriefingWritePayload(toTideAiBriefing(cleared));
+assert.equal(writeCleared.summary, '');
+assert.equal(writeCleared.rig, '');
+assert.equal(writeCleared.operation, '');
+assert.ok(typeof writeCleared.markdown === 'string' && writeCleared.markdown.includes('초보라면'));
 
 const structured = normalizeTideAiBriefingInput({
   date: '2026-09-23',
@@ -125,8 +260,21 @@ const published = await publishTideAiBriefing({
 assert.equal(published.date, '2026-09-23');
 assert.equal((await getTideAiBriefing('2026-09-23'))?.summary, '내일은 4물입니다.');
 
+const republished = await publishTideAiBriefing({
+  date: '2026-09-23',
+  markdown: longMarkdown,
+  summary: '',
+  rig: '',
+  operation: '',
+});
+assert.equal(republished.summary, '');
+assert.equal((await getTideAiBriefing('2026-09-23'))?.summary, '');
+assert.match((await getTideAiBriefing('2026-09-23'))?.markdown ?? '', /초보라면 전유동/);
+
 const raw = JSON.parse(await readFile(process.env.TIDE_BRIEFING_FILE_PATH, 'utf8'));
-assert.equal(raw['2026-09-23'].operation, '만조 전후를 노리세요.');
+assert.equal(raw['2026-09-23'].summary, '');
+assert.equal(raw['2026-09-23'].operation, '');
+assert.match(raw['2026-09-23'].markdown, /초보라면 전유동/);
 assert.equal(Object.hasOwn(raw['2026-09-23'], 'title'), false);
 assert.ok(Object.values(raw['2026-09-23']).every((value) => value !== undefined && value !== null));
 

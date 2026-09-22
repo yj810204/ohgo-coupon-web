@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { format } from 'date-fns';
 import {
   IoChevronBackOutline,
@@ -28,8 +28,11 @@ import {
   type TideFishAdvice,
 } from '@/lib/tide-fish-recommend';
 import {
+  briefingDisplaySections,
   hasTideAiBriefingContent,
   isTideAiBriefing,
+  parseBriefingMarkup,
+  type BriefingMarkupNode,
   TIDE_BRIEFING_EMPTY,
   TIDE_BRIEFING_ONPAGE_FOOTER,
   TIDE_BRIEFING_TITLE,
@@ -77,16 +80,24 @@ function formatSunSatWeekLabel(dateStr: string): string {
   return `${sm}월 ${sd}일 – ${em}월 ${ed}일`;
 }
 
-function briefingSections(briefing: TideAiBriefing) {
-  const sections = [
-    { key: 'summary', label: '요약', body: briefing.summary },
-    { key: 'rig', label: '채비', body: briefing.rig },
-    { key: 'operation', label: '운용', body: briefing.operation },
-  ].filter((section) => section.body);
-  if (sections.length === 0 && briefing.markdown) {
-    return [{ key: 'markdown', label: TIDE_BRIEFING_TITLE, body: briefing.markdown }];
-  }
-  return sections;
+function renderBriefingNodes(nodes: BriefingMarkupNode[], keyPrefix: string): ReactNode[] {
+  return nodes.map((node, index) => {
+    const key = `${keyPrefix}-${index}`;
+    if (node.type === 'text') return <span key={key}>{node.text}</span>;
+    if (node.type === 'br') return <br key={key} />;
+    const children = renderBriefingNodes(node.children, key);
+    if (node.type === 'u') return <u key={key}>{children}</u>;
+    if (node.type === 'em') return <em key={key}>{children}</em>;
+    return (
+      <strong key={key} style={{ fontWeight: 800 }}>
+        {children}
+      </strong>
+    );
+  });
+}
+
+function BriefingRichText({ text }: { text: string }) {
+  return <>{renderBriefingNodes(parseBriefingMarkup(text), 'b')}</>;
 }
 
 function TideAdviceCard({
@@ -251,9 +262,9 @@ function TideAdviceCard({
           {TIDE_BRIEFING_TITLE}
         </div>
         {published ? (
-          briefingSections(published).map((section) => (
+          briefingDisplaySections(published).map((section) => (
             <div key={section.key} style={{ marginTop: 10 }}>
-              {section.label !== TIDE_BRIEFING_TITLE ? (
+              {section.key !== 'markdown' && section.label !== TIDE_BRIEFING_TITLE ? (
                 <div style={{ fontSize: 11, fontWeight: 800, color: '#6F767E', fontFamily: FONT }}>
                   {section.label}
                 </div>
@@ -261,16 +272,16 @@ function TideAdviceCard({
               <div
                 style={{
                   fontSize: 13,
-                  fontWeight: 600,
+                  fontWeight: section.key === 'markdown' ? 500 : 600,
                   color: '#1A1D1F',
                   fontFamily: FONT,
-                  marginTop: 4,
-                  lineHeight: 1.6,
+                  marginTop: section.key === 'markdown' ? 8 : 4,
+                  lineHeight: section.key === 'markdown' ? 1.7 : 1.6,
                   whiteSpace: 'pre-line',
                   wordBreak: 'keep-all',
                 }}
               >
-                {section.body}
+                <BriefingRichText text={section.body} />
               </div>
             </div>
           ))
