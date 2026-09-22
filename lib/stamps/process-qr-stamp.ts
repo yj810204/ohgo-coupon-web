@@ -18,22 +18,9 @@ import { requireFirestoreUserId } from '@/lib/firebase/resolve-user-id';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { notifyStampStaff, sendPushToUser } from '@/utils/send-push';
 import { firebaseQrStampWriteFields } from '@/lib/stamps/firebase-qr-stamp';
+import { getTodayDate, getTodayRange, parseKstDate } from '@/lib/kst-date';
 
 const BOAT_QR_CODE = 'OHGO-STAMP-BOAT19033326262005';
-
-function getTodayDate(): string {
-  return new Date().toISOString().split('T')[0];
-}
-
-/** 관리자 명부 화면과 맞추기 위한 KST YYYY-MM-DD. UTC getTodayDate()와 섞지 않는다. */
-function todayKstDate(): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
-}
 
 function throwNoBoarding(): never {
   const err = new Error('스탬프 적립 전에 승선정보(명부)를 작성해 주세요.');
@@ -67,7 +54,7 @@ async function requireBoardingInfo(userId: string): Promise<{ name: string }> {
 }
 
 async function addUserToTodayAttendance(userId: string): Promise<void> {
-  const date = todayKstDate();
+  const date = getTodayDate();
 
   if (isFirebaseDataSource()) {
     const firestoreUserId = await requireFirestoreUserId(userId);
@@ -116,13 +103,6 @@ async function addUserToTodayAttendance(userId: string): Promise<void> {
   if (error) throw error;
 }
 
-function getTodayRange(): { start: Date; end: Date } {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-  return { start, end };
-}
-
 export async function validateQrCode(qrData: string): Promise<boolean> {
   if (!qrData || typeof qrData !== 'string') return false;
   if (qrData === BOAT_QR_CODE) return true;
@@ -156,7 +136,7 @@ async function addStampFirebase(userId: string): Promise<void> {
     const issuedAt = d.data().issuedAt;
     let issuedDate: Date | null = null;
     if (issuedAt instanceof Timestamp) issuedDate = issuedAt.toDate();
-    if (typeof issuedAt === 'string') issuedDate = new Date(`${issuedAt}T00:00:00`);
+    if (typeof issuedAt === 'string') issuedDate = parseKstDate(issuedAt);
     return issuedDate !== null && issuedDate >= start && issuedDate <= end;
   });
   if (hasUsedToday) {
@@ -314,7 +294,7 @@ async function addStampSupabase(userId: string): Promise<void> {
       return usedDate >= start && usedDate <= end;
     }
     if (c.issued_at) {
-      const issuedDate = new Date(`${c.issued_at}T00:00:00`);
+      const issuedDate = parseKstDate(c.issued_at);
       return issuedDate >= start && issuedDate <= end;
     }
     return false;

@@ -1,3 +1,4 @@
+import { getTodayDate } from '@/lib/kst-date';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import type {
   AdminGuestDetail,
@@ -251,9 +252,7 @@ export async function adjustGuestLegacyStamps(legacyUuid: string, delta: number)
   if (delta === 0) return 0;
   const supabase = getSupabaseBrowserClient();
   const now = new Date().toISOString();
-  const kstDate = new Date();
-  kstDate.setHours(kstDate.getHours() + 9);
-  const dateStr = kstDate.toISOString().split('T')[0];
+  const dateStr = getTodayDate();
 
   if (delta > 0) {
     const rows = Array.from({ length: delta }, (_, i) => ({
