@@ -27,6 +27,14 @@ import {
   TIDE_BOT_POINTER,
   type TideFishAdvice,
 } from '@/lib/tide-fish-recommend';
+import {
+  hasTideAiBriefingContent,
+  isTideAiBriefing,
+  TIDE_BRIEFING_EMPTY,
+  TIDE_BRIEFING_ONPAGE_FOOTER,
+  TIDE_BRIEFING_TITLE,
+  type TideAiBriefing,
+} from '@/utils/tide-ai-briefing-shared';
 import { getSiteSettings } from '@/utils/site-settings-service';
 import { getTripsByMonth, tripDateToStr } from '@/utils/trip-guide-service';
 import { OHGO_CARD, OHGO_FONT } from '@/lib/page-styles';
@@ -69,6 +77,236 @@ function formatSunSatWeekLabel(dateStr: string): string {
   return `${sm}월 ${sd}일 – ${em}월 ${ed}일`;
 }
 
+function briefingSections(briefing: TideAiBriefing) {
+  const sections = [
+    { key: 'summary', label: '요약', body: briefing.summary },
+    { key: 'rig', label: '채비', body: briefing.rig },
+    { key: 'operation', label: '운용', body: briefing.operation },
+  ].filter((section) => section.body);
+  if (sections.length === 0 && briefing.markdown) {
+    return [{ key: 'markdown', label: TIDE_BRIEFING_TITLE, body: briefing.markdown }];
+  }
+  return sections;
+}
+
+function TideAdviceCard({
+  advice,
+  briefing,
+  region,
+  departureTime,
+}: {
+  advice: TideFishAdvice | null;
+  briefing: TideAiBriefing | null;
+  region: TideRegion;
+  departureTime: string;
+}) {
+  const published = briefing && hasTideAiBriefingContent(briefing) ? briefing : null;
+  const species = published?.species.length ? published.species : advice?.species ?? [];
+
+  if (!advice && !published) {
+    return (
+      <div className="mt-3" style={{ ...OHGO_CARD, padding: 16 }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
+          {TIDE_ADVICE_TITLE}
+        </div>
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#6F767E',
+            fontFamily: FONT,
+            marginTop: 8,
+            lineHeight: 1.5,
+            wordBreak: 'keep-all',
+          }}
+        >
+          {TIDE_ADVICE_PENDING}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3" style={{ ...OHGO_CARD, padding: 16 }}>
+      <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
+        {TIDE_ADVICE_TITLE}
+      </div>
+      {advice ? (
+        <>
+          <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 6 }}>
+            {advice.ground || formatTideGround(region)}
+            {` · 출항 ${advice.departureTime || departureTime}`}
+          </div>
+          {species.length > 0 ? (
+            <div className="d-flex flex-wrap gap-2 mt-2 mb-2">
+              {species.map((name) => (
+                <span
+                  key={name}
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 800,
+                    fontFamily: FONT,
+                    color: '#0F4C81',
+                    backgroundColor: '#F3F7FC',
+                    borderRadius: 99,
+                    padding: '6px 10px',
+                  }}
+                >
+                  {name}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {formatTideFactsLine(advice) ? (
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#1A1D1F',
+                fontFamily: FONT,
+                lineHeight: 1.55,
+                marginBottom: 8,
+              }}
+            >
+              {formatTideFactsLine(advice)}
+            </div>
+          ) : null}
+          {advice.currentLabel || advice.rig ? (
+            <div
+              className="d-flex"
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#1A1D1F',
+                fontFamily: FONT,
+                backgroundColor: '#F7F8FA',
+                borderRadius: 10,
+                padding: '8px 10px',
+                marginBottom: 8,
+                lineHeight: 1.55,
+                gap: 12,
+              }}
+            >
+              {advice.currentLabel ? (
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#6F767E' }}>추정 조류</div>
+                  <div style={{ marginTop: 4, whiteSpace: 'pre-line' }}>
+                    {advice.currentLabel.replace(/\d+(?:\.\d+)?kn\s*·\s*/gi, '').replace(/ · /g, '\n')}
+                  </div>
+                </div>
+              ) : null}
+              {advice.currentLabel && advice.rig ? (
+                <div style={{ width: 1, backgroundColor: '#E6E8EC', alignSelf: 'stretch' }} />
+              ) : null}
+              {advice.rig ? (
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#6F767E' }}>
+                    {`오늘 채비 · ${recommendedRigFlow(advice.rig)}`}
+                  </div>
+                  <div style={{ marginTop: 4, whiteSpace: 'pre-line' }}>
+                    {advice.rig
+                      .split(' · ')
+                      .filter((part) => part !== '전유동' && part !== '반유동' && part !== '반유동 고정')
+                      .map((part) =>
+                        recommendedRigFlow(advice.rig) === '전유동'
+                          ? part.replace(/\(막대찌\)/g, '')
+                          : part,
+                      )
+                      .join('\n')}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </>
+      ) : species.length > 0 ? (
+        <div className="d-flex flex-wrap gap-2 mt-2 mb-2">
+          {species.map((name) => (
+            <span
+              key={name}
+              style={{
+                fontSize: 13,
+                fontWeight: 800,
+                fontFamily: FONT,
+                color: '#0F4C81',
+                backgroundColor: '#F3F7FC',
+                borderRadius: 99,
+                padding: '6px 10px',
+              }}
+            >
+              {name}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      <div
+        style={{
+          marginTop: advice ? 4 : 10,
+          paddingTop: 10,
+          borderTop: '1px solid #F7F8FA',
+        }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
+          {TIDE_BRIEFING_TITLE}
+        </div>
+        {published ? (
+          briefingSections(published).map((section) => (
+            <div key={section.key} style={{ marginTop: 10 }}>
+              {section.label !== TIDE_BRIEFING_TITLE ? (
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#6F767E', fontFamily: FONT }}>
+                  {section.label}
+                </div>
+              ) : null}
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#1A1D1F',
+                  fontFamily: FONT,
+                  marginTop: 4,
+                  lineHeight: 1.6,
+                  whiteSpace: 'pre-line',
+                  wordBreak: 'keep-all',
+                }}
+              >
+                {section.body}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#6F767E',
+              fontFamily: FONT,
+              marginTop: 8,
+              lineHeight: 1.5,
+              wordBreak: 'keep-all',
+            }}
+          >
+            {TIDE_BRIEFING_EMPTY}
+          </div>
+        )}
+      </div>
+
+      <div
+        style={{
+          fontSize: 11,
+          color: '#9A9FA5',
+          fontFamily: FONT,
+          marginTop: 12,
+          lineHeight: 1.4,
+          wordBreak: 'keep-all',
+        }}
+      >
+        {published ? TIDE_BRIEFING_ONPAGE_FOOTER : TIDE_BOT_POINTER}
+      </div>
+    </div>
+  );
+}
+
 export default function TideCalendarScreen({
   tideRegionId,
 }: {
@@ -84,6 +322,8 @@ export default function TideCalendarScreen({
   const [tripSpecies, setTripSpecies] = useState<string[]>([]);
   const [hasDayTrip, setHasDayTrip] = useState(false);
   const [dayTripLoaded, setDayTripLoaded] = useState(false);
+  const [briefing, setBriefing] = useState<TideAiBriefing | null>(null);
+  const [briefingLoaded, setBriefingLoaded] = useState(false);
 
   useEffect(() => {
     if (tideRegionId) {
@@ -169,6 +409,28 @@ export default function TideCalendarScreen({
       cancelled = true;
     };
   }, [baseAdvice, selectedDate, region.id, departureTime, tripSpecies]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setBriefing(null);
+    setBriefingLoaded(false);
+    void fetch(`/api/tide/briefing?date=${selectedDate}`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload) => {
+        if (cancelled) return;
+        setBriefing(isTideAiBriefing(payload?.briefing) ? payload.briefing : null);
+        setBriefingLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBriefing(null);
+          setBriefingLoaded(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate]);
 
   const firstDow = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -375,126 +637,13 @@ export default function TideCalendarScreen({
 
       <TripTidePanel date={selectedDate} tideRegionId={region.id} variant="embedded" />
 
-      {dayTripLoaded && !hasDayTrip ? (
-        <div className="mt-3" style={{ ...OHGO_CARD, padding: 16 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
-            {TIDE_ADVICE_TITLE}
-          </div>
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 600,
-              color: '#6F767E',
-              fontFamily: FONT,
-              marginTop: 8,
-              lineHeight: 1.5,
-              wordBreak: 'keep-all',
-            }}
-          >
-            {TIDE_ADVICE_PENDING}
-          </div>
-        </div>
-      ) : advice ? (
-        <div className="mt-3" style={{ ...OHGO_CARD, padding: 16 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
-            {TIDE_ADVICE_TITLE}
-          </div>
-          <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 6 }}>
-            {advice.ground || formatTideGround(region)}
-            {` · 출항 ${advice.departureTime || departureTime}`}
-          </div>
-          <div className="d-flex flex-wrap gap-2 mt-2 mb-2">
-            {advice.species.map((name) => (
-              <span
-                key={name}
-                style={{
-                  fontSize: 13,
-                  fontWeight: 800,
-                  fontFamily: FONT,
-                  color: '#0F4C81',
-                  backgroundColor: '#F3F7FC',
-                  borderRadius: 99,
-                  padding: '6px 10px',
-                }}
-              >
-                {name}
-              </span>
-            ))}
-          </div>
-          {formatTideFactsLine(advice) ? (
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#1A1D1F',
-                fontFamily: FONT,
-                lineHeight: 1.55,
-                marginBottom: 8,
-              }}
-            >
-              {formatTideFactsLine(advice)}
-            </div>
-          ) : null}
-          {advice.currentLabel || advice.rig ? (
-            <div
-              className="d-flex"
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#1A1D1F',
-                fontFamily: FONT,
-                backgroundColor: '#F7F8FA',
-                borderRadius: 10,
-                padding: '8px 10px',
-                marginBottom: 8,
-                lineHeight: 1.55,
-                gap: 12,
-              }}
-            >
-              {advice.currentLabel ? (
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#6F767E' }}>추정 조류</div>
-                  <div style={{ marginTop: 4, whiteSpace: 'pre-line' }}>
-                    {advice.currentLabel.replace(/\d+(?:\.\d+)?kn\s*·\s*/gi, '').replace(/ · /g, '\n')}
-                  </div>
-                </div>
-              ) : null}
-              {advice.currentLabel && advice.rig ? (
-                <div style={{ width: 1, backgroundColor: '#E6E8EC', alignSelf: 'stretch' }} />
-              ) : null}
-              {advice.rig ? (
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#6F767E' }}>
-                    {`오늘 채비 · ${recommendedRigFlow(advice.rig)}`}
-                  </div>
-                  <div style={{ marginTop: 4, whiteSpace: 'pre-line' }}>
-                    {advice.rig
-                      .split(' · ')
-                      .filter((part) => part !== '전유동' && part !== '반유동' && part !== '반유동 고정')
-                      .map((part) =>
-                        recommendedRigFlow(advice.rig) === '전유동'
-                          ? part.replace(/\(막대찌\)/g, '')
-                          : part,
-                      )
-                      .join('\n')}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          <div
-            style={{
-              fontSize: 11,
-              color: '#9A9FA5',
-              fontFamily: FONT,
-              marginTop: 4,
-              lineHeight: 1.4,
-              wordBreak: 'keep-all',
-            }}
-          >
-            {TIDE_BOT_POINTER}
-          </div>
-        </div>
+      {dayTripLoaded && briefingLoaded ? (
+        <TideAdviceCard
+          advice={advice}
+          briefing={briefing}
+          region={region}
+          departureTime={departureTime}
+        />
       ) : null}
     </>
   );

@@ -22,4 +22,5 @@ services:
       - .env.production
     environment:
       KHOA_TIDE_API_KEY: ${KHOA_TIDE_API_KEY:-}
+      TIDE_BRIEFING_PUBLISH_TOKEN: ${TIDE_BRIEFING_PUBLISH_TOKEN:-}
     restart: unless-stopped
