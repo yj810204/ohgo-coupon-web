@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { format } from 'date-fns';
 import {
   IoChevronBackOutline,
@@ -31,7 +31,8 @@ import {
   briefingDisplaySections,
   hasTideAiBriefingContent,
   isTideAiBriefing,
-  parseBriefingEmphasis,
+  parseBriefingMarkup,
+  type BriefingMarkupNode,
   TIDE_BRIEFING_EMPTY,
   TIDE_BRIEFING_ONPAGE_FOOTER,
   TIDE_BRIEFING_TITLE,
@@ -79,31 +80,24 @@ function formatSunSatWeekLabel(dateStr: string): string {
   return `${sm}월 ${sd}일 – ${em}월 ${ed}일`;
 }
 
+function renderBriefingNodes(nodes: BriefingMarkupNode[], keyPrefix: string): ReactNode[] {
+  return nodes.map((node, index) => {
+    const key = `${keyPrefix}-${index}`;
+    if (node.type === 'text') return <span key={key}>{node.text}</span>;
+    if (node.type === 'br') return <br key={key} />;
+    const children = renderBriefingNodes(node.children, key);
+    if (node.type === 'u') return <u key={key}>{children}</u>;
+    if (node.type === 'em') return <em key={key}>{children}</em>;
+    return (
+      <strong key={key} style={{ fontWeight: 800 }}>
+        {children}
+      </strong>
+    );
+  });
+}
+
 function BriefingRichText({ text }: { text: string }) {
-  return (
-    <>
-      {parseBriefingEmphasis(text).map((part, index) => {
-        if (part.bold && part.underline) {
-          return (
-            <strong key={index} style={{ fontWeight: 800 }}>
-              <u>{part.text}</u>
-            </strong>
-          );
-        }
-        if (part.bold) {
-          return (
-            <strong key={index} style={{ fontWeight: 800 }}>
-              {part.text}
-            </strong>
-          );
-        }
-        if (part.underline) {
-          return <u key={index}>{part.text}</u>;
-        }
-        return <span key={index}>{part.text}</span>;
-      })}
-    </>
-  );
+  return <>{renderBriefingNodes(parseBriefingMarkup(text), 'b')}</>;
 }
 
 function TideAdviceCard({

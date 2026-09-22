@@ -7,6 +7,7 @@ import {
   formatBriefingProse,
   hasTideAiBriefingContent,
   parseBriefingEmphasis,
+  parseBriefingMarkup,
   isTideAiBriefing,
   normalizeTideAiBriefingInput,
   omitUndefinedNull,
@@ -110,12 +111,29 @@ assert.deepEqual(parseBriefingEmphasis('오늘은 **전유동**이 맞습니다.
   { text: '전유동', bold: true },
   { text: '이 맞습니다.' },
 ]);
-assert.deepEqual(parseBriefingEmphasis('핵심은 __밑줄__과 <u>태그</u>입니다.'), [
+assert.deepEqual(parseBriefingEmphasis('핵심은 <u>밑줄</u>과 <b>굵게</b>입니다.'), [
   { text: '핵심은 ' },
   { text: '밑줄', underline: true },
   { text: '과 ' },
-  { text: '태그', underline: true },
+  { text: '굵게', bold: true },
   { text: '입니다.' },
+]);
+assert.deepEqual(parseBriefingMarkup('<u onclick="alert(1)">핵심</u>'), [
+  { type: 'u', children: [{ type: 'text', text: '핵심' }] },
+]);
+assert.deepEqual(
+  parseBriefingEmphasis('클릭 <script>alert(1)</script> <img src=x> <a href="http://x">링크</a> <u>남김</u>'),
+  [{ text: '클릭 alert(1)  링크 ' }, { text: '남김', underline: true }],
+);
+assert.deepEqual(parseBriefingMarkup('한줄<br>다음'), [
+  { type: 'text', text: '한줄' },
+  { type: 'br' },
+  { type: 'text', text: '다음' },
+]);
+assert.deepEqual(parseBriefingMarkup('<strong>굵게</strong>와 <em>기울임</em>'), [
+  { type: 'strong', children: [{ type: 'text', text: '굵게' }] },
+  { type: 'text', text: '와 ' },
+  { type: 'em', children: [{ type: 'text', text: '기울임' }] },
 ]);
 
 const shortsOnly = briefingDisplaySections(

@@ -119,7 +119,7 @@ function stripSectionHeadingMarks(line: string): string {
     .replace(/^\s*【\s*(.+?)\s*】\s*$/, '$1')
     .replace(/^\s*\*\*(.+?)\*\*\s*$/, '$1')
     .replace(/^\s*__(.+?)__\s*$/, '$1')
-    .replace(/^\s*<u>(.+?)<\/u>\s*$/i, '$1')
+    .replace(/^\s*<(?:u|b|strong|em)>(.+?)<\/(?:u|b|strong|em)>\s*$/i, '$1')
     .trim();
 }
 
@@ -134,29 +134,104 @@ export function formatBriefingProse(markdown: string): string {
     .trim();
 }
 
-export type BriefingInlinePart = {
-  text: string;
-  bold?: boolean;
-  underline?: boolean;
-};
+export const BRIEFING_HTML_TAGS = ['u', 'b', 'strong', 'em', 'br'] as const;
+type BriefingHtmlTag = (typeof BRIEFING_HTML_TAGS)[number];
 
-/** `**굵게**` · `__밑줄__` · `<u>밑줄</u>`만 해석한다. 다른 태그는 텍스트로 둔다. */
-export function parseBriefingEmphasis(text: string): BriefingInlinePart[] {
-  const parts: BriefingInlinePart[] = [];
-  const pattern = /\*\*(.+?)\*\*|__(.+?)__|<u>(.+?)<\/u>/gi;
+const BRIEFING_HTML_TAG_SET = new Set<string>(BRIEFING_HTML_TAGS);
+
+export type BriefingMarkupNode =
+  | { type: 'text'; text: string }
+  | { type: 'br' }
+  | { type: Exclude<BriefingHtmlTag, 'br'>; children: BriefingMarkupNode[] };
+
+function isWrapperTag(name: string): name is Exclude<BriefingHtmlTag, 'br'> {
+  return name === 'u' || name === 'b' || name === 'strong' || name === 'em';
+}
+
+/** `**굵게**`만 HTML로 바꾼다. 밑줄은 `<u>`를 쓴다. */
+export function expandBriefingMarkdown(text: string): string {
+  return text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+}
+
+/**
+ * 허용 태그만 남긴다: u, b, strong, em, br.
+ * 속성·스크립트·링크·이미지는 버리고 안쪽 글만 살린다.
+ */
+export function parseBriefingMarkup(text: string): BriefingMarkupNode[] {
+  const source = expandBriefingMarkdown(text);
+  const root: BriefingMarkupNode[] = [];
+  const stack: Array<{ type: Exclude<BriefingHtmlTag, 'br'>; children: BriefingMarkupNode[] }> = [];
+
+  const current = () => (stack.length > 0 ? stack[stack.length - 1].children : root);
+  const pushText = (value: string) => {
+    if (value) current().push({ type: 'text', text: value });
+  };
+
+  const tagRe = /<(\/)?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>/g;
   let lastIndex = 0;
-  let match: RegExpExecArray | null = pattern.exec(text);
+  let match: RegExpExecArray | null = tagRe.exec(source);
   while (match) {
-    if (match.index > lastIndex) {
-      parts.push({ text: text.slice(lastIndex, match.index) });
-    }
-    if (match[1] != null) parts.push({ text: match[1], bold: true });
-    else if (match[2] != null) parts.push({ text: match[2], underline: true });
-    else parts.push({ text: match[3], underline: true });
+    pushText(source.slice(lastIndex, match.index));
     lastIndex = match.index + match[0].length;
-    match = pattern.exec(text);
+    const closing = Boolean(match[1]);
+    const name = match[2].toLowerCase();
+    if (!BRIEFING_HTML_TAG_SET.has(name)) {
+      match = tagRe.exec(source);
+      continue;
+    }
+    if (name === 'br') {
+      if (!closing) current().push({ type: 'br' });
+      match = tagRe.exec(source);
+      continue;
+    }
+    if (!isWrapperTag(name)) {
+      match = tagRe.exec(source);
+      continue;
+    }
+    if (closing) {
+      for (let index = stack.length - 1; index >= 0; index -= 1) {
+        if (stack[index].type === name) {
+          stack.length = index;
+          break;
+        }
+      }
+      match = tagRe.exec(source);
+      continue;
+    }
+    const node = { type: name, children: [] as BriefingMarkupNode[] };
+    current().push(node);
+    stack.push(node);
+    match = tagRe.exec(source);
   }
-  if (lastIndex < text.length) parts.push({ text: text.slice(lastIndex) });
+  pushText(source.slice(lastIndex));
+  return root;
+}
+
+/** 테스트·간단 렌더용. 트리를 굵게/밑줄 플래그로 펼친다. */
+export function parseBriefingEmphasis(text: string): Array<{ text: string; bold?: boolean; underline?: boolean }> {
+  const parts: Array<{ text: string; bold?: boolean; underline?: boolean }> = [];
+  const walk = (nodes: BriefingMarkupNode[], bold: boolean, underline: boolean) => {
+    for (const node of nodes) {
+      if (node.type === 'text') {
+        const prev = parts[parts.length - 1];
+        if (prev && Boolean(prev.bold) === bold && Boolean(prev.underline) === underline) {
+          prev.text += node.text;
+          continue;
+        }
+        const part: { text: string; bold?: boolean; underline?: boolean } = { text: node.text };
+        if (bold) part.bold = true;
+        if (underline) part.underline = true;
+        parts.push(part);
+        continue;
+      }
+      if (node.type === 'br') {
+        parts.push({ text: '\n' });
+        continue;
+      }
+      walk(node.children, bold || node.type === 'b' || node.type === 'strong', underline || node.type === 'u');
+    }
+  };
+  walk(parseBriefingMarkup(text), false, false);
   return parts.length > 0 ? parts : [{ text }];
 }
 
