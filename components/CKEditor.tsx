@@ -144,8 +144,11 @@ export default function CKEditorComponent({
         />
       )}
       <style jsx global>{`
-        .ckeditor-wrapper .ck-editor__editable {
+        .ckeditor-wrapper .ck-editor__editable,
+        .ckeditor-wrapper .ck-content {
           min-height: 200px;
+          word-break: keep-all;
+          overflow-wrap: break-word;
         }
         .ckeditor-wrapper .ck-editor__editable:focus {
           border-color: #667eea;

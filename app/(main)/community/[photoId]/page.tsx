@@ -802,12 +802,14 @@ function PhotoDetailContent() {
           </div>
         </div>
         <div
+          className="ohgo-html"
           style={{
             fontSize: 14,
             color: '#1A1D1F',
             fontFamily: OHGO_FONT,
             lineHeight: 1.55,
-            wordBreak: 'break-word',
+            wordBreak: 'keep-all',
+            overflowWrap: 'break-word',
           }}
           dangerouslySetInnerHTML={{
             __html: renderEmojisInText(comment.content.replace(/\n/g, '<br/>'), emojiMap),
@@ -1050,10 +1052,11 @@ function PhotoDetailContent() {
             <>
               {templateHtml ? (
                 <div
-                  className="mb-3"
+                  className="ohgo-html mb-3"
                   style={{
                     lineHeight: 1.6,
-                    wordBreak: 'break-word',
+                    wordBreak: 'keep-all',
+                    overflowWrap: 'break-word',
                     borderBottom: '1px solid #F7F8FA',
                     paddingBottom: 12,
                     fontFamily: OHGO_FONT,
@@ -1065,9 +1068,11 @@ function PhotoDetailContent() {
               ) : null}
               {photo.content ? (
                 <div
+                  className="ohgo-html"
                   style={{
                     lineHeight: 1.6,
-                    wordBreak: 'break-word',
+                    wordBreak: 'keep-all',
+                    overflowWrap: 'break-word',
                     fontFamily: OHGO_FONT,
                     fontSize: 14,
                     color: '#1A1D1F',

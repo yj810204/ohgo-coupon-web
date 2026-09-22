@@ -58,6 +58,7 @@ export default function MyPage() {
   const [adminMenuLabel, setAdminMenuLabel] = useState('관리자 화면');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [isAdminAccount, setIsAdminAccount] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
 
   const loadUser = useCallback(async () => {
     const user = await getUser();
@@ -118,19 +119,48 @@ export default function MyPage() {
   useEffect(() => { loadUser(); }, [loadUser]);
 
   const togglePush = async () => {
-    if (!userInfo?.uuid) return;
+    if (!userInfo?.uuid || pushBusy) return;
+
     if (isPushEnabled) {
+      const prevToken = localStorage.getItem('expoPushToken');
       localStorage.removeItem('expoPushToken');
-      await saveExpoPushToken(userInfo.uuid, null);
       setIsPushEnabled(false);
-    } else {
-      if (isNativeApp()) {
-        const token = await requestPushTokenFromNative();
-        if (token) { await savePushTokenToUser(userInfo.uuid, token); setIsPushEnabled(true); }
-        else alert('푸시 알림 권한이 필요합니다.');
-      } else {
-        alert('웹 브라우저에서는 푸시 알림 설정이 제한적입니다. 앱에서 이용해 주세요.');
+      setPushBusy(true);
+      try {
+        await saveExpoPushToken(userInfo.uuid, null);
+      } catch (err) {
+        console.error(err);
+        if (prevToken) localStorage.setItem('expoPushToken', prevToken);
+        setIsPushEnabled(true);
+        alert('푸시 알림을 끄지 못했습니다. 다시 시도해 주세요.');
+      } finally {
+        setPushBusy(false);
       }
+      return;
+    }
+
+    if (!isNativeApp()) {
+      alert('웹 브라우저에서는 푸시 알림 설정이 제한적입니다. 앱에서 이용해 주세요.');
+      return;
+    }
+
+    setIsPushEnabled(true);
+    setPushBusy(true);
+    try {
+      const token = await requestPushTokenFromNative();
+      if (!token) {
+        setIsPushEnabled(false);
+        alert('푸시 알림 권한이 필요합니다.');
+        return;
+      }
+      await savePushTokenToUser(userInfo.uuid, token);
+    } catch (err) {
+      console.error(err);
+      localStorage.removeItem('expoPushToken');
+      setIsPushEnabled(false);
+      alert('푸시 알림을 켜지 못했습니다. 다시 시도해 주세요.');
+    } finally {
+      setPushBusy(false);
     }
   };
 
@@ -323,7 +353,14 @@ export default function MyPage() {
               <div className="ohgo-menu-list-row__desc">쿠폰 발급, 스탬프 회수 알림</div>
             </div>
             <div className="form-check form-switch mb-0">
-              <input className="form-check-input" type="checkbox" checked={isPushEnabled} onChange={togglePush} style={{ cursor: 'pointer', width: 44, height: 24 }} />
+              <input
+                className="form-check-input"
+                type="checkbox"
+                checked={isPushEnabled}
+                disabled={pushBusy}
+                onChange={() => void togglePush()}
+                style={{ cursor: pushBusy ? 'wait' : 'pointer', width: 44, height: 24 }}
+              />
             </div>
           </div>
           <div style={OHGO_LIST_DIVIDER} />

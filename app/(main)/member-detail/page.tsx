@@ -1321,7 +1321,7 @@ function MemberDetailContent() {
                   <div style={{ fontSize: 11, color: '#6F767E' }}>
                     스탬프 {item.stampCount} · 승선 {item.tripCount}
                   </div>
-                  <div style={{ fontSize: 11, color: '#8A6D1B', wordBreak: 'break-word' }}>
+                  <div style={{ fontSize: 11, color: '#8A6D1B', wordBreak: 'keep-all', overflowWrap: 'break-word' }}>
                     사유 :{' '}
                     {describeDuplicateReason(
                       item.name,

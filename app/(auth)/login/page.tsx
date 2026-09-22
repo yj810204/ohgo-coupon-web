@@ -116,7 +116,7 @@ export default function LoginPage() {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
+        .ohgo-html, .ohgo-html * { word-break: keep-all; overflow-wrap: break-word; }
         h1 { color: #1e88e5; }
         h2 { color: #333; margin-top: 20px; }
         hr { margin: 15px 0; border: 0; border-top: 1px solid #eee; }
@@ -487,6 +487,7 @@ export default function LoginPage() {
         }
       >
         <div
+          className="ohgo-html"
           dangerouslySetInnerHTML={{ __html: privacyHtml }}
           style={{ fontSize: 14, lineHeight: 1.6, color: '#1A1D1F', fontFamily: FONT }}
         />

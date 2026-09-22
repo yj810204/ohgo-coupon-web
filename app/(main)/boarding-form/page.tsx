@@ -18,6 +18,7 @@ import {
   OHGO_INPUT,
   OhgoPageLoading,
 } from '@/lib/page-styles';
+import { OHGO_ISOLATED_HTML_WORD_BREAK_CSS } from '@/lib/html-word-break';
 
 const FIELD_LABEL: CSSProperties = {
   display: 'block',
@@ -114,9 +115,10 @@ const PRIVACY_POLICY_HTML = `
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; }
+    body { font-family: 'SCDream', 'Noto Sans KR', sans-serif; padding: 20px; line-height: 1.6; }
     h1 { color: #1e88e5; }
     h2 { color: #333; margin-top: 20px; }
+    ${OHGO_ISOLATED_HTML_WORD_BREAK_CSS}
   </style>
 </head>
 <body>
@@ -140,9 +142,10 @@ const THIRD_PARTY_HTML = `
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; }
+    body { font-family: 'SCDream', 'Noto Sans KR', sans-serif; padding: 20px; line-height: 1.6; }
     h1 { color: #1e88e5; }
     h2 { color: #333; margin-top: 20px; }
+    ${OHGO_ISOLATED_HTML_WORD_BREAK_CSS}
   </style>
 </head>
 <body>

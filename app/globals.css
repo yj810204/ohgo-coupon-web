@@ -77,6 +77,8 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 body {
@@ -88,6 +90,17 @@ body {
   padding-bottom: 0;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* 정책·게시글·에디터 등 본문 콘텐츠는 단어 단위 줄바꿈 */
+p, h1, h2, h3, h4, h5, h6, li, dt, dd, label, td, th, blockquote,
+.ohgo-html, .ohgo-html *,
+.ohgo-modal__body, .ohgo-modal__body *,
+.ck-editor__editable, .ck-content {
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 /* 페이지 이동 중 — 상단 진행 바 + 작은 토스트 (전체 화면 스피너 대체) */
@@ -1171,6 +1184,8 @@ button:focus-visible,
   font-family: var(--font-ohgo), sans-serif;
   line-height: 1.35;
   width: 100%;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .ohgo-modal__title--danger {
@@ -1525,6 +1540,8 @@ body[data-native-app='true'] .ohgo-modal .modal-footer.ohgo-modal__footer {
   font-family: var(--font-ohgo), sans-serif;
   text-align: center;
   white-space: pre-line;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .ohgo-modal__text--start {
