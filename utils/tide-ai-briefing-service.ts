@@ -26,6 +26,7 @@ export {
   parseBriefingMarkdown,
   briefingDisplaySections,
   formatBriefingProse,
+  isFullGuideBody,
   parseBriefingEmphasis,
   parseBriefingMarkup,
   toBriefingWritePayload,

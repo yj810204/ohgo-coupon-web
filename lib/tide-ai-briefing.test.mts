@@ -136,6 +136,42 @@ assert.deepEqual(parseBriefingMarkup('<strong>굵게</strong>와 <em>기울임</
   { type: 'em', children: [{ type: 'text', text: '기울임' }] },
 ]);
 
+const productionLikeBody = `# 「AI 출조 브리핑」 — 2026-09-23 (수)
+
+내일은 <u>5물</u>입니다. 물 높이는 새벽 0시 27분 간조 45cm, <u>오전 6시 22분 만조 104cm</u>입니다.`;
+
+const productionDisplay = briefingDisplaySections(
+  toTideAiBriefing({
+    date: '2026-09-23',
+    summary: productionLikeBody,
+    rig: '',
+    operation: '',
+    markdown: productionLikeBody,
+  }),
+);
+assert.equal(productionDisplay.length, 1);
+assert.equal(productionDisplay[0].key, 'markdown');
+assert.equal(productionDisplay[0].label, TIDE_BRIEFING_TITLE);
+assert.doesNotMatch(productionDisplay[0].label, /요약/);
+assert.doesNotMatch(productionDisplay[0].body, /#\s*「AI 출조 브리핑」/);
+assert.doesNotMatch(productionDisplay[0].body, /^「AI 출조 브리핑」/m);
+assert.match(productionDisplay[0].body, /<u>5물<\/u>/);
+assert.deepEqual(parseBriefingEmphasis('내일은 <u>5물</u>입니다.'), [
+  { text: '내일은 ' },
+  { text: '5물', underline: true },
+  { text: '입니다.' },
+]);
+
+const summaryOnlyDisplay = briefingDisplaySections(
+  toTideAiBriefing({
+    date: '2026-09-23',
+    summary: productionLikeBody,
+    markdown: '',
+  }),
+);
+assert.equal(summaryOnlyDisplay[0].key, 'markdown');
+assert.doesNotMatch(summaryOnlyDisplay[0].label, /요약/);
+
 const shortsOnly = briefingDisplaySections(
   toTideAiBriefing(
     normalizeTideAiBriefingInput({

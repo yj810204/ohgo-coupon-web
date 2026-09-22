@@ -112,6 +112,8 @@ function readTextField(raw: TideAiBriefingInput, key: 'summary' | 'rig' | 'opera
 }
 
 const SECTION_HEADING_RE = /^(요약|채비|운용|브리핑|개요|총평)$/;
+const BRIEFING_TITLE_LINE_RE = /^[「"']?AI\s*출조\s*브리핑/;
+const FULL_GUIDE_MARK_RE = /<(?:u|b|strong|em|br)\b|\*\*|^\s{0,3}#/im;
 
 function stripSectionHeadingMarks(line: string): string {
   return line
@@ -123,15 +125,27 @@ function stripSectionHeadingMarks(line: string): string {
     .trim();
 }
 
-/** 카드에는 긴 글을 그대로 보여 주고, 칸 제목(요약·채비·운용)과 제목 마크만 걷어낸다. `**강조**`는 남긴다. */
+function isDroppedHeadingLine(line: string): boolean {
+  const bare = stripSectionHeadingMarks(line);
+  return SECTION_HEADING_RE.test(bare) || BRIEFING_TITLE_LINE_RE.test(bare);
+}
+
+/** 카드에는 긴 글을 그대로 보여 주고, 칸 제목·문서 제목 줄만 걷어낸다. `<u>`/`**강조**`는 남긴다. */
 export function formatBriefingProse(markdown: string): string {
   return cleanText(markdown, MAX_MARKDOWN)
-    .replace(/^\s{0,3}#{1,3}\s+/gm, '')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
     .replace(/^\s*【\s*(.+?)\s*】\s*$/gm, '$1')
     .split('\n')
-    .filter((line) => !SECTION_HEADING_RE.test(stripSectionHeadingMarks(line)))
+    .filter((line) => !isDroppedHeadingLine(line))
     .join('\n')
     .trim();
+}
+
+export function isFullGuideBody(text: string): boolean {
+  const value = text.trim();
+  if (!value) return false;
+  if (FULL_GUIDE_MARK_RE.test(value)) return true;
+  return value.length >= 160;
 }
 
 export const BRIEFING_HTML_TAGS = ['u', 'b', 'strong', 'em', 'br'] as const;
@@ -241,9 +255,11 @@ export type TideBriefingDisplaySection = {
   body: string;
 };
 
-/** markdown이 있으면 한 편의 긴 글로 보여 주고, 짧은 칸은 쓰지 않는다. */
+/** 긴 markdown/HTML 본문(또는 그 내용이 summary에만 있는 경우)을 한 편의 글로 보여 준다. */
 export function briefingDisplaySections(briefing: TideAiBriefing): TideBriefingDisplaySection[] {
-  const prose = formatBriefingProse(briefing.markdown);
+  const fromMarkdown = formatBriefingProse(briefing.markdown);
+  const fromSummary = isFullGuideBody(briefing.summary) ? formatBriefingProse(briefing.summary) : '';
+  const prose = fromMarkdown || fromSummary;
   if (prose) {
     return [{ key: 'markdown', label: TIDE_BRIEFING_TITLE, body: prose }];
   }
