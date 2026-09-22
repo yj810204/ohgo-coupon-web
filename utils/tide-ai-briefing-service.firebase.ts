@@ -2,7 +2,10 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase/client';
 import {
   briefingFromUnknown,
+  omitUndefinedNull,
   TIDE_AI_BRIEFING_COLLECTION,
+  toBriefingWritePayload,
+  toTideAiBriefing,
   type TideAiBriefing,
 } from '@/utils/tide-ai-briefing-shared';
 
@@ -14,11 +17,14 @@ export async function getTideAiBriefing(date: string): Promise<TideAiBriefing | 
 
 export async function publishTideAiBriefing(briefing: TideAiBriefing): Promise<TideAiBriefing> {
   const existing = await getTideAiBriefing(briefing.date);
-  const next: TideAiBriefing = {
-    ...briefing,
+  const next = toTideAiBriefing(briefing, {
     publishedAt: existing?.publishedAt || briefing.publishedAt,
     updatedAt: new Date().toISOString(),
-  };
-  await setDoc(doc(getFirebaseDb(), TIDE_AI_BRIEFING_COLLECTION, next.date), next, { merge: true });
+  });
+  await setDoc(
+    doc(getFirebaseDb(), TIDE_AI_BRIEFING_COLLECTION, next.date),
+    omitUndefinedNull(toBriefingWritePayload(next)),
+    { merge: true },
+  );
   return next;
 }

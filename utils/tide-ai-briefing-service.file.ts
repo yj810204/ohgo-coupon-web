@@ -1,6 +1,11 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { briefingFromUnknown, type TideAiBriefing } from '@/utils/tide-ai-briefing-shared';
+import {
+  briefingFromUnknown,
+  toBriefingWritePayload,
+  toTideAiBriefing,
+  type TideAiBriefing,
+} from '@/utils/tide-ai-briefing-shared';
 
 function storePath(): string {
   return process.env.TIDE_BRIEFING_FILE_PATH?.trim() || `${process.cwd()}/.data/tide-ai-briefings.json`;
@@ -32,12 +37,11 @@ export async function getTideAiBriefing(date: string): Promise<TideAiBriefing | 
 export async function publishTideAiBriefing(briefing: TideAiBriefing): Promise<TideAiBriefing> {
   const store = await readStore();
   const existing = briefingFromUnknown(store[briefing.date]);
-  const next: TideAiBriefing = {
-    ...briefing,
+  const next = toTideAiBriefing(briefing, {
     publishedAt: existing?.publishedAt || briefing.publishedAt,
     updatedAt: new Date().toISOString(),
-  };
-  store[next.date] = next;
+  });
+  store[next.date] = toBriefingWritePayload(next);
   await writeStore(store);
   return next;
 }
