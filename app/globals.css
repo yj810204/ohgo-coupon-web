@@ -94,6 +94,11 @@ body {
   overflow-wrap: break-word;
 }
 
+/* 시트/모달이 없는데 overflow:hidden 이 남으면 앱 스크롤이 죽는다 */
+html:not(:has(.ohgo-modal-backdrop)) body:not([data-ohgo-modal-open]):not([data-game-playing='true']) {
+  overflow: unset !important;
+}
+
 /* 정책·게시글·에디터 등 본문 콘텐츠는 단어 단위 줄바꿈 */
 p, h1, h2, h3, h4, h5, h6, li, dt, dd, label, td, th, blockquote,
 .ohgo-html, .ohgo-html *,

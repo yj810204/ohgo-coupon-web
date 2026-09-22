@@ -22,6 +22,7 @@ import {
   isTideFishAdvice,
   parseTripSpecies,
   recommendedRigFlow,
+  TIDE_ADVICE_PENDING,
   TIDE_ADVICE_TITLE,
   TIDE_BOT_POINTER,
   type TideFishAdvice,
@@ -81,6 +82,8 @@ export default function TideCalendarScreen({
   const [region, setRegion] = useState<TideRegion>(() => getTideRegion(tideRegionId));
   const [departures, setDepartures] = useState<string[]>([]);
   const [tripSpecies, setTripSpecies] = useState<string[]>([]);
+  const [hasDayTrip, setHasDayTrip] = useState(false);
+  const [dayTripLoaded, setDayTripLoaded] = useState(false);
 
   useEffect(() => {
     if (tideRegionId) {
@@ -104,6 +107,8 @@ export default function TideCalendarScreen({
     let cancelled = false;
     setDepartures([]);
     setTripSpecies([]);
+    setHasDayTrip(false);
+    setDayTripLoaded(false);
     void getTripsByMonth(selectedDate.slice(0, 7))
       .then((trips) => {
         if (cancelled) return;
@@ -114,11 +119,15 @@ export default function TideCalendarScreen({
           .sort();
         setDepartures(times);
         setTripSpecies(parseTripSpecies(dayTrips.map((trip) => trip.species ?? '')));
+        setHasDayTrip(dayTrips.length > 0);
+        setDayTripLoaded(true);
       })
       .catch(() => {
         if (!cancelled) {
           setDepartures([]);
           setTripSpecies([]);
+          setHasDayTrip(false);
+          setDayTripLoaded(true);
         }
       });
     return () => {
@@ -128,8 +137,11 @@ export default function TideCalendarScreen({
 
   const departureTime = departures[0] || DEFAULT_DEPARTURE;
   const baseAdvice = useMemo(
-    () => getTideFishAdvice(selectedDate, region, { departureTime, species: tripSpecies }),
-    [selectedDate, region, departureTime, tripSpecies],
+    () =>
+      hasDayTrip
+        ? getTideFishAdvice(selectedDate, region, { departureTime, species: tripSpecies })
+        : null,
+    [hasDayTrip, selectedDate, region, departureTime, tripSpecies],
   );
   const [advice, setAdvice] = useState<TideFishAdvice | null>(baseAdvice);
 
@@ -363,7 +375,26 @@ export default function TideCalendarScreen({
 
       <TripTidePanel date={selectedDate} tideRegionId={region.id} variant="embedded" />
 
-      {advice ? (
+      {dayTripLoaded && !hasDayTrip ? (
+        <div className="mt-3" style={{ ...OHGO_CARD, padding: 16 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
+            {TIDE_ADVICE_TITLE}
+          </div>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#6F767E',
+              fontFamily: FONT,
+              marginTop: 8,
+              lineHeight: 1.5,
+              wordBreak: 'keep-all',
+            }}
+          >
+            {TIDE_ADVICE_PENDING}
+          </div>
+        </div>
+      ) : advice ? (
         <div className="mt-3" style={{ ...OHGO_CARD, padding: 16 }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
             {TIDE_ADVICE_TITLE}

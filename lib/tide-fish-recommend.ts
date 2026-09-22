@@ -4,6 +4,7 @@ import { kstDateTimeMs, type TideCurveAnchor, type TideForecastEvent } from '@/l
 export const TIDE_FISH_GROUND = '다대포항 내만권 선상';
 export const DEFAULT_DEPARTURE = '06:00';
 export const TIDE_ADVICE_TITLE = '물때 추천';
+export const TIDE_ADVICE_PENDING = 'AI 브리핑 준비중입니다..';
 export const TIDE_BOT_POINTER = '상세 채비·운용은 전날 오후 8시 오고피씽 AI 브리핑에서 확인하세요.';
 const BOAT_START_HOUR = 4;
 const BOAT_END_HOUR = 18;

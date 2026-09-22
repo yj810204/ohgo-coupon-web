@@ -187,8 +187,22 @@ export async function saveImageToDevice(options: {
   });
 }
 
+const PUSH_DISABLED_KEY = 'expoPushDisabled';
+
+export function isPushOptedOut(): boolean {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem(PUSH_DISABLED_KEY) === '1';
+}
+
+export function setPushOptedOut(disabled: boolean): void {
+  if (typeof window === 'undefined') return;
+  if (disabled) localStorage.setItem(PUSH_DISABLED_KEY, '1');
+  else localStorage.removeItem(PUSH_DISABLED_KEY);
+}
+
 export async function savePushTokenToUser(uuid: string, token: string): Promise<void> {
   if (typeof window === 'undefined') return;
+  if (isPushOptedOut()) return;
   localStorage.setItem('expoPushToken', token);
 
   const { saveExpoPushToken } = await import('@/utils/member-profile-service');

@@ -17,12 +17,16 @@ export type {
   RosterConfig,
   RosterItem,
 };
-export { buildAddress, formatBirthDate };
+export { buildAddress, formatBirthDate, monthRangeFromYearMonth } from './roster-service.shared';
 
 const impl = DATA_SOURCE === 'firebase' ? fb : supa;
 
 export const getMonthRosterSummary: typeof supa.getMonthRosterSummary = (...a) =>
   impl.getMonthRosterSummary(...a);
+export const getCachedMonthRosterSummary: typeof fb.getCachedMonthRosterSummary = (...a) =>
+  impl.getCachedMonthRosterSummary(...a);
+export const peekMonthRosterSummary: typeof fb.peekMonthRosterSummary = (...a) =>
+  DATA_SOURCE === 'firebase' ? fb.peekMonthRosterSummary(...a) : supa.peekMonthRosterSummary(...a);
 export const getYearRosterSummary: typeof supa.getYearRosterSummary = (...a) =>
   impl.getYearRosterSummary(...a);
 export const peekYearRosterSummary: typeof fb.peekYearRosterSummary = (...a) =>

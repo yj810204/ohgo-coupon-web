@@ -49,3 +49,13 @@ export function buildAddress(base: string, detail?: string): string {
   if (!detail?.trim()) return base;
   return `${base} ${detail}`.trim();
 }
+
+/** `yyyy-MM` → 해당 월 1일~말일 */
+export function monthRangeFromYearMonth(yearMonth: string): { startDate: string; endDate: string } {
+  const [y, m] = yearMonth.split('-').map(Number);
+  const last = new Date(y, m, 0).getDate();
+  return {
+    startDate: `${yearMonth}-01`,
+    endDate: `${yearMonth}-${String(last).padStart(2, '0')}`,
+  };
+}

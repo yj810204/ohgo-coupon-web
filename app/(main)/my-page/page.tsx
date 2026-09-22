@@ -4,7 +4,13 @@ import dynamic from 'next/dynamic';
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react';
 import { getUser } from '@/lib/storage';
 import { resolveAppUser, signOutApp } from '@/lib/auth-session';
-import { isNativeApp, requestPushTokenFromNative, savePushTokenToUser } from '@/lib/native-bridge';
+import {
+  isNativeApp,
+  isPushOptedOut,
+  requestPushTokenFromNative,
+  savePushTokenToUser,
+  setPushOptedOut,
+} from '@/lib/native-bridge';
 import { useNavigation } from '@/hooks/useNavigation';
 import { getMemberProfile, saveExpoPushToken, uploadAvatar } from '@/utils/member-profile-service';
 import { getUserPointBalance } from '@/utils/point-mall-service';
@@ -33,6 +39,7 @@ import {
   selfWithdrawSecondConfirmMessage,
 } from '@/lib/member-purge.shared';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
+import OhgoModal, { OhgoModalButton, OhgoModalText } from '@/components/OhgoModal';
 
 const ImageEditor = dynamic(() => import('@/components/ImageEditor'), { ssr: false });
 
@@ -58,14 +65,15 @@ export default function MyPage() {
   const [adminMenuLabel, setAdminMenuLabel] = useState('관리자 화면');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [isAdminAccount, setIsAdminAccount] = useState(false);
-  const [pushBusy, setPushBusy] = useState(false);
+  const [pushRegisteredOpen, setPushRegisteredOpen] = useState(false);
+  const pushOpRef = useRef(0);
 
   const loadUser = useCallback(async () => {
     const user = await getUser();
     if (!user?.uuid) { navigateReplace('/login'); return; }
     setUserInfo(user);
     const token = localStorage.getItem('expoPushToken');
-    setIsPushEnabled(!!token);
+    setIsPushEnabled(!!token && !isPushOptedOut());
     try {
       const appUser = await resolveAppUser();
       const isStaff = !!appUser && (appUser.isAdmin || !!appUser.isCaptain);
@@ -119,22 +127,23 @@ export default function MyPage() {
   useEffect(() => { loadUser(); }, [loadUser]);
 
   const togglePush = async () => {
-    if (!userInfo?.uuid || pushBusy) return;
+    if (!userInfo?.uuid) return;
+    const op = ++pushOpRef.current;
 
     if (isPushEnabled) {
       const prevToken = localStorage.getItem('expoPushToken');
       localStorage.removeItem('expoPushToken');
+      setPushOptedOut(true);
       setIsPushEnabled(false);
-      setPushBusy(true);
       try {
         await saveExpoPushToken(userInfo.uuid, null);
       } catch (err) {
+        if (op !== pushOpRef.current) return;
         console.error(err);
         if (prevToken) localStorage.setItem('expoPushToken', prevToken);
+        setPushOptedOut(false);
         setIsPushEnabled(true);
         alert('푸시 알림을 끄지 못했습니다. 다시 시도해 주세요.');
-      } finally {
-        setPushBusy(false);
       }
       return;
     }
@@ -144,23 +153,27 @@ export default function MyPage() {
       return;
     }
 
+    setPushOptedOut(false);
     setIsPushEnabled(true);
-    setPushBusy(true);
     try {
       const token = await requestPushTokenFromNative();
+      if (op !== pushOpRef.current) return;
       if (!token) {
+        setPushOptedOut(true);
         setIsPushEnabled(false);
         alert('푸시 알림 권한이 필요합니다.');
         return;
       }
       await savePushTokenToUser(userInfo.uuid, token);
+      if (op !== pushOpRef.current) return;
+      setPushRegisteredOpen(true);
     } catch (err) {
+      if (op !== pushOpRef.current) return;
       console.error(err);
       localStorage.removeItem('expoPushToken');
+      setPushOptedOut(true);
       setIsPushEnabled(false);
       alert('푸시 알림을 켜지 못했습니다. 다시 시도해 주세요.');
-    } finally {
-      setPushBusy(false);
     }
   };
 
@@ -357,9 +370,8 @@ export default function MyPage() {
                 className="form-check-input"
                 type="checkbox"
                 checked={isPushEnabled}
-                disabled={pushBusy}
                 onChange={() => void togglePush()}
-                style={{ cursor: pushBusy ? 'wait' : 'pointer', width: 44, height: 24 }}
+                style={{ cursor: 'pointer', width: 44, height: 24 }}
               />
             </div>
           </div>
@@ -450,6 +462,19 @@ export default function MyPage() {
             {isWithdrawing ? '탈퇴 처리 중...' : '회원탈퇴'}
           </button>
         ) : null}
+
+      <OhgoModal
+        open={pushRegisteredOpen}
+        onClose={() => setPushRegisteredOpen(false)}
+        title="푸시 알림"
+        titleTone="brand"
+        closeOnBackdrop
+        footer={
+          <OhgoModalButton onClick={() => setPushRegisteredOpen(false)}>확인</OhgoModalButton>
+        }
+      >
+        <OhgoModalText>푸시 알림이 등록되었습니다.</OhgoModalText>
+      </OhgoModal>
 
       {avatarEditQueue.current ? (
         <ImageEditor

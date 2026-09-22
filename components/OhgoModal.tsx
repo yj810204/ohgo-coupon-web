@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { IconType } from 'react-icons';
+import { lockBodyScroll, unlockBodyScroll } from '@/lib/body-scroll-lock';
 import {
   OHGO_CONFIRM_BTN,
   OHGO_CONFIRM_BTN_CLASS,
@@ -51,12 +52,9 @@ export default function OhgoModal({
 
   useEffect(() => {
     if (!open) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.body.setAttribute('data-ohgo-modal-open', 'true');
+    lockBodyScroll();
     return () => {
-      document.body.style.overflow = prevOverflow;
-      document.body.removeAttribute('data-ohgo-modal-open');
+      unlockBodyScroll();
     };
   }, [open]);
 

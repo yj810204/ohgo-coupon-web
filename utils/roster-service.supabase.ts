@@ -1,15 +1,19 @@
+import { cachedFetch, invalidateCache, peekCache } from '@/lib/query-cache';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { personIdentityKey } from '@/lib/person-name';
 import { findCaptains } from './find-captains.supabase';
 import {
   buildAddress,
   formatBirthDate,
+  monthRangeFromYearMonth,
   type AttendanceRecord,
   type ConfirmedTrip,
   type MonthRosterSummary,
   type RosterConfig,
   type RosterItem,
 } from './roster-service.shared';
+
+const MONTH_SUMMARY_TTL_MS = 300_000;
 
 function mapMembers(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
@@ -53,12 +57,25 @@ export async function getMonthRosterSummary(
   return { datesWithRoster, confirmedTrips };
 }
 
-export async function getYearRosterSummary(year: number): Promise<MonthRosterSummary> {
-  return getMonthRosterSummary(`${year}-01-01`, `${year}-12-31`);
+export async function getCachedMonthRosterSummary(yearMonth: string): Promise<MonthRosterSummary> {
+  const { startDate, endDate } = monthRangeFromYearMonth(yearMonth);
+  return cachedFetch(`roster:month:${yearMonth}`, MONTH_SUMMARY_TTL_MS, () =>
+    getMonthRosterSummary(startDate, endDate)
+  );
 }
 
-export function peekYearRosterSummary(_year: number): MonthRosterSummary | undefined {
-  return undefined;
+export function peekMonthRosterSummary(yearMonth: string): MonthRosterSummary | undefined {
+  return peekCache<MonthRosterSummary>(`roster:month:${yearMonth}`);
+}
+
+export async function getYearRosterSummary(year: number): Promise<MonthRosterSummary> {
+  return cachedFetch(`roster:year:${year}`, MONTH_SUMMARY_TTL_MS, () =>
+    getMonthRosterSummary(`${year}-01-01`, `${year}-12-31`)
+  );
+}
+
+export function peekYearRosterSummary(year: number): MonthRosterSummary | undefined {
+  return peekCache<MonthRosterSummary>(`roster:year:${year}`);
 }
 
 export async function getYearConfirmedTripCount(year: number): Promise<number> {
@@ -74,8 +91,14 @@ export async function getYearConfirmedTripCount(year: number): Promise<number> {
   return count ?? 0;
 }
 
-export function invalidateRosterSummaryCache(_year?: number): void {
-  // Supabase 경로는 서버 쿼리라 클라이언트 요약 캐시 없음
+export function invalidateRosterSummaryCache(year?: number): void {
+  if (year != null) {
+    invalidateCache(`roster:year:${year}`);
+    invalidateCache(`roster:month:${year}-`);
+    return;
+  }
+  invalidateCache('roster:year:');
+  invalidateCache('roster:month:');
 }
 
 export async function getConfirmedTrip(date: string, tripNumber: number): Promise<ConfirmedTrip | null> {

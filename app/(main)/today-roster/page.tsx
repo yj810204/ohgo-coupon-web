@@ -6,8 +6,8 @@ import { useLoading } from '@/contexts/LoadingContext';
 import { getUser } from '@/lib/storage';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, getDay, eachDayOfInterval } from 'date-fns';
 import {
-  getYearRosterSummary,
-  peekYearRosterSummary,
+  getCachedMonthRosterSummary,
+  peekMonthRosterSummary,
   getConfirmedTrip,
   invalidateRosterSummaryCache,
   type MonthRosterSummary,
@@ -27,46 +27,29 @@ const TODAY_ACCENT = '#E65100';
 const TODAY_BG = '#FFF3E0';
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 
-function filterMonthSummary(
-  yearSummary: MonthRosterSummary,
-  monthStart: Date,
-  monthEnd: Date
-): { datesWithRoster: string[]; confirmedTrips: Record<string, number[]> } {
-  const start = format(monthStart, 'yyyy-MM-dd');
-  const end = format(monthEnd, 'yyyy-MM-dd');
-  const datesWithRoster = yearSummary.datesWithRoster.filter((d) => d >= start && d <= end);
-  const confirmedTrips: Record<string, number[]> = {};
-  Object.entries(yearSummary.confirmedTrips).forEach(([date, trips]) => {
-    if (date >= start && date <= end) confirmedTrips[date] = trips;
-  });
-  return { datesWithRoster, confirmedTrips };
-}
-
 export default function TodayRosterPage() {
   const router = useRouter();
   const { setLoading: setNavLoading } = useLoading();
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const initialYear = currentMonth.getFullYear();
-  const cachedInitial = peekYearRosterSummary(initialYear);
+  const initialMonthKey = format(currentMonth, 'yyyy-MM');
+  const cachedInitial = peekMonthRosterSummary(initialMonthKey);
   const [loading, setLoading] = useState(!cachedInitial);
   const [modalVisible, setModalVisible] = useState(false);
   const [tempSelectedDate, setTempSelectedDate] = useState<Date | null>(null);
-  const [yearSummary, setYearSummary] = useState<MonthRosterSummary | null>(cachedInitial ?? null);
-  const [loadedYear, setLoadedYear] = useState<number | null>(cachedInitial ? initialYear : null);
+  const [monthSummary, setMonthSummary] = useState<MonthRosterSummary | null>(cachedInitial ?? null);
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(cachedInitial ? initialMonthKey : null);
 
   const year = currentMonth.getFullYear();
   const monthKey = format(currentMonth, 'yyyy-MM');
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
 
-  const { confirmedTrips } = useMemo(() => {
-    if (!yearSummary || loadedYear !== year) {
-      return { confirmedTrips: {} as Record<string, number[]> };
+  const confirmedTrips = useMemo(() => {
+    if (!monthSummary || loadedMonth !== monthKey) {
+      return {} as Record<string, number[]>;
     }
-    return filterMonthSummary(yearSummary, monthStart, monthEnd);
-    // monthKey로 월 단위만 추적 (Date 객체 참조 변화로 인한 재계산 방지)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [yearSummary, loadedYear, year, monthKey]);
+    return monthSummary.confirmedTrips;
+  }, [monthSummary, loadedMonth, monthKey]);
 
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
   const startDay = getDay(monthStart);
@@ -87,14 +70,13 @@ export default function TodayRosterPage() {
     checkAuth();
   }, [router]);
 
-  const fetchYearSummary = useCallback(
+  const fetchMonthSummary = useCallback(
     async (forceRefresh = false) => {
-      // remount/뒤로가기: 캐시가 있으면 스피너 없이 즉시 표시
       if (!forceRefresh) {
-        const cached = peekYearRosterSummary(year);
+        const cached = peekMonthRosterSummary(monthKey);
         if (cached) {
-          setYearSummary(cached);
-          setLoadedYear(year);
+          setMonthSummary(cached);
+          setLoadedMonth(monthKey);
           setLoading(false);
           return;
         }
@@ -105,21 +87,28 @@ export default function TodayRosterPage() {
         if (forceRefresh) {
           invalidateRosterSummaryCache(year);
         }
-        const summary = await getYearRosterSummary(year);
-        setYearSummary(summary);
-        setLoadedYear(year);
+        const summary = await getCachedMonthRosterSummary(monthKey);
+        setMonthSummary(summary);
+        setLoadedMonth(monthKey);
       } catch (error) {
         console.error('Error fetching roster data:', error);
       } finally {
         setLoading(false);
       }
     },
-    [year]
+    [monthKey, year]
   );
 
   useEffect(() => {
-    fetchYearSummary(false);
-  }, [fetchYearSummary]);
+    fetchMonthSummary(false);
+  }, [fetchMonthSummary]);
+
+  useEffect(() => {
+    if (loadedMonth !== monthKey) return;
+    const base = new Date(`${monthKey}-01T00:00:00`);
+    void getCachedMonthRosterSummary(format(subMonths(base, 1), 'yyyy-MM'));
+    void getCachedMonthRosterSummary(format(addMonths(base, 1), 'yyyy-MM'));
+  }, [loadedMonth, monthKey]);
 
   const prevMonth = () => {
     setCurrentMonth(subMonths(currentMonth, 1));
@@ -185,11 +174,11 @@ export default function TodayRosterPage() {
   };
 
   useNativePullToRefresh(async () => {
-    await fetchYearSummary(true);
+    await fetchMonthSummary(true);
   });
 
   return (
-    <SubPageFrame title="명부 관리" onRefresh={async () => { await fetchYearSummary(true); }}>
+    <SubPageFrame title="명부 관리" onRefresh={async () => { await fetchMonthSummary(true); }}>
         <div className="position-relative mb-4" style={{ ...CARD, overflow: 'hidden' }}>
           {loading && (
             <div

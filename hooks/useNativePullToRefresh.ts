@@ -14,6 +14,30 @@ function getScrollTop(): number {
   );
 }
 
+function isUiLocked(): boolean {
+  return (
+    document.body.getAttribute('data-ohgo-modal-open') === 'true' ||
+    document.body.getAttribute('data-game-playing') === 'true' ||
+    Boolean(document.querySelector('.ohgo-modal-backdrop'))
+  );
+}
+
+function isInsideScrollable(target: EventTarget | null): boolean {
+  let node = target instanceof Element ? target : null;
+  while (node && node !== document.body && node !== document.documentElement) {
+    const style = window.getComputedStyle(node);
+    const overflowY = style.overflowY;
+    if (
+      (overflowY === 'auto' || overflowY === 'scroll') &&
+      node.scrollHeight > node.clientHeight + 1
+    ) {
+      return true;
+    }
+    node = node.parentElement;
+  }
+  return false;
+}
+
 function ensureIndicator(): void {
   if (document.getElementById('ohgo-ptr-indicator')) return;
   const el = document.createElement('div');
@@ -50,7 +74,10 @@ function installDocumentPullGesture(): () => void {
   };
 
   const onTouchStart = (e: TouchEvent) => {
-    if (refreshing) return;
+    if (refreshing || isUiLocked() || isInsideScrollable(e.target)) {
+      startY = 0;
+      return;
+    }
     if (getScrollTop() > 2) {
       startY = 0;
       return;
@@ -61,8 +88,8 @@ function installDocumentPullGesture(): () => void {
   };
 
   const onTouchMove = (e: TouchEvent) => {
-    if (refreshing || startY <= 0) return;
-    if (getScrollTop() > 2) {
+    if (refreshing || startY <= 0 || isUiLocked()) return;
+    if (isInsideScrollable(e.target) || getScrollTop() > 2) {
       resetPullUi();
       return;
     }
@@ -76,7 +103,8 @@ function installDocumentPullGesture(): () => void {
     document.body.classList.add('ohgo-ptr-active');
     document.body.style.setProperty('--ohgo-ptr-pull', `${Math.min(dy * 0.45, 96)}px`);
 
-    if (dy > 16 && e.cancelable) {
+    // 확실한 당김일 때만 네이티브 스크롤을 막는다. 약한 제스처 preventDefault는 WebView에서 스크롤이 죽을 수 있다.
+    if (pulling && dy > 28 && e.cancelable) {
       e.preventDefault();
     }
   };
@@ -105,10 +133,18 @@ function installDocumentPullGesture(): () => void {
     }, 900);
   };
 
+  const onInterrupt = () => {
+    if (refreshing) return;
+    resetPullUi();
+    startY = 0;
+  };
+
   document.addEventListener('touchstart', onTouchStart, { passive: true });
   document.addEventListener('touchmove', onTouchMove, { passive: false });
   document.addEventListener('touchend', onTouchEnd, { passive: true });
   document.addEventListener('touchcancel', onTouchEnd, { passive: true });
+  window.addEventListener('pageshow', onInterrupt);
+  document.addEventListener('visibilitychange', onInterrupt);
 
   return () => {
     gestureRefCount = Math.max(0, gestureRefCount - 1);
@@ -118,6 +154,8 @@ function installDocumentPullGesture(): () => void {
     document.removeEventListener('touchmove', onTouchMove);
     document.removeEventListener('touchend', onTouchEnd);
     document.removeEventListener('touchcancel', onTouchEnd);
+    window.removeEventListener('pageshow', onInterrupt);
+    document.removeEventListener('visibilitychange', onInterrupt);
     document.body.classList.remove('ohgo-ptr-active', 'ohgo-ptr-refreshing');
     document.body.style.removeProperty('--ohgo-ptr-pull');
   };

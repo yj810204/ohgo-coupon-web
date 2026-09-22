@@ -54,6 +54,7 @@ import {
 import EmptyState from '@/components/EmptyState';
 import ImageSwipeSlider from '@/components/ImageSwipeSlider';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
+import { lockBodyScroll, unlockBodyScroll } from '@/lib/body-scroll-lock';
 import { displayMemberName, maskAuthorName } from '@/lib/mask-member-name';
 
 const SECTION_TITLE: CSSProperties = {
@@ -437,8 +438,7 @@ function PhotoDetailContent() {
 
   useEffect(() => {
     if (previewIndex == null) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    lockBodyScroll();
     const urlCount =
       photo?.imageUrls && photo.imageUrls.length > 0
         ? photo.imageUrls.length
@@ -456,7 +456,7 @@ function PhotoDetailContent() {
     };
     window.addEventListener('keydown', onKey);
     return () => {
-      document.body.style.overflow = prevOverflow;
+      unlockBodyScroll();
       window.removeEventListener('keydown', onKey);
     };
   }, [previewIndex, photo]);

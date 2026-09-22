@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { addMonths, endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
+import { addMonths, format, subMonths } from 'date-fns';
 import {
-  getYearRosterSummary,
+  getCachedMonthRosterSummary,
+  getYearConfirmedTripCount,
   invalidateRosterSummaryCache,
+  peekMonthRosterSummary,
   peekYearRosterSummary,
   type MonthRosterSummary,
 } from '@/utils/roster-service';
@@ -21,14 +23,8 @@ import { OHGO_CARD, OHGO_FONT, OhgoPageLoading } from '@/lib/page-styles';
 
 const CARD: React.CSSProperties = { ...OHGO_CARD };
 
-function filterMonthTrips(yearSummary: MonthRosterSummary, monthStart: Date, monthEnd: Date): number {
-  const start = format(monthStart, 'yyyy-MM-dd');
-  const end = format(monthEnd, 'yyyy-MM-dd');
-  let count = 0;
-  Object.entries(yearSummary.confirmedTrips).forEach(([date, trips]) => {
-    if (date >= start && date <= end) count += trips.length;
-  });
-  return count;
+function countConfirmedTrips(summary: MonthRosterSummary): number {
+  return Object.values(summary.confirmedTrips).reduce((sum, nums) => sum + nums.length, 0);
 }
 
 function StatCard({
@@ -67,18 +63,23 @@ export default function AdminDepartureInfoPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const year = currentMonth.getFullYear();
   const monthKey = format(currentMonth, 'yyyy-MM');
-  const cachedInitial = peekYearRosterSummary(year);
-  const [yearSummary, setYearSummary] = useState<MonthRosterSummary | null>(cachedInitial ?? null);
-  const [loadedYear, setLoadedYear] = useState<number | null>(cachedInitial ? year : null);
+  const cachedInitial = peekMonthRosterSummary(monthKey);
+  const yearCached = peekYearRosterSummary(year);
+  const [monthSummary, setMonthSummary] = useState<MonthRosterSummary | null>(cachedInitial ?? null);
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(cachedInitial ? monthKey : null);
+  const [yearTrips, setYearTrips] = useState<number | null>(
+    yearCached ? countConfirmedTrips(yearCached) : null
+  );
+  const [loadedYear, setLoadedYear] = useState<number | null>(yearCached ? year : null);
   const [loading, setLoading] = useState(!cachedInitial);
 
-  const fetchYearSummary = useCallback(
+  const fetchMonthSummary = useCallback(
     async (forceRefresh = false) => {
       if (!forceRefresh) {
-        const cached = peekYearRosterSummary(year);
+        const cached = peekMonthRosterSummary(monthKey);
         if (cached) {
-          setYearSummary(cached);
-          setLoadedYear(year);
+          setMonthSummary(cached);
+          setLoadedMonth(monthKey);
           setLoading(false);
           return;
         }
@@ -89,9 +90,14 @@ export default function AdminDepartureInfoPage() {
         if (forceRefresh) {
           invalidateRosterSummaryCache(year);
         }
-        const summary = await getYearRosterSummary(year);
-        setYearSummary(summary);
-        setLoadedYear(year);
+        const summary = await getCachedMonthRosterSummary(monthKey);
+        setMonthSummary(summary);
+        setLoadedMonth(monthKey);
+        if (forceRefresh) {
+          const count = await getYearConfirmedTripCount(year);
+          setYearTrips(count);
+          setLoadedYear(year);
+        }
       } catch (error) {
         console.error('Error fetching departure stats:', error);
         alert('출항 정보를 불러오지 못했습니다.');
@@ -99,30 +105,45 @@ export default function AdminDepartureInfoPage() {
         setLoading(false);
       }
     },
-    [year]
+    [monthKey, year]
   );
 
   useEffect(() => {
-    if (ready) void fetchYearSummary(false);
-  }, [ready, fetchYearSummary]);
+    if (ready) void fetchMonthSummary(false);
+  }, [ready, fetchMonthSummary]);
 
-  useNativePullToRefresh(() => fetchYearSummary(true));
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const count = await getYearConfirmedTripCount(year);
+        if (!cancelled) {
+          setYearTrips(count);
+          setLoadedYear(year);
+        }
+      } catch (error) {
+        console.warn('Error fetching year trip count:', error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, year]);
+
+  useNativePullToRefresh(() => fetchMonthSummary(true));
 
   const monthTrips = useMemo(() => {
-    if (!yearSummary || loadedYear !== year) return 0;
-    return filterMonthTrips(yearSummary, startOfMonth(currentMonth), endOfMonth(currentMonth));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [yearSummary, loadedYear, year, monthKey]);
+    if (!monthSummary || loadedMonth !== monthKey) return 0;
+    return countConfirmedTrips(monthSummary);
+  }, [monthSummary, loadedMonth, monthKey]);
 
-  const yearTrips = useMemo(() => {
-    if (!yearSummary || loadedYear !== year) return 0;
-    return Object.values(yearSummary.confirmedTrips).reduce((sum, nums) => sum + nums.length, 0);
-  }, [yearSummary, loadedYear, year]);
+  const yearTripsDisplay = loadedYear === year ? yearTrips ?? 0 : 0;
 
   if (!ready) return <OhgoPageLoading />;
 
   return (
-    <SubPageFrame title="출항 정보" onRefresh={() => fetchYearSummary(true)}>
+    <SubPageFrame title="출항 정보" onRefresh={() => fetchMonthSummary(true)}>
       <div className="d-flex align-items-center justify-content-between mb-3">
         <button
           type="button"
@@ -145,7 +166,7 @@ export default function AdminDepartureInfoPage() {
         </button>
       </div>
 
-      {loading && !yearSummary ? (
+      {loading && !monthSummary ? (
         <OhgoPageLoading />
       ) : (
         <div
@@ -167,7 +188,7 @@ export default function AdminDepartureInfoPage() {
             iconBg="#E8F8EE"
             iconColor="#34C759"
             label={`${year}년 누적 출항수`}
-            value={`${yearTrips.toLocaleString()}회`}
+            value={`${yearTripsDisplay.toLocaleString()}회`}
           />
         </div>
       )}

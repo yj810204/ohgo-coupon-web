@@ -22,12 +22,35 @@ import { findCaptains } from './find-captains.firebase';
 import {
   buildAddress,
   formatBirthDate,
+  monthRangeFromYearMonth,
   type AttendanceRecord,
   type ConfirmedTrip,
   type MonthRosterSummary,
   type RosterConfig,
   type RosterItem,
 } from './roster-service.shared';
+
+const RANGE_TIMEOUT_MS = 5_000;
+const DAY_FALLBACK_MAX_DAYS = 31;
+const MONTH_SUMMARY_TTL_MS = 300_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`[roster] ${label} timed out after ${ms}ms`));
+    }, ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
 
 function eachDate(startDate: string, endDate: string): string[] {
   const out: string[] = [];
@@ -128,20 +151,50 @@ export async function getMonthRosterSummary(
   startDate: string,
   endDate: string
 ): Promise<MonthRosterSummary> {
+  const deadline = Date.now() + RANGE_TIMEOUT_MS;
   try {
-    return await getMonthRosterSummaryByRange(startDate, endDate);
+    return await withTimeout(
+      getMonthRosterSummaryByRange(startDate, endDate),
+      RANGE_TIMEOUT_MS,
+      'range query'
+    );
   } catch (e) {
-    console.warn('[roster] range query failed, falling back to per-day getDoc:', e);
-    return getMonthRosterSummaryByDay(startDate, endDate);
+    const dayCount = eachDate(startDate, endDate).length;
+    const remaining = deadline - Date.now();
+    if (dayCount > DAY_FALLBACK_MAX_DAYS || remaining <= 200) {
+      console.warn('[roster] range query failed; skip year-wide per-day fallback:', e);
+      throw e;
+    }
+    console.warn('[roster] range query failed, month per-day fallback:', e);
+    return withTimeout(
+      getMonthRosterSummaryByDay(startDate, endDate),
+      remaining,
+      'per-day fallback'
+    );
   }
 }
 
 const YEAR_SUMMARY_TTL_MS = 300_000; // 5분 — 미리보기 왕복 시 재로딩 방지
 
+export async function getCachedMonthRosterSummary(yearMonth: string): Promise<MonthRosterSummary> {
+  const { startDate, endDate } = monthRangeFromYearMonth(yearMonth);
+  return cachedFetch(`roster:month:${yearMonth}`, MONTH_SUMMARY_TTL_MS, () =>
+    getMonthRosterSummary(startDate, endDate)
+  );
+}
+
+export function peekMonthRosterSummary(yearMonth: string): MonthRosterSummary | undefined {
+  return peekCache<MonthRosterSummary>(`roster:month:${yearMonth}`);
+}
+
 export async function getYearRosterSummary(year: number): Promise<MonthRosterSummary> {
   const key = `roster:year:${year}`;
   return cachedFetch(key, YEAR_SUMMARY_TTL_MS, () =>
-    getMonthRosterSummary(`${year}-01-01`, `${year}-12-31`)
+    withTimeout(
+      getMonthRosterSummaryByRange(`${year}-01-01`, `${year}-12-31`),
+      RANGE_TIMEOUT_MS,
+      'year range query'
+    )
   );
 }
 
@@ -151,13 +204,41 @@ export function peekYearRosterSummary(year: number): MonthRosterSummary | undefi
 }
 
 export async function getYearConfirmedTripCount(year: number): Promise<number> {
-  const summary = await getYearRosterSummary(year);
-  return Object.values(summary.confirmedTrips).reduce((sum, nums) => sum + nums.length, 0);
+  return cachedFetch(`roster:year-count:${year}`, YEAR_SUMMARY_TTL_MS, async () => {
+    const db = getFirebaseDb();
+    const snap = await withTimeout(
+      getDocs(
+        query(
+          collection(db, 'trips'),
+          orderBy(documentId()),
+          startAt(`${year}-01-01`),
+          endAt(`${year}-12-31`)
+        )
+      ),
+      RANGE_TIMEOUT_MS,
+      'year trip count'
+    );
+    let count = 0;
+    snap.docs.forEach((d) => {
+      const data = d.data();
+      for (let n = 1; n <= 3; n++) {
+        if (data[tripKey(n)]?.confirmed) count += 1;
+      }
+    });
+    return count;
+  });
 }
 
 export function invalidateRosterSummaryCache(year?: number): void {
-  if (year != null) invalidateCache(`roster:year:${year}`);
-  else invalidateCache('roster:year:');
+  if (year != null) {
+    invalidateCache(`roster:year:${year}`);
+    invalidateCache(`roster:year-count:${year}`);
+    invalidateCache(`roster:month:${year}-`);
+    return;
+  }
+  invalidateCache('roster:year:');
+  invalidateCache('roster:year-count:');
+  invalidateCache('roster:month:');
 }
 
 export async function getConfirmedTrip(

@@ -85,8 +85,6 @@ function MemberKeyStats({ member }: { member: Member }) {
 const STORAGE_KEY = 'collapsedSections';
 const MEMBERS_CACHE_KEY = 'cachedMembers';
 const MEMBER_LIST_QUERY_KEY = 'adminMemberListQuery';
-/** 즉시 표시용 캐시 TTL — 만료 전이라도 백그라운드에서 항상 재검증 */
-const CACHE_EXPIRY_TIME = 1000 * 60 * 5; // 5 minutes
 
 const MEMBER_LIST_FILTERS: MemberListFilter[] = [
   'all',
@@ -410,7 +408,7 @@ function buildTodayMemberSections(
 
 export default function AdminPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false); // 초기 로딩 표시 제거 - 비동기로 조용히 로드
+  const [loading, setLoading] = useState(true);
   const [allMembers, setAllMembers] = useState<Member[]>([]);
   const [todayMembers, setTodayMembers] = useState<Member[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
@@ -590,7 +588,7 @@ export default function AdminPage() {
   };
 
   const fetchMembers = async (forceRefresh = false) => {
-    // stale-while-revalidate: 캐시가 있으면 즉시 표시하되, 항상 서버에서 재검증
+    // stale-while-revalidate: 캐시가 있으면(만료여도) 즉시 표시하고, 항상 서버에서 재검증
     if (!forceRefresh && typeof window !== 'undefined') {
       try {
         const cachedData = localStorage.getItem(MEMBERS_CACHE_KEY);
@@ -602,7 +600,7 @@ export default function AdminPage() {
             sections: cachedSections,
           } = JSON.parse(cachedData);
 
-          if (Date.now() - timestamp < CACHE_EXPIRY_TIME) {
+          if (Array.isArray(members) && members.length > 0) {
             setAllMembers(members);
             setTodayMembers(cachedTodayMembers);
             const query = listQueryRef.current;
@@ -619,6 +617,7 @@ export default function AdminPage() {
             setSections(visible);
             hasLoadedRef.current = true;
             lastLoadedAtRef.current = timestamp ?? Date.now();
+            setLoading(false);
             if (members.some((m: Member) => m.couponCount === undefined)) {
               void loadStatsInBackground(
                 query.activeSort
@@ -633,6 +632,10 @@ export default function AdminPage() {
       }
     }
 
+    if (!hasLoadedRef.current) {
+      setLoading(true);
+    }
+
     if (forceRefresh) {
       statsLoadedRef.current.clear();
       invalidateAdminMemberStatsCache();
@@ -641,13 +644,21 @@ export default function AdminPage() {
     console.log('📥 Loading basic member info...');
 
     const todayDateStr = todayKstDateStr();
-    const [users, boardedIds] = await Promise.all([
-      listAdminMembersActive(),
-      getBoardedMemberIds(todayDateStr).catch((e) => {
-        console.warn('오늘 승선명부 조회 실패:', e);
-        return [] as string[];
-      }),
-    ]);
+    let users: Member[] = [];
+    let boardedIds: string[] = [];
+    try {
+      [users, boardedIds] = await Promise.all([
+        listAdminMembersActive(),
+        getBoardedMemberIds(todayDateStr).catch((e) => {
+          console.warn('오늘 승선명부 조회 실패:', e);
+          return [] as string[];
+        }),
+      ]);
+    } catch (error) {
+      console.error('❗ Error loading members:', error);
+      setLoading(false);
+      return;
+    }
     const rosterIds = new Set(boardedIds);
     todayRosterIdsRef.current = rosterIds;
 
@@ -688,6 +699,7 @@ export default function AdminPage() {
 
     hasLoadedRef.current = true;
     lastLoadedAtRef.current = Date.now();
+    setLoading(false);
     console.log('✅ Basic member info loaded, starting stats loading in background...');
 
     setTimeout(() => {
@@ -840,20 +852,6 @@ export default function AdminPage() {
 
   useNativePullToRefresh(() => fetchMembers(true));
 
-  // 로딩 표시 제거 - 비동기로 조용히 로드
-  // if (loading) {
-  //   return (
-  //     <div className="d-flex min-vh-100 align-items-center justify-content-center">
-  //       <div className="text-center">
-  //         <div className="spinner-border text-primary mb-3" role="status">
-  //           <span className="visually-hidden">Loading...</span>
-  //         </div>
-  //         <p className="text-muted">로딩 중...</p>
-  //       </div>
-  //     </div>
-  //   );
-  // }
-
   return (
     <SubPageFrame title="회원 관리" onRefresh={() => fetchMembers(true)}>
         <div className="p-3 mb-4" style={CARD}>
@@ -865,7 +863,11 @@ export default function AdminPage() {
           >
             <span style={{ fontSize: 16, fontWeight: 700, color: '#1A1D1F' }}>
               회원 검색{' '}
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#1B6FF5' }}>({allMembers.length})</span>
+              {loading && allMembers.length === 0 ? (
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#6F767E' }}>불러오는 중</span>
+              ) : (
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#1B6FF5' }}>({allMembers.length})</span>
+              )}
             </span>
             {filterSectionExpanded ? (
               <IoChevronUpOutline size={20} color="#6F767E" />
@@ -1080,7 +1082,18 @@ export default function AdminPage() {
           })}
         </div>
 
-        {sections.length === 0 && (
+        {loading && sections.length === 0 && (
+          <div className="text-center py-5" style={CARD} aria-busy="true">
+            <div className="spinner-border text-primary mb-3" role="status">
+              <span className="visually-hidden">불러오는 중</span>
+            </div>
+            <p className="mb-0" style={{ fontSize: 14, color: '#6F767E', fontFamily: OHGO_FONT }}>
+              회원 목록을 불러오는 중…
+            </p>
+          </div>
+        )}
+
+        {!loading && sections.length === 0 && (
           <EmptyState
             icon={IoPeopleOutline}
             message="일치하는 회원이 없습니다."

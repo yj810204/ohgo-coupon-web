@@ -9,7 +9,7 @@ import {
   type TideRegion,
 } from '@/lib/dadaepo-tide';
 import type { TideCurveAnchor, TideForecastEvent, TideForecastPayload } from '@/lib/tide-forecast';
-import { formatKstClock, interpolateTideCurve, kstDateTimeMs, slackWindows } from '@/lib/tide-forecast';
+import { interpolateTideCurve, kstDateTimeMs, slackWindows } from '@/lib/tide-forecast';
 import { estimateDayTideFlow, tideFlowFeel } from '@/lib/tide-fish-recommend';
 import { getSiteSettings } from '@/utils/site-settings-service';
 import { tripDateToStr } from '@/utils/trip-guide-service';
@@ -164,7 +164,7 @@ function TideChart({
 
   return (
     <div>
-      <div style={{ padding: '2px 16px 0' }}>
+      <div style={{ padding: '2px 16px 8px' }}>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         width="100%"
@@ -300,41 +300,6 @@ function TideChart({
         ) : null}
       </svg>
       </div>
-
-      {windows.length > 0 ? (
-        <div style={{ padding: '4px 16px 16px' }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 800,
-              color: '#1B7A4A',
-              fontFamily: FONT,
-              marginBottom: 6,
-            }}
-          >
-            집중할 시간
-          </div>
-          <div className="d-flex flex-wrap" style={{ gap: 6 }}>
-            {windows.map((slack) => (
-              <span
-                key={`range-${slack.event.at}`}
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  fontFamily: FONT,
-                  color: '#1B7A4A',
-                  backgroundColor: '#E7F6EE',
-                  borderRadius: 99,
-                  padding: '4px 8px',
-                }}
-              >
-                {`${formatKstClock(slack.from)}–${formatKstClock(slack.to)}`}
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
     </div>
   );
 }

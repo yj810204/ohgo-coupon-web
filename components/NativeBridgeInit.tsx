@@ -1,17 +1,40 @@
 'use client';
 
 import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   initNativeBridge,
   isNativeApp,
   onNativeMessage,
+  isPushOptedOut,
   requestPushTokenFromNative,
   savePushTokenToUser,
   USER_CHANGED_EVENT,
 } from '@/lib/native-bridge';
+import { releaseBodyScrollIfIdle } from '@/lib/body-scroll-lock';
 import { getUser } from '@/lib/storage';
 
 export default function NativeBridgeInit() {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    releaseBodyScrollIfIdle();
+  }, [pathname]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        releaseBodyScrollIfIdle();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('pageshow', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pageshow', onVisible);
+    };
+  }, []);
+
   useEffect(() => {
     initNativeBridge();
 
@@ -21,10 +44,10 @@ export default function NativeBridgeInit() {
 
     const syncPushToken = async () => {
       const user = await getUser();
-      if (!user?.uuid) return;
+      if (!user?.uuid || isPushOptedOut()) return;
 
       const token = await requestPushTokenFromNative();
-      if (token) {
+      if (token && !isPushOptedOut()) {
         await savePushTokenToUser(user.uuid, token);
       }
     };
