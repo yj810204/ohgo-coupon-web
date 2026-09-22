@@ -1,17 +1,7 @@
 import { format } from 'date-fns';
+import { getTodayDate, getTodayRange, parseKstDate } from '@/lib/kst-date';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { sendPushToUser } from './send-push';
-
-function getTodayDate(): string {
-  return new Date().toISOString().split('T')[0];
-}
-
-function getTodayRange(): { start: Date; end: Date } {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-  return { start, end };
-}
 
 async function logAction(userId: string, action: string, detail: string) {
   const supabase = getSupabaseBrowserClient();
@@ -131,7 +121,7 @@ export async function addStamp(uuid: string, method: 'QR' | 'ADMIN' = 'QR'): Pro
         return usedDate >= start && usedDate <= end;
       }
       if (c.issued_at) {
-        const issuedDate = new Date(`${c.issued_at}T00:00:00`);
+        const issuedDate = parseKstDate(c.issued_at);
         return issuedDate >= start && issuedDate <= end;
       }
       return false;

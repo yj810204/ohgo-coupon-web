@@ -18,21 +18,11 @@ import { getFirebaseDb } from '@/lib/firebase/client';
 import { requireFirestoreUserId, resolveFirestoreUserId } from '@/lib/firebase/resolve-user-id';
 import { sendPushToUser } from './send-push';
 import { firebaseQrStampWriteFields } from '@/lib/stamps/firebase-qr-stamp';
-
-function getTodayDate(): string {
-  return new Date().toISOString().split('T')[0];
-}
+import { getTodayDate, getTodayRange, parseKstDate } from '@/lib/kst-date';
 
 /** Auth/세션 UUID → Firestore users/{id} */
 async function mapUuid(uuid: string): Promise<string> {
   return requireFirestoreUserId(uuid);
-}
-
-function getTodayRange(): { start: Date; end: Date } {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-  return { start, end };
 }
 
 async function logAction(uuid: string, action: string, detail: string) {
@@ -124,7 +114,7 @@ export async function addStamp(uuid: string, method: 'QR' | 'ADMIN' = 'QR'): Pro
       const issuedAt = d.data().issuedAt;
       let issuedDate: Date | null = null;
       if (issuedAt instanceof Timestamp) issuedDate = issuedAt.toDate();
-      if (typeof issuedAt === 'string') issuedDate = new Date(`${issuedAt}T00:00:00`);
+      if (typeof issuedAt === 'string') issuedDate = parseKstDate(issuedAt);
       return issuedDate !== null && issuedDate >= start && issuedDate <= end;
     });
 

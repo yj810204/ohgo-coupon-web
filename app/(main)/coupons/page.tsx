@@ -16,6 +16,7 @@ import { IoGiftOutline, IoCheckmarkCircleOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal, { OhgoModalButton, OhgoModalCancelLink, OhgoModalField } from '@/components/OhgoModal';
 import EmptyState from '@/components/EmptyState';
+import { getTodayDate } from '@/lib/kst-date';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 const FONT = "var(--font-ohgo), sans-serif";
@@ -72,7 +73,7 @@ function CouponsPageContent() {
     const msgs: string[] = [];
     const issuedAt = selectedCoupon?.issuedAt;
     const isTodayIssued =
-      typeof issuedAt === 'string' && issuedAt === new Date().toISOString().split('T')[0];
+      typeof issuedAt === 'string' && issuedAt === getTodayDate();
     if (isTodayIssued) msgs.push('- 금일 생성된 쿠폰입니다.');
     if (selectedCoupon?.isHalf === 'Y') msgs.push('- 50% 쿠폰입니다.');
     if (msgs.length > 0 && !(await ohgoConfirm(msgs.join('\n') + '\n\n그래도 사용하시겠습니까?'))) return;
