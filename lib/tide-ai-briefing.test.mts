@@ -6,9 +6,11 @@ import {
   hasTideAiBriefingContent,
   isTideAiBriefing,
   normalizeTideAiBriefingInput,
+  omitUndefinedNull,
   parseBriefingMarkdown,
   TIDE_BRIEFING_ONPAGE_FOOTER,
   TIDE_BRIEFING_TITLE,
+  toBriefingWritePayload,
   toTideAiBriefing,
 } from '@/utils/tide-ai-briefing-shared';
 
@@ -74,6 +76,35 @@ const stored = toTideAiBriefing(structured, {
 });
 assert.ok(isTideAiBriefing(stored));
 assert.equal(stored.date, '2026-09-23');
+assert.equal(Object.hasOwn(stored, 'title'), false);
+assert.equal(Object.hasOwn(structured, 'title'), false);
+
+const withTitle = toTideAiBriefing(
+  normalizeTideAiBriefingInput({ date: '2026-09-23', summary: '있음', title: '  내일 출조  ' }),
+);
+assert.equal(withTitle.title, '내일 출조');
+
+const stripped = omitUndefinedNull({
+  date: '2026-09-23',
+  title: undefined,
+  extra: null,
+  summary: 'ok',
+});
+assert.deepEqual(stripped, { date: '2026-09-23', summary: 'ok' });
+assert.ok(Object.values(stripped).every((value) => value !== undefined && value !== null));
+
+const productionLike = toBriefingWritePayload(
+  toTideAiBriefing(
+    normalizeTideAiBriefingInput({
+      date: '2026-09-23',
+      summary: '4물이라 조류가 약합니다.',
+      rig: '1.5~2호 구멍찌 전유동, 수중 G2',
+      operation: '만조 전후 입질이 낫습니다.',
+    }),
+  ),
+);
+assert.equal(Object.hasOwn(productionLike, 'title'), false);
+assert.ok(Object.values(productionLike).every((value) => value !== undefined && value !== null));
 
 const dir = await mkdtemp(join(tmpdir(), 'tide-briefing-'));
 process.env.TIDE_BRIEFING_STORE = 'file';
@@ -96,6 +127,8 @@ assert.equal((await getTideAiBriefing('2026-09-23'))?.summary, '내일은 4물�
 
 const raw = JSON.parse(await readFile(process.env.TIDE_BRIEFING_FILE_PATH, 'utf8'));
 assert.equal(raw['2026-09-23'].operation, '만조 전후를 노리세요.');
+assert.equal(Object.hasOwn(raw['2026-09-23'], 'title'), false);
+assert.ok(Object.values(raw['2026-09-23']).every((value) => value !== undefined && value !== null));
 
 await rm(dir, { recursive: true, force: true });
 console.log('tide-ai-briefing tests passed');

@@ -102,19 +102,27 @@ export function hasTideAiBriefingContent(
   return Boolean(value.summary || value.rig || value.operation || value.markdown);
 }
 
+/** Firestore setDoc은 undefined를 거절한다. null도 쓰지 않는다. */
+export function omitUndefinedNull<T extends object>(data: T): T {
+  return Object.fromEntries(
+    Object.entries(data).filter(([, value]) => value !== undefined && value !== null),
+  ) as T;
+}
+
 export function normalizeTideAiBriefingInput(raw: TideAiBriefingInput): TideAiBriefingInput & { date: string } {
   const date = typeof raw.date === 'string' ? raw.date.trim() : '';
   const markdown = cleanText(raw.markdown, MAX_MARKDOWN);
   const parsed = parseBriefingMarkdown(markdown);
-  return {
+  const title = cleanText(raw.title, 80);
+  return omitUndefinedNull({
     date,
     summary: cleanText(raw.summary) || parsed.summary,
     rig: cleanText(raw.rig) || parsed.rig,
     operation: cleanText(raw.operation) || parsed.operation,
     markdown,
     species: parseTripSpecies(raw.species ?? []),
-    title: cleanText(raw.title, 80) || undefined,
-  };
+    title: title || undefined,
+  });
 }
 
 export function toTideAiBriefing(
@@ -122,17 +130,32 @@ export function toTideAiBriefing(
   timestamps?: { publishedAt?: string; updatedAt?: string },
 ): TideAiBriefing {
   const now = new Date().toISOString();
-  return {
+  const title = cleanText(input.title, 80);
+  return omitUndefinedNull({
     date: input.date,
     summary: input.summary ?? '',
     rig: input.rig ?? '',
     operation: input.operation ?? '',
     markdown: input.markdown ?? '',
     species: input.species ?? [],
-    title: input.title,
+    title: title || undefined,
     publishedAt: timestamps?.publishedAt || now,
     updatedAt: timestamps?.updatedAt || now,
-  };
+  });
+}
+
+export function toBriefingWritePayload(briefing: TideAiBriefing): Record<string, unknown> {
+  return omitUndefinedNull({
+    date: briefing.date,
+    summary: briefing.summary ?? '',
+    rig: briefing.rig ?? '',
+    operation: briefing.operation ?? '',
+    markdown: briefing.markdown ?? '',
+    species: Array.isArray(briefing.species) ? briefing.species : [],
+    title: cleanText(briefing.title, 80) || undefined,
+    publishedAt: briefing.publishedAt,
+    updatedAt: briefing.updatedAt,
+  });
 }
 
 export function isTideAiBriefing(value: unknown): value is TideAiBriefing {
@@ -167,10 +190,10 @@ export function briefingFromUnknown(value: unknown): TideAiBriefing | null {
       species: parseTripSpecies((row.species as string[] | string | undefined) ?? []),
       title: cleanText(row.title, 80) || undefined,
     },
-    {
+    omitUndefinedNull({
       publishedAt: cleanText(row.publishedAt ?? row.published_at, 40) || undefined,
       updatedAt: cleanText(row.updatedAt ?? row.updated_at, 40) || undefined,
-    },
+    }),
   );
   return hasTideAiBriefingContent(briefing) ? briefing : null;
 }

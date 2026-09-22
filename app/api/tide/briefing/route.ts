@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authorizeTideBriefingPublish } from '@/lib/tide-briefing-auth';
 import {
   getTideAiBriefing,
+  omitUndefinedNull,
   publishTideAiBriefing,
   resolveTideAiBriefingStore,
   TIDE_BRIEFING_DATE_RE,
+  type TideAiBriefingInput,
 } from '@/utils/tide-ai-briefing-service';
 
 export const runtime = 'nodejs';
@@ -48,7 +50,9 @@ export async function PUT(request: NextRequest) {
   }
 
   try {
-    const briefing = await publishTideAiBriefing(body as { date: string });
+    const briefing = await publishTideAiBriefing(
+      omitUndefinedNull(body as Record<string, unknown>) as TideAiBriefingInput,
+    );
     return json({ ok: true, briefing, store: resolveTideAiBriefingStore() });
   } catch (error) {
     const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
