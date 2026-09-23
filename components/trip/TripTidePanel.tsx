@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { IoChevronForwardOutline } from 'react-icons/io5';
 import {
   getTideLabel,
@@ -15,6 +15,26 @@ import { getSiteSettings } from '@/utils/site-settings-service';
 import { tripDateToStr } from '@/utils/trip-guide-service';
 
 const FONT = 'var(--font-ohgo), sans-serif';
+
+function SectionPictogram({ children }: { children: ReactNode }) {
+  return (
+    <div
+      style={{
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        backgroundColor: '#FFFFFF',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 const CARD: React.CSSProperties = {
   backgroundColor: '#FFFFFF',
@@ -474,8 +494,31 @@ export default function TripTidePanel({
   if (variant === 'embedded') {
     return (
       <div>
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT, marginBottom: 8 }}>
-          {title}
+        <div className="d-flex align-items-center gap-2" style={{ marginBottom: 8 }}>
+          <SectionPictogram>
+            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
+              <path
+                fill="#F5A524"
+                transform="translate(6.4 -0.4) scale(0.5)"
+                d="M9.528 1.718a.75.75 0 0 1 .162.819A8.97 8.97 0 0 0 9 6a9 9 0 0 0 9 9 8.97 8.97 0 0 0 3.463-.69.75.75 0 0 1 .981.98 10.503 10.503 0 0 1-9.694 6.46c-5.799 0-10.5-4.7-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 0 1 .818.162z"
+              />
+              <path
+                d="M2 16.6c1.3-1.6 2.7-1.6 4 0s2.7 1.6 4 0 2.7-1.6 4 0 2.7 1.6 4 0 2.7-1.6 4 0"
+                fill="none"
+                stroke="#1B6FF5"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+              <path
+                d="M2 20.4c1.3-1.6 2.7-1.6 4 0s2.7 1.6 4 0 2.7-1.6 4 0 2.7 1.6 4 0 2.7-1.6 4 0"
+                fill="none"
+                stroke="#8EBAF0"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </SectionPictogram>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>{title}</div>
         </div>
         {card}
       </div>

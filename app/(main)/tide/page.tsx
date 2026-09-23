@@ -18,7 +18,7 @@ export default function TidePage() {
   }, [router]);
 
   return (
-    <SubPageFrame title="물때" dense>
+    <SubPageFrame title="물때·날씨" dense>
       <TideCalendarScreen />
     </SubPageFrame>
   );

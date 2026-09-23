@@ -26,6 +26,15 @@ export type WindWindow = {
   hourCount: number;
 };
 
+export type WindHourPoint = {
+  hour: number;
+  speed: number | null;
+  gust: number | null;
+  dirDeg: number | null;
+  dirText: string;
+  weatherCode: number | null;
+};
+
 export type WindWeatherPayload = {
   ok: true;
   date: string;
@@ -33,6 +42,7 @@ export type WindWeatherPayload = {
   model: string;
   timezone: string;
   windows: WindWindow[];
+  hours: WindHourPoint[];
   weatherCodeMax: number | null;
   weatherText: string;
   precipMmSum: number | null;
@@ -226,7 +236,13 @@ export function buildWindWeatherPayload(
   const codes = hourlySeries(hourly, 'weather_code');
   const precips = hourlySeries(hourly, 'precipitation');
 
-  const dayPoints: Array<{ hour: number; speed: number | null; gust: number | null; dir: number | null }> = [];
+  const dayPoints: Array<{
+    hour: number;
+    speed: number | null;
+    gust: number | null;
+    dir: number | null;
+    code: number | null;
+  }> = [];
   const dayCodes: number[] = [];
   let precipSum = 0;
   let precipSeen = false;
@@ -239,6 +255,7 @@ export function buildWindWeatherPayload(
       speed: speeds[i] ?? null,
       gust: gusts[i] ?? null,
       dir: dirs[i] ?? null,
+      code: codes[i] ?? null,
     });
     const code = codes[i];
     if (code != null) dayCodes.push(code);
@@ -282,6 +299,16 @@ export function buildWindWeatherPayload(
     timezone: typeof raw.timezone === 'string' && raw.timezone ? raw.timezone : OPEN_METEO_TIMEZONE,
     windows,
     weatherCodeMax,
+    hours: dayPoints
+      .filter((point) => point.hour >= 4 && point.hour <= 18)
+      .map((point) => ({
+        hour: point.hour,
+        speed: point.speed == null ? null : round1(point.speed),
+        gust: point.gust == null ? null : round1(point.gust),
+        dirDeg: point.dir == null ? null : Math.round(point.dir),
+        dirText: point.dir == null ? '' : windDirText(point.dir),
+        weatherCode: point.code == null ? null : Math.round(point.code),
+      })),
     weatherText: weatherCodeMax == null ? '' : weatherCodeText(weatherCodeMax),
     precipMmSum: precipSeen ? round1(precipSum) : null,
     attribution: OPEN_METEO_ATTRIBUTION,
