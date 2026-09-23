@@ -60,6 +60,7 @@ type Props = {
   date: string;
   tideRegionId?: string;
   onViewAll?: () => void;
+  showViewAll?: boolean;
   /** 그래프를 좌우로 밀면 가운데 날짜를 올린다. */
   onActiveDate?: (date: string) => void;
   /** section: 홈 위젯(제목+카드). embedded: 모달·예약 안 카드 */
@@ -362,6 +363,7 @@ export default function TripTidePanel({
   date,
   tideRegionId,
   onViewAll,
+  showViewAll,
   onActiveDate,
   variant = 'section',
 }: Props) {
@@ -391,8 +393,6 @@ export default function TripTidePanel({
 
   useEffect(() => {
     let cancelled = false;
-    setEvents([]);
-    setAnchors([]);
     const params = new URLSearchParams({ date, region: region.id });
     void fetch(`/api/tide?${params}`)
       .then((res) => (res.ok ? res.json() : null))
@@ -574,7 +574,7 @@ export default function TripTidePanel({
         <span style={{ fontSize: 17, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
           {title}
         </span>
-        {onViewAll ? (
+        {onViewAll || showViewAll ? (
           <button
             type="button"
             onClick={onViewAll}

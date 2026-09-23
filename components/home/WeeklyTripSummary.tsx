@@ -59,6 +59,7 @@ function dayDividerColor(dayIdx: number, isPast: boolean, isToday: boolean): str
 
 interface Props {
   onViewAll: () => void;
+  headerNavigates?: boolean;
   /** 제공 시 API fetch 없이 바로 렌더 (포트폴리오 샘플·홈 배치 로딩) */
   trips?: TripGuide[];
   /** true면 부모 로딩 중. trips와 같이 쓰면 자체 fetch 하지 않음 */
@@ -67,6 +68,7 @@ interface Props {
 
 export default function WeeklyTripSummary({
   onViewAll,
+  headerNavigates = true,
   trips: tripsProp,
   isLoading,
 }: Props) {
@@ -134,7 +136,7 @@ export default function WeeklyTripSummary({
         </div>
         <button
           type="button"
-          onClick={onViewAll}
+          onClick={headerNavigates ? onViewAll : undefined}
           className="btn p-0 d-flex align-items-center gap-1 flex-shrink-0"
           style={{ border: 'none', background: 'none', color: '#1B6FF5', fontSize: 13, fontFamily: FONT, fontWeight: 600 }}
         >

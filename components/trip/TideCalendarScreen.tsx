@@ -369,8 +369,6 @@ export default function TideCalendarScreen({
 
   useEffect(() => {
     let cancelled = false;
-    setBriefing(null);
-    setBriefingLoaded(false);
     void fetch(`/api/tide/briefing?date=${selectedDate}`, { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
       .then((payload) => {

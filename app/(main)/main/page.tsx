@@ -288,6 +288,7 @@ export default function MainPage() {
               <WeeklyTripSummary
                 key={sectionId}
                 onViewAll={() => navigate('/community/trip-guide')}
+                headerNavigates={false}
                 trips={weekTrips}
                 isLoading={weekTripsLoading}
               />
@@ -299,7 +300,7 @@ export default function MainPage() {
               <TripTidePanel
                 key={sectionId}
                 date={tripDateToStr()}
-                onViewAll={() => navigate('/tide')}
+                showViewAll
               />
             );
           }
@@ -307,7 +308,7 @@ export default function MainPage() {
           if (sectionId === 'wind' && homeSections.wind) {
             return (
               <section key={sectionId} style={{ marginBottom: 30 }}>
-                <SectionHeader title="바람" onViewAll={() => navigate('/tide')} />
+                <SectionHeader title="바람" showViewAll />
                 <WindWeatherCard date={tripDateToStr()} />
               </section>
             );
@@ -318,7 +319,7 @@ export default function MainPage() {
               <section key={sectionId} style={{ marginBottom: 30 }}>
                 <SectionHeader
                   title="내 조황 사진"
-                  onViewAll={() => navigate('/my-photos')}
+                  showViewAll
                 />
                 <div className="row g-3">
                   {myCaptainPhotos.slice(0, 4).map((photo) => (
@@ -342,7 +343,7 @@ export default function MainPage() {
                 <section style={{ marginBottom: 30 }}>
                   <SectionHeader
                     title="조황 사진"
-                    onViewAll={() => navigate('/community/photos')}
+                    showViewAll
                   />
                   <div className="row g-3">
                     {isPhotoDummy
@@ -370,7 +371,7 @@ export default function MainPage() {
                 <section style={{ marginBottom: 30 }}>
                   <SectionHeader
                     title="낚시 팁 · FAQ"
-                    onViewAll={() => navigate('/community/faq')}
+                    showViewAll
                   />
                   {faqPosts.length === 0 ? (
                     <EmptyState
@@ -410,7 +411,7 @@ export default function MainPage() {
                 <section style={{ marginBottom: 30 }}>
                   <SectionHeader
                     title="낚시 Q&A"
-                    onViewAll={() => navigate('/community/qna')}
+                    showViewAll
                   />
                   {qnaPosts.length === 0 ? (
                     <EmptyState
@@ -454,7 +455,7 @@ export default function MainPage() {
           if (sectionId === 'miniGames' && homeSections.miniGames) {
             return (
               <section key={sectionId} style={{ marginBottom: 30 }}>
-                <SectionHeader title="미니게임" onViewAll={() => navigate('/mini-games')} />
+                <SectionHeader title="미니게임" showViewAll />
                 {games.length === 0 ? (
                   <EmptyState
                     icon={IoGameControllerOutline}
@@ -487,7 +488,7 @@ export default function MainPage() {
               <section key={sectionId} style={{ marginBottom: 30 }}>
                 <SectionHeader
                   title="중고장터"
-                  onViewAll={() => navigate('/market')}
+                  showViewAll
                 />
                 {marketListings.length === 0 ? (
                   <EmptyState

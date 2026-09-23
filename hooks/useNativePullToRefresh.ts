@@ -27,9 +27,12 @@ function isInsideScrollable(target: EventTarget | null): boolean {
   while (node && node !== document.body && node !== document.documentElement) {
     const style = window.getComputedStyle(node);
     const overflowY = style.overflowY;
+    const overflowX = style.overflowX;
     if (
-      (overflowY === 'auto' || overflowY === 'scroll') &&
-      node.scrollHeight > node.clientHeight + 1
+      ((overflowY === 'auto' || overflowY === 'scroll') &&
+        node.scrollHeight > node.clientHeight + 1) ||
+      ((overflowX === 'auto' || overflowX === 'scroll') &&
+        node.scrollWidth > node.clientWidth + 1)
     ) {
       return true;
     }

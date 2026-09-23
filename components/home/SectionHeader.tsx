@@ -5,10 +5,12 @@ import { IoChevronForwardOutline } from 'react-icons/io5';
 interface SectionHeaderProps {
   title: string;
   onViewAll?: () => void;
+  showViewAll?: boolean;
   badge?: React.ReactNode;
 }
 
-export default function SectionHeader({ title, onViewAll, badge }: SectionHeaderProps) {
+export default function SectionHeader({ title, onViewAll, showViewAll, badge }: SectionHeaderProps) {
+  const showMore = Boolean(onViewAll) || Boolean(showViewAll);
   return (
     <div className="d-flex align-items-center justify-content-between px-1" style={{ marginBottom: 8 }}>
       <div className="d-flex align-items-center gap-2">
@@ -25,7 +27,7 @@ export default function SectionHeader({ title, onViewAll, badge }: SectionHeader
         </h2>
         {badge}
       </div>
-      {onViewAll && (
+      {showMore && (
         <button
           type="button"
           onClick={onViewAll}

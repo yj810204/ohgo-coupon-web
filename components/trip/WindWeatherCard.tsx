@@ -549,22 +549,21 @@ export default function WindWeatherCard({
 
   useEffect(() => {
     let cancelled = false;
-    setPayload(null);
-    setFailed(false);
-    setNotice('이 날짜의 바람 예보가 없습니다.');
-    setLoaded(false);
     void fetch(`/api/weather?date=${encodeURIComponent(date)}`)
       .then((res) => res.json().catch(() => null))
       .then((data) => {
         if (cancelled) return;
-        if (isWindWeatherPayload(data)) setPayload(data);
-        else {
+        if (isWindWeatherPayload(data)) {
+          setPayload(data);
+          setFailed(false);
+        } else {
           const error =
             data && typeof data === 'object' && typeof (data as { error?: unknown }).error === 'string'
               ? (data as { error: string }).error
               : '';
           setNotice(error.includes('없습니다') ? '이 날짜의 바람 예보가 없습니다.' : '바람 예보를 불러오지 못했습니다.');
           setFailed(true);
+          setPayload(null);
         }
         setLoaded(true);
       })
@@ -572,6 +571,7 @@ export default function WindWeatherCard({
         if (!cancelled) {
           setNotice('바람 예보를 불러오지 못했습니다.');
           setFailed(true);
+          setPayload(null);
           setLoaded(true);
         }
       });
