@@ -13,6 +13,7 @@ import { interpolateTideCurve, kstDateTimeMs, slackWindows } from '@/lib/tide-fo
 import { estimateDayTideFlow, tideFlowFeel } from '@/lib/tide-fish-recommend';
 import { getSiteSettings } from '@/utils/site-settings-service';
 import { tripDateToStr } from '@/utils/trip-guide-service';
+import DayAxisScroller, { todayOutingFraction } from '@/components/trip/DayAxisScroller';
 
 const FONT = 'var(--font-ohgo), sans-serif';
 
@@ -59,6 +60,8 @@ type Props = {
   date: string;
   tideRegionId?: string;
   onViewAll?: () => void;
+  /** 그래프를 좌우로 밀면 가운데 날짜를 올린다. */
+  onActiveDate?: (date: string) => void;
   /** section: 홈 위젯(제목+카드). embedded: 모달·예약 안 카드 */
   variant?: 'section' | 'embedded';
 };
@@ -324,10 +327,42 @@ function TideChart({
   );
 }
 
+function TideDayChart({ date, regionId }: { date: string; regionId: string }) {
+  const [events, setEvents] = useState<TideForecastEvent[]>([]);
+  const [anchors, setAnchors] = useState<TideCurveAnchor[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams({ date, region: regionId });
+    void fetch(`/api/tide?${params}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: TideForecastPayload | null) => {
+        if (cancelled || !data?.ok) return;
+        setEvents(data.events);
+        setAnchors(data.anchors ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setEvents([]);
+          setAnchors([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [date, regionId]);
+
+  if (events.length === 0 && anchors.length === 0) {
+    return <div style={{ minHeight: 180 }} />;
+  }
+  return <TideChart date={date} events={events} anchors={anchors} />;
+}
+
 export default function TripTidePanel({
   date,
   tideRegionId,
   onViewAll,
+  onActiveDate,
   variant = 'section',
 }: Props) {
   const tideLabel = getTideLabel(date);
@@ -470,7 +505,15 @@ export default function TripTidePanel({
         </div>
       ) : null}
 
-      {events.length > 0 || anchors.length > 0 ? (
+      {onActiveDate ? (
+        <DayAxisScroller
+          date={date}
+          onDateChange={onActiveDate}
+          focusFraction={todayOutingFraction(date, BOAT_START_HOUR, BOAT_END_HOUR)}
+        >
+          {(day) => <TideDayChart date={day} regionId={region.id} />}
+        </DayAxisScroller>
+      ) : events.length > 0 || anchors.length > 0 ? (
         <div>
           <TideChart date={date} events={events} anchors={anchors} />
         </div>

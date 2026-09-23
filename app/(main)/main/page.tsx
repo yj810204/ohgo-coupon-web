@@ -20,6 +20,7 @@ import FeaturedCard from '@/components/home/FeaturedCard';
 import HorizontalScroll from '@/components/home/HorizontalScroll';
 import WeeklyTripSummary from '@/components/home/WeeklyTripSummary';
 import TripTidePanel from '@/components/trip/TripTidePanel';
+import WindWeatherCard from '@/components/trip/WindWeatherCard';
 import MarketListingCard from '@/components/market/MarketListingCard';
 import {
   getTripsInDateRange,
@@ -300,6 +301,15 @@ export default function MainPage() {
                 date={tripDateToStr()}
                 onViewAll={() => navigate('/tide')}
               />
+            );
+          }
+
+          if (sectionId === 'wind' && homeSections.wind) {
+            return (
+              <section key={sectionId} style={{ marginBottom: 30 }}>
+                <SectionHeader title="바람" onViewAll={() => navigate('/tide')} />
+                <WindWeatherCard date={tripDateToStr()} />
+              </section>
             );
           }
 

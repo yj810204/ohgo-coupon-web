@@ -14,6 +14,7 @@ export type HomeSectionId =
   | 'stampCoupon'
   | 'weeklyTrip'
   | 'tide'
+  | 'wind'
   | 'myPhotos'
   | 'community'
   | 'miniGames'
@@ -25,6 +26,7 @@ export const DEFAULT_HOME_SECTIONS: HomeSectionVisibility = {
   stampCoupon: true,
   weeklyTrip: true,
   tide: true,
+  wind: true,
   myPhotos: true,
   community: true,
   miniGames: true,
@@ -35,6 +37,7 @@ export const DEFAULT_HOME_SECTION_ORDER: HomeSectionId[] = [
   'stampCoupon',
   'weeklyTrip',
   'tide',
+  'wind',
   'myPhotos',
   'community',
   'miniGames',
@@ -49,6 +52,7 @@ export const HOME_SECTION_OPTIONS: Array<{
   { id: 'stampCoupon', label: '스탬프·쿠폰', hint: '스탬프·쿠폰 현황과 QR 스캔 버튼을 표시합니다.' },
   { id: 'weeklyTrip', label: '이번 주 출조', hint: '이번 주 출조 일정을 표시합니다.' },
   { id: 'tide', label: '오늘의 물때', hint: '몇물·물흐름·만조/간조를 표시합니다. 지역은 아래 물때 지역에서 고릅니다.' },
+  { id: 'wind', label: '바람', hint: '오늘의 시간별 풍속·돌풍을 표시합니다. 더보기는 물때·날씨 화면으로 이동합니다.' },
   { id: 'myPhotos', label: '내 조황 사진', hint: '선장이 태그한 내 조황 사진을 표시합니다. 사진이 있을 때만 나타납니다.' },
   { id: 'community', label: '커뮤니티', hint: '조황 사진, 낚시 팁, Q&A를 표시합니다.' },
   { id: 'miniGames', label: '미니게임', hint: '진행 중인 미니게임을 표시합니다.' },
@@ -61,6 +65,7 @@ export function normalizeHomeSections(value: unknown): HomeSectionVisibility {
     stampCoupon: src.stampCoupon !== false,
     weeklyTrip: src.weeklyTrip !== false,
     tide: src.tide !== false,
+    wind: src.wind !== false,
     myPhotos: src.myPhotos !== false,
     community: src.community !== false,
     miniGames: src.miniGames !== false,
@@ -86,6 +91,14 @@ export function normalizeHomeSectionOrder(value: unknown): HomeSectionId[] {
       const weeklyIdx = ordered.indexOf('weeklyTrip');
       if (weeklyIdx >= 0) {
         ordered.splice(weeklyIdx + 1, 0, id);
+        seen.add(id);
+        continue;
+      }
+    }
+    if (id === 'wind') {
+      const tideIdx = ordered.indexOf('tide');
+      if (tideIdx >= 0) {
+        ordered.splice(tideIdx + 1, 0, id);
         seen.add(id);
         continue;
       }

@@ -8,6 +8,7 @@ import {
   type WindWeatherPayload,
 } from '@/lib/open-meteo-wind';
 import { OHGO_CARD, OHGO_FONT } from '@/lib/page-styles';
+import DayAxisScroller, { todayOutingFraction } from '@/components/trip/DayAxisScroller';
 
 const FONT = OHGO_FONT;
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -478,7 +479,69 @@ function Attribution() {
   );
 }
 
-export default function WindWeatherCard({ date }: { date: string }) {
+function WindDayPane({ date }: { date: string }) {
+  const [hours, setHours] = useState<WindHourPoint[] | null>(null);
+  const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setHours(null);
+    setNotice('');
+    void fetch(`/api/weather?date=${encodeURIComponent(date)}`)
+      .then((res) => res.json().catch(() => null))
+      .then((data) => {
+        if (cancelled) return;
+        if (isWindWeatherPayload(data)) {
+          setHours(data.hours ?? []);
+          return;
+        }
+        const error =
+          data && typeof data === 'object' && typeof (data as { error?: unknown }).error === 'string'
+            ? (data as { error: string }).error
+            : '';
+        setNotice(error.includes('없습니다') ? '예보 없음' : '불러오지 못함');
+        setHours([]);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setNotice('불러오지 못함');
+          setHours([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [date]);
+
+  if (hours == null) return <div style={{ minHeight: 148 }} />;
+  if (notice) {
+    return (
+      <div
+        style={{
+          minHeight: 148,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 13,
+          fontWeight: 600,
+          color: '#6F767E',
+          fontFamily: FONT,
+        }}
+      >
+        {notice}
+      </div>
+    );
+  }
+  return <WindStrip date={date} hours={hours} />;
+}
+
+export default function WindWeatherCard({
+  date,
+  onActiveDate,
+}: {
+  date: string;
+  onActiveDate?: (date: string) => void;
+}) {
   const [payload, setPayload] = useState<WindWeatherPayload | null>(null);
   const [failed, setFailed] = useState(false);
   const [notice, setNotice] = useState('이 날짜의 바람 예보가 없습니다.');
@@ -517,7 +580,7 @@ export default function WindWeatherCard({ date }: { date: string }) {
     };
   }, [date]);
 
-  if (!loaded) {
+  if (!loaded && !onActiveDate) {
     return (
       <CardShell>
         <CardHeader date={date} />
@@ -528,7 +591,7 @@ export default function WindWeatherCard({ date }: { date: string }) {
     );
   }
 
-  if (failed || !payload) {
+  if (!onActiveDate && (failed || !payload)) {
     return (
       <CardShell>
         <CardHeader date={date} />
@@ -554,9 +617,19 @@ export default function WindWeatherCard({ date }: { date: string }) {
     <CardShell>
       <CardHeader date={date} />
       <div style={{ marginTop: 4 }}>
-        <WindStrip date={payload.date} hours={payload.hours ?? []} />
+        {onActiveDate ? (
+          <DayAxisScroller
+            date={date}
+            onDateChange={onActiveDate}
+            focusFraction={todayOutingFraction(date, WIND_SLOTS[0], WIND_SLOTS[WIND_SLOTS.length - 1])}
+          >
+            {(day) => <WindDayPane date={day} />}
+          </DayAxisScroller>
+        ) : (
+          <WindStrip date={payload?.date ?? date} hours={payload?.hours ?? []} />
+        )}
       </div>
-      <WeatherLine payload={payload} />
+      {payload ? <WeatherLine payload={payload} /> : null}
       <Attribution />
     </CardShell>
   );

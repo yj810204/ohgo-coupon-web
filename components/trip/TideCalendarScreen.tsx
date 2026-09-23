@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { format } from 'date-fns';
 import {
   IoChevronBackOutline,
@@ -28,6 +28,7 @@ import {
 import { getSiteSettings } from '@/utils/site-settings-service';
 import { tripDateToStr } from '@/utils/trip-guide-service';
 import { OHGO_CARD, OHGO_FONT } from '@/lib/page-styles';
+import OhgoModal from '@/components/OhgoModal';
 import TripTidePanel from '@/components/trip/TripTidePanel';
 import WindWeatherCard from '@/components/trip/WindWeatherCard';
 
@@ -97,8 +98,64 @@ function BriefingRichText({ text }: { text: string }) {
   return <>{renderBriefingNodes(parseBriefingMarkup(text), 'b')}</>;
 }
 
+const BRIEFING_PREVIEW_HEIGHT = 168;
+
+function BriefingSections({ briefing }: { briefing: TideAiBriefing }) {
+  return (
+    <>
+      {briefingDisplaySections(briefing).map((section) => (
+        <div key={section.key} style={{ marginTop: 10 }}>
+          {section.key !== 'markdown' && section.label !== TIDE_BRIEFING_TITLE ? (
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#6F767E', fontFamily: FONT }}>
+              {section.label}
+            </div>
+          ) : null}
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: BRIEFING_BODY_WEIGHT,
+              color: '#1A1D1F',
+              fontFamily: FONT,
+              marginTop: section.key === 'markdown' ? 8 : 4,
+              lineHeight: section.key === 'markdown' ? 1.7 : 1.6,
+              whiteSpace: 'pre-line',
+              wordBreak: 'keep-all',
+            }}
+          >
+            <BriefingRichText text={section.body} />
+          </div>
+        </div>
+      ))}
+      <div
+        style={{
+          fontSize: 11,
+          color: '#9A9FA5',
+          fontFamily: FONT,
+          marginTop: 12,
+          lineHeight: 1.4,
+          wordBreak: 'keep-all',
+        }}
+      >
+        {TIDE_BRIEFING_ONPAGE_FOOTER}
+      </div>
+    </>
+  );
+}
+
 function TideBriefingCard({ briefing }: { briefing: TideAiBriefing | null }) {
   const published = briefing && hasTideAiBriefingContent(briefing) ? briefing : null;
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [overflows, setOverflows] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    const preview = previewRef.current;
+    if (!preview || !published) {
+      setOverflows(false);
+      return;
+    }
+    setOverflows(preview.scrollHeight > BRIEFING_PREVIEW_HEIGHT + 8);
+  }, [published]);
 
   return (
     <div className="mt-3" style={{ ...OHGO_CARD, padding: 16 }}>
@@ -125,29 +182,29 @@ function TideBriefingCard({ briefing }: { briefing: TideAiBriefing | null }) {
         </div>
       </div>
       {published ? (
-        briefingDisplaySections(published).map((section) => (
-          <div key={section.key} style={{ marginTop: 10 }}>
-            {section.key !== 'markdown' && section.label !== TIDE_BRIEFING_TITLE ? (
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#6F767E', fontFamily: FONT }}>
-                {section.label}
-              </div>
-            ) : null}
+        <div
+          ref={previewRef}
+          style={{
+            position: 'relative',
+            maxHeight: overflows ? BRIEFING_PREVIEW_HEIGHT : undefined,
+            overflow: 'hidden',
+          }}
+        >
+          <BriefingSections briefing={published} />
+          {overflows ? (
             <div
+              aria-hidden
               style={{
-                fontSize: 13,
-                fontWeight: BRIEFING_BODY_WEIGHT,
-                color: '#1A1D1F',
-                fontFamily: FONT,
-                marginTop: section.key === 'markdown' ? 8 : 4,
-                lineHeight: section.key === 'markdown' ? 1.7 : 1.6,
-                whiteSpace: 'pre-line',
-                wordBreak: 'keep-all',
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 56,
+                background: 'linear-gradient(to bottom, rgba(255,255,255,0), #FFFFFF)',
               }}
-            >
-              <BriefingRichText text={section.body} />
-            </div>
-          </div>
-        ))
+            />
+          ) : null}
+        </div>
       ) : (
         <div
           style={{
@@ -163,19 +220,28 @@ function TideBriefingCard({ briefing }: { briefing: TideAiBriefing | null }) {
           {TIDE_BRIEFING_EMPTY}
         </div>
       )}
-      {published ? (
-        <div
+      {overflows ? (
+        <button
+          type="button"
+          onClick={() => setSheetOpen(true)}
+          className="btn p-0"
           style={{
-            fontSize: 11,
-            color: '#9A9FA5',
+            marginTop: 8,
+            border: 'none',
+            background: 'none',
+            color: '#1B6FF5',
+            fontSize: 13,
+            fontWeight: 700,
             fontFamily: FONT,
-            marginTop: 12,
-            lineHeight: 1.4,
-            wordBreak: 'keep-all',
           }}
         >
-          {TIDE_BRIEFING_ONPAGE_FOOTER}
-        </div>
+          더보기
+        </button>
+      ) : null}
+      {published ? (
+        <OhgoModal open={sheetOpen} onClose={() => setSheetOpen(false)} title={TIDE_BRIEFING_TITLE}>
+          <BriefingSections briefing={published} />
+        </OhgoModal>
       ) : null}
     </div>
   );
@@ -438,9 +504,14 @@ export default function TideCalendarScreen({
         </div>
       </div>
 
-      <TripTidePanel date={selectedDate} tideRegionId={region.id} variant="embedded" />
+      <TripTidePanel
+        date={selectedDate}
+        tideRegionId={region.id}
+        variant="embedded"
+        onActiveDate={selectDate}
+      />
 
-      <WindWeatherCard date={selectedDate} />
+      <WindWeatherCard date={selectedDate} onActiveDate={selectDate} />
 
       {briefingLoaded ? <TideBriefingCard briefing={briefing} /> : null}
     </>
