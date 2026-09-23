@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { format } from 'date-fns';
 import {
   IoChevronBackOutline,
@@ -18,8 +18,9 @@ import {
   briefingDisplaySections,
   hasTideAiBriefingContent,
   isTideAiBriefing,
-  parseBriefingMarkup,
+  parseBriefingBlocks,
   type BriefingMarkupNode,
+  type BriefingTableAlign,
   TIDE_BRIEFING_EMPTY,
   TIDE_BRIEFING_ONPAGE_FOOTER,
   TIDE_BRIEFING_TITLE,
@@ -72,12 +73,47 @@ function formatSunSatWeekLabel(dateStr: string): string {
 const BRIEFING_BODY_WEIGHT = 400;
 const BRIEFING_EMPHASIS_WEIGHT = 600;
 
-function renderBriefingNodes(nodes: BriefingMarkupNode[], keyPrefix: string): ReactNode[] {
+const BRIEFING_TABLE_WRAP: CSSProperties = {
+  display: 'block',
+  overflowX: 'auto',
+  margin: '4px 0 12px',
+  WebkitOverflowScrolling: 'touch',
+};
+
+const BRIEFING_TABLE: CSSProperties = {
+  width: '100%',
+  borderCollapse: 'collapse',
+  fontSize: 12,
+  lineHeight: 1.45,
+};
+
+const BRIEFING_TH: CSSProperties = {
+  padding: '6px 7px',
+  borderBottom: '1px solid #E6E8EC',
+  backgroundColor: '#F7F8FA',
+  fontWeight: 700,
+  whiteSpace: 'nowrap',
+  color: '#1A1D1F',
+};
+
+const BRIEFING_TD: CSSProperties = {
+  padding: '5px 7px',
+  borderBottom: '1px solid #F0F1F3',
+  verticalAlign: 'top',
+  wordBreak: 'keep-all',
+};
+
+function cellAlign(align: BriefingTableAlign | undefined): CSSProperties {
+  return { textAlign: align ?? 'left' };
+}
+
+function renderBriefingInline(nodes: BriefingMarkupNode[], keyPrefix: string): ReactNode[] {
   return nodes.map((node, index) => {
     const key = `${keyPrefix}-${index}`;
     if (node.type === 'text') return <span key={key}>{node.text}</span>;
     if (node.type === 'br') return <br key={key} />;
-    const children = renderBriefingNodes(node.children, key);
+    if (node.type === 'paragraph' || node.type === 'table') return null;
+    const children = renderBriefingInline(node.children, key);
     if (node.type === 'u') {
       return (
         <u key={key} style={{ fontWeight: BRIEFING_EMPHASIS_WEIGHT, textDecoration: 'underline' }}>
@@ -94,8 +130,69 @@ function renderBriefingNodes(nodes: BriefingMarkupNode[], keyPrefix: string): Re
   });
 }
 
+function BriefingTable({
+  node,
+  keyPrefix,
+}: {
+  node: Extract<BriefingMarkupNode, { type: 'table' }>;
+  keyPrefix: string;
+}) {
+  return (
+    <div style={BRIEFING_TABLE_WRAP}>
+      <table style={BRIEFING_TABLE}>
+        <thead>
+          <tr>
+            {node.headers.map((cell, index) => (
+              <th key={`${keyPrefix}-h-${index}`} style={{ ...BRIEFING_TH, ...cellAlign(node.aligns[index]) }}>
+                {renderBriefingInline(cell, `${keyPrefix}-h-${index}`)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {node.rows.map((row, rowIndex) => (
+            <tr key={`${keyPrefix}-r-${rowIndex}`}>
+              {row.map((cell, cellIndex) => (
+                <td
+                  key={`${keyPrefix}-r-${rowIndex}-c-${cellIndex}`}
+                  style={{ ...BRIEFING_TD, ...cellAlign(node.aligns[cellIndex]) }}
+                >
+                  {renderBriefingInline(cell, `${keyPrefix}-r-${rowIndex}-c-${cellIndex}`)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function BriefingRichText({ text }: { text: string }) {
-  return <>{renderBriefingNodes(parseBriefingMarkup(text), 'b')}</>;
+  const blocks = parseBriefingBlocks(text);
+  return (
+    <>
+      {blocks.map((block, index) => {
+        if (block.type === 'table') {
+          return <BriefingTable key={`t-${index}`} node={block} keyPrefix={`t${index}`} />;
+        }
+        if (block.type !== 'paragraph') return null;
+        const heading = Boolean(block.heading);
+        return (
+          <p
+            key={`p-${index}`}
+            style={{
+              margin: `${heading && index > 0 ? 14 : 0}px 0 ${heading ? 8 : 12}px`,
+              fontWeight: heading ? 700 : undefined,
+              whiteSpace: 'pre-line',
+            }}
+          >
+            {renderBriefingInline(block.children, `p${index}`)}
+          </p>
+        );
+      })}
+    </>
+  );
 }
 
 const BRIEFING_PREVIEW_HEIGHT = 168;
@@ -118,7 +215,6 @@ function BriefingSections({ briefing }: { briefing: TideAiBriefing }) {
               fontFamily: FONT,
               marginTop: section.key === 'markdown' ? 8 : 4,
               lineHeight: section.key === 'markdown' ? 1.7 : 1.6,
-              whiteSpace: 'pre-line',
               wordBreak: 'keep-all',
             }}
           >

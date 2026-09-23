@@ -152,14 +152,31 @@ export const BRIEFING_HTML_TAGS = ['u', 'b', 'strong', 'em', 'br'] as const;
 type BriefingHtmlTag = (typeof BRIEFING_HTML_TAGS)[number];
 
 const BRIEFING_HTML_TAG_SET = new Set<string>(BRIEFING_HTML_TAGS);
+const TABLE_SEPARATOR_CELL_RE = /^:?-{3,}:?$/;
+const SENTENCE_END_RE = /(?:다|요|까|죠|네|니다|세요)[.!]?\s*$|[.!?]\s*$/;
+
+export type BriefingTableAlign = 'left' | 'center' | 'right';
 
 export type BriefingMarkupNode =
   | { type: 'text'; text: string }
   | { type: 'br' }
-  | { type: Exclude<BriefingHtmlTag, 'br'>; children: BriefingMarkupNode[] };
+  | { type: Exclude<BriefingHtmlTag, 'br'>; children: BriefingMarkupNode[] }
+  | { type: 'paragraph'; children: BriefingMarkupNode[]; heading?: boolean }
+  | {
+      type: 'table';
+      headers: BriefingMarkupNode[][];
+      rows: BriefingMarkupNode[][][];
+      aligns: BriefingTableAlign[];
+    };
 
 function isWrapperTag(name: string): name is Exclude<BriefingHtmlTag, 'br'> {
   return name === 'u' || name === 'b' || name === 'strong' || name === 'em';
+}
+
+function isInlineWrapper(
+  node: BriefingMarkupNode,
+): node is { type: Exclude<BriefingHtmlTag, 'br'>; children: BriefingMarkupNode[] } {
+  return node.type === 'u' || node.type === 'b' || node.type === 'strong' || node.type === 'em';
 }
 
 /** `**굵게**`만 HTML로 바꾼다. 밑줄은 `<u>`를 쓴다. */
@@ -221,6 +238,124 @@ export function parseBriefingMarkup(text: string): BriefingMarkupNode[] {
   return root;
 }
 
+function splitPipeCells(line: string): string[] {
+  let value = line.trim();
+  if (value.startsWith('|')) value = value.slice(1);
+  if (value.endsWith('|')) value = value.slice(0, -1);
+  return value.split('|').map((cell) => cell.trim());
+}
+
+function isSeparatorRow(line: string): boolean {
+  if (!line.includes('|') && !TABLE_SEPARATOR_CELL_RE.test(line.trim())) return false;
+  const cells = splitPipeCells(line);
+  return cells.length > 0 && cells.every((cell) => TABLE_SEPARATOR_CELL_RE.test(cell));
+}
+
+function isTableHeaderRow(line: string): boolean {
+  if (!line.includes('|') || isSeparatorRow(line)) return false;
+  return splitPipeCells(line).some((cell) => cell.length > 0);
+}
+
+function isTableStart(lines: string[], index: number): boolean {
+  return isTableHeaderRow(lines[index] ?? '') && isSeparatorRow(lines[index + 1] ?? '');
+}
+
+function alignFromSeparatorCell(cell: string): BriefingTableAlign {
+  const left = cell.startsWith(':');
+  const right = cell.endsWith(':');
+  if (left && right) return 'center';
+  if (right) return 'right';
+  return 'left';
+}
+
+function normalizeTableRow(cells: string[], columns: number): string[] {
+  if (cells.length === columns) return cells;
+  if (cells.length > columns) return cells.slice(0, columns);
+  return [...cells, ...Array.from({ length: columns - cells.length }, () => '')];
+}
+
+function parseTableBlock(
+  lines: string[],
+  start: number,
+): { node: Extract<BriefingMarkupNode, { type: 'table' }>; nextIndex: number } {
+  const headers = splitPipeCells(lines[start] ?? '');
+  const columns = Math.max(headers.length, 1);
+  const separatorCells = normalizeTableRow(splitPipeCells(lines[start + 1] ?? ''), columns);
+  const aligns = separatorCells.map(alignFromSeparatorCell);
+  const rows: string[][] = [];
+  let index = start + 2;
+  while (index < lines.length) {
+    const line = lines[index] ?? '';
+    if (!line.trim()) break;
+    if (!line.includes('|')) break;
+    if (isSeparatorRow(line)) {
+      index += 1;
+      continue;
+    }
+    rows.push(normalizeTableRow(splitPipeCells(line), columns));
+    index += 1;
+  }
+  return {
+    node: {
+      type: 'table',
+      headers: normalizeTableRow(headers, columns).map((cell) => parseBriefingMarkup(cell)),
+      rows: rows.map((row) => row.map((cell) => parseBriefingMarkup(cell))),
+      aligns,
+    },
+    nextIndex: index,
+  };
+}
+
+function isHeadingParagraph(text: string, nextIsTable: boolean): boolean {
+  const trimmed = text.trim();
+  if (!trimmed || /[\n\r]/.test(trimmed)) return false;
+  if (trimmed.endsWith(':')) return true;
+  if (SENTENCE_END_RE.test(trimmed)) return false;
+  if (nextIsTable && trimmed.length <= 64) return true;
+  return trimmed.length <= 20;
+}
+
+/**
+ * 문단(`\\n\\n`)과 GFM 파이프 표를 블록으로 나눈 뒤, 각 칸·문장은 인라인 마크업만 파싱한다.
+ */
+export function parseBriefingBlocks(text: string): BriefingMarkupNode[] {
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const blocks: BriefingMarkupNode[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    if (!(lines[index] ?? '').trim()) {
+      index += 1;
+      continue;
+    }
+    if (isTableStart(lines, index)) {
+      const table = parseTableBlock(lines, index);
+      blocks.push(table.node);
+      index = table.nextIndex;
+      continue;
+    }
+    const paraLines: string[] = [];
+    while (index < lines.length) {
+      const line = lines[index] ?? '';
+      if (!line.trim()) break;
+      if (isTableStart(lines, index)) break;
+      paraLines.push(line);
+      index += 1;
+    }
+    const body = paraLines.join('\n');
+    if (!body.trim()) continue;
+    const heading = isHeadingParagraph(body, isTableStart(lines, index));
+    const paragraph: Extract<BriefingMarkupNode, { type: 'paragraph' }> = {
+      type: 'paragraph',
+      children: parseBriefingMarkup(body),
+    };
+    if (heading) paragraph.heading = true;
+    blocks.push(paragraph);
+  }
+
+  return blocks;
+}
+
 /** 테스트·간단 렌더용. 트리를 굵게/밑줄 플래그로 펼친다. */
 export function parseBriefingEmphasis(text: string): Array<{ text: string; bold?: boolean; underline?: boolean }> {
   const parts: Array<{ text: string; bold?: boolean; underline?: boolean }> = [];
@@ -242,7 +377,20 @@ export function parseBriefingEmphasis(text: string): Array<{ text: string; bold?
         parts.push({ text: '\n' });
         continue;
       }
-      walk(node.children, bold || node.type === 'b' || node.type === 'strong', underline || node.type === 'u');
+      if (node.type === 'table') {
+        for (const cell of node.headers) walk(cell, bold, underline);
+        for (const row of node.rows) {
+          for (const cell of row) walk(cell, bold, underline);
+        }
+        continue;
+      }
+      if (node.type === 'paragraph') {
+        walk(node.children, bold, underline);
+        continue;
+      }
+      if (isInlineWrapper(node)) {
+        walk(node.children, bold || node.type === 'b' || node.type === 'strong', underline || node.type === 'u');
+      }
     }
   };
   walk(parseBriefingMarkup(text), false, false);
