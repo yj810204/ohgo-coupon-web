@@ -44,7 +44,8 @@ export default function DayAxisScroller({
   children: (date: string) => ReactNode;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const fromScroll = useRef(false);
+  const ignoreScroll = useRef(false);
+  const alignedDate = useRef<string | null>(null);
   const shiftDays = useRef(0);
   const growing = useRef(false);
   const [dates, setDates] = useState(() => datesAround(date, RADIUS));
@@ -57,25 +58,35 @@ export default function DayAxisScroller({
   useLayoutEffect(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
+    const suppressScroll = () => {
+      ignoreScroll.current = true;
+      requestAnimationFrame(() => {
+        ignoreScroll.current = false;
+      });
+    };
     if (shiftDays.current !== 0) {
+      suppressScroll();
       scroller.scrollLeft += shiftDays.current * scroller.clientWidth;
       shiftDays.current = 0;
       growing.current = false;
-      fromScroll.current = false;
       return;
     }
     growing.current = false;
-    if (fromScroll.current) {
-      fromScroll.current = false;
-      return;
-    }
+    // 스와이프로 이미 맞춘 날짜면 로드 후 스크롤을 다시 잡아 화면이 깜빡이지 않게 한다.
+    if (alignedDate.current === date) return;
     const index = dates.indexOf(date);
     if (index < 0) return;
     const width = scroller.clientWidth;
+    if (width <= 0) return;
     const fraction = focusFraction ?? 0;
     const target = Math.max(0, index * width + fraction * width - (fraction > 0 ? width / 2 : 0));
-    if (Math.abs(scroller.scrollLeft - target) < 2) return;
+    if (Math.abs(scroller.scrollLeft - target) < 2) {
+      alignedDate.current = date;
+      return;
+    }
+    suppressScroll();
     scroller.scrollLeft = target;
+    alignedDate.current = date;
   }, [date, dates, focusFraction]);
 
   const grow = (edge: 'start' | 'end') => {
@@ -106,12 +117,13 @@ export default function DayAxisScroller({
       onScroll={() => {
         const scroller = scrollerRef.current;
         if (!scroller || scroller.clientWidth <= 0) return;
+        if (ignoreScroll.current) return;
         const width = scroller.clientWidth;
         const center = scroller.scrollLeft + width / 2;
         const index = Math.min(dates.length - 1, Math.max(0, Math.floor(center / width)));
         const next = dates[index];
         if (next && next !== date) {
-          fromScroll.current = true;
+          alignedDate.current = next;
           onDateChange(next);
         }
         if (index <= 1) grow('start');
