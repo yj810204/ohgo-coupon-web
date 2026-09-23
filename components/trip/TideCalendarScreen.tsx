@@ -27,7 +27,7 @@ import {
 } from '@/utils/tide-ai-briefing-shared';
 import { getSiteSettings } from '@/utils/site-settings-service';
 import { tripDateToStr } from '@/utils/trip-guide-service';
-import { OHGO_CARD, OHGO_FONT } from '@/lib/page-styles';
+import { OHGO_CARD, OHGO_DISMISS_BTN, OHGO_DISMISS_BTN_CLASS, OHGO_FONT } from '@/lib/page-styles';
 import OhgoModal from '@/components/OhgoModal';
 import TripTidePanel from '@/components/trip/TripTidePanel';
 import WindWeatherCard from '@/components/trip/WindWeatherCard';
@@ -224,16 +224,8 @@ function TideBriefingCard({ briefing }: { briefing: TideAiBriefing | null }) {
         <button
           type="button"
           onClick={() => setSheetOpen(true)}
-          className="btn p-0"
-          style={{
-            marginTop: 8,
-            border: 'none',
-            background: 'none',
-            color: '#1B6FF5',
-            fontSize: 13,
-            fontWeight: 700,
-            fontFamily: FONT,
-          }}
+          className={`btn w-100 ${OHGO_DISMISS_BTN_CLASS}`}
+          style={{ ...OHGO_DISMISS_BTN, marginTop: 12, padding: '12px 16px' }}
         >
           더보기
         </button>

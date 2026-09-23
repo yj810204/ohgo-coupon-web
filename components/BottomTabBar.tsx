@@ -49,11 +49,15 @@ export default function BottomTabBar() {
     document.documentElement.style.setProperty('--ohgo-tab-bar-height', `${TAB_BAR_HEIGHT}px`);
   }, []);
 
+  // 샘플 경로는 SampleTabBar가 inset을 담당한다. 여기서 지우면 본문이 탭에 붙는다.
+  const sampleRoute = pathname?.startsWith('/samples') ?? false;
+
   // 메뉴 로드 여부와 무관하게, 탭바가 보이는 동안 본문 하단 inset을 즉시 확보
   useEffect(() => {
+    if (sampleRoute) return;
     syncBottomTabInset(tabVisible);
     return () => { syncBottomTabInset(false); };
-  }, [tabVisible]);
+  }, [tabVisible, sampleRoute]);
 
   // 메뉴 데이터는 경로와 무관 — pathname refetch 제거
   useEffect(() => {
