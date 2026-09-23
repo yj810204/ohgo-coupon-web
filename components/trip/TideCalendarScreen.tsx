@@ -29,6 +29,7 @@ import { getSiteSettings } from '@/utils/site-settings-service';
 import { tripDateToStr } from '@/utils/trip-guide-service';
 import { OHGO_CARD, OHGO_FONT } from '@/lib/page-styles';
 import TripTidePanel from '@/components/trip/TripTidePanel';
+import WindWeatherCard from '@/components/trip/WindWeatherCard';
 
 const FONT = OHGO_FONT;
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -419,6 +420,8 @@ export default function TideCalendarScreen({
       </div>
 
       <TripTidePanel date={selectedDate} tideRegionId={region.id} variant="embedded" />
+
+      <WindWeatherCard date={selectedDate} />
 
       {briefingLoaded ? <TideBriefingCard briefing={briefing} /> : null}
     </>
