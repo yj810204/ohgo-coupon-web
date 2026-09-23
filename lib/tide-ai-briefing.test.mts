@@ -7,6 +7,7 @@ import {
   formatBriefingProse,
   hasTideAiBriefingContent,
   parseBriefingEmphasis,
+  parseBriefingBlocks,
   parseBriefingMarkup,
   isTideAiBriefing,
   normalizeTideAiBriefingInput,
@@ -135,6 +136,99 @@ assert.deepEqual(parseBriefingMarkup('<strong>굵게</strong>와 <em>기울임</
   { type: 'text', text: '와 ' },
   { type: 'em', children: [{ type: 'text', text: '기울임' }] },
 ]);
+
+const twoTableMarkdown = `내일은 <u>5물</u>입니다. 물때는 약합니다.
+
+바람은 전면적으로 약해 풍속 등급은 양호입니다.
+
+| 구간 | 평균 | 돌풍 | 풍향 | 등급 |
+|------|------|------|------|------|
+| 오전 06–12 | 3.2 m/s | **5.2 m/s** | 서북서 | 양호 |
+| 오후 14–18 | 3.5 m/s | 5.6 m/s | 남동 | 양호 |
+
+출항~오전 시간대별(풍속 / 돌풍 / 풍향):
+| 시각 | 풍속 | 돌풍 | 풍향 |
+|:----:|-----:|:-----|-----|
+| 06시 | 1.5 | 4.1 | 북서 |
+| 07시 | 1.6 | 4.3 | 북서 |
+
+파이프만 있는 줄은 표가 아닙니다.`;
+
+const briefingBlocks = parseBriefingBlocks(twoTableMarkdown);
+assert.equal(briefingBlocks.filter((node) => node.type === 'paragraph').length, 4);
+assert.equal(briefingBlocks.filter((node) => node.type === 'table').length, 2);
+assert.equal(briefingBlocks[0]?.type, 'paragraph');
+assert.equal(briefingBlocks[1]?.type, 'paragraph');
+assert.equal(briefingBlocks[2]?.type, 'table');
+assert.equal(briefingBlocks[3]?.type, 'paragraph');
+assert.equal(briefingBlocks[3] && briefingBlocks[3].type === 'paragraph' && briefingBlocks[3].heading, true);
+assert.equal(briefingBlocks[4]?.type, 'table');
+assert.equal(briefingBlocks[5]?.type, 'paragraph');
+
+const firstTable = briefingBlocks[2];
+assert.equal(firstTable?.type, 'table');
+if (firstTable?.type === 'table') {
+  assert.deepEqual(
+    firstTable.headers.map((cell) => cell.map((node) => (node.type === 'text' ? node.text : ''))),
+    [['구간'], ['평균'], ['돌풍'], ['풍향'], ['등급']],
+  );
+  assert.equal(firstTable.rows.length, 2);
+  assert.deepEqual(firstTable.rows[0]?.[0], [{ type: 'text', text: '오전 06–12' }]);
+  assert.deepEqual(firstTable.rows[0]?.[2], [{ type: 'strong', children: [{ type: 'text', text: '5.2 m/s' }] }]);
+  assert.ok(firstTable.rows.every((row) => row.length === 5));
+  assert.equal(
+    firstTable.headers.some((cell) => cell.some((node) => node.type === 'text' && /---/.test(node.text))),
+    false,
+  );
+}
+
+const secondTable = briefingBlocks[4];
+assert.equal(secondTable?.type, 'table');
+if (secondTable?.type === 'table') {
+  assert.deepEqual(secondTable.aligns, ['center', 'right', 'left', 'left']);
+  assert.equal(secondTable.rows.length, 2);
+  assert.deepEqual(secondTable.rows[0]?.[0], [{ type: 'text', text: '06시' }]);
+}
+
+const firstParagraph = briefingBlocks[0];
+assert.equal(firstParagraph?.type, 'paragraph');
+if (firstParagraph?.type === 'paragraph') {
+  assert.equal(firstParagraph.heading, undefined);
+  assert.deepEqual(firstParagraph.children, [
+    { type: 'text', text: '내일은 ' },
+    { type: 'u', children: [{ type: 'text', text: '5물' }] },
+    { type: 'text', text: '입니다. 물때는 약합니다.' },
+  ]);
+}
+
+assert.deepEqual(
+  parseBriefingBlocks('| 구간 | 평균 |\n| --- | --- |\n| 오전 | 3.2 |')[0],
+  parseBriefingBlocks('| 구간 | 평균 |\n|------|------|\n| 오전 | 3.2 |')[0],
+);
+
+assert.deepEqual(parseBriefingBlocks('표 아닌 | 파이프\n그냥 문장입니다.'), [
+  {
+    type: 'paragraph',
+    children: [{ type: 'text', text: '표 아닌 | 파이프\n그냥 문장입니다.' }],
+  },
+]);
+
+assert.deepEqual(parseBriefingBlocks('<table onclick="alert(1)"><tr><td>위험</td></tr></table>'), [
+  { type: 'paragraph', children: [{ type: 'text', text: '위험' }] },
+]);
+
+assert.equal(parseBriefingBlocks('첫 문단입니다.\n\n둘째 문단입니다.').length, 2);
+assert.ok(parseBriefingBlocks('첫 문단입니다.\n\n둘째 문단입니다.').every((node) => node.type === 'paragraph'));
+
+const headingLeftover = formatBriefingProse(`# 출항 시간대별
+| 시각 | 풍속 |
+|------|------|
+| 06시 | 1.5 |`);
+assert.doesNotMatch(headingLeftover, /^# /m);
+const leftoverBlocks = parseBriefingBlocks(headingLeftover);
+assert.equal(leftoverBlocks[0]?.type, 'paragraph');
+assert.equal(leftoverBlocks[0] && leftoverBlocks[0].type === 'paragraph' && leftoverBlocks[0].heading, true);
+assert.equal(leftoverBlocks[1]?.type, 'table');
 
 const productionLikeBody = `# 「AI 출조 브리핑」 — 2026-09-23 (수)
 
