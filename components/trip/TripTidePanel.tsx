@@ -13,7 +13,7 @@ import { interpolateTideCurve, kstDateTimeMs, slackWindows } from '@/lib/tide-fo
 import { estimateDayTideFlow, tideFlowFeel } from '@/lib/tide-fish-recommend';
 import { getSiteSettings } from '@/utils/site-settings-service';
 import { tripDateToStr } from '@/utils/trip-guide-service';
-import DayAxisScroller, { todayOutingFraction } from '@/components/trip/DayAxisScroller';
+import DayAxisScroller from '@/components/trip/DayAxisScroller';
 
 const FONT = 'var(--font-ohgo), sans-serif';
 
@@ -111,6 +111,31 @@ function TideFlowBar({ level }: { level: number }) {
 
 const BOAT_START_HOUR = 4;
 const BOAT_END_HOUR = 18;
+
+type TideHeaderStats = {
+  high: string;
+  low: string;
+  range: string;
+  flowLevel: number;
+  flowText: string;
+};
+
+function headerStatsFrom(date: string, events: TideForecastEvent[], anchors: TideCurveAnchor[]): TideHeaderStats {
+  const tideLabel = getTideLabel(date);
+  const dayFlow = estimateDayTideFlow(tideLabel, events, date, anchors);
+  const boatStart = kstDateTimeMs(date, BOAT_START_HOUR);
+  const boatEnd = kstDateTimeMs(date, BOAT_END_HOUR);
+  const headerEvents = events.filter((event) => event.at >= boatStart && event.at <= boatEnd);
+  const headerHigh = [...headerEvents.filter((event) => event.type === 'high')].sort((a, b) => a.at - b.at)[0];
+  const headerLow = [...headerEvents.filter((event) => event.type === 'low')].sort((a, b) => a.at - b.at)[0];
+  return {
+    high: headerHigh ? `만조 ${headerHigh.time}` : '',
+    low: headerLow ? `간조 ${headerLow.time}` : '',
+    range: dayFlow.rangeCm != null ? `고저 ${dayFlow.rangeCm}cm` : '',
+    flowLevel: dayFlow.level,
+    flowText: tideFlowFeel(dayFlow.peakKn),
+  };
+}
 
 function TideChart({
   date,
@@ -372,6 +397,7 @@ export default function TripTidePanel({
   const [events, setEvents] = useState<TideForecastEvent[]>([]);
   const [anchors, setAnchors] = useState<TideCurveAnchor[]>([]);
   const [stationLabel, setStationLabel] = useState(region.stationLabel);
+  const [headerStats, setHeaderStats] = useState<TideHeaderStats | null>(null);
 
   useEffect(() => {
     if (tideRegionId) {
@@ -400,6 +426,7 @@ export default function TripTidePanel({
         if (cancelled || !data?.ok) return;
         setEvents(data.events);
         setAnchors(data.anchors ?? []);
+        setHeaderStats(headerStatsFrom(date, data.events, data.anchors ?? []));
         if (data.region?.stationLabel) setStationLabel(data.region.stationLabel);
       })
       .catch(() => {
@@ -413,16 +440,10 @@ export default function TripTidePanel({
     };
   }, [date, region.id]);
 
-  if (!tideLabel && events.length === 0) return null;
+  if (!tideLabel && events.length === 0 && !headerStats) return null;
 
-  const dayFlow = estimateDayTideFlow(tideLabel, events, date, anchors);
-  const flowLevel = dayFlow.level;
+  const flowLevel = headerStats?.flowLevel ?? 0;
   const title = formatTideTitle(date);
-  const boatStart = kstDateTimeMs(date, BOAT_START_HOUR);
-  const boatEnd = kstDateTimeMs(date, BOAT_END_HOUR);
-  const headerEvents = events.filter((event) => event.at >= boatStart && event.at <= boatEnd);
-  const headerHigh = [...headerEvents.filter((event) => event.type === 'high')].sort((a, b) => a.at - b.at)[0];
-  const headerLow = [...headerEvents.filter((event) => event.type === 'low')].sort((a, b) => a.at - b.at)[0];
   const card = (
     <div style={variant === 'embedded' ? { ...CARD, boxShadow: 'none', border: '1px solid #EFEFEF' } : CARD}>
       <div
@@ -437,33 +458,17 @@ export default function TripTidePanel({
             {formatDateLine(date)}
           </div>
         </div>
-        {headerHigh || headerLow || dayFlow.rangeCm != null ? (
-          <div
-            className="min-w-0"
-            style={{
-              flex: '1 1 auto',
-              textAlign: 'center',
-              fontFamily: FONT,
-              lineHeight: 1.35,
-            }}
-          >
-            {headerHigh ? (
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#DC2626' }}>
-                {`만조 ${headerHigh.time}`}
-              </div>
-            ) : null}
-            {headerLow ? (
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#0F4C81' }}>
-                {`간조 ${headerLow.time}`}
-              </div>
-            ) : null}
-            {dayFlow.rangeCm != null ? (
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#9A9FA5', marginTop: 1 }}>
-                {`고저 ${dayFlow.rangeCm}cm`}
-              </div>
-            ) : null}
+        <div className="min-w-0" style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: FONT }}>
+          <div style={{ height: 15, fontSize: 11, fontWeight: 800, color: '#DC2626', lineHeight: '15px' }}>
+            {headerStats?.high || '\u00a0'}
           </div>
-        ) : null}
+          <div style={{ height: 15, fontSize: 11, fontWeight: 800, color: '#0F4C81', lineHeight: '15px' }}>
+            {headerStats?.low || '\u00a0'}
+          </div>
+          <div style={{ height: 15, marginTop: 1, fontSize: 11, fontWeight: 700, color: '#9A9FA5', lineHeight: '15px' }}>
+            {headerStats?.range || '\u00a0'}
+          </div>
+        </div>
         {tideLabel ? (
           <span
             style={{
@@ -498,7 +503,7 @@ export default function TripTidePanel({
                 fontFamily: FONT,
               }}
             >
-              {tideFlowFeel(dayFlow.peakKn)}
+              {headerStats?.flowText ?? ''}
             </span>
           </div>
           <TideFlowBar level={flowLevel} />
@@ -506,11 +511,7 @@ export default function TripTidePanel({
       ) : null}
 
       {onActiveDate ? (
-        <DayAxisScroller
-          date={date}
-          onDateChange={onActiveDate}
-          focusFraction={todayOutingFraction(date, BOAT_START_HOUR, BOAT_END_HOUR)}
-        >
+        <DayAxisScroller date={date} onDateChange={onActiveDate}>
           {(day) => <TideDayChart date={day} regionId={region.id} />}
         </DayAxisScroller>
       ) : events.length > 0 || anchors.length > 0 ? (

@@ -8,7 +8,7 @@ import {
   type WindWeatherPayload,
 } from '@/lib/open-meteo-wind';
 import { OHGO_CARD, OHGO_FONT } from '@/lib/page-styles';
-import DayAxisScroller, { todayOutingFraction } from '@/components/trip/DayAxisScroller';
+import DayAxisScroller from '@/components/trip/DayAxisScroller';
 
 const FONT = OHGO_FONT;
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -277,9 +277,26 @@ function WindStrip({ date, hours }: { date: string; hours: WindHourPoint[] }) {
   );
 }
 
-function CardShell({ children }: { children: ReactNode }) {
+function CardShell({
+  children,
+  spaced = true,
+  bordered = false,
+}: {
+  children: ReactNode;
+  spaced?: boolean;
+  bordered?: boolean;
+}) {
   return (
-    <div className="mt-3" style={{ ...OHGO_CARD, padding: 16 }}>
+    <div
+      className={spaced ? 'mt-3' : undefined}
+      style={{
+        ...OHGO_CARD,
+        padding: 16,
+        ...(bordered
+          ? { boxShadow: 'none', border: '1px solid #EFEFEF', borderRadius: 14 }
+          : {}),
+      }}
+    >
       {children}
     </div>
   );
@@ -538,9 +555,15 @@ function WindDayPane({ date }: { date: string }) {
 export default function WindWeatherCard({
   date,
   onActiveDate,
+  spaced = true,
+  bordered = false,
 }: {
   date: string;
   onActiveDate?: (date: string) => void;
+  /** 섹션 제목 바로 아래에서는 카드 위 여백을 두지 않는다. */
+  spaced?: boolean;
+  /** 모달 안에서는 그림자가 아니라 물때 카드와 같은 테두리를 쓴다. */
+  bordered?: boolean;
 }) {
   const [payload, setPayload] = useState<WindWeatherPayload | null>(null);
   const [failed, setFailed] = useState(false);
@@ -582,7 +605,7 @@ export default function WindWeatherCard({
 
   if (!loaded && !onActiveDate) {
     return (
-      <CardShell>
+      <CardShell spaced={spaced} bordered={bordered}>
         <CardHeader date={date} />
         <div style={{ fontSize: 13, fontWeight: 600, color: '#9A9FA5', fontFamily: FONT, marginTop: 12 }}>
           예보 불러오는 중…
@@ -593,7 +616,7 @@ export default function WindWeatherCard({
 
   if (!onActiveDate && (failed || !payload)) {
     return (
-      <CardShell>
+      <CardShell spaced={spaced} bordered={bordered}>
         <CardHeader date={date} />
         <div
           style={{
@@ -614,15 +637,11 @@ export default function WindWeatherCard({
   }
 
   return (
-    <CardShell>
+    <CardShell spaced={spaced} bordered={bordered}>
       <CardHeader date={date} />
       <div style={{ marginTop: 4 }}>
         {onActiveDate ? (
-          <DayAxisScroller
-            date={date}
-            onDateChange={onActiveDate}
-            focusFraction={todayOutingFraction(date, WIND_SLOTS[0], WIND_SLOTS[WIND_SLOTS.length - 1])}
-          >
+          <DayAxisScroller date={date} onDateChange={onActiveDate}>
             {(day) => <WindDayPane date={day} />}
           </DayAxisScroller>
         ) : (

@@ -7,6 +7,7 @@ import { getUser } from '@/lib/storage';
 import SubPageFrame from '@/components/SubPageFrame';
 import { OhgoModalInfoList, OhgoModalInfoRow } from '@/components/OhgoModal';
 import TripTidePanel from '@/components/trip/TripTidePanel';
+import WindWeatherCard from '@/components/trip/WindWeatherCard';
 import {
   createReservation,
   getBoardingInfo,
@@ -347,8 +348,9 @@ function TripReservationContent() {
               <OhgoModalInfoRow icon={IoBoatOutline} label="목적지" value={trip.destination} />
             ) : null}
           </OhgoModalInfoList>
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 18 }}>
             <TripTidePanel date={trip.date} variant="embedded" />
+            <WindWeatherCard date={trip.date} spaced={false} bordered />
           </div>
         </div>
 

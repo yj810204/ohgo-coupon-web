@@ -76,6 +76,7 @@ export default function MainPage() {
   const [marketListings, setMarketListings] = useState<MarketListing[]>([]);
   const [weekTrips, setWeekTrips] = useState<TripGuide[]>([]);
   const [weekTripsLoading, setWeekTripsLoading] = useState(true);
+  const [chartDate, setChartDate] = useState(() => tripDateToStr());
   const [homeSections, setHomeSections] = useState<HomeSectionVisibility>({
     ...DEFAULT_HOME_SECTIONS,
   });
@@ -288,7 +289,6 @@ export default function MainPage() {
               <WeeklyTripSummary
                 key={sectionId}
                 onViewAll={() => navigate('/community/trip-guide')}
-                headerNavigates={false}
                 trips={weekTrips}
                 isLoading={weekTripsLoading}
               />
@@ -299,8 +299,9 @@ export default function MainPage() {
             return (
               <TripTidePanel
                 key={sectionId}
-                date={tripDateToStr()}
-                showViewAll
+                date={chartDate}
+                onActiveDate={setChartDate}
+                onViewAll={() => navigate('/tide')}
               />
             );
           }
@@ -308,8 +309,8 @@ export default function MainPage() {
           if (sectionId === 'wind' && homeSections.wind) {
             return (
               <section key={sectionId} style={{ marginBottom: 30 }}>
-                <SectionHeader title="바람" showViewAll />
-                <WindWeatherCard date={tripDateToStr()} />
+                <SectionHeader title="바람" onViewAll={() => navigate('/tide')} />
+                <WindWeatherCard date={chartDate} onActiveDate={setChartDate} spaced={false} />
               </section>
             );
           }
@@ -319,7 +320,7 @@ export default function MainPage() {
               <section key={sectionId} style={{ marginBottom: 30 }}>
                 <SectionHeader
                   title="내 조황 사진"
-                  showViewAll
+                  onViewAll={() => navigate('/my-photos')}
                 />
                 <div className="row g-3">
                   {myCaptainPhotos.slice(0, 4).map((photo) => (
@@ -343,7 +344,7 @@ export default function MainPage() {
                 <section style={{ marginBottom: 30 }}>
                   <SectionHeader
                     title="조황 사진"
-                    showViewAll
+                    onViewAll={() => navigate('/community/photos')}
                   />
                   <div className="row g-3">
                     {isPhotoDummy
@@ -371,7 +372,7 @@ export default function MainPage() {
                 <section style={{ marginBottom: 30 }}>
                   <SectionHeader
                     title="낚시 팁 · FAQ"
-                    showViewAll
+                    onViewAll={() => navigate('/community/faq')}
                   />
                   {faqPosts.length === 0 ? (
                     <EmptyState
@@ -411,7 +412,7 @@ export default function MainPage() {
                 <section style={{ marginBottom: 30 }}>
                   <SectionHeader
                     title="낚시 Q&A"
-                    showViewAll
+                    onViewAll={() => navigate('/community/qna')}
                   />
                   {qnaPosts.length === 0 ? (
                     <EmptyState
@@ -455,7 +456,7 @@ export default function MainPage() {
           if (sectionId === 'miniGames' && homeSections.miniGames) {
             return (
               <section key={sectionId} style={{ marginBottom: 30 }}>
-                <SectionHeader title="미니게임" showViewAll />
+                <SectionHeader title="미니게임" onViewAll={() => navigate('/mini-games')} />
                 {games.length === 0 ? (
                   <EmptyState
                     icon={IoGameControllerOutline}
@@ -488,7 +489,7 @@ export default function MainPage() {
               <section key={sectionId} style={{ marginBottom: 30 }}>
                 <SectionHeader
                   title="중고장터"
-                  showViewAll
+                  onViewAll={() => navigate('/market')}
                 />
                 {marketListings.length === 0 ? (
                   <EmptyState

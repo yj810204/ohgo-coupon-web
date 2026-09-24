@@ -43,6 +43,7 @@ import OhgoModal, {
 } from '@/components/OhgoModal';
 import EmptyState from '@/components/EmptyState';
 import TripTidePanel from '@/components/trip/TripTidePanel';
+import WindWeatherCard from '@/components/trip/WindWeatherCard';
 import { getTideLabel, getTideTextColor } from '@/lib/dadaepo-tide';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
@@ -754,6 +755,7 @@ export default function TripGuidePage() {
               ) : null}
             </OhgoModalInfoList>
             <TripTidePanel date={modalTrip.date} variant="embedded" />
+            <WindWeatherCard date={modalTrip.date} spaced={false} bordered />
             {modalTrip.price ? (
               <div
                 className="p-3 rounded-3 d-flex align-items-center justify-content-between"

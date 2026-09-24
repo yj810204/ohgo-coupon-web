@@ -15,7 +15,7 @@ const subMenuItems = [
   {
     id: 'photos',
     label: '조황 사진',
-    desc: '낚시 조황 사진을 공유하세요',
+    desc: '최근 출조 현장의 사진',
     path: '/community/photos',
     icon: IoImageOutline,
     color: '#9C27B0',
@@ -33,7 +33,7 @@ const subMenuItems = [
   {
     id: 'qna',
     label: '낚시 Q&A',
-    desc: '궁금한 점을 물어보세요.',
+    desc: '낚시에 대한 질문과 답변',
     path: '/community/qna',
     icon: IoHelpCircleOutline,
     color: '#00BCD4',
@@ -42,7 +42,7 @@ const subMenuItems = [
   {
     id: 'trip-guide',
     label: '출조 안내',
-    desc: '출조 일정과 정보를 확인하세요',
+    desc: '이번 주 출조 일정과 출항지',
     path: '/community/trip-guide',
     icon: IoBoatOutline,
     color: '#1B6FF5',
@@ -50,8 +50,8 @@ const subMenuItems = [
   },
   {
     id: 'tide',
-    label: '물때',
-    desc: '몇물·조위와 추천 어종을 확인하세요',
+    label: '물때 · 날씨',
+    desc: '오늘 물때와 바람의 AI 브리핑',
     path: '/tide',
     icon: IoWaterOutline,
     color: '#0F4C81',

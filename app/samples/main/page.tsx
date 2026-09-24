@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from '@/hooks/useAppRouter';
+import { useState } from 'react';
 import AvatarHeader from '@/components/home/AvatarHeader';
 import StampCouponSummary from '@/components/home/StampCouponSummary';
 import WeeklyTripSummary from '@/components/home/WeeklyTripSummary';
@@ -24,6 +25,7 @@ import type { TripGuide } from '@/utils/trip-guide-service';
 
 export default function SampleMainPage() {
   const router = useRouter();
+  const [chartDate, setChartDate] = useState(() => tripDateToStr());
   const stampCount = SAMPLE_STAMPS.length;
   const couponCount = SAMPLE_COUPONS.filter((c) => !c.used).length;
 
@@ -58,8 +60,9 @@ export default function SampleMainPage() {
         />
 
         <TripTidePanel
-          date={tripDateToStr()}
+          date={chartDate}
           tideRegionId="dadaepo"
+          onActiveDate={setChartDate}
           onViewAll={() => router.push('/samples/tide')}
         />
 
