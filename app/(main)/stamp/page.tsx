@@ -118,6 +118,7 @@ function StampPageContent() {
   const [selectedStampInfo, setSelectedStampInfo] = useState<{ date: string; method?: string; value?: string } | null>(null);
   const [user, setUser] = useState<{ uuid?: string; name?: string; dob?: string } | null>(null);
   const [qrOpening, setQrOpening] = useState(false);
+  const [issuingHalf, setIssuingHalf] = useState(false);
   const fromAdmin = searchParams.get('fromAdmin') === 'true';
   const targetUuid = searchParams.get('uuid');
   const targetName = searchParams.get('name');
@@ -153,13 +154,33 @@ function StampPageContent() {
 
   useEffect(() => { if (user?.uuid) fetchStamps(); }, [user?.uuid, fetchStamps]);
 
+  const issueHalfCoupon = async () => {
+    if (!user?.uuid || issuingHalf) return;
+    const confirmed = await ohgoConfirm(
+      fromAdmin
+        ? '스탬프 5개를 차감하고 50% 할인 쿠폰을 발급할까요?'
+        : '50% 할인 쿠폰을 발급하시겠습니까?'
+    );
+    if (!confirmed) return;
+    setIssuingHalf(true);
+    try {
+      await issue50PercentCoupon(user.uuid);
+      alert(
+        fromAdmin
+          ? '50% 쿠폰이 발급되었습니다. 쿠폰 화면에서 사용 처리할 수 있습니다.'
+          : '50% 쿠폰이 발급되었습니다!'
+      );
+      await fetchStamps();
+    } catch (err) {
+      alert('오류: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setIssuingHalf(false);
+    }
+  };
+
   const handleTap = async (raw: string, isFifth: boolean) => {
     if (isFifth && !fromAdmin) {
-      if (!(await ohgoConfirm('50% 할인 쿠폰을 발급하시겠습니까?'))) return;
-      issue50PercentCoupon(user!.uuid!).then(() => {
-        alert('50% 쿠폰이 발급되었습니다!');
-        fetchStamps();
-      }).catch(err => alert('오류: ' + err.message));
+      await issueHalfCoupon();
     } else {
       const [date, method, time] = raw.split('|');
       const methodLabel = method === 'ADMIN' ? '선장님' : method === 'QR' ? 'QR 스캔' : '알 수 없음';
@@ -220,6 +241,58 @@ function StampPageContent() {
             </div>
           </div>
         </div>
+
+        {fromAdmin && stamps.length >= 5 && (
+          <div className="d-flex gap-2 mb-4">
+            <button
+              type="button"
+              disabled={issuingHalf}
+              onClick={() => { void issueHalfCoupon(); }}
+              className="btn flex-grow-1 d-flex align-items-center justify-content-center gap-2 fw-semibold"
+              style={{
+                backgroundColor: '#1B6FF5',
+                color: '#fff',
+                borderRadius: 12,
+                padding: '11px',
+                border: 'none',
+                fontFamily: OHGO_FONT,
+                opacity: issuingHalf ? 0.85 : 1,
+              }}
+            >
+              {issuingHalf ? (
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm"
+                    role="status"
+                    style={{ width: 18, height: 18, borderWidth: 2 }}
+                  />
+                  발급 중…
+                </>
+              ) : (
+                <>
+                  <IoStarOutline size={20} />
+                  50% 쿠폰 발급
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(`/coupons?${query}&fromAdmin=true`)}
+              className="btn flex-grow-1 d-flex align-items-center justify-content-center gap-2 fw-semibold"
+              style={{
+                backgroundColor: '#EBF1FE',
+                color: '#1B6FF5',
+                borderRadius: 12,
+                padding: '11px',
+                border: 'none',
+                fontFamily: OHGO_FONT,
+              }}
+            >
+              <IoGiftOutline size={20} />
+              쿠폰 보기
+            </button>
+          </div>
+        )}
 
         {!fromAdmin && (
           <div className="d-flex gap-2 mb-4">

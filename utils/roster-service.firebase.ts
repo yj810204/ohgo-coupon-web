@@ -726,6 +726,33 @@ export async function findUserByNameDob(name: string, dob: string): Promise<stri
   return null;
 }
 
+export type MemberBoardingDate = {
+  date: string;
+  tripNumber: number;
+};
+
+/** 출항 확정 때 남은 confirmedMembers에서 이 회원의 승선일 */
+export async function listMemberBoardingDates(memberId: string): Promise<MemberBoardingDate[]> {
+  const db = getFirebaseDb();
+  const snap = await getDocs(collection(db, 'attendance'));
+  const dates: MemberBoardingDate[] = [];
+  for (const attendanceDoc of snap.docs) {
+    const confirmed = attendanceDoc.data().confirmedMembers;
+    if (!confirmed || typeof confirmed !== 'object') continue;
+    for (const [tripKeyName, value] of Object.entries(confirmed as Record<string, unknown>)) {
+      if (!Array.isArray(value) || !value.map(String).includes(memberId)) continue;
+      const tripNumber = Number(tripKeyName);
+      if (!Number.isFinite(tripNumber)) continue;
+      dates.push({ date: attendanceDoc.id, tripNumber });
+    }
+  }
+  dates.sort((a, b) => {
+    if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+    return b.tripNumber - a.tripNumber;
+  });
+  return dates;
+}
+
 /** 현재 명부 + 확정 항차 스냅샷을 합친 오늘 승선자 */
 export async function getBoardedMemberIds(date: string): Promise<string[]> {
   const db = getFirebaseDb();

@@ -67,3 +67,5 @@ export const getBoardedMemberIds: typeof supa.getBoardedMemberIds = (...a) =>
   impl.getBoardedMemberIds(...a);
 export const findUserByNameDob: typeof supa.findUserByNameDob = (...a) =>
   impl.findUserByNameDob(...a);
+export const listMemberBoardingDates: typeof fb.listMemberBoardingDates = (memberId) =>
+  DATA_SOURCE === 'firebase' ? fb.listMemberBoardingDates(memberId) : Promise.resolve([]);

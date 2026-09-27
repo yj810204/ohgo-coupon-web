@@ -163,7 +163,7 @@ function FishingLogFormContent() {
           />
         </div>
         <div className="col-6">
-          <label style={LABEL}>귀항</label>
+          <label style={LABEL}>입항</label>
           <input
             type="time"
             className="form-control"

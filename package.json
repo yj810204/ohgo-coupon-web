@@ -49,6 +49,7 @@
     "eslint-config-next": "16.0.8",
     "playwright": "^1.60.0",
     "tailwindcss": "^4",
+    "tesseract.js": "^7.0.0",
     "typescript": "^5"
   }
 }

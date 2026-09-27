@@ -15,6 +15,8 @@ import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
 import DateRangeCalendar from '@/components/DateRangeCalendar';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import { findCaptains } from '@/utils/find-captains';
+import { getBoardingForm } from '@/utils/boarding-service';
 import {
   OHGO_CONFIRM_BTN,
   OHGO_CONFIRM_BTN_CLASS,
@@ -144,6 +146,19 @@ function datesInRange(start: string, end: string): string[] {
   }
 }
 
+async function captainContactPhone(): Promise<string> {
+  try {
+    const crew = await findCaptains();
+    const captain = crew.find((member) => member.role === 'captain') ?? crew[0];
+    if (!captain) return '';
+    const boarding = await getBoardingForm(captain.uuid);
+    return (boarding?.phone || captain.phone || '').trim();
+  } catch (error) {
+    console.warn('선장 연락처를 불러오지 못했습니다.', error);
+    return '';
+  }
+}
+
 function toPayload(form: TripGuideInput): TripGuideInput {
   const payload: TripGuideInput = {
     date: form.date,
@@ -188,22 +203,26 @@ function TripGuideFormContent() {
   const [rangeDraftEnd, setRangeDraftEnd] = useState('');
   const [showRangeModal, setShowRangeModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [loadingTrip, setLoadingTrip] = useState(!!editId);
+  const [loadingTrip, setLoadingTrip] = useState(true);
 
   const isEdit = Boolean(editId);
 
   useEffect(() => {
     if (!ready) return;
-    if (!editId) {
-      const today = new Date().toISOString().split('T')[0];
-      setForm({ ...EMPTY, date: today });
-      setDateEnd(today);
-      return;
-    }
+    let cancelled = false;
     const load = async () => {
       setLoadingTrip(true);
       try {
+        const captainPhone = await captainContactPhone();
+        if (cancelled) return;
+        if (!editId) {
+          const today = new Date().toISOString().split('T')[0];
+          setForm({ ...EMPTY, date: today, contact: captainPhone });
+          setDateEnd(today);
+          return;
+        }
         const trips = await getAllTrips();
+        if (cancelled) return;
         const t = trips.find((x) => x.id === editId);
         if (!t) {
           alert('출조 일정을 찾을 수 없습니다.');
@@ -219,14 +238,17 @@ function TripGuideFormContent() {
           capacity: t.capacity,
           price: t.price,
           notes: t.notes || '',
-          contact: t.contact || '',
+          contact: t.contact || captainPhone,
         });
         setDateEnd(t.date);
       } finally {
-        setLoadingTrip(false);
+        if (!cancelled) setLoadingTrip(false);
       }
     };
     void load();
+    return () => {
+      cancelled = true;
+    };
   }, [ready, editId, router]);
 
   const setField = <K extends keyof TripGuideInput>(key: K, value: TripGuideInput[K]) => {
@@ -385,7 +407,7 @@ function TripGuideFormContent() {
         onChange={(time) => setField('departureTime', time)}
       />
       <TimeSelect
-        label="귀항 예정"
+        label="입항 예정"
         value={form.returnTime || ''}
         onChange={(time) => setField('returnTime', time)}
       />

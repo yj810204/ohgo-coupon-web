@@ -28,6 +28,7 @@ export type DuplicateMemberCandidate = {
   uuid: string;
   name: string;
   dob: string;
+  createdAt?: string;
   lastStampTimeMs?: number;
   stampCount: number;
   tripCount: number;

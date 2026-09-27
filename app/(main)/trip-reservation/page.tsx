@@ -342,7 +342,7 @@ function TripReservationContent() {
             <OhgoModalInfoRow
               icon={IoTimeOutline}
               label="출항 시간"
-              value={`${trip.departureTime} 출항${trip.returnTime ? ` ~ ${trip.returnTime} 귀항` : ''}`}
+              value={`${trip.departureTime} 출항${trip.returnTime ? ` ~ ${trip.returnTime} 입항` : ''}`}
             />
             {trip.destination ? (
               <OhgoModalInfoRow icon={IoBoatOutline} label="목적지" value={trip.destination} />

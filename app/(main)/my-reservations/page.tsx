@@ -171,7 +171,7 @@ export default function MyReservationsPage() {
                 </div>
                 <div style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>
                   {r.departureTime} 출항
-                  {r.returnTime ? ` ~ ${r.returnTime} 귀항` : ''}
+                  {r.returnTime ? ` ~ ${r.returnTime} 입항` : ''}
                 </div>
                 {r.status === 'rejected' && r.rejectedReason && (
                   <div

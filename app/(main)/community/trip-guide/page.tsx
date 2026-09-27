@@ -49,7 +49,8 @@ import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 const FONT = OHGO_FONT;
 const CARD: React.CSSProperties = { ...OHGO_CARD };
-const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+const WEEKDAY_BY_JS = ['일', '월', '화', '수', '목', '금', '토'];
+const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
 const TODAY_ACCENT = '#E65100';
 const TODAY_BG = '#FFF3E0';
 
@@ -63,10 +64,11 @@ function addDays(dateStr: string, days: number): string {
   return tripDateToStr(d);
 }
 
-/** 일~토 주간 (달력 그리드와 동일) */
+/** 월~일 주간 (달력 그리드와 동일) */
 function weekDateStrs(dateStr: string): string[] {
   const d = new Date(`${dateStr}T12:00:00`);
-  d.setDate(d.getDate() - d.getDay());
+  const mondayOffset = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - mondayOffset);
   return Array.from({ length: 7 }, (_, i) => {
     const day = new Date(d);
     day.setDate(d.getDate() + i);
@@ -74,7 +76,7 @@ function weekDateStrs(dateStr: string): string[] {
   });
 }
 
-function formatSunSatWeekLabel(dateStr: string): string {
+function formatWeekLabel(dateStr: string): string {
   const days = weekDateStrs(dateStr);
   const start = days[0];
   const end = days[6];
@@ -89,7 +91,7 @@ function formatSunSatWeekLabel(dateStr: string): string {
 function formatTripModalDate(dateStr: string) {
   const m = parseInt(dateStr.split('-')[1], 10);
   const d = parseInt(dateStr.split('-')[2], 10);
-  const weekday = DAY_LABELS[new Date(`${dateStr}T12:00:00`).getDay()];
+  const weekday = WEEKDAY_BY_JS[new Date(`${dateStr}T12:00:00`).getDay()];
   return `${m}월 ${d}일 (${weekday})`;
 }
 
@@ -298,7 +300,7 @@ export default function TripGuidePage() {
   const goPrev = () => (calendarExpanded ? prevMonth() : goToDay(-1));
   const goNext = () => (calendarExpanded ? nextMonth() : goToDay(1));
 
-  const firstDay = new Date(year, month, 1).getDay();
+  const firstDay = (new Date(year, month, 1).getDay() + 6) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const cells: (number | null)[] = [
     ...Array(firstDay).fill(null),
@@ -321,7 +323,10 @@ export default function TripGuidePage() {
     `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
   const weekTripGroups = weekDates
-    .map((date) => ({ date, trips: tripMap[date] || [] }))
+    .map((date) => ({
+      date,
+      trips: (tripMap[date] || []).filter((trip) => !isPastTripSchedule(trip.date, trip.departureTime)),
+    }))
     .filter((group) => group.trips.length > 0);
   const weekTripCount = weekTripGroups.reduce((sum, group) => sum + group.trips.length, 0);
   const currentMonthDate = useMemo(() => new Date(year, month, 1), [year, month]);
@@ -393,8 +398,8 @@ export default function TripGuidePage() {
         dayTrips.every((t) => isPastTripSchedule(t.date, t.departureTime)));
     const isClosed = tripCount === 0;
     const isSelected = dateStr === selectedDate;
-    const isSun = col === 0;
-    const isSat = col === 6;
+    const isSun = col === 6;
+    const isSat = col === 5;
 
     let dayNumberColor = '#1A1D1F';
     if (outsideMonth) dayNumberColor = '#C5C8CD';
@@ -530,7 +535,7 @@ export default function TripGuidePage() {
             >
               {calendarExpanded
                 ? format(currentMonthDate, 'yyyy년 M월')
-                : formatSunSatWeekLabel(selectedDate)}
+                : formatWeekLabel(selectedDate)}
             </span>
             <button
               type="button"
@@ -554,7 +559,7 @@ export default function TripGuidePage() {
                   fontSize: 11,
                   fontWeight: 700,
                   fontFamily: FONT,
-                  color: i === 0 ? '#FF3B30' : i === 6 ? '#1B6FF5' : '#6F767E',
+                  color: i === 6 ? '#FF3B30' : i === 5 ? '#1B6FF5' : '#6F767E',
                 }}
               >
                 {d}
@@ -630,7 +635,7 @@ export default function TripGuidePage() {
                   fontFamily: FONT,
                 }}
               >
-                {formatSunSatWeekLabel(selectedDate)} 출조 일정
+                {formatWeekLabel(selectedDate)} 출조 일정
               </span>
               {weekTripCount > 0 ? (
                 <span
@@ -651,7 +656,7 @@ export default function TripGuidePage() {
             {weekTripCount === 0 ? (
               <EmptyState
                 icon={IoBoatOutline}
-                message="이번 주 등록된 출조 일정이 없습니다."
+                message="이번 주 남은 출조 일정이 없습니다."
                 compact
                 style={{ backgroundColor: '#F7F8FA', borderRadius: 14, border: '1px solid #EFEFEF', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
               />
@@ -745,7 +750,7 @@ export default function TripGuidePage() {
               <OhgoModalInfoRow
                 icon={IoTimeOutline}
                 label="출항 시간"
-                value={`${modalTrip.departureTime} 출항${modalTrip.returnTime ? ` ~ ${modalTrip.returnTime} 귀항` : ''}`}
+                value={`${modalTrip.departureTime} 출항${modalTrip.returnTime ? ` ~ ${modalTrip.returnTime} 입항` : ''}`}
               />
               {modalTrip.destination ? (
                 <OhgoModalInfoRow icon={IoBoatOutline} label="목적지" value={modalTrip.destination} />

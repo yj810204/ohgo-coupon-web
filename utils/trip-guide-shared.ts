@@ -217,7 +217,7 @@ export function tripScheduleSubtitle(
   trip: Pick<TripGuide, 'departureTime' | 'returnTime' | 'destination'>,
 ): string {
   const time = trip.departureTime
-    ? `${trip.departureTime} 출항${trip.returnTime ? ` ~ ${trip.returnTime} 귀항` : ''}`
+    ? `${trip.departureTime} 출항${trip.returnTime ? ` ~ ${trip.returnTime} 입항` : ''}`
     : '';
   return [time, trip.destination?.trim()].filter(Boolean).join(' · ');
 }

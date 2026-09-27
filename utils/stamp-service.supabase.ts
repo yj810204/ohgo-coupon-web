@@ -81,7 +81,9 @@ export async function issue50PercentCoupon(uuid: string): Promise<void> {
     .order('created_at', { ascending: true });
 
   if (error) throw error;
-  if (!stamps || stamps.length < 5) return;
+  if (!stamps || stamps.length < 5) {
+    throw new Error('스탬프가 5개 미만이라 50% 쿠폰을 발급할 수 없습니다.');
+  }
 
   const toDelete = stamps.slice(0, 5);
   await supabase

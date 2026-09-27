@@ -9,6 +9,32 @@ import type {
   DuplicateMemberCandidate,
 } from './admin-member-service.shared';
 
+function createdAtMillis(value: unknown): number | null {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    const time = new Date(value).getTime();
+    return Number.isNaN(time) ? null : time;
+  }
+  if (
+    typeof value === 'object' &&
+    value &&
+    'toDate' in value &&
+    typeof (value as { toDate: () => Date }).toDate === 'function'
+  ) {
+    const time = (value as { toDate: () => Date }).toDate().getTime();
+    return Number.isNaN(time) ? null : time;
+  }
+  if (
+    typeof value === 'object' &&
+    value &&
+    'seconds' in value &&
+    typeof (value as { seconds: number }).seconds === 'number'
+  ) {
+    return (value as { seconds: number }).seconds * 1000;
+  }
+  return null;
+}
+
 export async function listAdminMembers(): Promise<AdminMember[]> {
   const db = getFirebaseDb();
   const snap = await getDocs(collection(db, 'users'));
@@ -153,10 +179,12 @@ export async function findDuplicateUsers(
       const data = d.data();
       const stampsSnap = await getDocs(collection(db, `users/${d.id}/stamps`));
       const last = data.lastStampTime?.toMillis?.() ?? undefined;
+      const createdMs = createdAtMillis(data.createdAt);
       return {
         uuid: d.id,
         name: String(data.name ?? ''),
         dob: String(data.dob ?? ''),
+        createdAt: createdMs == null ? '' : new Date(createdMs).toISOString(),
         lastStampTimeMs: last,
         stampCount: stampsSnap.size,
         tripCount: Number(data.tripCount) || 0,
@@ -254,6 +282,11 @@ export async function mergeDuplicateUsers(keepUuid: string, dropUuid: string): P
     phone: keepData.phone || dropData.phone || null,
   };
   if (latestStamp) keepPatch.lastStampTime = latestStamp;
+  const keepCreated = createdAtMillis(keepData.createdAt);
+  const dropCreated = createdAtMillis(dropData.createdAt);
+  if (dropCreated != null && (keepCreated == null || dropCreated < keepCreated)) {
+    keepPatch.createdAt = new Date(dropCreated).toISOString();
+  }
   await updateDoc(doc(db, 'users', keepUuid), keepPatch);
 
   await rewriteAttendanceMemberId(dropUuid, keepUuid);

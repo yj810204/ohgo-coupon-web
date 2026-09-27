@@ -62,6 +62,7 @@ import { isFirebaseDataSource } from '@/lib/data-source';
 import type { IconType } from 'react-icons';
 import {
   IoPricetagOutline,
+  IoBoatOutline,
   IoDocumentTextOutline,
   IoListOutline,
   IoTrashOutline,
@@ -75,6 +76,17 @@ import { openPhoneDialer } from '@/lib/native-bridge';
 
 function memberContactTel(phone: string | null | undefined): string {
   return String(phone ?? '').replace(/[^\d+]/g, '');
+}
+
+function earliestCreatedAccount(accounts: { uuid: string; createdAt?: string }[]): string | null {
+  let best: { uuid: string; time: number } | null = null;
+  for (const account of accounts) {
+    if (!account.createdAt) continue;
+    const time = new Date(account.createdAt).getTime();
+    if (Number.isNaN(time)) continue;
+    if (!best || time < best.time) best = { uuid: account.uuid, time };
+  }
+  return best?.uuid ?? null;
 }
 
 const DETAIL_LABEL: CSSProperties = {
@@ -482,8 +494,16 @@ function MemberDetailContent() {
       if (isFirebaseDataSource()) {
         const dups = await findDuplicateUsers(uuid, displayName || nameParam, displayDob || dobParam);
         setDuplicateAccounts(dups);
-        const stamped = dups.find((d) => d.stampCount > 0 || Boolean(d.lastStampTimeMs));
-        setKeepMergeUuid(stamps.length > 0 ? uuid : stamped?.uuid ?? uuid);
+        const earliest = earliestCreatedAccount([
+          { uuid, createdAt: profile?.createdAt ? profile.createdAt.toISOString() : '' },
+          ...dups.map((d) => ({ uuid: d.uuid, createdAt: d.createdAt ?? '' })),
+        ]);
+        if (earliest) {
+          setKeepMergeUuid(earliest);
+        } else {
+          const stamped = dups.find((d) => d.stampCount > 0 || Boolean(d.lastStampTimeMs));
+          setKeepMergeUuid(stamps.length > 0 ? uuid : stamped?.uuid ?? uuid);
+        }
       } else {
         setDuplicateAccounts([]);
       }
@@ -1252,6 +1272,17 @@ function MemberDetailContent() {
               label: '스탬프 이력',
               onClick: () => navigate(`/stamp-history?uuid=${uuid}&name=${encodeURIComponent(name)}`),
             },
+            ...(isFirebaseDataSource()
+              ? [
+                  {
+                    icon: IoBoatOutline,
+                    iconColor: '#007AFF',
+                    label: '승선 기록',
+                    onClick: () =>
+                      navigate(`/boarding-history?uuid=${uuid}&name=${encodeURIComponent(name)}`),
+                  },
+                ]
+              : []),
           ].map((item, idx) => (
             <div key={item.label}>
               {idx > 0 && (
