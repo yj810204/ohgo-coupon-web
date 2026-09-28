@@ -1,9 +1,15 @@
 import { createHash, createHmac } from 'crypto';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { isFirebaseDataSource } from '@/lib/data-source';
 import { getFirebaseDb } from '@/lib/firebase/client';
+import {
+  findActiveUserByNameDob,
+  healProfileLegacyUuid,
+  lookupUserByLegacyUuidCandidates,
+} from '@/lib/firebase/canonical-user';
+import { invalidateFirestoreUserIdCache } from '@/lib/firebase/resolve-user-id';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { computeLegacyUuid, normalizeDob } from '@/lib/legacy-uuid';
+import { listLegacyUuidCandidates, normalizeDob } from '@/lib/legacy-uuid';
 import { applyLegacyStagingToProfile } from '@/lib/apply-legacy-staging';
 import { getHomePathForUser, type AppUser } from '@/lib/auth-session';
 import { isUnregisteredLegacyIdentity } from '@/lib/legacy-identity';
@@ -69,22 +75,37 @@ export async function legacyLoginWithNameDob(
   if (!name) throw new Error('이름을 입력해 주세요.');
   if (!normalizedDob) throw new Error('생년월일은 6자리 또는 8자리로 입력해 주세요.');
 
-  const legacyUuid = computeLegacyUuid(name, dobInput);
+  const uuidCandidates = listLegacyUuidCandidates(name, dobInput);
+  const trimmedUuid = uuidCandidates[0]!;
   const admin = createAdminClient();
-  const password = legacyPassword(legacyUuid);
-  const email = legacyEmail(legacyUuid);
 
-  const { data: existingProfile } = await admin
-    .from('profiles')
-    .select('id, name, dob, role, legacy_uuid')
-    .eq('legacy_uuid', legacyUuid)
-    .maybeSingle();
+  type ProfileRow = { id: string; name: string | null; dob: string | null; role: string | null; legacy_uuid: string | null };
+  let existingProfile: ProfileRow | null = null;
+  for (const candidate of uuidCandidates) {
+    const { data } = await admin
+      .from('profiles')
+      .select('id, name, dob, role, legacy_uuid')
+      .eq('legacy_uuid', candidate)
+      .maybeSingle();
+    if (data) {
+      existingProfile = data;
+      break;
+    }
+  }
 
-  const { data: guest } = await admin
-    .from('guest_profiles')
-    .select('id, name, dob, phone, merged_to')
-    .eq('id', legacyUuid)
-    .maybeSingle();
+  type GuestRow = { id: string; name: string | null; dob: string | null; phone: string | null; merged_to: string | null };
+  let guest: GuestRow | null = null;
+  for (const candidate of uuidCandidates) {
+    const { data } = await admin
+      .from('guest_profiles')
+      .select('id, name, dob, phone, merged_to')
+      .eq('id', candidate)
+      .maybeSingle();
+    if (data) {
+      guest = data;
+      break;
+    }
+  }
 
   type FirebaseUserDoc = {
     name?: string;
@@ -94,12 +115,28 @@ export async function legacyLoginWithNameDob(
     role?: string | null;
   };
   let firebaseUser: FirebaseUserDoc | null = null;
+  let firestoreUserId: string | null = null;
   if (isFirebaseDataSource()) {
-    const fbSnap = await getDoc(doc(getFirebaseDb(), 'users', legacyUuid));
-    if (fbSnap.exists()) {
-      firebaseUser = fbSnap.data() as FirebaseUserDoc;
+    const byUuid = await lookupUserByLegacyUuidCandidates(name, dobInput);
+    if (byUuid && !byUuid.missing) {
+      firestoreUserId = byUuid.id;
+      firebaseUser = byUuid.data as FirebaseUserDoc;
+    } else {
+      const byNameDob = await findActiveUserByNameDob(name, dobInput);
+      if (byNameDob) {
+        const { resolveCanonicalUserId } = await import('@/lib/firebase/canonical-user');
+        const resolved = await resolveCanonicalUserId(byNameDob);
+        firestoreUserId = resolved.missing ? byNameDob : resolved.id;
+        firebaseUser = (resolved.data as FirebaseUserDoc) || { name, dob: normalizedDob };
+      }
     }
   }
+
+  // 비밀번호·레거시 이메일은 입력값(trimmed) 기준으로 유지하되,
+  // Firestore 문서·profiles.legacy_uuid 는 실제(비병합) 계정 id 를 쓴다.
+  const legacyUuid = firestoreUserId || guest?.id || existingProfile?.legacy_uuid || trimmedUuid;
+  const password = legacyPassword(trimmedUuid);
+  const email = legacyEmail(trimmedUuid);
 
   const isNew = isUnregisteredLegacyIdentity({
     existingProfile,
@@ -121,16 +158,17 @@ export async function legacyLoginWithNameDob(
     };
     await setDoc(doc(getFirebaseDb(), 'users', legacyUuid), created);
     firebaseUser = created;
+    firestoreUserId = legacyUuid;
   }
 
   // 이미 legacy_uuid 가 연결된 프로필이 있으면 그 id 로 로그인한다.
   // (firebase 모드에서 uuidv5 를 강제하면 이미 연결된 기존 행과
   //  profiles_legacy_uuid_key 충돌이 난다.)
   // 연결 프로필이 없을 때만 firebase 모드에서 Firestore 문서 id(=uuidv5)를 사용.
-  let authUserId: string | null =
+  let authUserId: string =
     existingProfile?.id ??
     guest?.merged_to ??
-    (isFirebaseDataSource() ? legacyUuid : null);
+    (isFirebaseDataSource() ? legacyUuid : '');
 
   async function ensureAuthUser(targetId: string) {
     const { data: existingAuth } = await admin.auth.admin.getUserById(targetId);
@@ -186,6 +224,8 @@ export async function legacyLoginWithNameDob(
       if (updateError) throw new Error(updateError.message || '로그인 준비에 실패했습니다.');
     }
   }
+
+  if (!authUserId) throw new Error('로그인 준비에 실패했습니다.');
 
   // 프로필 보장 + 레거시 연결 (기존 회원 name/dob/phone 은 절대 덮어쓰지 않음)
   // firebase 모드: Firestore isAdmin/role → profiles.role 단방향 동기화
@@ -308,7 +348,7 @@ export async function legacyLoginWithNameDob(
     const { data: boarding } = await admin
       .from('guest_boarding_info')
       .select('*')
-      .eq('guest_id', legacyUuid)
+      .eq('guest_id', guest.id)
       .maybeSingle();
 
     // 기존 boarding_info 가 있으면 덮어쓰지 않음
@@ -342,14 +382,26 @@ export async function legacyLoginWithNameDob(
     await admin
       .from('guest_profiles')
       .update({ merged_to: authUserId, merged_at: new Date().toISOString() })
-      .eq('id', legacyUuid)
+      .eq('id', guest.id)
       .is('merged_to', null);
   }
 
-  try {
-    await applyLegacyStagingToProfile(admin, legacyUuid, authUserId);
-  } catch (e) {
-    console.warn('legacy-login staging apply:', e);
+  const stagingIds = [...new Set([legacyUuid, firestoreUserId, guest?.id, ...uuidCandidates].filter(Boolean))];
+  for (const stagingId of stagingIds) {
+    try {
+      await applyLegacyStagingToProfile(admin, String(stagingId), authUserId);
+    } catch (e) {
+      console.warn('legacy-login staging apply:', e);
+    }
+  }
+
+  if (firestoreUserId && authUserId) {
+    try {
+      await healProfileLegacyUuid(authUserId, firestoreUserId);
+      invalidateFirestoreUserIdCache(authUserId);
+    } catch (e) {
+      console.warn('legacy-login heal legacy_uuid:', e);
+    }
   }
 
   const { data: authUserData } = await admin.auth.admin.getUserById(authUserId);

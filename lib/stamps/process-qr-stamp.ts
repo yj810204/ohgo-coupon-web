@@ -7,6 +7,7 @@ import {
   getDoc,
   getDocs,
   query,
+  runTransaction,
   setDoc,
   Timestamp,
   updateDoc,
@@ -18,6 +19,11 @@ import { requireFirestoreUserId } from '@/lib/firebase/resolve-user-id';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { notifyStampStaff, sendPushToUser } from '@/utils/send-push';
 import { firebaseQrStampWriteFields } from '@/lib/stamps/firebase-qr-stamp';
+import {
+  buildQrTripCreditPatch,
+  planQrTripCredit,
+  writeQrScanActivityLog,
+} from '@/lib/stamps/credit-trip-bait';
 import { getTodayDate, getTodayRange, parseKstDate } from '@/lib/kst-date';
 
 const BOAT_QR_CODE = 'OHGO-STAMP-BOAT19033326262005';
@@ -158,24 +164,51 @@ async function addStampFirebase(userId: string): Promise<void> {
     );
   }
 
+  const stampDate = getTodayDate();
   const stampData = firebaseQrStampWriteFields({
-    date: getTodayDate(),
+    date: stampDate,
     timestamp: new Date(),
   });
-  const stampDocRef = await addDoc(stampRef, stampData);
+  const stampDocRef = doc(stampRef);
+  await runTransaction(db, async (tx) => {
+    const freshUser = await tx.get(userRef);
+    if (!freshUser.exists()) throw new Error('회원 정보를 찾을 수 없습니다.');
+    const freshLast = freshUser.data()?.lastStampTime?.toMillis?.() ?? 0;
+    if (freshLast && now - freshLast < LIMIT_MS) {
+      const nextAvailable = new Date(freshLast + LIMIT_MS);
+      const hours = nextAvailable.getHours().toString().padStart(2, '0');
+      const minutes = nextAvailable.getMinutes().toString().padStart(2, '0');
+      throw new Error(
+        `다음 적립은 ${hours}:${minutes} 이후에 가능합니다.\n추가 적립은 선장님께 문의해주세요.`
+      );
+    }
+
+    const plan = planQrTripCredit(freshUser.data() as Record<string, unknown>, stampDocRef.id);
+    const userPatch: Record<string, unknown> = { lastStampTime: stampData.timestamp };
+    if (!plan.alreadyCredited) {
+      Object.assign(userPatch, buildQrTripCreditPatch(stampDocRef.id));
+    }
+
+    tx.set(stampDocRef, stampData);
+    tx.update(userRef, userPatch);
+  });
   await addDoc(collection(db, `users/${firestoreUserId}/stampHistory`), {
     action: 'add',
     stampId: stampDocRef.id,
-    date: getTodayDate(),
+    date: stampDate,
     method: 'QR',
     timestamp: Timestamp.now(),
     message: 'QR 방식으로 스탬프 적립',
   });
-  await updateDoc(userRef, { lastStampTime: stampData.timestamp });
   await addDoc(collection(db, `users/${firestoreUserId}/logs`), {
     action: '스탬프 적립',
     detail: 'QR 방식으로 1개 적립',
     timestamp: Timestamp.now(),
+  });
+  await writeQrScanActivityLog({
+    userId: firestoreUserId,
+    stampId: stampDocRef.id,
+    date: stampDate,
   });
 
   const after = await getDocs(stampRef);

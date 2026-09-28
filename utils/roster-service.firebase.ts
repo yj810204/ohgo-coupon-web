@@ -16,7 +16,6 @@ import {
 } from 'firebase/firestore';
 import { cachedFetch, invalidateCache, peekCache } from '@/lib/query-cache';
 import { getFirebaseDb } from '@/lib/firebase/client';
-import { personIdentityKey } from '@/lib/person-name';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { findCaptains } from './find-captains.firebase';
 import {
@@ -710,20 +709,10 @@ export async function saveConfirmedTripMembers(
   });
 }
 
-/** 정규화 이름+생년월일로 기존 users 문서 조회 (mergedTo 제외) */
+/** 정규화 이름+생년월일로 기존 users 문서 조회 (mergedTo 체인·이름 뒤 공백 후보 포함) */
 export async function findUserByNameDob(name: string, dob: string): Promise<string | null> {
-  const key = personIdentityKey(name, dob);
-  if (key.startsWith('|') || key.endsWith('|')) return null;
-  const db = getFirebaseDb();
-  const snap = await getDocs(collection(db, 'users'));
-  for (const d of snap.docs) {
-    const data = d.data();
-    if (data.mergedTo) continue;
-    if (personIdentityKey(String(data.name ?? ''), String(data.dob ?? '')) === key) {
-      return d.id;
-    }
-  }
-  return null;
+  const { findActiveUserByNameDob } = await import('@/lib/firebase/canonical-user');
+  return findActiveUserByNameDob(name, dob);
 }
 
 export type MemberBoardingDate = {

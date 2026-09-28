@@ -15,6 +15,7 @@ VPS `.env.production`:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `NEXT_PUBLIC_SITE_URL=https://ohgo.codejaka.com`
 - (선택) `LEGACY_LOGIN_SECRET`
+- (선택) `RECONCILE_SECRET` — 승선 대사 API (`POST /api/admin/reconcile-boarding`). 없으면 해당 API는 거부한다.
 
 템플릿: [`.env.production.example`](.env.production.example)
 
@@ -88,3 +89,18 @@ echo | openssl s_client -connect 158.247.241.130:443 -servername ohgo.codejaka.c
 
 - `vercel deploy --prod` 하지 않음
 - 기존 `ohgo-coupon-web2.vercel.app` 트래픽은 DNS/앱 URL을 Vultr로 전환한 뒤 중단
+
+## 승선 대사 (보고 전용)
+
+컨테이너 안에는 cron이 없습니다. 호스트 crontab에서 `curl`로 호출합니다.  
+기본은 보고만 하며, `apply: true`를 넣지 않으면 Firestore 회원 데이터를 바꾸지 않습니다.
+
+```cron
+# 출항 확정 30분 뒤 예시 — 1항차 06:00 확정 가정 → 06:30 KST = 21:30 UTC
+30 21 * * * RECONCILE_SECRET=... /path/to/ohgo-coupon-web/scripts/reconcile-boarding.sh
+# 매일 22:00 KST = 13:00 UTC
+0 13 * * * RECONCILE_SECRET=... /path/to/ohgo-coupon-web/scripts/reconcile-boarding.sh
+```
+
+헤더: `x-reconcile-secret: $RECONCILE_SECRET`  
+적용 모드는 기본값이 아닙니다. 과거 날짜 백필은 `scripts/backfill-reconcile-boarding.mjs` (기본 dry-run).
