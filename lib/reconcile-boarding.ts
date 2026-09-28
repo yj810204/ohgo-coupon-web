@@ -12,7 +12,7 @@ import {
 import { getFirebaseDb } from '@/lib/firebase/client';
 import { resolveCanonicalUserId } from '@/lib/firebase/canonical-user';
 import { isTruthyFlag, reconcileLockId, tripCreditedField } from '@/lib/firebase/merged-to';
-import { applyQrTripCreditOnce, isQrTripAlreadyCredited } from '@/lib/stamps/credit-trip-bait';
+import { isQrTripAlreadyCredited } from '@/lib/stamps/credit-trip-bait';
 import { stampBusinessDate } from '@/lib/kst-instant';
 import { getTodayDate } from '@/lib/kst-date';
 import { findCaptains } from '@/utils/find-captains';
@@ -253,19 +253,6 @@ async function applyReconcileMember(input: {
       fromId: row.orphanUserId,
       toId: row.realId,
     });
-  }
-
-  if (row.classification === 'ORPHAN' || row.classification === 'NO_TRIPCOUNT') {
-    const hits = await listStampHitsForDate(row.realId, date);
-    const stampId = hits[0]?.id || row.stampIds[0];
-    if (stampId) {
-      await applyQrTripCreditOnce({
-        userId: row.realId,
-        stampId,
-        date,
-        extraUserFields: { [tripCreditedField(date, trip)]: true },
-      });
-    }
   }
 
   return alreadyLocked ? 'already-applied' : row.classification;

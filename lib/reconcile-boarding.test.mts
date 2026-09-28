@@ -8,7 +8,8 @@ assert.equal(
 );
 assert.equal(
   classifyBoardingMember({ hasStampOnReal: true, hasStampOnOrphan: false, credited: false }),
-  'NO_TRIPCOUNT'
+  'OK',
+  '스탬프가 있으면 승선 횟수는 출항 확정에서 올리므로 대사 대상이 아니다'
 );
 assert.equal(
   classifyBoardingMember({ hasStampOnReal: false, hasStampOnOrphan: false, credited: false }),

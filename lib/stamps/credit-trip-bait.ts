@@ -4,10 +4,17 @@ import { getFirebaseDb } from '@/lib/firebase/client';
 
 export { couponAwardedField };
 
-/** QR 1회 = 승선일수 +1, 미끼 +1. 구 CF와 같은 마커로 이중 적립을 막는다. */
-export const QR_TRIP_CREDIT = 1;
+/**
+ * QR은 미끼만 준다. 승선 횟수는 출항 확정 때 올린다.
+ * `couponAwardedFor_` 는 구앱·이전 신앱이 승선 횟수까지 같이 올린 마커라 새로 쓰지 않는다.
+ */
 export const QR_BAIT_CREDIT = 1;
 
+export function baitAwardedField(stampId: string): string {
+  return `baitAwardedFor_${stampId}`;
+}
+
+/** 구 경로가 이 스탬프로 승선 횟수까지 이미 올렸는지. */
 export function isQrTripAlreadyCredited(
   userData: Record<string, unknown> | null | undefined,
   stampId: string
@@ -16,11 +23,21 @@ export function isQrTripAlreadyCredited(
   return isTruthyFlag(userData[couponAwardedField(stampId)]);
 }
 
+export function isQrBaitAlreadyCredited(
+  userData: Record<string, unknown> | null | undefined,
+  stampId: string
+): boolean {
+  if (!userData || !stampId) return false;
+  return (
+    isTruthyFlag(userData[baitAwardedField(stampId)]) ||
+    isTruthyFlag(userData[couponAwardedField(stampId)])
+  );
+}
+
 export function buildQrTripCreditPatch(stampId: string): Record<string, unknown> {
   return {
-    tripCount: increment(QR_TRIP_CREDIT),
     baitCoupons: increment(QR_BAIT_CREDIT),
-    [couponAwardedField(stampId)]: true,
+    [baitAwardedField(stampId)]: true,
   };
 }
 
@@ -45,32 +62,32 @@ export function buildQrScanActivityLog(input: {
     date: input.date,
     method: 'QR',
     source: 'server',
-    tripCountDelta: QR_TRIP_CREDIT,
+    tripCountDelta: 0,
     baitCouponsDelta: QR_BAIT_CREDIT,
   };
 }
 
 /**
- * 이미 적립된 스탬프면 빈 패치, 아니면 승선/미끼 + 마커.
+ * 이미 미끼를 준 스탬프면 빈 패치. 승선 횟수는 여기서 올리지 않는다.
  * increment()는 테스트에서 비교하기 어려워 숫자 델타도 같이 돌려준다.
  */
 export function planQrTripCredit(
   userData: Record<string, unknown> | null | undefined,
   stampId: string
 ): { alreadyCredited: boolean; tripDelta: number; baitDelta: number; marker: string } {
-  const marker = couponAwardedField(stampId);
-  if (isQrTripAlreadyCredited(userData, stampId)) {
+  const marker = baitAwardedField(stampId);
+  if (isQrBaitAlreadyCredited(userData, stampId)) {
     return { alreadyCredited: true, tripDelta: 0, baitDelta: 0, marker };
   }
   return {
     alreadyCredited: false,
-    tripDelta: QR_TRIP_CREDIT,
+    tripDelta: 0,
     baitDelta: QR_BAIT_CREDIT,
     marker,
   };
 }
 
-/** 기존 스탬프에 대해 승선/미끼를 한 번만 올린다. 구 CF 마커와 동일. */
+/** 기존 스탬프에 대해 미끼를 한 번만 올린다. 승선 횟수는 출항 확정에서 처리한다. */
 export async function applyQrTripCreditOnce(input: {
   userId: string;
   stampId: string;

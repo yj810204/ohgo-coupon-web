@@ -3,11 +3,10 @@ export type ReconcileClass = 'ORPHAN' | 'NO_TRIPCOUNT' | 'NO_STAMP' | 'OK';
 export function classifyBoardingMember(input: {
   hasStampOnReal: boolean;
   hasStampOnOrphan: boolean;
-  credited: boolean;
+  credited?: boolean;
 }): ReconcileClass {
   if (input.hasStampOnOrphan && !input.hasStampOnReal) return 'ORPHAN';
   if (!input.hasStampOnReal && !input.hasStampOnOrphan) return 'NO_STAMP';
-  if (!input.credited) return 'NO_TRIPCOUNT';
   return 'OK';
 }
 

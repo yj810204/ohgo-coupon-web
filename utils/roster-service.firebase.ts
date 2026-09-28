@@ -701,12 +701,19 @@ export async function saveConfirmedTripMembers(
       confirmedMembers: { [String(tripNumber)]: memberIds },
       updatedAt: new Date(),
     });
-    return;
+  } else {
+    await updateDoc(ref, {
+      [`confirmedMembers.${tripNumber}`]: memberIds,
+      updatedAt: new Date(),
+    });
   }
-  await updateDoc(ref, {
-    [`confirmedMembers.${tripNumber}`]: memberIds,
-    updatedAt: new Date(),
-  });
+
+  try {
+    const { creditTripCountsOnConfirm } = await import('@/lib/boarding/confirm-trip-count');
+    await creditTripCountsOnConfirm({ date, tripNumber, memberIds });
+  } catch (e) {
+    console.error('승선 횟수 반영 실패:', e);
+  }
 }
 
 /** 정규화 이름+생년월일로 기존 users 문서 조회 (mergedTo 체인·이름 뒤 공백 후보 포함) */
