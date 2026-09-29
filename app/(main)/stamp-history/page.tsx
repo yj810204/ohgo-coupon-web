@@ -11,6 +11,7 @@ import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import { IoTimeOutline } from 'react-icons/io5';
 import { OHGO_CARD, OHGO_FONT, OHGO_SECONDARY_BTN, OhgoPageLoading } from '@/lib/page-styles';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
+import { KST_OFFSET } from '@/lib/kst-date';
 
 type StampHistoryItem = {
   id: string;
@@ -43,16 +44,16 @@ function StampHistoryPageContent() {
   const uuid = searchParams.get('uuid') || '';
 
   const [history, setHistory] = useState<StampHistoryItem[]>([]);
-  const [startDate, setStartDate] = useState<Date | undefined>();
-  const [endDate, setEndDate] = useState<Date | undefined>();
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [action, setAction] = useState<'all' | 'add' | 'recall' | 'remove'>('all');
 
   const fetchHistory = async () => {
     if (!uuid) return;
     let result = (await getStampHistory({
       uuid,
-      startDate,
-      endDate,
+      startDate: startDate ? new Date(`${startDate}T00:00:00${KST_OFFSET}`) : undefined,
+      endDate: endDate ? new Date(`${endDate}T23:59:59.999${KST_OFFSET}`) : undefined,
     })) as StampHistoryItem[];
     if (action !== 'all') result = result.filter((x) => x.action === action);
     setHistory(result);
@@ -94,8 +95,8 @@ function StampHistoryPageContent() {
               <input
                 type="date"
                 className="form-control form-control-sm"
-                value={startDate ? format(startDate, 'yyyy-MM-dd') : ''}
-                onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value) : undefined)}
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
               />
             </div>
             <div className="mb-2">
@@ -103,8 +104,8 @@ function StampHistoryPageContent() {
               <input
                 type="date"
                 className="form-control form-control-sm"
-                value={endDate ? format(endDate, 'yyyy-MM-dd') : ''}
-                onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : undefined)}
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
               />
             </div>
             <div className="ohgo-filter-group w-100 mb-2" role="group">
@@ -142,8 +143,8 @@ function StampHistoryPageContent() {
               className="btn w-100 mt-2 fw-semibold"
               onClick={() => {
                 setAction('all');
-                setStartDate(undefined);
-                setEndDate(undefined);
+                setStartDate('');
+                setEndDate('');
               }}
               style={{ ...OHGO_SECONDARY_BTN, marginTop: 8 }}
             >

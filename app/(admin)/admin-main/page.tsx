@@ -71,6 +71,15 @@ const MENU_SECTIONS: MenuSection[] = [
         color: '#FF5722',
         bg: '#FFF0EB',
       },
+      {
+        id: 'boarding-records',
+        label: '기간별 승선 기록',
+        desc: '기간을 정해 출항·승선자·스탬프 집계',
+        path: '/boarding-records',
+        icon: IoBoatOutline,
+        color: '#007AFF',
+        bg: '#EBF1FE',
+      },
     ],
   },
   {
@@ -214,6 +223,7 @@ const MENU_SECTIONS: MenuSection[] = [
 const CAPTAIN_MENU_IDS = new Set([
   'admin',
   'roster',
+  'boarding-records',
   'push',
   'fishing-log',
   'photos',
