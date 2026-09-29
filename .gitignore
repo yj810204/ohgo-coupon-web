@@ -46,3 +46,10 @@ next-env.d.ts
 # Expo mobile (mobile/.gitignore mirrors most rules)
 mobile/node_modules/
 mobile/.expo/
+
+# OCR 언어 데이터 (tesseract.js)
+*.traineddata
+.cache/
+
+# 승선기록 원장 스크립트 보고서
+/reports/

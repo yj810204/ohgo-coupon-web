@@ -708,6 +708,8 @@ export async function saveConfirmedTripMembers(
     });
   }
 
+  // sync 모드에서는 원장(recordConfirmedTrip)이 승선 횟수를 다시 센다.
+  if (process.env.NEXT_PUBLIC_LEDGER_TRIPCOUNT === 'sync') return;
   try {
     const { creditTripCountsOnConfirm } = await import('@/lib/boarding/confirm-trip-count');
     await creditTripCountsOnConfirm({ date, tripNumber, memberIds });

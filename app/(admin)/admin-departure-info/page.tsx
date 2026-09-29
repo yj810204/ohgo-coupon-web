@@ -14,10 +14,14 @@ import {
   IoBoatOutline,
   IoChevronBackOutline,
   IoChevronForwardOutline,
+  IoPeopleOutline,
   IoStatsChartOutline,
 } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import { useNavigation } from '@/hooks/useNavigation';
+import { isFirebaseDataSource } from '@/lib/data-source';
+import { presetRange, summarizeRange } from '@/lib/boarding-ledger.shared';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import { OHGO_CARD, OHGO_FONT, OhgoPageLoading } from '@/lib/page-styles';
 
@@ -72,6 +76,10 @@ export default function AdminDepartureInfoPage() {
   );
   const [loadedYear, setLoadedYear] = useState<number | null>(yearCached ? year : null);
   const [loading, setLoading] = useState(!cachedInitial);
+  const { navigate } = useNavigation();
+  const [yearPassengers, setYearPassengers] = useState<{ year: number; byMonth: Map<string, number>; total: number } | null>(
+    null
+  );
 
   const fetchMonthSummary = useCallback(
     async (forceRefresh = false) => {
@@ -131,7 +139,28 @@ export default function AdminDepartureInfoPage() {
     };
   }, [ready, year]);
 
-  useNativePullToRefresh(() => fetchMonthSummary(true));
+  const loadPassengers = useCallback(async () => {
+    if (!isFirebaseDataSource()) return;
+    try {
+      const range = presetRange('thisYear', `${year}-01-01`);
+      const { listBoardingsInRange } = await import('@/utils/boarding-ledger.firebase');
+      const { trips, totals } = summarizeRange(await listBoardingsInRange(range), range);
+      const byMonth = new Map<string, number>();
+      for (const t of trips) byMonth.set(t.date.slice(0, 7), (byMonth.get(t.date.slice(0, 7)) ?? 0) + t.passengers);
+      setYearPassengers({ year, byMonth, total: totals.passengers });
+    } catch (error) {
+      console.warn('Error fetching ledger passengers:', error);
+    }
+  }, [year]);
+
+  useEffect(() => {
+    if (ready) void loadPassengers();
+  }, [ready, loadPassengers]);
+
+  useNativePullToRefresh(() => {
+    void loadPassengers();
+    return fetchMonthSummary(true);
+  });
 
   const monthTrips = useMemo(() => {
     if (!monthSummary || loadedMonth !== monthKey) return 0;
@@ -143,7 +172,13 @@ export default function AdminDepartureInfoPage() {
   if (!ready) return <OhgoPageLoading />;
 
   return (
-    <SubPageFrame title="출항 정보" onRefresh={() => fetchMonthSummary(true)}>
+    <SubPageFrame
+      title="출항 정보"
+      onRefresh={() => {
+        void loadPassengers();
+        return fetchMonthSummary(true);
+      }}
+    >
       <div className="d-flex align-items-center justify-content-between mb-3">
         <button
           type="button"
@@ -190,7 +225,46 @@ export default function AdminDepartureInfoPage() {
             label={`${year}년 누적 출항수`}
             value={`${yearTripsDisplay.toLocaleString()}회`}
           />
+          {isFirebaseDataSource() && (
+            <>
+              <StatCard
+                icon={IoPeopleOutline}
+                iconBg="#FFF4E5"
+                iconColor="#FF9500"
+                label={`${format(currentMonth, 'M')}월 승선 인원`}
+                value={
+                  yearPassengers?.year === year
+                    ? `${(yearPassengers.byMonth.get(monthKey) ?? 0).toLocaleString()}명`
+                    : '-'
+                }
+              />
+              <StatCard
+                icon={IoPeopleOutline}
+                iconBg="#F3EEFF"
+                iconColor="#7B61FF"
+                label={`${year}년 누적 승선 인원`}
+                value={yearPassengers?.year === year ? `${yearPassengers.total.toLocaleString()}명` : '-'}
+              />
+            </>
+          )}
         </div>
+      )}
+      {isFirebaseDataSource() && (
+        <button
+          type="button"
+          onClick={() => navigate('/boarding-records')}
+          className="w-100 mt-3"
+          style={{
+            ...CARD,
+            padding: '14px 16px',
+            fontSize: 14,
+            fontWeight: 600,
+            color: '#1B6FF5',
+            fontFamily: OHGO_FONT,
+          }}
+        >
+          기간별 승선기록 보기
+        </button>
       )}
     </SubPageFrame>
   );
