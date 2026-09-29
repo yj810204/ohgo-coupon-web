@@ -10,6 +10,7 @@
     "lint": "eslint",
     "test:tide": "node --experimental-strip-types lib/tide-kst.test.mts && node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/tide-fish-recommend.test.mts && node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/tide-ai-briefing.test.mts && node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/open-meteo-wind.test.mts",
     "test:signup-stamp": "node --experimental-strip-types lib/legacy-identity.test.mts && node --experimental-strip-types lib/stamps/firebase-qr-stamp.test.mts && node --experimental-strip-types lib/kst-date.test.mts && node --experimental-strip-types lib/firebase/merged-to.test.mts && node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/stamps/credit-trip-bait.test.mts && node --experimental-strip-types lib/reconcile-boarding.test.mts && node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/boarding/confirm-trip-count.test.mts",
+    "test:boarding-ledger": "node --experimental-strip-types lib/boarding-ledger.test.mts",
     "test:member-purge": "node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/member-purge.shared.test.mts",
     "screenshots": "node scripts/capture-all-screenshots.mjs",
     "screenshots:store": "node scripts/capture-store-screenshots.mjs",

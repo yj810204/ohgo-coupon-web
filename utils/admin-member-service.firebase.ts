@@ -290,6 +290,9 @@ export async function mergeDuplicateUsers(keepUuid: string, dropUuid: string): P
   await updateDoc(doc(db, 'users', keepUuid), keepPatch);
 
   await rewriteAttendanceMemberId(dropUuid, keepUuid);
+  const { moveLedgerOnMerge, syncTripCount } = await import('@/utils/boarding-ledger.firebase');
+  await moveLedgerOnMerge(dropUuid, keepUuid);
   await updateDoc(doc(db, 'users', dropUuid), { mergedTo: keepUuid });
+  await syncTripCount(keepUuid);
   invalidateRosterSummaryCache();
 }

@@ -19,6 +19,8 @@ import {
   IoShieldCheckmarkOutline,
   IoFishOutline,
   IoPhonePortraitOutline,
+  IoDocumentTextOutline,
+  IoStatsChartOutline,
 } from 'react-icons/io5';
 import { useNavigation } from '@/hooks/useNavigation';
 import SubPageFrame from '@/components/SubPageFrame';
@@ -70,6 +72,24 @@ const MENU_SECTIONS: MenuSection[] = [
         icon: IoCalendarOutline,
         color: '#FF5722',
         bg: '#FFF0EB',
+      },
+      {
+        id: 'boarding-ledger',
+        label: '승선기록 원장',
+        desc: '항차별 명부 이미지와 승선기록 대조·검토',
+        path: '/boarding-ledger',
+        icon: IoDocumentTextOutline,
+        color: '#007AFF',
+        bg: '#EAF3FF',
+      },
+      {
+        id: 'boarding-records',
+        label: '기간별 승선기록',
+        desc: '기간을 정해 항차별·회원별 승선 조회, 엑셀 저장',
+        path: '/boarding-records',
+        icon: IoStatsChartOutline,
+        color: '#2E7D32',
+        bg: '#EAF6EC',
       },
     ],
   },
@@ -214,6 +234,8 @@ const MENU_SECTIONS: MenuSection[] = [
 const CAPTAIN_MENU_IDS = new Set([
   'admin',
   'roster',
+  'boarding-ledger',
+  'boarding-records',
   'push',
   'fishing-log',
   'photos',

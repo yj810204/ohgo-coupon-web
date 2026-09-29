@@ -623,6 +623,11 @@ function MemberDetailContent() {
 
   const adjustDelta = adjustKind != null ? adjustQty - adjustCurrentCount(adjustKind) : 0;
 
+  const openBoardingLedger = () =>
+    navigate(`/boarding-history?uuid=${uuid}&name=${encodeURIComponent(name)}&manage=1`);
+
+  const openTripAdjust = () => (isFirebaseDataSource() ? openBoardingLedger() : openAdjustModal('trip'));
+
   const openAdjustModal = (kind: AdjustKind) => {
     setAdjustKind(kind);
     setAdjustQty(adjustCurrentCount(kind));
@@ -1040,7 +1045,7 @@ function MemberDetailContent() {
           label: '승선',
           value: tripCount,
           valueColor: '#007AFF',
-          onClick: () => openAdjustModal('trip'),
+          onClick: openTripAdjust,
         },
         {
           label: '미끼',
@@ -1216,14 +1221,14 @@ function MemberDetailContent() {
           {!isGuestMember && (
             <AdminAdjustBlock
               bordered
-              label="승선 횟수 조정"
+              label={isFirebaseDataSource() ? '승선기록 추가·제외' : '승선 횟수 조정'}
               currentCount={tripCount}
               accentColor="#007AFF"
               unit="회"
               disabled={adjustBusy}
               minusAriaLabel="승선 횟수 조정"
               plusAriaLabel="승선 횟수 조정"
-              onPress={() => openAdjustModal('trip')}
+              onPress={openTripAdjust}
               plusStyle={{
                 backgroundColor: '#007AFF',
                 boxShadow: '0 4px 12px rgba(0,122,255,0.3)',
@@ -1278,8 +1283,7 @@ function MemberDetailContent() {
                     icon: IoBoatOutline,
                     iconColor: '#007AFF',
                     label: '승선 기록',
-                    onClick: () =>
-                      navigate(`/boarding-history?uuid=${uuid}&name=${encodeURIComponent(name)}`),
+                    onClick: openBoardingLedger,
                   },
                 ]
               : []),

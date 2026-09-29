@@ -12,6 +12,8 @@ import {
 } from '@/utils/roster-service';
 import { loadRosterPreviewImage } from '@/lib/roster-preview-image';
 import { uploadRosterImage } from '@/lib/roster-upload';
+import { isFirebaseDataSource } from '@/lib/data-source';
+import { resolveAppUser } from '@/lib/auth-session';
 import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
 import { isNativeApp, saveImageToDevice } from '@/lib/native-bridge';
 import {
@@ -364,6 +366,21 @@ function RosterPreviewContent() {
         await saveConfirmedTripMembers(date, tripNum, attendance.memberIds);
       }
       await finalizeConfirmedTrip(date, tripNum, uploaded.imagePath, uploaded.imageUrl);
+      if (isFirebaseDataSource() && attendance.memberIds.length > 0) {
+        try {
+          const actor = await resolveAppUser();
+          const { recordConfirmedTrip } = await import('@/utils/boarding-ledger.firebase');
+          await recordConfirmedTrip({
+            date,
+            tripNumber: tripNum,
+            memberIds: attendance.memberIds,
+            rosterImageUrl: uploaded.imageUrl,
+            actor: { userId: actor?.uuid ?? '', name: actor?.name ?? '' },
+          });
+        } catch (error) {
+          console.error('승선기록 원장 기록 실패:', error);
+        }
+      }
 
       const filename = `${date || 'roster'}_${tripNumber || '0'}항차_명부.jpg`;
       let savedLocally = true;
