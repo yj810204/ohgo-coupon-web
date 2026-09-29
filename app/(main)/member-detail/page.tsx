@@ -42,6 +42,8 @@ import {
 import { sendPushToUser } from '@/utils/send-push';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
+import { AdminPasswordField } from '@/components/admin/AdminApprovalModal';
+import { verifyAdminApproval } from '@/lib/admin-approval';
 import { addUserActionLog } from '@/utils/user-action-log-service';
 import { getMemos } from '@/utils/memo-service';
 import BoardingInfoModal from '@/components/BoardingInfoModal';
@@ -137,6 +139,8 @@ const ADJUST_REASONS = [
   '고객 보상',
   '기타',
 ] as const;
+
+const STAMP_ADJUST_REASONS = ['쿠폰 사용', ...ADJUST_REASONS] as const;
 
 const ADJUST_ADD_MAX = 99;
 
@@ -414,6 +418,9 @@ function MemberDetailContent() {
   const [adjustKind, setAdjustKind] = useState<AdjustKind | null>(null);
   const [adjustQty, setAdjustQty] = useState(1);
   const [adjustReason, setAdjustReason] = useState('');
+  const [adjustPassword, setAdjustPassword] = useState('');
+  const [adjustPasswordError, setAdjustPasswordError] = useState('');
+  const [adjustApproving, setAdjustApproving] = useState(false);
   const [createdAt, setCreatedAt] = useState('');
   const [lastStampDate, setLastStampDate] = useState('');
   const [guestPhone, setGuestPhone] = useState<string | null>(null);
@@ -632,6 +639,8 @@ function MemberDetailContent() {
     setAdjustKind(kind);
     setAdjustQty(adjustCurrentCount(kind));
     setAdjustReason('');
+    setAdjustPassword('');
+    setAdjustPasswordError('');
   };
 
   const closeAdjustModal = () => {
@@ -639,6 +648,8 @@ function MemberDetailContent() {
     setAdjustKind(null);
     setAdjustQty(0);
     setAdjustReason('');
+    setAdjustPassword('');
+    setAdjustPasswordError('');
   };
 
   const handleGrantStamp = async (count: number, reason: string) => {
@@ -827,7 +838,15 @@ function MemberDetailContent() {
   };
 
   const confirmAdjust = async () => {
-    if (!adjustKind || !adjustReason || adjustDelta === 0) return;
+    if (!adjustKind || !adjustReason || adjustDelta === 0 || adjustApproving) return;
+    setAdjustApproving(true);
+    const approval = await verifyAdminApproval(adjustPassword);
+    setAdjustApproving(false);
+    if (!approval.ok) {
+      setAdjustPasswordError(approval.message);
+      return;
+    }
+    setAdjustPasswordError('');
     const count = Math.abs(adjustDelta);
     try {
       if (adjustKind === 'stamp') {
@@ -845,6 +864,7 @@ function MemberDetailContent() {
       setAdjustKind(null);
       setAdjustQty(0);
       setAdjustReason('');
+      setAdjustPassword('');
     } catch {
       // 오류는 각 핸들러에서 alert
     }
@@ -1551,11 +1571,11 @@ function MemberDetailContent() {
             <OhgoModalButton
               variant="primary"
               onClick={() => void confirmAdjust()}
-              disabled={!adjustReason || adjustDelta === 0 || adjustBusy}
+              disabled={!adjustReason || !adjustPassword || adjustDelta === 0 || adjustBusy || adjustApproving}
             >
-              {adjustBusy ? '처리 중...' : '확인'}
+              {adjustApproving ? '비밀번호 확인 중...' : adjustBusy ? '처리 중...' : '승인'}
             </OhgoModalButton>
-            <OhgoModalCancelLink onClick={closeAdjustModal} disabled={adjustBusy} />
+            <OhgoModalCancelLink onClick={closeAdjustModal} disabled={adjustBusy || adjustApproving} />
           </>
         }
       >
@@ -1626,12 +1646,24 @@ function MemberDetailContent() {
               style={{ ...OHGO_INPUT, width: '100%', backgroundColor: '#FFFFFF' }}
             >
               <option value="">사유를 선택하세요</option>
-              {ADJUST_REASONS.map((reason) => (
+              {(adjustKind === 'stamp' ? STAMP_ADJUST_REASONS : ADJUST_REASONS).map((reason) => (
                 <option key={reason} value={reason}>
                   {reason}
                 </option>
               ))}
             </select>
+            <div className="mt-3">
+              <AdminPasswordField
+                value={adjustPassword}
+                onChange={(v) => {
+                  setAdjustPassword(v);
+                  setAdjustPasswordError('');
+                }}
+                error={adjustPasswordError}
+                disabled={adjustBusy || adjustApproving}
+                onEnter={() => void confirmAdjust()}
+              />
+            </div>
           </div>
         )}
       </OhgoModal>

@@ -12,6 +12,7 @@ import EmptyState from '@/components/EmptyState';
 import { OHGO_FONT } from '@/lib/page-styles';
 import { useNavigation } from '@/hooks/useNavigation';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
+import { useAdminApproval } from '@/components/admin/AdminApprovalModal';
 import { confirmBoardingForStampScan } from '@/lib/stamps/confirm-boarding-for-scan';
 
 const CARD_STYLE: React.CSSProperties = {
@@ -120,6 +121,7 @@ function StampPageContent() {
   const [qrOpening, setQrOpening] = useState(false);
   const [issuingHalf, setIssuingHalf] = useState(false);
   const fromAdmin = searchParams.get('fromAdmin') === 'true';
+  const { approve, modal: approvalModal } = useAdminApproval();
   const targetUuid = searchParams.get('uuid');
   const targetName = searchParams.get('name');
   const targetDob = searchParams.get('dob');
@@ -156,11 +158,9 @@ function StampPageContent() {
 
   const issueHalfCoupon = async () => {
     if (!user?.uuid || issuingHalf) return;
-    const confirmed = await ohgoConfirm(
-      fromAdmin
-        ? '스탬프 5개를 차감하고 50% 할인 쿠폰을 발급할까요?'
-        : '50% 할인 쿠폰을 발급하시겠습니까?'
-    );
+    const confirmed = fromAdmin
+      ? await approve('스탬프 5개를 차감하고 50% 할인 쿠폰을 발급합니다.')
+      : await ohgoConfirm('50% 할인 쿠폰을 발급하시겠습니까?');
     if (!confirmed) return;
     setIssuingHalf(true);
     try {
@@ -391,6 +391,8 @@ function StampPageContent() {
             <OhgoModalButton
               variant="danger"
               onClick={async () => {
+                setModalVisible(false);
+                if (!(await approve(`${selectedStampInfo.date} 스탬프를 회수합니다.`))) return;
                 await deleteStamp(user!.uuid!, selectedStampInfo.value!, user!.name!, user!.dob!);
                 await fetchStamps();
                 setModalVisible(false);
@@ -408,6 +410,7 @@ function StampPageContent() {
           </>
         )}
       </OhgoModal>
+      {approvalModal}
     </SubPageFrame>
   );
 }

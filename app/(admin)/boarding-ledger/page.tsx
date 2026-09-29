@@ -10,7 +10,8 @@ import { LedgerSourceChips, LedgerStatusChip } from '@/components/boarding/Ledge
 import { useNavigation } from '@/hooks/useNavigation';
 import { useStaffActor } from '@/hooks/useStaffActor';
 import { isFirebaseDataSource } from '@/lib/data-source';
-import { ohgoAlert, ohgoConfirm } from '@/lib/ohgo-dialog';
+import { ohgoAlert } from '@/lib/ohgo-dialog';
+import { useAdminApproval } from '@/components/admin/AdminApprovalModal';
 import { searchMembersByName } from '@/utils/roster-service';
 import {
   isCounted,
@@ -168,7 +169,7 @@ function TripDetail({
   entries: LedgerEntry[];
   who: { userId: string; name: string };
   busy: boolean;
-  onAction: (job: (l: Ledger) => Promise<void>, done: string) => Promise<void>;
+  onAction: (job: (l: Ledger) => Promise<void>, done: string, approval?: string) => Promise<void>;
   onOpenMember: (e: LedgerEntry) => void;
 }) {
   const [linking, setLinking] = useState<string | null>(null);
@@ -249,7 +250,13 @@ function TripDetail({
                     type="button"
                     style={SMALL_BTN}
                     disabled={busy}
-                    onClick={() => void onAction((l) => l.restoreBoarding({ id: e.id, actor: who }), '제외를 취소했습니다.')}
+                    onClick={() =>
+                      void onAction(
+                        (l) => l.restoreBoarding({ id: e.id, actor: who }),
+                        '제외를 취소했습니다.',
+                        `${e.name || '이 행'} 제외를 취소합니다.`
+                      )
+                    }
                   >
                     제외 취소
                   </button>
@@ -263,7 +270,8 @@ function TripDetail({
                         onClick={() =>
                           void onAction(
                             (l) => l.confirmBoarding({ id: e.id, actor: who }),
-                            e.userId ? '승선으로 확인했습니다.' : '비회원 승선으로 확인했습니다.'
+                            e.userId ? '승선으로 확인했습니다.' : '비회원 승선으로 확인했습니다.',
+                            e.userId ? `${e.name} 승선으로 확인합니다.` : `${e.name || '이 행'}을 비회원 승선으로 확정합니다.`
                           )
                         }
                       >
@@ -283,8 +291,11 @@ function TripDetail({
                       style={{ ...SMALL_BTN, color: '#E5484D', borderColor: '#F8CFD0' }}
                       disabled={busy}
                       onClick={async () => {
-                        if (!(await ohgoConfirm(`${e.name || '이 행'} 승선기록을 제외할까요?`))) return;
-                        await onAction((l) => l.voidBoarding({ id: e.id, reason: '원장 검토에서 제외', actor: who }), '제외했습니다.');
+                        await onAction(
+                          (l) => l.voidBoarding({ id: e.id, reason: '원장 검토에서 제외', actor: who }),
+                          '제외했습니다.',
+                          `${e.name || '이 행'} 승선기록을 제외합니다.`
+                        );
                       }}
                     >
                       제외
@@ -297,9 +308,12 @@ function TripDetail({
               <MemberLinker
                 busy={busy}
                 onPick={async (userId, label) => {
-                  if (!(await ohgoConfirm(`${label} 회원으로 연결할까요?`))) return;
                   setLinking(null);
-                  await onAction((l) => l.linkBoardingToMember({ id: e.id, userId, actor: who }), '회원으로 연결했습니다.');
+                  await onAction(
+                    (l) => l.linkBoardingToMember({ id: e.id, userId, actor: who }),
+                    '회원으로 연결했습니다.',
+                    `${label} 회원으로 연결합니다.`
+                  );
                 }}
               />
             )}
@@ -338,6 +352,7 @@ function BoardingLedgerContent() {
   const searchParams = useSearchParams();
   const { navigate } = useNavigation();
   const { ready, actor } = useStaffActor({ requireStaff: true });
+  const { approve, modal: approvalModal } = useAdminApproval();
   const openDate = searchParams.get('date') || '';
   const openTrip = Number(searchParams.get('trip') || 0);
 
@@ -373,7 +388,8 @@ function BoardingLedgerContent() {
     if (ready) void load();
   }, [ready, load]);
 
-  const onAction = async (job: (l: Ledger) => Promise<void>, done: string) => {
+  const onAction = async (job: (l: Ledger) => Promise<void>, done: string, approval?: string) => {
+    if (approval && !(await approve(approval))) return;
     setBusy(true);
     try {
       await job(await loadLedger());
@@ -415,6 +431,7 @@ function BoardingLedgerContent() {
         ) : (
           loaded && <EmptyState icon={IoDocumentTextOutline} message="원장에 없는 항차입니다." style={OHGO_CARD} />
         )}
+        {approvalModal}
       </SubPageFrame>
     );
   }

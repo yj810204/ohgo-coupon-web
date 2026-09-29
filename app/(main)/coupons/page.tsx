@@ -18,6 +18,7 @@ import OhgoModal, { OhgoModalButton, OhgoModalCancelLink, OhgoModalField } from 
 import EmptyState from '@/components/EmptyState';
 import { getTodayDate } from '@/lib/kst-date';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
+import { useAdminApproval } from '@/components/admin/AdminApprovalModal';
 
 const FONT = "var(--font-ohgo), sans-serif";
 const CARD: React.CSSProperties = { backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: 'none' };
@@ -32,6 +33,7 @@ function CouponsPageContent() {
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
   const [user, setUser] = useState<{ uuid?: string; name?: string; dob?: string } | null>(null);
   const fromAdmin = searchParams.get('fromAdmin') === 'true';
+  const { approve, modal: approvalModal } = useAdminApproval();
   const targetUuid = searchParams.get('uuid');
   const targetName = searchParams.get('name');
   const targetDob = searchParams.get('dob');
@@ -60,6 +62,8 @@ function CouponsPageContent() {
 
   const handleRevoke = async () => {
     if (!user?.uuid || !selectedCoupon) return;
+    setModalVisible(false);
+    if (!(await approve(`${selectedCoupon.reason || '쿠폰'}을 회수합니다.`))) return;
     try {
       await revokeCoupon(user.uuid, selectedCoupon.id);
       await fetchCoupons();
@@ -275,6 +279,7 @@ function CouponsPageContent() {
           }}
         />
       </OhgoModal>
+      {approvalModal}
     </SubPageFrame>
   );
 }

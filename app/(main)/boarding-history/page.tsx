@@ -10,7 +10,8 @@ import { LedgerSourceChips, LedgerStatusChip } from '@/components/boarding/Ledge
 import { useStaffActor } from '@/hooks/useStaffActor';
 import { isFirebaseDataSource } from '@/lib/data-source';
 import { getTodayDate } from '@/lib/kst-date';
-import { ohgoAlert, ohgoConfirm } from '@/lib/ohgo-dialog';
+import { ohgoAlert } from '@/lib/ohgo-dialog';
+import { useAdminApproval } from '@/components/admin/AdminApprovalModal';
 import {
   countMemberBoardings,
   isCounted,
@@ -55,6 +56,7 @@ function BoardingHistoryPageContent() {
   const name = searchParams.get('name') || '';
   const wantManage = searchParams.get('manage') === '1';
   const { actor } = useStaffActor();
+  const { approve, modal: approvalModal } = useAdminApproval();
   const canManage = Boolean(wantManage && actor?.isStaff && isFirebaseDataSource());
 
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
@@ -99,7 +101,8 @@ function BoardingHistoryPageContent() {
 
   const actorArg = () => ({ userId: actor?.userId ?? '', name: actor?.name ?? '' });
 
-  const run = async (job: (ledger: Ledger) => Promise<void>, done: string) => {
+  const run = async (what: string, job: (ledger: Ledger) => Promise<void>, done: string) => {
+    if (!(await approve(what))) return;
     setBusy(true);
     try {
       await job(await loadLedger());
@@ -117,9 +120,8 @@ function BoardingHistoryPageContent() {
       await ohgoAlert('승선일을 선택해 주세요.');
       return;
     }
-    const ok = await ohgoConfirm(`${addDate} ${addTrip}항차 승선기록을 추가할까요?\n사유: ${addReason}`);
-    if (!ok) return;
     await run(
+      `${addDate} ${addTrip}항차 승선기록을 추가합니다.\n사유: ${addReason}`,
       (l) => l.addManualBoarding({ userId: uuid, date: addDate, tripNumber: addTrip, reason: addReason, actor: actorArg() }).then(() => undefined),
       '승선기록을 추가했습니다.'
     );
@@ -128,6 +130,7 @@ function BoardingHistoryPageContent() {
   const handleVoid = async (entry: LedgerEntry) => {
     setVoidTarget(null);
     await run(
+      `${entry.date} ${entry.tripNumber}항차 기록을 제외합니다.\n사유: ${voidReason}`,
       (l) => l.voidBoarding({ id: entry.id, reason: voidReason, actor: actorArg() }),
       `${entry.date} ${entry.tripNumber}항차 기록을 제외했습니다.`
     );
@@ -237,7 +240,11 @@ function BoardingHistoryPageContent() {
                         style={SMALL_BTN}
                         disabled={busy}
                         onClick={() =>
-                          void run((l) => l.restoreBoarding({ id: item.id, actor: actorArg() }), '제외를 취소했습니다.')
+                          void run(
+                            `${item.date} ${item.tripNumber}항차 제외를 취소합니다.`,
+                            (l) => l.restoreBoarding({ id: item.id, actor: actorArg() }),
+                            '제외를 취소했습니다.'
+                          )
                         }
                       >
                         제외 취소
@@ -250,7 +257,11 @@ function BoardingHistoryPageContent() {
                             style={{ ...SMALL_BTN, color: '#1B6FF5', borderColor: '#BFD6FF' }}
                             disabled={busy}
                             onClick={() =>
-                              void run((l) => l.confirmBoarding({ id: item.id, actor: actorArg() }), '승선으로 확인했습니다.')
+                              void run(
+                                `${item.date} ${item.tripNumber}항차를 승선으로 확인합니다.`,
+                                (l) => l.confirmBoarding({ id: item.id, actor: actorArg() }),
+                                '승선으로 확인했습니다.'
+                              )
                             }
                           >
                             승선 확인
@@ -315,6 +326,7 @@ function BoardingHistoryPageContent() {
       {loaded && visible.length === 0 && (legacy?.length ?? 0) === 0 && (
         <EmptyState icon={IoBoatOutline} message="기록된 승선일이 없습니다." style={OHGO_CARD} />
       )}
+      {approvalModal}
     </SubPageFrame>
   );
 }
