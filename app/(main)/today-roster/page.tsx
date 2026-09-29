@@ -377,6 +377,19 @@ export default function TodayRosterPage() {
                   </OhgoModalButton>
                 );
               })}
+              {confirmedForDate.length > 0 && (
+                <OhgoModalButton
+                  variant="secondary"
+                  onClick={() => {
+                    setModalVisible(false);
+                    router.push(
+                      `/roster-check?date=${dateStr}&tripNumber=${confirmedForDate[0]}`
+                    );
+                  }}
+                >
+                  명단 대조
+                </OhgoModalButton>
+              )}
             </OhgoModalActions>
           );
         })()}

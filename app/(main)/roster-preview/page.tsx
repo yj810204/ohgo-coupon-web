@@ -391,7 +391,7 @@ function RosterPreviewContent() {
           ? '출항이 확정되었습니다. 승선명부 이미지가 서버와 기기에 저장되었습니다.'
           : '출항은 확정되었습니다. 기기 저장만 실패했으니 미리보기에서 다시 저장해 주세요.'
       );
-      router.push('/today-roster');
+      router.push(`/roster-check?date=${date}&tripNumber=${tripNum}&justConfirmed=1`);
     } catch (error) {
       console.error('Error in confirmDeparture:', error);
       const detail = error instanceof Error && error.message ? error.message : '';
@@ -559,25 +559,39 @@ function RosterPreviewContent() {
       >
         <div style={{ maxWidth: 'var(--ohgo-app-max-width)', margin: '0 auto' }}>
           {isConfirmed ? (
-            <div
-              className="d-flex align-items-center justify-content-center gap-2 w-100"
-              style={{
-                backgroundColor: '#E8F5E9',
-                color: '#2E7D32',
-                minHeight: 56,
-                borderRadius: 1000,
-                fontFamily: OHGO_FONT,
-                padding: '14px 20px',
-              }}
-            >
-              <IoCheckmarkCircleOutline
-                size={22}
-                className="flex-shrink-0"
-                style={{ color: '#2E7D32' }}
-              />
-              <span style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.5 }}>
-                출항이 확정되었습니다
-              </span>
+            <div className="d-flex flex-column gap-2">
+              <div
+                className="d-flex align-items-center justify-content-center gap-2 w-100"
+                style={{
+                  backgroundColor: '#E8F5E9',
+                  color: '#2E7D32',
+                  minHeight: 56,
+                  borderRadius: 1000,
+                  fontFamily: OHGO_FONT,
+                  padding: '14px 20px',
+                }}
+              >
+                <IoCheckmarkCircleOutline
+                  size={22}
+                  className="flex-shrink-0"
+                  style={{ color: '#2E7D32' }}
+                />
+                <span style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.5 }}>
+                  출항이 확정되었습니다
+                </span>
+              </div>
+              {date && tripNumber && (
+                <button
+                  type="button"
+                  className={`btn w-100 ${OHGO_DISMISS_BTN_CLASS}`}
+                  style={OHGO_DISMISS_BTN}
+                  onClick={() =>
+                    router.push(`/roster-check?date=${date}&tripNumber=${tripNumber}`)
+                  }
+                >
+                  명단 대조
+                </button>
+              )}
             </div>
           ) : (
             <button
