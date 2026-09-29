@@ -16,6 +16,7 @@ VPS `.env.production`:
 - `NEXT_PUBLIC_SITE_URL=https://ohgo.codejaka.com`
 - (선택) `LEGACY_LOGIN_SECRET`
 - (선택) `RECONCILE_SECRET` — 승선 대사 API (`POST /api/admin/reconcile-boarding`). 없으면 해당 API는 거부한다.
+- (선택) `BAND_CLIENT_ID`, `BAND_CLIENT_SECRET`, `BAND_REDIRECT_URI` — 밴드 Open API OAuth. 서버 전용. 콜백은 `https://ohgo.codejaka.com/api/band/callback`. 발급 전에도 이 주소는 안내 페이지로 열린다. 연동 시작은 관리자 로그인 후 `GET /api/band/authorize`. 토큰은 `band_oauth_tokens`에만 저장한다.
 
 템플릿: [`.env.production.example`](.env.production.example)
 
