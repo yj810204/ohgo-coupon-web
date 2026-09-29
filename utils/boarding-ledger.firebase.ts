@@ -454,7 +454,7 @@ function tripCounts(entries: LedgerEntry[]) {
     matched: counted.filter((e) => e.role === 'passenger' && e.status === 'matched').length,
     unmatched: counted.filter((e) => e.status === 'unmatched').length,
     crew: counted.filter((e) => e.role === 'crew').length,
-    needsReview: entries.filter((e) => e.status !== 'void' && e.needsReview).length,
+    needsReview: counted.filter((e) => e.needsReview && e.status !== 'unmatched').length,
   };
 }
 
