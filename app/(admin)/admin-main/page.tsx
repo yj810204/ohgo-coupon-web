@@ -71,6 +71,15 @@ const MENU_SECTIONS: MenuSection[] = [
         color: '#FF5722',
         bg: '#FFF0EB',
       },
+      {
+        id: 'roster-check',
+        label: '명단 대조',
+        desc: '확정 명단과 스탬프·미끼를 비교·보정',
+        path: '/roster-check',
+        icon: IoBoatOutline,
+        color: '#00796B',
+        bg: '#E0F2F1',
+      },
     ],
   },
   {
@@ -214,6 +223,7 @@ const MENU_SECTIONS: MenuSection[] = [
 const CAPTAIN_MENU_IDS = new Set([
   'admin',
   'roster',
+  'roster-check',
   'push',
   'fishing-log',
   'photos',
