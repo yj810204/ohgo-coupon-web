@@ -115,7 +115,11 @@ const PRIVACY_POLICY_HTML = `
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { font-family: 'SCDream', 'Noto Sans KR', sans-serif; padding: 20px; line-height: 1.6; }
+    @font-face { font-family: 'ONE Mobile'; src: url('/fonts/onemobile/ONEMobile-Regular.woff2') format('woff2'); font-weight: 400 500; font-display: swap; unicode-range: U+0000-00A8, U+00AA-10FFFF; }
+    @font-face { font-family: 'ONE Mobile'; src: url('/fonts/onemobile/ONEMobile-Bold.woff2') format('woff2'); font-weight: 600 800; font-display: swap; unicode-range: U+0000-00A8, U+00AA-10FFFF; }
+    @font-face { font-family: 'ONE Mobile Title'; src: url('/fonts/onemobile/ONEMobileTitle.woff2') format('woff2'); font-weight: 400; font-display: swap; unicode-range: U+0000-00A8, U+00AA-10FFFF; }
+    body { font-family: 'ONE Mobile', 'Noto Sans KR', sans-serif; padding: 20px; line-height: 1.6; }
+    h1, h2 { font-family: 'ONE Mobile Title', 'ONE Mobile', 'Noto Sans KR', sans-serif; font-weight: 400; }
     h1 { color: #1e88e5; }
     h2 { color: #333; margin-top: 20px; }
     ${OHGO_ISOLATED_HTML_WORD_BREAK_CSS}
@@ -142,7 +146,11 @@ const THIRD_PARTY_HTML = `
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { font-family: 'SCDream', 'Noto Sans KR', sans-serif; padding: 20px; line-height: 1.6; }
+    @font-face { font-family: 'ONE Mobile'; src: url('/fonts/onemobile/ONEMobile-Regular.woff2') format('woff2'); font-weight: 400 500; font-display: swap; unicode-range: U+0000-00A8, U+00AA-10FFFF; }
+    @font-face { font-family: 'ONE Mobile'; src: url('/fonts/onemobile/ONEMobile-Bold.woff2') format('woff2'); font-weight: 600 800; font-display: swap; unicode-range: U+0000-00A8, U+00AA-10FFFF; }
+    @font-face { font-family: 'ONE Mobile Title'; src: url('/fonts/onemobile/ONEMobileTitle.woff2') format('woff2'); font-weight: 400; font-display: swap; unicode-range: U+0000-00A8, U+00AA-10FFFF; }
+    body { font-family: 'ONE Mobile', 'Noto Sans KR', sans-serif; padding: 20px; line-height: 1.6; }
+    h1, h2 { font-family: 'ONE Mobile Title', 'ONE Mobile', 'Noto Sans KR', sans-serif; font-weight: 400; }
     h1 { color: #1e88e5; }
     h2 { color: #333; margin-top: 20px; }
     ${OHGO_ISOLATED_HTML_WORD_BREAK_CSS}

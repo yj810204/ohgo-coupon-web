@@ -3,8 +3,8 @@
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 
-/** ute.or.kr 과 동일 계열 — SCDream(에스코어드림) */
-export const OHGO_FONT = "var(--font-ohgo), 'SCDream', 'Noto Sans KR', system-ui, sans-serif";
+/** 본문 ONE Mobile (원스토어 모바일고딕 본문체) */
+export const OHGO_FONT = "var(--font-ohgo), 'ONE Mobile', 'Noto Sans KR', system-ui, sans-serif";
 
 /** 앱 셸 공통 최대 폭 (globals.css --ohgo-app-max-width 와 동일) */
 export const OHGO_APP_MAX_WIDTH = 480;

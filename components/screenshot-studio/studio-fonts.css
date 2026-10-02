@@ -413,3 +413,12 @@
     border-top: 1px solid #efefef;
   }
 }
+
+/* 스튜디오 '에스코어드림' 선택지용. 앱 본문은 ONE Mobile 로 바뀌어 globals.css 에서는 빠졌다 */
+@font-face {
+  font-family: 'SCDream';
+  src: url('/fonts/scdream/S-CoreDream-7ExtraBold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
