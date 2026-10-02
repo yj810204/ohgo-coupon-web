@@ -63,7 +63,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-ohgo);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -92,6 +92,16 @@ body {
   text-size-adjust: 100%;
   word-break: keep-all;
   overflow-wrap: break-word;
+}
+
+:root:root {
+  /* /vendor/bootstrap.min.css 가 Next CSS 뒤에 로드되어 본문 폰트를 system-ui 로 덮어쓰는 것을 막는다 */
+  --bs-font-sans-serif: var(--font-ohgo);
+  --bs-body-font-family: var(--font-ohgo);
+}
+
+html body {
+  font-family: var(--font-ohgo);
 }
 
 /* 시트/모달이 없는데 overflow:hidden 이 남으면 앱 스크롤이 죽는다 */
