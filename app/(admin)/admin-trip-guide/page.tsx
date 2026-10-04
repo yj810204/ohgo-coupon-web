@@ -33,6 +33,8 @@ import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/Oh
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import { OHGO_CONFIRM_BTN_CLASS, OHGO_INPUT, OHGO_PRIMARY_BTN, OHGO_SECONDARY_BTN } from '@/lib/page-styles';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
+import { useHolidays } from '@/hooks/useHolidays';
+import { HOLIDAY_RED, shortHolidayName } from '@/lib/kr-holidays';
 
 const FONT = "var(--font-ohgo), sans-serif";
 const CARD: React.CSSProperties = { backgroundColor: '#FFFFFF', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: 'none' };
@@ -47,8 +49,8 @@ type TripDayStyle = {
   isWeekend: boolean;
 };
 
-function getTripDayStyle(dateStr: string): TripDayStyle {
-  const dayIdx = new Date(`${dateStr}T00:00:00`).getDay();
+function getTripDayStyle(dateStr: string, isHoliday = false): TripDayStyle {
+  const dayIdx = isHoliday ? 0 : new Date(`${dateStr}T00:00:00`).getDay();
   if (dayIdx === 6) {
     return {
       dayLabelColor: '#1B6FF5',
@@ -293,6 +295,7 @@ export default function AdminTripGuidePage() {
   const [selectedWeekStart, setSelectedWeekStart] = useState(() => getWeekMonday(tripDateToStr()));
 
   const weekEnd = addDays(selectedWeekStart, 6);
+  const holidays = useHolidays([Number(selectedWeekStart.slice(0, 4)), Number(weekEnd.slice(0, 4))]);
 
   const weekGroups = useMemo(
     () => tripGroups.filter(g => g.date >= selectedWeekStart && g.date <= weekEnd),
@@ -399,7 +402,8 @@ export default function AdminTripGuidePage() {
             {weekGroups.map(group => {
               const isToday = group.date === todayStr;
               const isPast = !isToday && isPastTripDate(group.date, todayStr);
-              const dayStyle = getTripDayStyle(group.date);
+              const holidayName = holidays[group.date];
+              const dayStyle = getTripDayStyle(group.date, Boolean(holidayName));
               return (
                 <div
                   key={group.date}
@@ -454,6 +458,24 @@ export default function AdminTripGuidePage() {
                       <div style={{ fontSize: 11, color: isPast ? '#ABABAB' : isToday ? '#5B9BF5' : dayStyle.monthColor, fontFamily: FONT }}>
                         {group.date.slice(0, 7)}
                       </div>
+                      {holidayName ? (
+                        <div
+                          title={holidayName}
+                          style={{
+                            marginTop: 2,
+                            fontSize: 10,
+                            lineHeight: '12px',
+                            fontWeight: 600,
+                            color: isPast ? '#FF8A84' : HOLIDAY_RED,
+                            fontFamily: FONT,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {shortHolidayName(holidayName)}
+                        </div>
+                      ) : null}
                     </div>
                     <div
                       style={{

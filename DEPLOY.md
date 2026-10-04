@@ -35,6 +35,7 @@ codejaka-mini 의 `~/src/ohgo-coupon-web/.env.production`:
 - `NEXT_PUBLIC_SITE_URL=https://ohgo.codejaka.com`
 - (선택) `LEGACY_LOGIN_SECRET`
 - (선택) `RECONCILE_SECRET` — 승선 대사 API (`POST /api/admin/reconcile-boarding`). 없으면 해당 API는 거부한다.
+- (선택) `KASI_HOLIDAY_API_KEY` — 공공데이터포털 한국천문연구원 특일정보(`SpcdeInfoService`) 서비스 키. 서버 전용. 없으면 `KHOA_TIDE_API_KEY`(같은 data.go.kr 키)를 쓰고, 둘 다 없으면 저장된 값이나 `lib/kr-holidays-fallback.json` 으로 표시한다. 받은 공휴일은 Supabase `holidays` 테이블(`030_holidays.sql`)에 연도별로 저장한다.
 - (선택) `BAND_CLIENT_ID`, `BAND_CLIENT_SECRET`, `BAND_REDIRECT_URI` — 밴드 Open API OAuth. 서버 전용. 콜백은 `https://ohgo.codejaka.com/api/band/callback`. 발급 전에도 이 주소는 안내 페이지로 열린다. 연동 시작은 관리자 로그인 후 `GET /api/band/authorize`. 토큰은 `band_oauth_tokens`에만 저장한다.
 
 템플릿: [`.env.production.example`](.env.production.example)

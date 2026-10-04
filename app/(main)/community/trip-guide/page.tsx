@@ -46,6 +46,8 @@ import TripTidePanel from '@/components/trip/TripTidePanel';
 import WindWeatherCard from '@/components/trip/WindWeatherCard';
 import { getTideLabel, getTideTextColor } from '@/lib/dadaepo-tide';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
+import { useHolidays } from '@/hooks/useHolidays';
+import { HOLIDAY_RED, shortHolidayName } from '@/lib/kr-holidays';
 
 const FONT = OHGO_FONT;
 const CARD: React.CSSProperties = { ...OHGO_CARD };
@@ -234,6 +236,11 @@ export default function TripGuidePage() {
     if (calendarExpanded) return toYM(year, month);
     return [...new Set(weekDateStrs(selectedDate).map((d) => d.slice(0, 7)))].sort().join(',');
   }, [calendarExpanded, year, month, selectedDate]);
+  const holidayYears = useMemo(
+    () => [year, ...loadMonthsKey.split(',').map((ym) => Number(ym.slice(0, 4)))],
+    [year, loadMonthsKey],
+  );
+  const holidays = useHolidays(holidayYears);
 
   const loadTrips = useCallback(async () => {
     if (firstLoadRef.current) setLoading(true);
@@ -400,10 +407,12 @@ export default function TripGuidePage() {
     const isSelected = dateStr === selectedDate;
     const isSun = col === 6;
     const isSat = col === 5;
+    const holidayName = holidays[dateStr];
+    const holidayShort = holidayName ? shortHolidayName(holidayName) : '';
 
     let dayNumberColor = '#1A1D1F';
     if (outsideMonth) dayNumberColor = '#C5C8CD';
-    else if (isSun) dayNumberColor = '#FF3B30';
+    else if (isSun || holidayName) dayNumberColor = HOLIDAY_RED;
     else if (isSat) dayNumberColor = '#1B6FF5';
     else if (isPast || isClosed) dayNumberColor = '#ABABAB';
 
@@ -420,6 +429,12 @@ export default function TripGuidePage() {
         type="button"
         onClick={() => selectCalendarDate(dateStr)}
         disabled={loading}
+        title={holidayName || undefined}
+        aria-label={
+          holidayName
+            ? `${formatTripModalDate(dateStr)} ${holidayName}${tripCount > 0 ? ` 출조 ${tripCount}건` : ''}`
+            : undefined
+        }
         className="btn"
         style={{
           flex: '1 1 0',
@@ -497,6 +512,25 @@ export default function TripGuidePage() {
               오늘
             </span>
           ) : null}
+        </div>
+        <div
+          aria-hidden
+          style={{
+            height: 11,
+            minHeight: 11,
+            width: '100%',
+            fontSize: 9,
+            lineHeight: '11px',
+            fontWeight: 600,
+            fontFamily: FONT,
+            color: HOLIDAY_RED,
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {holidayShort}
         </div>
       </button>
     );
@@ -673,6 +707,7 @@ export default function TripGuidePage() {
                   const isSelectedDay = group.date === selectedDate;
                   const isTodayGroup = group.date === todayStr;
                   const tideLabel = getTideLabel(group.date);
+                  const groupHoliday = holidays[group.date];
                   return (
                   <div
                     key={group.date}
@@ -711,6 +746,9 @@ export default function TripGuidePage() {
                       }}
                     >
                       {formatTripModalDate(group.date)}
+                      {groupHoliday ? (
+                        <span style={{ color: HOLIDAY_RED, marginLeft: 4 }}>{groupHoliday}</span>
+                      ) : null}
                       {isTodayGroup ? ' · 오늘' : ''}
                       {tideLabel ? (
                         <span style={{ color: getTideTextColor(tideLabel) }}>{` · ${tideLabel}`}</span>
