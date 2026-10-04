@@ -115,7 +115,7 @@ export default function SampleTripsPage() {
                 fontSize: 12,
                 fontWeight: 700,
                 fontFamily: FONT,
-                color: i === 0 ? '#FF3B30' : i === 6 ? '#1B6FF5' : '#6F767E',
+                color: i === 0 || i === 6 ? '#FF3B30' : '#6F767E',
               }}
             >
               {d}
@@ -150,7 +150,7 @@ export default function SampleTripsPage() {
                     style={{
                       fontSize: 14,
                       fontWeight: isSelected || count ? 700 : 500,
-                      color: col === 0 ? '#FF3B30' : col === 6 ? '#1B6FF5' : '#1A1D1F',
+                      color: col === 0 || col === 6 ? '#FF3B30' : '#1A1D1F',
                       fontFamily: FONT,
                     }}
                   >

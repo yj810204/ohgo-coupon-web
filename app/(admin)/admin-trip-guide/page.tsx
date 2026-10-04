@@ -51,16 +51,7 @@ type TripDayStyle = {
 
 function getTripDayStyle(dateStr: string, isHoliday = false): TripDayStyle {
   const dayIdx = isHoliday ? 0 : new Date(`${dateStr}T00:00:00`).getDay();
-  if (dayIdx === 6) {
-    return {
-      dayLabelColor: '#1B6FF5',
-      dayNumberColor: '#1B6FF5',
-      monthColor: '#5B9BF5',
-      dividerColor: '#C7D9FD',
-      isWeekend: true,
-    };
-  }
-  if (dayIdx === 0) {
+  if (dayIdx === 0 || dayIdx === 6) {
     return {
       dayLabelColor: '#FF3B30',
       dayNumberColor: '#FF3B30',

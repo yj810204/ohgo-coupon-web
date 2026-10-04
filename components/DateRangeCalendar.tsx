@@ -138,7 +138,7 @@ export default function DateRangeCalendar({
               fontSize: 12,
               fontWeight: 700,
               fontFamily: OHGO_FONT,
-              color: i === 0 ? '#FF3B30' : i === 6 ? '#1B6FF5' : '#6F767E',
+              color: i === 0 || i === 6 ? '#FF3B30' : '#6F767E',
             }}
           >
             {d}
@@ -162,11 +162,10 @@ export default function DateRangeCalendar({
               start &&
               ((!end && isStart) || (end && isSameDay(start, end) && isStart));
 
-            const isSun = getDay(day) === 0;
-            const isSat = getDay(day) === 6;
+            const isWeekend = getDay(day) === 0 || getDay(day) === 6;
             const holidayName = holidays[format(day, 'yyyy-MM-dd')];
 
-            let color = isSun || holidayName ? HOLIDAY_RED : isSat ? '#1B6FF5' : '#1A1D1F';
+            let color = isWeekend || holidayName ? HOLIDAY_RED : '#1A1D1F';
             if (disabled) color = '#D0D5DD';
             else if (inRange) color = '#FFFFFF';
 

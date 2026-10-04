@@ -54,8 +54,7 @@ function groupTripsByDate(trips: TripGuide[]): TripDayGroup[] {
 function dayDividerColor(dayIdx: number, isPast: boolean, isToday: boolean): string {
   if (isPast) return '#EFEFEF';
   if (isToday) return '#C7D9FD';
-  if (dayIdx === 0) return '#FFD6D4';
-  if (dayIdx === 6) return '#C7D9FD';
+  if (dayIdx === 0 || dayIdx === 6) return '#FFD6D4';
   return '#EFEFEF';
 }
 
@@ -163,18 +162,15 @@ export default function WeeklyTripSummary({
           const colorDayIdx = holidayName ? 0 : dayIdx;
           const dayLabelColor = tripWeekdayLabelColor(colorDayIdx, isPast);
           const dayNumberColor = tripWeekdayNumberColor(colorDayIdx, isPast);
-          const isSun = dayIdx === 0;
-          const isSat = dayIdx === 6;
+          const isWeekend = dayIdx === 0 || dayIdx === 6;
 
           let numBg = 'transparent';
           let numColor = dayNumberColor;
           if (isToday) {
             numBg = TODAY_ACCENT;
             numColor = '#FFFFFF';
-          } else if (isSun || holidayName) {
+          } else if (isWeekend || holidayName) {
             numBg = '#FFF0F0';
-          } else if (isSat) {
-            numBg = '#EDF5FF';
           }
 
           const groupBg = isPast ? '#F7F8FA' : '#FFFFFF';

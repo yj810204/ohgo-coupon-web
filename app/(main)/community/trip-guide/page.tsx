@@ -412,8 +412,7 @@ export default function TripGuidePage() {
 
     let dayNumberColor = '#1A1D1F';
     if (outsideMonth) dayNumberColor = '#C5C8CD';
-    else if (isSun || holidayName) dayNumberColor = HOLIDAY_RED;
-    else if (isSat) dayNumberColor = '#1B6FF5';
+    else if (isSun || isSat || holidayName) dayNumberColor = HOLIDAY_RED;
     else if (isPast || isClosed) dayNumberColor = '#ABABAB';
 
     const tripBadgeColor = tripCount >= 2 ? '#FF9500' : '#34C759';
@@ -593,7 +592,7 @@ export default function TripGuidePage() {
                   fontSize: 11,
                   fontWeight: 700,
                   fontFamily: FONT,
-                  color: i === 6 ? '#FF3B30' : i === 5 ? '#1B6FF5' : '#6F767E',
+                  color: i === 6 || i === 5 ? '#FF3B30' : '#6F767E',
                 }}
               >
                 {d}
