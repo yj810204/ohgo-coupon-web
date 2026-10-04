@@ -229,7 +229,7 @@ export default function TodayRosterPage() {
                   fontSize: 12,
                   fontWeight: 700,
                   fontFamily: FONT,
-                  color: i === 0 ? '#FF3B30' : i === 6 ? '#1B6FF5' : '#6F767E',
+                  color: i === 0 || i === 6 ? '#FF3B30' : '#6F767E',
                 }}
               >
                 {d}
@@ -260,14 +260,12 @@ export default function TodayRosterPage() {
                 const isPastDate = isDateBeforeToday(new Date(day));
                 const confirmedForDate = confirmedTrips[dateStr] || [];
                 const hasTrips = confirmedForDate.length > 0;
-                const isSun = dayOfWeek === 0;
-                const isSat = dayOfWeek === 6;
+                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                 const tripBadgeColor =
                   confirmedForDate.length >= 2 ? '#FF9500' : '#34C759';
 
                 let dayNumberColor = '#1A1D1F';
-                if (isSun) dayNumberColor = '#FF3B30';
-                else if (isSat) dayNumberColor = '#1B6FF5';
+                if (isWeekend) dayNumberColor = '#FF3B30';
                 else if (isPastDate) dayNumberColor = '#ABABAB';
 
                 return (

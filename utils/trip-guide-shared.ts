@@ -164,12 +164,10 @@ export function tripCalendarDayNumberColor(
     return '#1B6FF5';
   }
   if (isMuted) {
-    if (isSun) return '#FF8A84';
-    if (isSat) return '#7EB3F7';
+    if (isSun || isSat) return '#FF8A84';
     return '#9A9FA5';
   }
-  if (isSun) return '#FF3B30';
-  if (isSat) return '#1B6FF5';
+  if (isSun || isSat) return '#FF3B30';
   return '#1A1D1F';
 }
 
@@ -180,30 +178,25 @@ export function tripCalendarDotColor(
   const { isToday, isMuted } = opts;
   if (isToday) return '#FFCC00';
   if (!isMuted) return '#1B6FF5';
-  if (col === 0) return '#FFB4B0';
-  if (col === 6) return '#A8C9F7';
+  if (col === 0 || col === 6) return '#FFB4B0';
   return '#C5C8CD';
 }
 
 export function tripWeekdayNumberColor(dayIdx: number, isMuted: boolean): string {
   if (isMuted) {
-    if (dayIdx === 0) return '#FF8A84';
-    if (dayIdx === 6) return '#7EB3F7';
+    if (dayIdx === 0 || dayIdx === 6) return '#FF8A84';
     return '#9A9FA5';
   }
-  if (dayIdx === 0) return '#FF3B30';
-  if (dayIdx === 6) return '#1B6FF5';
+  if (dayIdx === 0 || dayIdx === 6) return '#FF3B30';
   return '#1A1D1F';
 }
 
 export function tripWeekdayLabelColor(dayIdx: number, isMuted: boolean): string {
   if (isMuted) {
-    if (dayIdx === 0) return '#FF8A84';
-    if (dayIdx === 6) return '#7EB3F7';
+    if (dayIdx === 0 || dayIdx === 6) return '#FF8A84';
     return '#9A9FA5';
   }
-  if (dayIdx === 0) return '#FF3B30';
-  if (dayIdx === 6) return '#1B6FF5';
+  if (dayIdx === 0 || dayIdx === 6) return '#FF3B30';
   return '#6F767E';
 }
 

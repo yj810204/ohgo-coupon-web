@@ -424,8 +424,7 @@ export default function TideCalendarScreen({
     const isSelected = dateStr === selectedDate;
     let dayNumberColor = '#1A1D1F';
     if (outsideMonth) dayNumberColor = '#C5C8CD';
-    else if (col === 0) dayNumberColor = '#FF3B30';
-    else if (col === 6) dayNumberColor = '#1B6FF5';
+    else if (col === 0 || col === 6) dayNumberColor = '#FF3B30';
 
     let cellBg = '#FFFFFF';
     if (isSelected) cellBg = isToday ? TODAY_BG : '#EBF1FE';
@@ -530,7 +529,7 @@ export default function TideCalendarScreen({
                 fontSize: 11,
                 fontWeight: 700,
                 fontFamily: FONT,
-                color: index === 0 ? '#FF3B30' : index === 6 ? '#1B6FF5' : '#6F767E',
+                color: index === 0 || index === 6 ? '#FF3B30' : '#6F767E',
               }}
             >
               {label}
