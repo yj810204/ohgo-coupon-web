@@ -17,6 +17,8 @@ import {
 } from 'date-fns';
 import { IoChevronBackOutline, IoChevronForwardOutline } from 'react-icons/io5';
 import { OHGO_FONT } from '@/lib/page-styles';
+import { useHolidays } from '@/hooks/useHolidays';
+import { HOLIDAY_RED, shortHolidayName } from '@/lib/kr-holidays';
 
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 const RANGE_BG = '#237FFF';
@@ -52,6 +54,7 @@ export default function DateRangeCalendar({
 
   const [viewMonth, setViewMonth] = useState(() => start || new Date());
   const [pickingEnd, setPickingEnd] = useState(Boolean(start && !end));
+  const holidays = useHolidays([viewMonth.getFullYear()]);
 
   const monthStart = startOfMonth(viewMonth);
   const monthEnd = endOfMonth(viewMonth);
@@ -161,8 +164,9 @@ export default function DateRangeCalendar({
 
             const isSun = getDay(day) === 0;
             const isSat = getDay(day) === 6;
+            const holidayName = holidays[format(day, 'yyyy-MM-dd')];
 
-            let color = isSun ? '#FF3B30' : isSat ? '#1B6FF5' : '#1A1D1F';
+            let color = isSun || holidayName ? HOLIDAY_RED : isSat ? '#1B6FF5' : '#1A1D1F';
             if (disabled) color = '#D0D5DD';
             else if (inRange) color = '#FFFFFF';
 
@@ -186,6 +190,7 @@ export default function DateRangeCalendar({
                 type="button"
                 disabled={disabled}
                 onClick={() => handleDayClick(day)}
+                title={holidayName || undefined}
                 className="btn p-0"
                 style={{
                   flex: 1,
@@ -204,8 +209,10 @@ export default function DateRangeCalendar({
                     minHeight: 36,
                     margin: '0',
                     display: 'flex',
+                    flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    minWidth: 0,
                     background: cellBg,
                     borderRadius: cellRadius,
                     color,
@@ -215,6 +222,22 @@ export default function DateRangeCalendar({
                   }}
                 >
                   {format(day, 'd')}
+                  {holidayName ? (
+                    <span
+                      style={{
+                        maxWidth: '100%',
+                        padding: '0 2px',
+                        fontSize: 9,
+                        lineHeight: '11px',
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {shortHolidayName(holidayName)}
+                    </span>
+                  ) : null}
                 </span>
               </button>
             );

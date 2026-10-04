@@ -16,6 +16,8 @@ import {
   tripWeekdayNumberColor,
 } from '@/utils/trip-guide-service';
 import { IoTimeOutline, IoChevronForwardOutline, IoBoatOutline } from 'react-icons/io5';
+import { useHolidays } from '@/hooks/useHolidays';
+import { HOLIDAY_RED, shortHolidayName } from '@/lib/kr-holidays';
 
 const FONT = "var(--font-ohgo), sans-serif";
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -76,6 +78,7 @@ export default function WeeklyTripSummary({
   const [trips, setTrips] = useState<TripGuide[]>(tripsProp ?? []);
   const [loading, setLoading] = useState(controlled ? Boolean(isLoading) : !tripsProp);
   const weekRange = useMemo(() => getWeekRange(new Date()), []);
+  const holidays = useHolidays([weekRange.start.getFullYear(), weekRange.end.getFullYear()]);
 
   useEffect(() => {
     if (controlled) {
@@ -156,8 +159,10 @@ export default function WeeklyTripSummary({
           const isToday = !isDummy && group.date === todayStr;
           const isPast = !isDummy && !isToday && isPastTripDate(group.date, todayStr);
           const dayIdx = new Date(`${group.date}T00:00:00`).getDay();
-          const dayLabelColor = tripWeekdayLabelColor(dayIdx, isPast);
-          const dayNumberColor = tripWeekdayNumberColor(dayIdx, isPast);
+          const holidayName = isDummy ? undefined : holidays[group.date];
+          const colorDayIdx = holidayName ? 0 : dayIdx;
+          const dayLabelColor = tripWeekdayLabelColor(colorDayIdx, isPast);
+          const dayNumberColor = tripWeekdayNumberColor(colorDayIdx, isPast);
           const isSun = dayIdx === 0;
           const isSat = dayIdx === 6;
 
@@ -166,7 +171,7 @@ export default function WeeklyTripSummary({
           if (isToday) {
             numBg = TODAY_ACCENT;
             numColor = '#FFFFFF';
-          } else if (isSun) {
+          } else if (isSun || holidayName) {
             numBg = '#FFF0F0';
           } else if (isSat) {
             numBg = '#EDF5FF';
@@ -216,6 +221,26 @@ export default function WeeklyTripSummary({
                       {parseInt(group.date.split('-')[2], 10)}
                     </span>
                   </div>
+                  {holidayName ? (
+                    <span
+                      title={holidayName}
+                      aria-label={holidayName}
+                      style={{
+                        maxWidth: 44,
+                        marginTop: 3,
+                        fontSize: 9,
+                        lineHeight: '11px',
+                        fontWeight: 600,
+                        color: isPast ? '#FF8A84' : HOLIDAY_RED,
+                        fontFamily: FONT,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {shortHolidayName(holidayName)}
+                    </span>
+                  ) : null}
                 </div>
                 <div
                   style={{
@@ -232,7 +257,7 @@ export default function WeeklyTripSummary({
                   <div
                     style={{
                       flex: 1,
-                      backgroundColor: dayDividerColor(dayIdx, isPast, isToday),
+                      backgroundColor: dayDividerColor(colorDayIdx, isPast, isToday),
                       borderRadius: 2,
                     }}
                   />
