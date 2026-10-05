@@ -204,6 +204,7 @@ export default function DateRangeCalendar({
               >
                 <span
                   style={{
+                    position: 'relative',
                     flex: 1,
                     minHeight: 36,
                     margin: '0',
@@ -224,7 +225,11 @@ export default function DateRangeCalendar({
                   {holidayName ? (
                     <span
                       style={{
-                        maxWidth: '100%',
+                        position: 'absolute',
+                        top: 'calc(50% + 7px)',
+                        left: 0,
+                        right: 0,
+                        textAlign: 'center',
                         padding: '0 2px',
                         fontSize: 9,
                         lineHeight: '11px',
