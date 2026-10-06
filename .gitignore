@@ -53,3 +53,8 @@ mobile/.expo/
 
 # 승선기록 원장 스크립트 보고서
 /reports/
+
+# Band 게시글 가져오기 도구: 로그인 프로필(쿠키), 추출 결과
+/tools/band-import/user-data/
+/tools/band-import/out/
+/tools/band-import/.env*

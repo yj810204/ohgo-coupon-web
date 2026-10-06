@@ -1,0 +1,35 @@
+{
+  "_comment": "합성 픽스처. 실제 응답이 아니라 Band 웹 번들이 읽는 필드명(get_post result_data.post, attachment.photo[].photo_url, attachment.schedule_group[].schedules[])을 따라 만든 것",
+  "result_code": 1,
+  "result_data": {
+    "post": {
+      "band_no": 88348442,
+      "post_no": 2925,
+      "author": { "name": "오고피싱 선장", "user_no": 1 },
+      "created_at": 1791264865874,
+      "content": "10월 12일 갈치 출항 안내<br>출항 05:30 다대포항<br>정원 12명 &amp; 요금 문의<br><band:hashtag>#갈치</band:hashtag>",
+      "attachment": {
+        "photo": [
+          { "photo_no": 11, "photo_url": "https://coresos-phinf.pstatic.net/a/test/one.jpg", "width": 1080, "height": 1440 },
+          { "photo_no": 12, "photo_url": "https://coresos-phinf.pstatic.net/a/test/two.png", "width": 800, "height": 600 },
+          { "photo_no": 13, "photo_url": "https://coresos-phinf.pstatic.net/a/test/video.jpg", "video": { "video_id": 9 } }
+        ],
+        "schedule_group": [
+          {
+            "seq": 0,
+            "schedules": [
+              {
+                "schedule_id": "abc",
+                "name": "갈치 출조",
+                "description": "새벽 출항",
+                "start_at": 1791747000000,
+                "end_at": 1791768600000,
+                "is_all_day": false
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
