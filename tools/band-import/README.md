@@ -20,7 +20,38 @@ npx playwright install chromium
 
 설치된 Chrome을 쓰고 싶으면 명령 앞에 `BAND_BROWSER_CHANNEL=chrome`을 붙이세요.
 
-## 사용법
+## Mac 앱으로 쓰기 (권장)
+
+### 실행
+
+```bash
+npm run band:gui
+```
+
+작은 창이 뜹니다.
+
+1. 처음 한 번 **로그인**을 누릅니다. Band 창이 열리면 로그인하세요. 로그인이 확인되면 창이 자동으로 닫히고 `로그인 세션 저장됨`으로 바뀝니다.
+2. Band 게시글 주소를 입력칸에 붙여넣고(Cmd+V 또는 **붙여넣기** 버튼) **가져오기**를 누릅니다(Enter도 됨).
+3. 끝나면 제목, 이미지 수, 썸네일이 보입니다. **결과 폴더 열기**를 누르면 Finder에서 `out/{postId}/`가 열립니다.
+
+- 가져오기는 기본으로 Band 창을 띄워서 진행합니다. 창은 끝나면 자동으로 닫히니 건드리지 마세요. 진행 중에 창을 닫으면 작업이 멈춥니다.
+- **브라우저 창 없이 가져오기**를 켜면 창 없이 진행하고, 로그인이 안 된 것으로 보이면 자동으로 창을 띄워 한 번 더 시도합니다.
+- 다 쓰면 **종료**를 누르거나 Cmd+Q로 끕니다. 진행 중인 작업이 있으면 끝난 뒤 종료합니다.
+- 앱 창 대신 기본 브라우저 탭으로 열고 싶으면 `BAND_GUI_OPEN=browser npm run band:gui`를 쓰세요.
+
+### Dock/Launchpad에서 실행하는 .app 만들기 (선택)
+
+```bash
+npm run band:app
+```
+
+`tools/band-import/dist/Band 가져오기.app`이 만들어집니다. Finder에서 응용 프로그램 폴더로 옮긴 뒤 더블클릭하면 됩니다.
+
+- 이 앱은 저장소 위치를 기억해서 `npm run band:gui`를 대신 실행하는 껍데기입니다. 저장소를 다른 곳으로 옮기면 `npm run band:app`을 다시 실행하세요.
+- 서명되지 않은 앱이라 처음에는 "확인되지 않은 개발자" 경고가 뜹니다. Finder에서 앱을 Control+클릭하고 **열기**를 고르세요.
+- 실행 로그는 `~/Library/Logs/band-import-gui.log`에 쌓입니다.
+
+## 터미널로 쓰기
 
 ### 1. 로그인 (처음 한 번)
 
@@ -30,7 +61,7 @@ npm run band:login
 
 브라우저 창이 열리면 Band에 로그인합니다. 로그인이 확인되면 창이 자동으로 닫히고 세션이 `tools/band-import/user-data/`에 저장됩니다. 이미 로그인되어 있으면 바로 끝납니다. 세션이 만료되면 다시 실행하세요.
 
-Band 로그인 쿠키 일부는 브라우저를 닫으면 사라지는 세션 쿠키입니다. 그래서 login이 끝날 때 Band 쿠키를 `user-data/band-session.json`에 따로 저장하고, fetch가 시작할 때 되살립니다. 이 기능이 생기기 전에 로그인했다면 `npm run band:login`을 한 번 다시 실행하세요. fetch에 `--headed`를 붙일 필요는 없습니다.
+Band 로그인 쿠키 일부는 브라우저를 닫으면 사라지는 세션 쿠키입니다. 그래서 login이 끝날 때 Band 쿠키와 브라우저 정보(User-Agent)를 `user-data/band-session.json`에 따로 저장하고, fetch가 시작할 때 되살립니다. 이 기능이 생기기 전에 로그인했다면 로그인을 한 번 다시 실행하세요.
 
 ### 2. 게시글 가져오기
 
@@ -45,13 +76,17 @@ tools/band-import/out/2925/
   extracted.json   # 추출 결과
   01.jpg 02.jpg …  # 원본 이미지
   api-post.json    # Band API 원본 응답(디버깅용, API로 추출했을 때만)
+  network-log.json # 받은 Band 응답 주소 목록(디버깅용, 쿼리스트링 제외)
 ```
+
+기본은 창 없이 진행하고, 로그인이 안 된 것으로 보이면 창을 띄워 한 번 더 시도합니다.
 
 옵션:
 
 | 옵션 | 설명 |
 | --- | --- |
-| `--headed` | 브라우저 창을 띄워서 진행 (문제 확인용) |
+| `--headed` | 처음부터 브라우저 창을 띄워서 진행 |
+| `--no-headed-fallback` | 창 없이 실패해도 창 모드로 다시 시도하지 않음 |
 | `--timeout 30` | 게시글 로딩 대기 시간(초) |
 | `--out DIR` | 저장 위치 변경 (기본 `tools/band-import/out`) |
 | `--dry-run` | 브라우저 없이 URL 해석 결과와 저장 경로만 출력 |
@@ -86,9 +121,9 @@ npm run band:validate -- tools/band-import/out/2925/extracted.json
 ## 동작 방식
 
 1. 저장된 프로필로 Chromium을 열고 게시글 URL로 이동합니다.
-2. Band 웹이 부르는 `api*.band.us` JSON 응답 중 `post_no`가 일치하는 게시글 객체를 찾습니다(경로에 의존하지 않고 응답 내용을 검사).
+2. Band 웹이 받는 `*.band.us` JSON 응답 중 `post_no`가 일치하는 게시글 객체를 찾습니다. 게시글 상세는 배치 API(`bapi.band.us/v2.0.0/batch`)로 오는데, 경로에 의존하지 않고 응답 내용을 검사합니다.
 3. API 응답을 못 찾으면 화면(DOM)에서 본문과 사진을 읽습니다. 이 경우 사진이 일부만 잡힐 수 있어 `warnings`에 표시됩니다.
-4. 로그인 여부는 Band 웹이 부팅할 때 받는 `auth.band.us` 응답의 로그인 상태 값으로 판단합니다.
+4. 로그인 여부는 Band 웹이 부팅할 때 받는 `auth.band.us` 응답의 로그인 상태 값(`authenticateState`)으로 판단합니다. 창 없이 실행할 때는 User-Agent의 `HeadlessChrome` 표시를 login 때 값으로 바꿉니다. 이 표시가 있으면 같은 쿠키로도 Band가 로그인으로 보지 않을 수 있습니다.
 5. 이미지는 0.4초 간격으로 하나씩 받습니다.
 
 ## 로그인이 자꾸 풀릴 때
@@ -96,11 +131,11 @@ npm run band:validate -- tools/band-import/out/2925/extracted.json
 - 오류 메시지의 `(로그인 상태: NONE, Band 쿠키 n개)`는 Band 서버가 로그인 안 됨으로 응답했다는 뜻입니다. `npm run band:login`을 다시 실행하고 `세션 저장: Band 쿠키 …개`가 출력되는지 확인하세요.
 - login 창을 닫기 전에 fetch를 실행하면 같은 프로필을 동시에 쓸 수 없어 실패합니다. 창이 닫힌 뒤 실행하세요.
 - `BAND_USER_DATA_DIR`를 지정했다면 login과 fetch에 같은 값을 써야 합니다. 두 명령 모두 처음에 `브라우저 프로필:` 경로(절대 경로)를 출력하니 같은지 비교해 보세요.
-- 그래도 안 되면 `--headed`로 실행해 창에서 로그인 상태를 직접 확인하세요.
+- 창 없이 가져오기가 계속 실패하면 창 모드(앱 기본값, 터미널은 `--headed`)로 쓰세요. 창 모드에서 되면 문제는 headless 판정 쪽입니다.
 
 ## 테스트
 
-Band 계정 없이 돌아갑니다. URL 해석, 정규화, 스키마 검사 단위 테스트와, 가짜 Band 페이지/API를 띄워 fetch 흐름 전체를 확인하는 오프라인 테스트가 있습니다.
+Band 계정 없이 돌아갑니다. URL 해석, 정규화, 스키마, 세션 저장, GUI 서버 단위 테스트와, 가짜 Band 페이지/API를 띄워 fetch 흐름 전체를 확인하는 오프라인 테스트가 있습니다.
 
 ```bash
 npm run test:band-import

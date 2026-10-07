@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
 import { chromium } from 'playwright';
-import type { BrowserContext } from 'playwright';
+import type { BrowserContext, Page } from 'playwright';
 import { isAuthKeyUrl, parseAuthKeyScript } from './auth-state.mts';
 import type { AuthKeyInfo, LoginState } from './auth-state.mts';
 
@@ -68,13 +68,40 @@ export function trackLoginState(context: BrowserContext): LoginTracker {
   return { current: () => latest.state, lastRaw: () => latest.raw, responses: () => count };
 }
 
+export class WindowClosedError extends Error {
+  constructor() {
+    super('브라우저 창이 닫혀 작업을 멈췄습니다. 다시 실행하세요.');
+  }
+}
+
+export function isTargetClosedError(err: unknown): boolean {
+  return err instanceof Error && /Target page, context or browser has been closed|Browser has been closed|Target closed/i.test(err.message);
+}
+
+/** 사용자가 창을 닫으면 true. 컨텍스트가 닫히거나 마지막 탭이 닫힌 경우 */
+export function watchWindowClosed(context: BrowserContext): () => boolean {
+  let closed = false;
+  context.on('close', () => {
+    closed = true;
+  });
+  const watchPage = (page: Page) =>
+    page.on('close', () => {
+      if (context.pages().length === 0) closed = true;
+    });
+  context.pages().forEach(watchPage);
+  context.on('page', watchPage);
+  return () => closed;
+}
+
 export async function waitForLoginState(
   tracker: LoginTracker,
   timeoutMs: number,
   until: (s: LoginState) => boolean = (s) => s !== 'unknown',
+  isClosed: () => boolean = () => false,
 ): Promise<LoginState> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    if (isClosed()) throw new WindowClosedError();
     if (until(tracker.current())) return tracker.current();
     await new Promise((r) => setTimeout(r, 500));
   }

@@ -1,7 +1,16 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { BrowserContext, Page } from 'playwright';
-import { hasProfile, openContext, resolveUserDataDir, trackLoginState, waitForLoginState } from './browser.mts';
+import {
+  hasProfile,
+  isTargetClosedError,
+  openContext,
+  resolveUserDataDir,
+  trackLoginState,
+  waitForLoginState,
+  watchWindowClosed,
+  WindowClosedError,
+} from './browser.mts';
 import type { LoginTracker } from './browser.mts';
 import { fetchBandPost, NotLoggedInError } from './fetch-post.mts';
 import type { ImageDownloader } from './fetch-post.mts';
@@ -37,6 +46,7 @@ async function persistLogin(context: BrowserContext, page: Page, userDataDir: st
 export async function runLogin({ log = console.log, userDataDir = USER_DATA_DIR }: { log?: Log; userDataDir?: string } = {}): Promise<void> {
   log(`브라우저 프로필: ${userDataDir}`);
   const context = await openContext({ userDataDir, headless: false });
+  const isClosed = watchWindowClosed(context);
   try {
     const tracker = trackLoginState(context);
     const { restored } = await restoreSession(context, userDataDir);
@@ -50,7 +60,7 @@ export async function runLogin({ log = console.log, userDataDir = USER_DATA_DIR 
       return;
     }
     log('열린 브라우저 창에서 Band에 로그인하세요. 로그인이 끝나면 자동으로 저장하고 닫습니다.');
-    const state = await waitForLoginState(tracker, LOGIN_TIMEOUT_MS, (s) => s === 'user');
+    const state = await waitForLoginState(tracker, LOGIN_TIMEOUT_MS, (s) => s === 'user', isClosed);
     if (state !== 'user') {
       throw new Error('로그인을 확인하지 못했습니다(10분 초과). 다시 실행해 주세요.');
     }
@@ -61,8 +71,10 @@ export async function runLogin({ log = console.log, userDataDir = USER_DATA_DIR 
     }
     await persistLogin(context, page, userDataDir, log);
     log('로그인 확인. 세션을 저장했습니다.');
+  } catch (err) {
+    throw isTargetClosedError(err) ? new WindowClosedError() : err;
   } finally {
-    await context.close();
+    await context.close().catch(() => {});
   }
 }
 
@@ -125,8 +137,10 @@ export async function runFetch(options: FetchOptions): Promise<{ extracted: Extr
       const errors = validateExtracted(result.extracted);
       if (errors.length) throw new Error(`extracted.json 스키마 오류:\n${errors.join('\n')}`);
       return result;
+    } catch (err) {
+      throw isTargetClosedError(err) ? new WindowClosedError() : err;
     } finally {
-      await context.close();
+      await context.close().catch(() => {});
     }
   };
 

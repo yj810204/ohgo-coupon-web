@@ -7,7 +7,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { BrowserContext } from 'playwright';
-import { openContext } from '../src/browser.mts';
+import { openContext, trackLoginState, waitForLoginState, watchWindowClosed, WindowClosedError } from '../src/browser.mts';
 import { runFetch } from '../src/commands.mts';
 import { restoreSession, saveSession } from '../src/session-store.mts';
 import { fetchBandPost } from '../src/fetch-post.mts';
@@ -268,5 +268,23 @@ await withLoggedInProfile(true, true, async (userDataDir) => {
     await context.close();
   }
 });
+
+// login 창을 닫으면 10분을 기다리지 않고 바로 멈춘다
+{
+  const dir = mkdtempSync(join(tmpdir(), 'band-import-close-'));
+  const context = await openContext({ userDataDir: join(dir, 'profile'), headless: false });
+  try {
+    const isClosed = watchWindowClosed(context);
+    const tracker = trackLoginState(context);
+    const page = context.pages()[0] ?? (await context.newPage());
+    const started = Date.now();
+    setTimeout(() => void page.close(), 300);
+    await assert.rejects(waitForLoginState(tracker, 60_000, (s) => s === 'user', isClosed), WindowClosedError);
+    assert.ok(Date.now() - started < 5000);
+  } finally {
+    await context.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 console.log('band-import offline fetch tests passed');
