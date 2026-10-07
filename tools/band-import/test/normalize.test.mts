@@ -8,6 +8,7 @@ import {
   findScheduleLikeLines,
   imageFileName,
   normalizeApiPost,
+  attachmentPhotoIds,
   normalizeDomSnapshot,
   parseJsonLoose,
   toIso,
@@ -125,5 +126,33 @@ assert.ok(isBandApiHost('bapi-us.band.us'));
 assert.ok(!isBandApiHost('auth.band.us'));
 assert.ok(!isBandApiHost('evilband.us'));
 assert.ok(!isBandApiHost('api.band.us.evil.com'));
+
+// 실제 2925 응답처럼 attachment.photo가 { 사진id: 사진 } 객체인 경우: 본문 attachment 태그 순서를 따른다
+const mapPost = normalizeApiPost({
+  post_no: 2925,
+  content: '조황입니다\n<band:attachment type="photo" id="P3" />\n<b>감성돔</b>\n<band:attachment type="video" id="V1" /><band:attachment type="photo" id="P1"/>\n',
+  attachment: {
+    photo: {
+      P1: { photo_url: 'https://coresos-phinf.pstatic.net/a/1.jpg', width: 10, height: 20 },
+      P2: { photo_url: 'https://coresos-phinf.pstatic.net/a/2.png', width: 30, height: 40 },
+      P3: { photo_url: 'https://coresos-phinf.pstatic.net/a/3.jpg', width: 50, height: 60 },
+      V1: { photo_url: 'https://coresos-phinf.pstatic.net/a/v.jpg', video: { video_id: 1 } },
+    },
+  },
+});
+assert.deepEqual(
+  mapPost.images.map((i) => i.url.split('/').pop()),
+  ['3.jpg', '1.jpg', '2.png'],
+  '태그 순서(P3, P1) 다음 태그에 없는 사진(P2), 동영상은 뺀다',
+);
+assert.deepEqual(mapPost.images[0], { url: 'https://coresos-phinf.pstatic.net/a/3.jpg', width: 50, height: 60 });
+assert.equal(mapPost.body, '조황입니다\n\n감성돔', '본문에는 attachment 태그가 남지 않는다');
+assert.deepEqual(attachmentPhotoIds('<band:attachment id="A" type="photo" /> <band:attachment type="poll" id="Q"/>'), ['A']);
+const arrayOrdered = normalizeApiPost({
+  post_no: 1,
+  content: '<band:attachment type="photo" id="22" /><band:attachment type="photo" id="11" />',
+  attachment: { photo: [{ photo_no: 11, photo_url: 'https://a.pstatic.net/11.jpg' }, { photo_no: 22, photo_url: 'https://a.pstatic.net/22.jpg' }] },
+});
+assert.deepEqual(arrayOrdered.images.map((i) => i.url.split('/').pop()), ['22.jpg', '11.jpg'], '배열도 태그 순서를 따른다');
 
 console.log('band-import normalize tests passed');

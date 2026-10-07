@@ -177,13 +177,55 @@ function normalizeSchedule(raw: unknown): ExtractedSchedule | null {
   };
 }
 
+const ATTACHMENT_TAG = /<band:attachment\b([^>]*?)\/?>/gi;
+
+/** 본문의 <band:attachment type="photo" id="..."/> 순서대로 사진 id를 돌려준다 */
+export function attachmentPhotoIds(content: string): string[] {
+  const ids: string[] = [];
+  for (const m of content.matchAll(ATTACHMENT_TAG)) {
+    const attrs = m[1];
+    const type = /\btype\s*=\s*["']([^"']*)["']/i.exec(attrs)?.[1];
+    const id = /\bid\s*=\s*["']([^"']*)["']/i.exec(attrs)?.[1];
+    if (id && (!type || type === 'photo')) ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * attachment.photo는 배열이거나 { 사진id: 사진 } 객체다.
+ * 본문 attachment 태그 순서를 먼저 따르고, 태그에 없는 사진은 원래 순서로 뒤에 붙인다.
+ */
+function orderedPhotos(raw: unknown, content: string): unknown[] {
+  let entries: { key: string | null; value: unknown }[];
+  if (Array.isArray(raw)) {
+    entries = raw.map((value) => {
+      const key = isRecord(value) ? pick(value, 'photo_key', 'photoKey', 'key', 'photo_id', 'photoId', 'id', 'photo_no', 'photoNo') : undefined;
+      return { key: key === undefined ? null : String(key), value };
+    });
+  } else if (isRecord(raw)) {
+    entries = Object.entries(raw).map(([key, value]) => ({ key, value }));
+  } else {
+    return [];
+  }
+  const order = attachmentPhotoIds(content);
+  const rank = (key: string | null) => {
+    const i = key === null ? -1 : order.indexOf(key);
+    return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  return entries
+    .map((e, i) => ({ ...e, i }))
+    .sort((a, b) => rank(a.key) - rank(b.key) || a.i - b.i)
+    .map((e) => e.value);
+}
+
 /** api.band.us get_post 응답의 post 객체(snake_case, 일부 camelCase 허용)를 정규화한다 */
 export function normalizeApiPost(post: Rec): NormalizedPost {
   const attachment = isRecord(post.attachment) ? post.attachment : {};
+  const content = typeof post.content === 'string' ? post.content : '';
 
   const images: RawImage[] = [];
   const seenUrls = new Set<string>();
-  const photos = [...listOf(attachment.photo), ...listOf(post.photos)];
+  const photos = [...orderedPhotos(attachment.photo, content), ...orderedPhotos(post.photos, content)];
   for (const p of photos) {
     if (!isRecord(p)) continue;
     if (isRecord(p.video) || p.is_video === true) continue;
@@ -203,7 +245,6 @@ export function normalizeApiPost(post: Rec): NormalizedPost {
     .filter((s): s is ExtractedSchedule => s !== null);
 
   const author = isRecord(post.author) ? asString(post.author.name) : null;
-  const content = typeof post.content === 'string' ? post.content : '';
 
   return {
     author,
