@@ -1000,115 +1000,89 @@ function AdminPhotosContent() {
   const boardWriteLabel =
     activeTab === 'qna' ? '질문 등록' : activeTab === 'faq' ? '팁 등록' : '새글 등록';
 
+  const boardTabs: { id: 'community' | 'qna' | 'faq' | 'captain'; label: string }[] = [
+    ...(isAdminUser
+      ? ([
+          { id: 'community', label: '커뮤니티 조황' },
+          { id: 'qna', label: 'Q&A' },
+          { id: 'faq', label: 'FAQ' },
+        ] as const)
+      : []),
+    { id: 'captain', label: '선장 조황 · 태깅' },
+  ];
+
   return (
     <SubPageFrame
       title="조황사진 관리"
       onRefresh={activeTab === 'captain' ? undefined : reloadPhotos}
       onBack={() => router.replace('/admin-main')}
     >
-      <div
-        className="d-flex gap-2 mb-3"
-        style={{ backgroundColor: '#F7F8FA', borderRadius: 12, padding: 4 }}
-      >
-        {isAdminUser && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('community')}
-            style={{
-              flex: 1,
-              padding: '10px 12px',
-              borderRadius: 10,
-              border: 'none',
-              fontFamily: FONT,
-              fontSize: 13,
-              fontWeight: 700,
-              backgroundColor: activeTab === 'community' ? '#FFFFFF' : 'transparent',
-              color: activeTab === 'community' ? '#1B6FF5' : '#6F767E',
-              boxShadow: activeTab === 'community' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
-            }}
-          >
-            커뮤니티 조황
-          </button>
-        )}
-        {isAdminUser && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('qna')}
-            style={{
-              flex: 1,
-              padding: '10px 12px',
-              borderRadius: 10,
-              border: 'none',
-              fontFamily: FONT,
-              fontSize: 13,
-              fontWeight: 700,
-              backgroundColor: activeTab === 'qna' ? '#FFFFFF' : 'transparent',
-              color: activeTab === 'qna' ? '#1B6FF5' : '#6F767E',
-              boxShadow: activeTab === 'qna' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
-            }}
-          >
-            Q&A
-          </button>
-        )}
-        {isAdminUser && (
-          <button
-            type="button"
-            onClick={() => setActiveTab('faq')}
-            style={{
-              flex: 1,
-              padding: '10px 8px',
-              borderRadius: 10,
-              border: 'none',
-              fontFamily: FONT,
-              fontSize: 13,
-              fontWeight: 700,
-              backgroundColor: activeTab === 'faq' ? '#FFFFFF' : 'transparent',
-              color: activeTab === 'faq' ? '#1B6FF5' : '#6F767E',
-              boxShadow: activeTab === 'faq' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
-            }}
-          >
-            FAQ
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => setActiveTab('captain')}
+      {boardTabs.length > 1 && (
+        <div
           style={{
-            flex: 1,
-            padding: '10px 12px',
-            borderRadius: 10,
-            border: 'none',
-            fontFamily: FONT,
-            fontSize: 13,
-            fontWeight: 700,
-            backgroundColor: activeTab === 'captain' ? '#FFFFFF' : 'transparent',
-            color: activeTab === 'captain' ? '#1B6FF5' : '#6F767E',
-            boxShadow: activeTab === 'captain' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 8,
+            marginBottom: 16,
           }}
         >
-          선장 조황 · 태깅
-        </button>
-      </div>
+          {boardTabs.map((tab) => {
+            const selected = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  minHeight: 44,
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  border: selected ? '1px solid #1B6FF5' : '1px solid #EFEFEF',
+                  backgroundColor: selected ? '#EBF1FE' : '#FFFFFF',
+                  color: selected ? '#1B6FF5' : '#6F767E',
+                  fontFamily: FONT,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  lineHeight: 1.3,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {activeTab === 'captain' && user?.uuid ? (
         <CaptainPhotoPanel captainId={user.uuid} />
       ) : (
         <>
-      <button
-        type="button"
-        onClick={() => router.push(boardWritePath)}
-        className={`btn w-100 d-flex align-items-center justify-content-center gap-2 fw-semibold ohgo-modal__btn ohgo-modal__btn--primary ${OHGO_CONFIRM_BTN_CLASS} mb-3`}
-        style={OHGO_PRIMARY_BTN}
-      >
-        <IoAddOutline size={20} aria-hidden />
-        {boardWriteLabel}
-      </button>
-
-      {boardPosts.length > 0 && (
-        <p className="mb-3" style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, fontWeight: 600 }}>
-          총 {boardPosts.length}건
-        </p>
-      )}
+      <div className="d-flex align-items-center justify-content-between gap-3 mb-3">
+        <span style={{ flex: '0 0 auto', fontSize: 13, color: '#6F767E', fontFamily: FONT, fontWeight: 700, whiteSpace: 'nowrap' }}>
+          {boardPosts.length > 0 ? `총 ${boardPosts.length}건` : ''}
+        </span>
+        <button
+          type="button"
+          onClick={() => router.push(boardWritePath)}
+          className="d-inline-flex align-items-center justify-content-center gap-1"
+          style={{
+            flex: '0 0 auto',
+            border: 'none',
+            borderRadius: 999,
+            backgroundColor: '#237FFF',
+            color: '#FFFFFF',
+            fontFamily: FONT,
+            fontSize: 14,
+            fontWeight: 700,
+            padding: '10px 16px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <IoAddOutline size={18} aria-hidden />
+          {boardWriteLabel}
+        </button>
+      </div>
 
       {boardPosts.length === 0 ? (
         <div style={{ ...CARD, padding: '20px 16px' }}>
@@ -1134,6 +1108,7 @@ function AdminPhotosContent() {
       ) : (
         <div
           style={{
+            width: '100%',
             borderRadius: 14,
             border: '1px solid #EFEFEF',
             overflow: 'hidden',
@@ -1149,61 +1124,42 @@ function AdminPhotosContent() {
             return (
               <div key={photo.photoId}>
                 {index > 0 && <div style={OHGO_LIST_DIVIDER} />}
-              <div className="ohgo-data-list-row">
-                <div className="d-flex align-items-start gap-3">
+              <div className="ohgo-data-list-row" style={{ width: '100%', minWidth: 0, alignItems: 'center' }}>
                   <button
                     type="button"
-                    className="flex-shrink-0 p-0 border-0 overflow-hidden"
+                    className="ohgo-data-list-row__thumb p-0 border-0"
                     style={{
-                      width: OHGO_LIST.thumbBox,
-                      height: OHGO_LIST.thumbBox,
-                      borderRadius: 12,
                       background: thumb ? `url(${thumb}) center/cover` : '#F2F3F5',
-                      border: '1px solid #EFEFEF',
                     }}
                     onClick={() => navigate(`/community/${photo.photoId}`)}
                     aria-label="조황 글 보기"
                   >
-                    {!thumb && (
-                      <span className="d-flex align-items-center justify-content-center w-100 h-100">
-                        <IoImageOutline size={28} color="#B0B8C4" />
-                      </span>
-                    )}
+                    {!thumb && <IoImageOutline size={24} color="#B0B8C4" />}
                   </button>
 
-                  <div className="flex-grow-1 min-w-0">
-                    <div className="d-flex align-items-center gap-2 flex-wrap">
-                      <span
-                        className="badge rounded-pill flex-shrink-0"
-                        style={{
-                          backgroundColor: '#F7F8FA',
-                          color: '#6F767E',
-                          fontSize: 10,
-                          fontFamily: FONT,
-                          fontWeight: 700,
-                        }}
-                      >
-                        {index + 1}
-                      </span>
-                      <button
-                        type="button"
-                        className="btn btn-link p-0 text-start flex-grow-1 min-w-0"
-                        style={{
-                          fontSize: OHGO_LIST.titleSize,
-                          fontWeight: OHGO_LIST.titleWeight,
-                          color: '#1A1D1F',
-                          fontFamily: FONT,
-                          textDecoration: 'none',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                        onClick={() => navigate(`/community/${photo.photoId}`)}
-                      >
-                        {titleText}
-                      </button>
+                  <button
+                    type="button"
+                    className="btn btn-link p-0 text-start flex-grow-1 min-w-0"
+                    style={{ textDecoration: 'none' }}
+                    onClick={() => navigate(`/community/${photo.photoId}`)}
+                  >
+                    <div
+                      style={{
+                        fontSize: OHGO_LIST.titleSize,
+                        fontWeight: OHGO_LIST.titleWeight,
+                        color: '#1A1D1F',
+                        fontFamily: FONT,
+                        lineHeight: 1.35,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      {titleText}
                     </div>
-                    <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 6 }}>
+                    <div style={{ fontSize: 12, color: '#6F767E', fontFamily: FONT, marginTop: 4, lineHeight: 1.35 }}>
                       {activeTab === 'qna'
                         ? photo.acceptedCommentId
                           ? '채택완료'
@@ -1211,13 +1167,11 @@ function AdminPhotosContent() {
                             ? `답변 ${photo.commentCount}개`
                             : '답변대기'
                         : `댓글 ${photo.commentCount ?? 0}개`}
+                      {formatDate(photo.uploadedAt) ? ` · ${formatDate(photo.uploadedAt)}` : ''}
                     </div>
-                    <div style={{ fontSize: 11, color: '#ABABAB', fontFamily: FONT, marginTop: 4 }}>
-                      {formatDate(photo.uploadedAt)}
-                    </div>
-                  </div>
+                  </button>
 
-                  <div className="d-flex flex-row gap-1 flex-shrink-0 align-self-center">
+                  <div className="d-flex flex-row gap-1 flex-shrink-0">
                     <button
                       type="button"
                       onClick={() =>
@@ -1231,7 +1185,7 @@ function AdminPhotosContent() {
                       }
                       className="btn p-0 d-flex align-items-center justify-content-center rounded-circle"
                       title="수정"
-                      style={{ width: 28, height: 28, backgroundColor: '#EBF1FE', border: 'none' }}
+                      style={{ width: 36, height: 36, backgroundColor: '#EBF1FE', border: 'none' }}
                     >
                       <ADMIN_EDIT_ICON size={14} color="#1B6FF5" />
                     </button>
@@ -1242,8 +1196,8 @@ function AdminPhotosContent() {
                       title="삭제"
                       disabled={isDeleting}
                       style={{
-                        width: 28,
-                        height: 28,
+                        width: 36,
+                        height: 36,
                         backgroundColor: '#FFF0F0',
                         border: 'none',
                         opacity: isDeleting ? 0.5 : 1,
@@ -1256,7 +1210,6 @@ function AdminPhotosContent() {
                       )}
                     </button>
                   </div>
-                </div>
               </div>
               </div>
             );

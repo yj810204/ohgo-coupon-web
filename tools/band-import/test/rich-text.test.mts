@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { normalizeApiPost, normalizeDomSnapshot } from '../src/normalize.mts';
-import { assertSafeHtml, BAND_COLORS, formattedBody, paletteColor, parseRichContent } from '../src/rich-text.mts';
+import { assertSafeHtml, BAND_COLORS, formattedBody, normalizeEditorHtml, paletteColor, parseRichContent } from '../src/rich-text.mts';
 import type { RawContent } from '../src/rich-text.mts';
 
 const band = (html: string): RawContent => ({ format: 'band', html });
@@ -119,6 +119,12 @@ assert.throws(() => assertSafeHtml('<img src=x>'), /안전하지 않습니다/);
 assert.throws(() => assertSafeHtml('<span style="color:#123456">x</span>'), /안전하지 않습니다/);
 assert.throws(() => assertSafeHtml('<b onclick=x>'), /안전하지 않습니다/);
 assert.equal(assertSafeHtml('<b>x</b><br><span style="color:#ff3692">y</span>'), '<b>x</b><br><span style="color:#ff3692">y</span>');
+
+assert.equal(normalizeEditorHtml('<span style="color:#4f77fd"><b>감성돔</b></span><div>다음 줄</div>').html, '<span style="color:#4f77fd"><b>감성돔</b></span><br>다음 줄');
+assert.equal(normalizeEditorHtml('<font color="#ff3445">빨강</font>').html, '<span style="color:#ff3445">빨강</span>');
+assert.equal(normalizeEditorHtml('<span style="color:#4f77fd">바깥 <font color="#1a1d1f">색 없음</font></span>').html, '<span style="color:#4f77fd">바깥 </span>색 없음');
+assert.equal(normalizeEditorHtml('<img src=x onerror=alert(1)>안녕<script>bad</script>').html, null);
+assert.equal(normalizeEditorHtml('<img src=x onerror=alert(1)>안녕<script>bad</script>').text, '안녕');
 
 // 아무렇게나 섞은 조각으로도 허용한 태그 밖의 것이 나오지 않는다
 const PIECES = ['<', '>', '"', "'", '=', '/', 'b', 'span', 'script', 'img', ' onerror=', 'style=', 'color:#ff3692', 'javascript:', '&lt;', '&#60;', '<b>', '</b>', '<band:color value="color01">', '</band:color>', '<br>', '\n', '가', '<!--', '-->'];

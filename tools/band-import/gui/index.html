@@ -90,10 +90,17 @@
   .thumb .pickbtn { display: block; width: 100%; margin-top: 3px; padding: 1px 0; font-size: 11px; line-height: 18px; border-radius: 5px; }
   .thumb .pickbtn.out { color: var(--err); border-color: #f2c4c4; }
   .thumb .pickbtn.in { color: var(--accent); border-color: var(--accent); background: var(--accent-weak); font-weight: 600; }
-  .thumb .edited {
+  .thumb .edited, .thumb .tagged {
     position: absolute; top: 4px; right: 4px; padding: 0 5px; border-radius: 999px; background: #fff; color: var(--accent);
     border: 1px solid var(--accent); font-size: 10px; font-weight: 700; line-height: 16px; pointer-events: none;
   }
+  .thumb .tagged { color: var(--ok); border-color: var(--ok); }
+  .thumb:has(.edited) .tagged { top: 24px; }
+  .boarders { margin-top: 6px; max-height: 160px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+  .boarders:empty { display: none; }
+  .boarders label { display: flex; gap: 6px; align-items: center; font-size: 13px; padding: 3px 0; }
+  .boarders input { width: auto; margin: 0; }
+  #edTrip { width: auto; }
   .modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
   .sheet { background: var(--card); border-radius: 12px; padding: 14px; width: 100%; max-width: 680px; max-height: 100%; overflow: auto; }
   .stage { position: relative; margin: 10px auto; padding: 12px; width: fit-content; overflow: hidden; touch-action: none; user-select: none; background: #2b2b2e; border-radius: 8px; }
@@ -113,11 +120,11 @@
     margin-top: 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff;
     font-size: 14px; line-height: 1.6; color: #1a1d1f; max-height: 220px; overflow: auto; word-break: keep-all; overflow-wrap: break-word;
   }
-  #fmtNote:empty { display: none; }
-  #fmtWrap > span { font-size: 12px; color: var(--muted); }
-  #fmtBox label.opt { color: var(--text); font-size: 13px; }
-  #fmtBox input[type=checkbox] { width: auto; margin: 0; }
-  #fmtWrap { margin-top: 4px; }
+  .editor-tools { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px; }
+  .editor-tools button { padding: 4px 8px; font-size: 12px; }
+  .editor-tools .swatch { width: 18px; height: 18px; padding: 0; border-radius: 4px; }
+  #pEditor:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  #pEditor:empty:before { content: '내용을 입력하세요'; color: var(--muted); }
   .actions { margin-top: 12px; }
   .fields.three { grid-template-columns: 1.2fr .8fr 1fr; }
   .tripwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
@@ -171,7 +178,6 @@
     <h2 id="resTitle"></h2>
     <div id="resMeta" class="meta"></div>
     <div id="resWarn" class="warn"></div>
-    <div id="thumbs" class="thumbs"></div>
     <div class="row">
       <button id="openBtn">결과 폴더 열기</button>
       <span id="resPath" class="sub" style="margin:0"></span>
@@ -217,14 +223,14 @@
         <div id="photoWarn" class="box warn pre hidden"></div>
         <div class="fields">
           <label class="field wide"><span>제목</span><input id="pTitle" maxlength="100"></label>
-          <label class="field wide"><span>내용</span><textarea id="pDesc" rows="6"></textarea></label>
-          <div id="fmtBox" class="field wide hidden">
-            <label class="opt" style="margin:0"><input id="pFormat" type="checkbox"> Band 본문의 글자색과 굵게 살리기</label>
-            <div id="fmtNote" class="warn"></div>
-            <div id="fmtWrap">
-              <span>앱에 보일 내용 미리보기</span>
-              <div id="fmtPreview" class="fmtpreview"></div>
+          <div class="field wide">
+            <span>내용</span>
+            <div class="editor-tools">
+              <button type="button" id="fmtBold"><b>굵게</b></button>
+              <button type="button" id="fmtClear">색 없음</button>
+              <span id="fmtColors"></span>
             </div>
+            <div id="pEditor" class="fmtpreview" contenteditable="true" role="textbox" aria-multiline="true"></div>
           </div>
           <label class="field"><span>사진 날짜</span><input id="pDate" type="date"></label>
           <div class="field"><span>사진</span><div id="pCount" style="padding-top:8px"></div></div>
@@ -295,6 +301,14 @@
         <button type="button" id="edRotL">↺ 왼쪽으로 돌리기</button>
         <button type="button" id="edRotR">↻ 오른쪽으로 돌리기</button>
         <button type="button" id="edFlip">⇋ 좌우 뒤집기</button>
+      </div>
+      <div class="tagbox">
+        <div class="row tools">
+          <span>승선자</span>
+          <select id="edTrip" hidden></select>
+          <span id="edTagNote" class="sub" style="margin:0"></span>
+        </div>
+        <div id="edBoarders" class="boarders"></div>
       </div>
       <div id="edErr" class="box err hidden"></div>
       <div class="row actions">
@@ -387,14 +401,6 @@
     $('resMeta').textContent = parts.join(', ');
     $('resWarn').textContent = r.warnings.join(' / ');
     $('resPath').textContent = `${r.outDir}/extracted.json`;
-    const thumbs = $('thumbs');
-    thumbs.replaceChildren(...r.imageFiles.map((f) => {
-      const img = document.createElement('img');
-      img.loading = 'lazy';
-      img.src = `/out/${r.postId}/${encodeURIComponent(f)}?t=${TOKEN}`;
-      img.alt = f;
-      return img;
-    }));
     loadOhgo(r.postId);
   }
 
@@ -467,17 +473,11 @@
   function fillOhgo(p) {
     show('ohgoBody', true);
     $('pTitle').value = p.photo.title;
-    $('pDesc').value = p.photo.description;
+    setEditorHtml(p);
     $('pDate').value = p.photo.photoDate || '';
     updateBoardDate();
     picked = new Set(p.photo.images);
     photoOrder = [...p.photo.images];
-    const fmt = p.photoFormatted && p.photoFormatted.html;
-    show('fmtBox', !!fmt);
-    $('fmtPreview').innerHTML = fmt || '';
-    $('pFormat').checked = !!fmt && p.photo.useFormatting !== false;
-    $('fmtNote').textContent = '';
-    updateFormatting();
     renderThumbs();
     const n = p.photo.images.length;
     $('kindCatchCount').textContent = ` (사진 ${n}장)`;
@@ -546,6 +546,10 @@
     return (prep && prep.photoEdits && prep.photoEdits[file]) || null;
   }
 
+  function photoTag(file) {
+    return (prep && prep.photoTags && prep.photoTags[file]) || null;
+  }
+
   function thumbSrc(file) {
     const ed = photoEdit(file);
     const name = ed ? ed.output : file;
@@ -589,6 +593,13 @@
         const badge = document.createElement('span');
         badge.className = 'edited';
         badge.textContent = '편집됨';
+        box.append(badge);
+      }
+      const tagged = photoTag(f);
+      if (tagged && tagged.userIds.length) {
+        const badge = document.createElement('span');
+        badge.className = 'tagged';
+        badge.textContent = `태그 ${tagged.userIds.length}`;
         box.append(badge);
       }
       box.addEventListener('dragstart', (e) => {
@@ -767,9 +778,10 @@
     const base = { postId: prep.postId, kind, force: $('force').checked };
     if (kind === 'catch') {
       return { ...base, photo: {
-        title: $('pTitle').value, description: $('pDesc').value, photoDate: $('pDate').value || null,
+        title: $('pTitle').value, description: editorText(), photoDate: $('pDate').value || null,
         images: uploadOrder(),
-        useFormatting: formattingOn(),
+        content: $('pEditor').innerHTML,
+        useFormatting: editorHasFormat(),
       } };
     }
     return { ...base, trip: {
@@ -803,6 +815,11 @@
     const box = $('pushResult');
     const where = r.kind === 'catch' ? '조황 사진 게시판' : `출조 일정 ${r.rowIds.length}건`;
     box.replaceChildren(document.createTextNode(`${where}에 등록했습니다.${r.resizedImages ? ` (줄인 사진 ${r.resizedImages}장)` : ''} `));
+    if (r.tagNote) {
+      const note = document.createElement('div');
+      note.textContent = r.tagNote;
+      box.append(note);
+    }
     for (const link of r.links) {
       const b = document.createElement('button');
       b.textContent = r.kind === 'catch' ? '앱에서 보기' : '출조 관리 열기';
@@ -820,16 +837,31 @@
   const FULL = { x: 0, y: 0, w: 1, h: 1 };
   const STAGE_PAD = 12;
   let ed = null;
+  let boarderCache = { date: '', list: null };
 
   function openEditor(file) {
     const saved = photoEdit(file);
     const e = saved ? saved.edit : { rotate: 0, flipH: false, crop: null };
-    ed = { file, img: new Image(), rotate: e.rotate, flipH: e.flipH, crop: { ...(e.crop || FULL) }, ratio: 'free', saving: false };
+    const savedTag = photoTag(file);
+    ed = {
+      file,
+      img: new Image(),
+      rotate: e.rotate,
+      flipH: e.flipH,
+      crop: { ...(e.crop || FULL) },
+      ratio: 'free',
+      saving: false,
+      tagIds: new Set(savedTag ? savedTag.userIds : []),
+      tagTrip: savedTag ? savedTag.trip : 1,
+    };
     $('edName').textContent = file;
     $('edSize').textContent = '';
+    $('edBoarders').replaceChildren();
+    $('edTagNote').textContent = '';
     show('edErr', false);
     $('edRevert').disabled = !saved;
     show('editModal', true);
+    loadBoardersForEditor();
     const current = ed;
     setEditorReady(false);
     current.img.onload = () => { if (ed === current) { setEditorReady(true); drawEditor(); } };
@@ -1008,41 +1040,180 @@
       $('edRevert').disabled = !(ed && photoEdit(ed.file));
     }
   }
-  $('edSave').addEventListener('click', () => saveEdit('/api/ohgo/edit', { edit: currentEdit() }));
+  function tagSourceNote(list) {
+    if (!list) return '';
+    if (list.source === 'confirmed') return '출항 확정 명단';
+    if (list.source === 'roster') return '확정 전 승선명부 (선장, 선원 제외)';
+    if (list.source === 'testers') return '이 날짜의 승선명부는 없습니다. 테스트 회원만 표시합니다.';
+    return '이 날짜의 승선명부가 없습니다.';
+  }
+
+  function fillTripSelect(list, selectedTrip) {
+    const sel = $('edTrip');
+    sel.replaceChildren();
+    const trips = list && list.trips && list.trips.length ? list.trips : [];
+    for (const trip of trips) {
+      const option = document.createElement('option');
+      option.value = String(trip.trip);
+      option.textContent = list.source === 'confirmed' ? `${trip.trip}회차` : list.source === 'testers' ? '테스트 회원' : '승선명부';
+      sel.append(option);
+    }
+    sel.hidden = trips.length < 2;
+    if (!trips.length) return;
+    const want = String(selectedTrip || trips[0].trip);
+    sel.value = [...sel.options].some((option) => option.value === want) ? want : sel.options[0].value;
+  }
+
+  function renderBoarderChecks() {
+    const box = $('edBoarders');
+    box.replaceChildren();
+    const list = boarderCache.list;
+    if (!ed || !list) return;
+    const trip = Number($('edTrip').value) || (list.trips[0] && list.trips[0].trip) || 1;
+    const group = (list.trips || []).find((item) => item.trip === trip) || { boarders: [] };
+    if (!group.boarders.length) {
+      if (list.source !== 'empty') {
+        const empty = document.createElement('p');
+        empty.className = 'sub';
+        empty.style.margin = '0';
+        empty.textContent = '태깅할 승객이 없습니다.';
+        box.append(empty);
+      }
+      return;
+    }
+    for (const boarder of group.boarders) {
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = boarder.id;
+      input.checked = ed.tagIds.has(boarder.id);
+      input.addEventListener('change', () => {
+        if (!ed) return;
+        if (input.checked) ed.tagIds.add(boarder.id);
+        else ed.tagIds.delete(boarder.id);
+      });
+      label.append(input, document.createTextNode(`${boarder.name}${boarder.canNotify ? '' : ' (앱 없음)'}`));
+      box.append(label);
+    }
+  }
+
+  async function loadBoardersForEditor() {
+    const file = ed && ed.file;
+    const date = $('pDate').value.trim();
+    if (!date) {
+      boarderCache = { date: '', list: null };
+      $('edTrip').hidden = true;
+      $('edTagNote').textContent = '사진 날짜를 입력하면 승선자를 불러옵니다.';
+      $('edBoarders').replaceChildren();
+      return;
+    }
+    try {
+      if (boarderCache.date !== date || !boarderCache.list) {
+        $('edTagNote').textContent = '승선자를 불러오는 중';
+        const list = await api('/api/ohgo/boarders', { date });
+        if (!ed || ed.file !== file) return;
+        boarderCache = { date, list };
+      }
+      if (!ed || ed.file !== file) return;
+      fillTripSelect(boarderCache.list, ed.tagTrip);
+      $('edTagNote').textContent = tagSourceNote(boarderCache.list);
+      renderBoarderChecks();
+    } catch (err) {
+      if (!ed || ed.file !== file) return;
+      $('edTagNote').textContent = err.message;
+    }
+  }
+
+  async function saveEditor() {
+    if (!ed || ed.saving) return;
+    ed.saving = true;
+    $('edSave').disabled = true;
+    $('edRevert').disabled = true;
+    const file = ed.file;
+    const edit = currentEdit();
+    const noop = edit.rotate === 0 && !edit.flipH && !edit.crop;
+    const had = !!photoEdit(file);
+    try {
+      const tagged = await api('/api/ohgo/tags', {
+        postId: prep.postId,
+        file,
+        trip: Number($('edTrip').value) || ed.tagTrip || 1,
+        userIds: [...ed.tagIds],
+      });
+      prep.photoTags = tagged.tags;
+      if (!(noop && !had)) {
+        const res = await api('/api/ohgo/edit', { postId: prep.postId, file, edit });
+        prep.photoEdits = res.edits;
+      }
+      closeEditor();
+      renderThumbs();
+    } catch (err) {
+      editError(err.message);
+      if (ed) ed.saving = false;
+    } finally {
+      $('edSave').disabled = false;
+      $('edRevert').disabled = !(ed && photoEdit(ed.file));
+    }
+  }
+
+  $('edTrip').addEventListener('change', () => { if (ed) { ed.tagTrip = Number($('edTrip').value) || 1; renderBoarderChecks(); } });
+  $('edSave').addEventListener('click', () => saveEditor());
   $('edRevert').addEventListener('click', () => saveEdit('/api/ohgo/revert', {}));
 
-  // ---------- 본문 서식 ----------
-  // 서식을 살리면 앱은 content(미리보기)를 보여 주고 내용 칸(description)은 보이지 않는다
-  function formattingOn() {
-    return !!(prep && prep.photoFormatted && prep.photoFormatted.html) && $('pFormat').checked;
+  // ---------- 본문 편집 ----------
+  // 글자색은 Band 팔레트와 같다 (src/rich-text.mts BAND_COLORS)
+  const EDITOR_COLORS = ['#ff3692', '#ff3445', '#ff540b', '#ff9900', '#00c73c', '#00c4a1', '#18b2fa', '#4f77fd', '#7e5bff', '#909090', '#56616a'];
+
+  function escapeEditorText(text) {
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  function descChanged() {
-    return !!prep && $('pDesc').value !== prep.photo.description;
+  function setEditorHtml(p) {
+    const html = p.photoFormatted && p.photoFormatted.html;
+    $('pEditor').innerHTML = html || escapeEditorText(p.photo.description || '').replace(/\n/g, '<br>');
   }
 
-  function updateFormatting() {
-    show('fmtWrap', formattingOn());
-    if (formattingOn() && descChanged()) {
-      $('fmtNote').textContent = '내용 칸을 고쳤습니다. 서식을 살리면 앱에는 고친 내용이 아니라 아래 미리보기가 보입니다.';
-    }
+  function editorText() {
+    return $('pEditor').innerText.replace(/\u00a0/g, ' ').replace(/\n+$/g, '');
   }
 
-  $('pDesc').addEventListener('input', () => {
-    if (formattingOn() && descChanged()) {
-      $('pFormat').checked = false;
-      $('fmtNote').textContent = '내용을 고쳐서 서식 없이 고친 내용으로 올립니다. 서식을 살리려면 다시 체크하세요.';
-    }
-    updateFormatting();
-  });
-  $('pFormat').addEventListener('change', () => {
-    $('fmtNote').textContent = '';
-    updateFormatting();
-  });
+  function editorHasFormat() {
+    return /<b\b|<strong\b|color\s*:/i.test($('pEditor').innerHTML);
+  }
+
+  function editorCommand(fn) {
+    $('pEditor').focus();
+    fn();
+  }
+
+  $('fmtColors').replaceChildren(...EDITOR_COLORS.map((hex) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'swatch';
+    button.title = hex;
+    button.style.background = hex;
+    button.addEventListener('mousedown', (e) => e.preventDefault());
+    button.addEventListener('click', () => editorCommand(() => {
+      document.execCommand('styleWithCSS', false, true);
+      document.execCommand('foreColor', false, hex);
+    }));
+    return button;
+  }));
+  $('fmtBold').addEventListener('mousedown', (e) => e.preventDefault());
+  $('fmtClear').addEventListener('mousedown', (e) => e.preventDefault());
+  $('fmtBold').addEventListener('click', () => editorCommand(() => document.execCommand('bold')));
+  $('fmtClear').addEventListener('click', () => editorCommand(() => {
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand('foreColor', false, '#1a1d1f');
+  }));
 
   document.querySelectorAll('input[name=kind]').forEach((el) => el.addEventListener('change', () => setKind(el.value)));
   ['tDest', 'pTitle'].forEach((id) => $(id).addEventListener('input', () => { markMissing(); updatePushButton(); }));
-  $('pDate').addEventListener('input', updateBoardDate);
+  $('pDate').addEventListener('input', () => {
+    boarderCache = { date: '', list: null };
+    updateBoardDate();
+    if (ed) loadBoardersForEditor();
+  });
   $('force').addEventListener('change', updatePushButton);
 
   $('ohgoModeBtn').addEventListener('click', () => {

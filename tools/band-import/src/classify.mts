@@ -81,6 +81,8 @@ export type PhotoDraft = {
   images: string[];
   /** Band 본문의 글자색, 굵게를 살려 content(HTML)에도 넣는다 */
   useFormatting?: boolean;
+  /** 편집창 HTML. 있으면 이 글을 걸러서 content로 저장한다 */
+  content?: string;
 };
 
 /**

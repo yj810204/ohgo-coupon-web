@@ -27,6 +27,7 @@ const prep: PrepareResult = {
   photo: { title: '감성돔 조황', description: '4짜 대박\n#낫개', photoDate: '2026-10-06', images: FILES, useFormatting: true },
   photoWarnings: [],
   photoEdits: {},
+  photoTags: {},
   photoFormatted: { html: '<span style="color:#ff3445">4짜</span> <b>대박</b><br>#낫개', text: '4짜 대박\n#낫개' },
   trip: { rows: [], destination: '', capacity: null, contact: '' },
   tripSource: 'single',
@@ -40,12 +41,14 @@ const pushes: PushRequest[] = [];
 let failNextPush = false;
 let loginFail = false;
 const edits: string[] = [];
+const tagSaves: { file: string; userIds: string[]; trip: number }[] = [];
 let editMap: PrepareResult['photoEdits'] = {};
+let photoTags: PrepareResult['photoTags'] = {};
 const ohgo: OhgoService = {
   state: async () => ({ baseUrl: 'https://ohgo.test', supabaseUrl: 'https://x.supabase.co', configError: null, user: { name: '선장', userId: 'u', savedAt: 'now' } }),
   login: async () => ohgo.state(),
   logout: async () => ohgo.state(),
-  prepare: async () => ({ ...structuredClone(prep), photoEdits: editMap }),
+  prepare: async () => ({ ...structuredClone(prep), photoEdits: editMap, photoTags }),
   checkPush: () => {},
   push: async (req) => {
     if (loginFail) {
@@ -57,7 +60,17 @@ const ohgo: OhgoService = {
       throw new Error('사진 2/3 (02.jpg) 올리기 실패: 사진 업로드 실패: too big (HTTP 413)\n조황 게시판에 글은 만들지 않았습니다.\n자세한 기록: out/2925/push-log.json');
     }
     pushes.push(req);
-    return { kind: req.kind, target: 'community_photos', rowIds: ['r1'], links: ['https://ohgo.test/community/r1'], title: 't', resizedImages: 0 };
+    return { kind: req.kind, target: 'community_photos', rowIds: ['r1'], links: ['https://ohgo.test/community/r1'], title: 't', resizedImages: 0, tagNote: '' };
+  },
+  listBoarders: async (date) => ({
+    date,
+    source: 'confirmed' as const,
+    trips: [{ trip: 1, boarders: [{ id: 'm1', name: '홍길동', canNotify: true }, { id: 'g1', name: '김손님', canNotify: false }] }],
+  }),
+  savePhotoTags: async (_postId, file, tag) => {
+    tagSaves.push({ file, trip: tag.trip, userIds: [...tag.userIds] });
+    photoTags = Object.fromEntries(Object.entries({ ...photoTags, [file]: tag }).filter(([, value]) => value.userIds.length));
+    return photoTags;
   },
   editImage: async (_postId, file, edit) => {
     edits.push(`edit ${file} ${JSON.stringify(edit)}`);
@@ -148,6 +161,10 @@ try {
   await page.locator('#editModal:not(.hidden)').waitFor();
   assert.equal(await page.locator('#edRevert').isDisabled(), true, '편집 전에는 되돌릴 것이 없다');
   await page.locator('#edSave:not([disabled])').waitFor();
+  await page.locator('#edBoarders input[value="m1"]').waitFor();
+  assert.equal(await page.locator('#edTagNote').textContent(), '출항 확정 명단');
+  assert.match(await page.locator('#edBoarders label').nth(1).textContent() ?? '', /김손님 \(앱 없음\)/);
+  await page.locator('#edBoarders input[value="m1"]').check();
   await page.locator('#edRotR').click();
   await page.locator('[data-ratio="4:3"]').click();
   const size = await page.locator('#edSize').textContent();
@@ -160,6 +177,8 @@ try {
   assert.equal(saved.flipH, false);
   assert.ok(Math.abs(saved.crop.x) < 1e-6 && Math.abs(saved.crop.w - 1) < 1e-6 && Math.abs(saved.crop.y - 0.125) < 1e-3 && Math.abs(saved.crop.h - 0.75) < 1e-3, JSON.stringify(saved.crop));
   assert.equal(await thumb02.locator('.edited').textContent(), '편집됨');
+  assert.deepEqual(tagSaves[0], { file: '02.jpg', trip: 1, userIds: ['m1'] });
+  assert.equal(await thumb02.locator('.tagged').textContent(), '태그 1');
   assert.match(await thumb02.locator('img').getAttribute('src') ?? '', /edited_02\.jpg/);
 
   // 뒤집은 상태에서 오른쪽으로 돌리면 화면 기준으로 돈다 (저장값은 270)
@@ -208,25 +227,17 @@ try {
   assert.ok(Math.abs(dragged.x + dragged.w - 1) < 1e-6 && dragged.y < 1e-6, `오른쪽 끝까지 옮김 ${JSON.stringify(dragged)}`);
   assert.deepEqual(await shown(), ['04.jpg:1', '02.jpg:2', '03.png:뺌', '01.jpg:3'], '편집해도 순서와 뺀 사진은 그대로');
 
-  // 본문 서식: 미리보기를 그리고 기본으로 켠다. 내용을 고치면 꺼진다
-  type Payload = { photo: { useFormatting: boolean; description: string } };
+  // 본문은 편집창 하나다. 글자색과 굵게가 등록 값에 그대로 담긴다
+  type Payload = { photo: { useFormatting: boolean; description: string; content: string } };
   const payload = () => page.evaluate(() => (window as unknown as { pushPayload: () => Payload }).pushPayload());
-  assert.equal(await page.locator('#fmtBox').isVisible(), true);
-  assert.equal(await page.locator('#fmtPreview span').getAttribute('style'), 'color:#ff3445');
-  assert.equal(await page.locator('#fmtPreview b').textContent(), '대박');
-  assert.equal(await page.locator('#pFormat').isChecked(), true);
+  assert.equal(await page.locator('#pEditor span').getAttribute('style'), 'color:#ff3445');
+  assert.equal(await page.locator('#pEditor b').textContent(), '대박');
   assert.equal((await payload()).photo.useFormatting, true);
-  await page.locator('#pDesc').fill('4짜 대박\n#낫개\n고침');
-  assert.equal(await page.locator('#pFormat').isChecked(), false, '내용을 고치면 서식을 끈다');
-  assert.match(await page.locator('#fmtNote').textContent() ?? '', /서식 없이 고친 내용으로 올립니다/);
-  assert.equal(await page.locator('#fmtPreview').isVisible(), false);
-  assert.deepEqual((await payload()).photo, { ...(await payload()).photo, useFormatting: false, description: '4짜 대박\n#낫개\n고침' });
-  await page.locator('#pFormat').check();
-  assert.match(await page.locator('#fmtNote').textContent() ?? '', /고친 내용이 아니라 아래 미리보기가 보입니다/);
-  await page.locator('#pDesc').fill('4짜 대박\n#낫개');
-  await page.locator('#pFormat').uncheck();
-  await page.locator('#pFormat').check();
-  assert.equal(await page.locator('#fmtNote').textContent(), '');
+  assert.match((await payload()).photo.content, /color:#ff3445/);
+  assert.match((await payload()).photo.description, /4짜 대박/);
+  await page.locator('#pEditor').fill('4짜 대박\n#낫개\n고침');
+  assert.match((await payload()).photo.description, /고침/);
+  await page.locator('#pEditor').evaluate((el, html) => { el.innerHTML = html; }, '<span style="color:#ff3445">4짜</span> <b>대박</b><br>#낫개');
 
   // 등록이 실패하면 등록 버튼 바로 아래에 이유를 보여 주고, 다시 누를 수 있다
   failNextPush = true;
@@ -248,7 +259,7 @@ try {
   await page.evaluate(() => (window as unknown as { loadOhgo: (id: string) => Promise<void> }).loadOhgo('2925'));
   await page.locator('#pThumbs .thumb').first().waitFor();
   await page.locator('#pTitle').fill('이어서 올릴 제목');
-  await page.locator('#pFormat').uncheck();
+  await page.locator('#pEditor').evaluate((el) => { el.textContent = '평문'; });
   await page.locator('#pThumbs .thumb[data-file="02.jpg"] button.pickbtn').click();
   loginFail = true;
   await page.locator('#pushBtn').click();
@@ -256,7 +267,7 @@ try {
   assert.equal(await page.locator('#ohgoReloginBtn').isVisible(), true, '계정 칸에도 다시 로그인');
   assert.equal(await page.locator('#ohgoLoginForm').isVisible(), true);
   await page.locator('#pTitle').fill('로그인 중에 고친 제목');
-  await page.locator('#pFormat').check();
+  await page.locator('#pEditor').evaluate((el) => { el.textContent = '로그인 중에 고친 내용'; });
   await page.locator('#pThumbs .thumb[data-file="02.jpg"] button.pickbtn').click();
   await page.locator('#ohgoName').fill('선장');
   await page.locator('#ohgoDob').fill('800101');
@@ -265,6 +276,7 @@ try {
   assert.equal(await page.locator('#pushReloginBtn').isVisible(), false);
   assert.equal(pushes[1].photo!.title, '이어서 올릴 제목', '로그인 뒤에 고친 값이 아니라 멈추기 전의 등록');
   assert.equal(pushes[1].photo!.useFormatting, false);
+  assert.equal(pushes[1].photo!.description, '평문');
   assert.deepEqual(pushes[1].photo!.images, ['01.jpg', '03.png', '04.jpg']);
   assert.deepEqual(errors, []);
 } finally {

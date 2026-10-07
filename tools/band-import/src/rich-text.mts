@@ -71,10 +71,12 @@ export function paletteColor(value: string | null): string | null {
   return hex && PALETTE.has(hex) ? hex : null;
 }
 
-function styleColor(style: string | null): string | null {
-  if (!style) return null;
-  const m = /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(style);
-  return m ? paletteColor(m[1].replace(/!important/i, '')) : null;
+/** 색을 지정했으면 팔레트 색 또는 null(색 없음). 색 지정이 없으면 undefined */
+function declaredColor(style: string | null, fontColor: string | null): string | null | undefined {
+  const m = style ? /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(style) : null;
+  if (m) return paletteColor(m[1].replace(/!important/i, ''));
+  if (fontColor) return paletteColor(fontColor);
+  return undefined;
 }
 
 const TOKEN = /<!--[\s\S]*?(?:-->|$)|<(\/?)([a-zA-Z][\w:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>|[^<]+|</g;
@@ -140,8 +142,8 @@ export function parseRichContent(raw: RawContent): Run[][] {
       const value = (attr(attrs, 'value') ?? '').trim().toLowerCase();
       frame.color = BAND_COLORS[value] ?? null;
     } else if (name === 'span' || name === 'font') {
-      const c = styleColor(attr(attrs, 'style')) ?? (name === 'font' ? paletteColor(attr(attrs, 'color')) : null);
-      if (c) frame.color = c;
+      const declared = declaredColor(attr(attrs, 'style'), name === 'font' ? attr(attrs, 'color') : null);
+      if (declared !== undefined) frame.color = declared;
       if (/(?:^|;)\s*font-weight\s*:\s*(bold|[6-9]00)/i.test(attr(attrs, 'style') ?? '')) frame.bold = true;
     }
     stack.push(frame);
@@ -220,6 +222,14 @@ export type FormattedBody = {
  * 조황 게시판 내용으로 쓸 서식 HTML. 제목으로 쓴 첫 줄은 description과 똑같이 뺀다.
  * titles: 첫 줄이 이것 중 하나와 같으면 뺀다
  */
+/** 편집창 HTML을 앱에 넣을 수 있는 글자색·굵게만 남긴다. 나머지 태그는 글자만 남기고 버린다 */
+export function normalizeEditorHtml(html: string): FormattedBody {
+  const lines = parseRichContent({ format: 'dom', html });
+  const text = lines.map(lineText).join('\n');
+  if (!hasFormatting(lines)) return { html: null, text };
+  return { html: assertSafeHtml(renderRuns(lines)), text };
+}
+
 export function formattedBody(raw: RawContent | null | undefined, titles: string[]): FormattedBody {
   if (!raw || !raw.html) return { html: null, text: '' };
   const lines = parseRichContent(raw);

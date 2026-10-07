@@ -11,10 +11,13 @@ import { findLedgerEntry, recordLedgerEntry } from './ledger.mts';
 import type { OhgoCredentials } from './ohgo-auth.mts';
 import { clearOhgoSession, ensureFreshSession, loginOhgo, OhgoAuthError, readOhgoSession, saveOhgoSession } from './ohgo-auth.mts';
 import { newPhotoObjectPath, OhgoClient } from './ohgo-client.mts';
+import type { Boarder, BoarderList, PhotoTag, PhotoTagMap } from './photo-tags.mts';
+import { appendAlwaysBoarders, attendanceFromFirebase, buildBoarderList, loadAlwaysSelectable, loadBoarders, personFromFirebaseUser, publishPhotoTags, readPhotoTags, writePhotoTags } from './photo-tags.mts';
+import { readFirebaseAttendance, readFirebaseUsers } from './firebase-roster.mts';
 import { resolvePostImages } from './post-images.mts';
 import type { ImageRecord, PushRecorder } from './push-log.mts';
 import { createPushRecorder, PUSH_LOG_FILE } from './push-log.mts';
-import { formattedBody } from './rich-text.mts';
+import { formattedBody, normalizeEditorHtml } from './rich-text.mts';
 import type { FormattedBody } from './rich-text.mts';
 import type { Fetch, OhgoConfig } from './ohgo-config.mts';
 import { projectRefFromUrl, resolveOhgoConfig } from './ohgo-config.mts';
@@ -47,6 +50,8 @@ export type PrepareResult = {
   photoWarnings: string[];
   /** 원본 파일 이름 → 편집본. 등록하면 편집본을 올린다 */
   photoEdits: EditMap;
+  /** 원본 파일 이름 → 그 사진에 태그한 승선자. 등록할 때 내 조황 사진으로 저장한다 */
+  photoTags: PhotoTagMap;
   /** Band 본문 서식을 살린 내용. html이 null이면 살릴 서식이 없다 */
   photoFormatted: FormattedBody;
   trip: TripDraft;
@@ -75,6 +80,8 @@ export type PushResult = {
   links: string[];
   title: string;
   resizedImages: number;
+  /** 내 조황 사진 태그와 알림 결과. 태그가 없으면 빈 문자열 */
+  tagNote: string;
 };
 
 export class OhgoRequestRejected extends Error {
@@ -95,6 +102,10 @@ export type OhgoService = {
   /** 동기 검사. 문제가 있으면 OhgoRequestRejected를 던진다 */
   checkPush(req: PushRequest): void;
   push(req: PushRequest, log: Log): Promise<PushResult>;
+  /** 사진 날짜의 승선자. 확정 명단이 있으면 회차별로, 없으면 선장·선원을 뺀 승선명부 */
+  listBoarders(date: string): Promise<BoarderList>;
+  /** 사진 한 장에 태그할 승선자. 아직 앱에는 올리지 않는다 */
+  savePhotoTags(postId: string, file: string, tag: PhotoTag): Promise<PhotoTagMap>;
   /** 사진 한 장을 편집해 edited_NN 파일로 저장한다. 원본은 그대로 둔다 */
   editImage(postId: string, file: string, edit: ImageEdit): Promise<EditMap>;
   /** 편집본을 지우고 원본으로 되돌린다 */
@@ -306,8 +317,14 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
       } else {
         log('사진 날짜가 없어 게시판에는 지금 시각으로 올립니다');
       }
-      if (draft.useFormatting) {
-        // 화면에서 온 HTML은 받지 않고 extracted.json에서 다시 만든다
+      if (typeof draft.content === 'string') {
+        const body = normalizeEditorHtml(draft.content);
+        row.description = body.text;
+        if (body.html) {
+          row.content = body.html;
+          log('편집한 글자색과 굵게를 살려 올립니다');
+        }
+      } else if (draft.useFormatting) {
         const html = postFormatted(post, buildPhotoDraft(post).title).html;
         if (html) {
           row.content = html;
@@ -324,7 +341,36 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
       const problem = await verifySavedPhotos(client, checkFetch, rowId, urls);
       if (problem) throw new PushStepError(`저장한 글을 확인해 보니 ${problem}`);
       log(`앱에서 사진 ${total}장이 열리는 것을 확인했습니다`);
-      return { rowIds: [rowId], links: [`${cfg.baseUrl}/community/${rowId}`], resized };
+      let tagNote = '';
+      try {
+        const tagMap = readPhotoTags(outDir);
+        const taggedIds = [...new Set(Object.values(tagMap).flatMap((tag) => tag.userIds))];
+        let firebaseUsers: Map<string, { name: string; token: string | null }> | undefined;
+        if (taggedIds.length) {
+          try {
+            const users = await readFirebaseUsers(taggedIds);
+            firebaseUsers = new Map([...users].map(([id, user]) => [id, { name: user.name, token: user.token, phone: user.phone, dob: user.dob }]));
+          } catch (err) {
+            log(`앱 회원 알림 토큰을 읽지 못했습니다: ${(err as Error).message}`);
+          }
+        }
+        const tagged = await publishPhotoTags({
+          client,
+          fetchImpl: checkFetch,
+          captainId: session.userId,
+          tripDate: draft.photoDate,
+          photos: draft.images.map((file, i) => ({ file, url: urls[i] })),
+          tags: tagMap,
+          log,
+          firebaseUsers,
+          liveToken: liveAppToken,
+        });
+        tagNote = tagged.note;
+      } catch (err) {
+        tagNote = `내 조황 사진 태그를 저장하지 못했습니다: ${(err as Error).message}`;
+        log(tagNote);
+      }
+      return { rowIds: [rowId], links: [`${cfg.baseUrl}/community/${rowId}`], resized, tagNote };
     } catch (err) {
       const notes: string[] = [];
       let rowLeft = false;
@@ -387,7 +433,7 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
       if (ids.length) log('일부만 저장되어 저장한 일정을 지웠습니다');
       throw err;
     }
-    return { rowIds: ids, links: [`${cfg.baseUrl}/admin-trip-guide`], resized: 0 };
+    return { rowIds: ids, links: [`${cfg.baseUrl}/admin-trip-guide`], resized: 0, tagNote: '' };
   };
 
   const editablePhoto = (postId: string, file: string) => {
@@ -406,6 +452,49 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
       writeEdits(outDir, edits);
     }
     return edits;
+  };
+
+  /** 오고피씽 앱이 Firestore에 남긴 토큰만 알림에 쓴다. 문서가 없으면 undefined */
+  const liveAppToken = async (userId: string, legacyUuid: string | null): Promise<string | null | undefined> => {
+    try {
+      const ids = [...new Set([legacyUuid, userId].filter((id): id is string => !!id))];
+      const users = await readFirebaseUsers(ids);
+      for (const id of ids) {
+        if (users.has(id)) return users.get(id)!.token;
+      }
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const alwaysSelectable = async (client: OhgoClient): Promise<Boarder[]> => {
+    let extras: Boarder[] = [];
+    try {
+      extras = await loadAlwaysSelectable(client);
+    } catch {
+      return [];
+    }
+    if (!extras.length) return extras;
+    try {
+      const filter = ['이영우', '정영남', '오고피씽'].map((name) => `"${name}"`).join(',');
+      const rows = await client.select('profiles', `select=id,legacy_uuid&role=eq.admin&name=in.(${filter})`);
+      const legacy = new Map<string, string | null>();
+      for (const row of rows) {
+        if (typeof row.id !== 'string') continue;
+        legacy.set(row.id, typeof row.legacy_uuid === 'string' && row.legacy_uuid.trim() ? row.legacy_uuid.trim() : null);
+      }
+      const ids = [...new Set(extras.flatMap((boarder) => [legacy.get(boarder.id), boarder.id].filter((id): id is string => !!id)))];
+      const users = await readFirebaseUsers(ids);
+      return extras.map((boarder) => {
+        const legacyId = legacy.get(boarder.id) ?? null;
+        const doc = legacyId && users.has(legacyId) ? users.get(legacyId) : users.has(boarder.id) ? users.get(boarder.id) : null;
+        if (!doc) return boarder;
+        return { ...boarder, canNotify: !!doc.token };
+      });
+    } catch {
+      return extras;
+    }
   };
 
   return {
@@ -451,6 +540,7 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
       const images = resolvePostImages(outDir, post);
       const allEdits = readEdits(outDir);
       const photoEdits = Object.fromEntries(Object.entries(allEdits).filter(([f]) => images.files.includes(f) && uploadFileFor(outDir, f, allEdits) !== f));
+      const photoTags = Object.fromEntries(Object.entries(readPhotoTags(outDir)).filter(([f]) => images.files.includes(f)));
       const classification = classifyPost(post, images.files.length);
       const photo = buildPhotoDraft(post, images.files);
       const photoFormatted = postFormatted(post, photo.title);
@@ -496,6 +586,7 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
         photo,
         photoWarnings: images.warnings,
         photoEdits,
+        photoTags,
         photoFormatted,
         trip: trip.draft,
         tripSource: trip.source,
@@ -562,7 +653,51 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
         by: session.name,
       });
       log(`오고피씽에 등록했습니다 (${req.kind === 'catch' ? '조황 게시판' : `출조 일정 ${done.rowIds.length}건`})`);
-      return { kind: req.kind, target, rowIds: done.rowIds, links: done.links, title, resizedImages: done.resized };
+      return { kind: req.kind, target, rowIds: done.rowIds, links: done.links, title, resizedImages: done.resized, tagNote: done.tagNote ?? '' };
+    },
+
+    async listBoarders(date) {
+      const cfg = await config();
+      let session;
+      try {
+        session = await ensureFreshSession(cfg, opts.dir, fetchImpl);
+      } catch (err) {
+        if (err instanceof OhgoAuthError) throw new OhgoRequestRejected(err.message, err.status, err.code);
+        throw err;
+      }
+      const client = new OhgoClient(cfg, session.accessToken, fetchImpl);
+      const fromSupabase = await loadBoarders(client, date);
+      let list = fromSupabase;
+      if (fromSupabase.source === 'empty') {
+        try {
+          const doc = await readFirebaseAttendance(date);
+          const attendance = attendanceFromFirebase(doc);
+          if (attendance) {
+            const ids = [
+              ...(Array.isArray(attendance.members) ? attendance.members.map(String) : []),
+              ...Object.values((attendance.confirmed_members ?? {}) as Record<string, string[]>).flat(),
+            ];
+            const users = await readFirebaseUsers([...new Set(ids)]);
+            const people = new Map([...users].flatMap(([id, user]) => {
+              const person = personFromFirebaseUser(id, { name: user.name, role: user.role, expoPushToken: user.token });
+              return person ? [[id, person] as const] : [];
+            }));
+            list = buildBoarderList(date, attendance, people);
+          }
+        } catch {
+          // Firestore를 못 읽으면 비어 있는 Supabase 결과를 그대로 보여 준다
+        }
+      }
+      return appendAlwaysBoarders(list, await alwaysSelectable(client));
+    },
+
+    async savePhotoTags(postId, file, tag) {
+      const outDir = editablePhoto(postId, file);
+      const tags = readPhotoTags(outDir);
+      if (tag.userIds.length) tags[file] = tag;
+      else delete tags[file];
+      writePhotoTags(outDir, tags);
+      return tags;
     },
 
     async editImage(postId, file, edit) {

@@ -194,8 +194,17 @@ const fakeOhgo: OhgoService = {
     pushes.push(req);
     log('사진 올리는 중 1/1');
     return new Promise((resolve) => {
-      releasePush = () => resolve({ kind: req.kind, target: 'community_photos', rowIds: ['r1'], links: ['https://ohgo.test/community/r1'], title: 't', resizedImages: 0 });
+      releasePush = () => resolve({ kind: req.kind, target: 'community_photos', rowIds: ['r1'], links: ['https://ohgo.test/community/r1'], title: 't', resizedImages: 0, tagNote: '' });
     });
+  },
+  listBoarders: async (date) => {
+    ohgoCalls.push(`boarders ${date}`);
+    return { date, source: 'empty', trips: [] };
+  },
+  savePhotoTags: async (postId, file, tag) => {
+    ohgoCalls.push(`tags ${postId} ${file} ${tag.trip} ${tag.userIds.join(',')}`);
+    if (file === 'nope.jpg') throw new OhgoRequestRejected(`편집할 수 없는 사진입니다: ${file}`);
+    return tag.userIds.length ? { [file]: tag } : {};
   },
   editImage: async (postId, file, edit) => {
     ohgoCalls.push(`edit ${postId} ${file} ${JSON.stringify(edit)}`);
@@ -261,6 +270,17 @@ try {
   assert.deepEqual((await call2('/api/ohgo/revert', { postId: '2925', file: '01.jpg' })).json, { edits: {} });
   assert.equal(ohgoCalls.at(-1), 'revert 2925 01.jpg');
   assert.equal((await call2('/api/ohgo/edit', { postId: '2925', file: '01.jpg', edit: {} }, false)).status, 403);
+
+  const boarders = await call2('/api/ohgo/boarders', { date: '2026-10-06' });
+  assert.equal(boarders.status, 200);
+  assert.equal(boarders.json.source, 'empty');
+  assert.equal(ohgoCalls.at(-1), 'boarders 2026-10-06');
+  const tagged = await call2('/api/ohgo/tags', { postId: '2925', file: '01.jpg', trip: 2, userIds: ['m1', 'm1'] });
+  assert.equal(tagged.status, 200);
+  assert.deepEqual(tagged.json.tags['01.jpg'].userIds, ['m1']);
+  assert.equal(ohgoCalls.at(-1), 'tags 2925 01.jpg 2 m1');
+  assert.equal((await call2('/api/ohgo/tags', { postId: '2925', file: '01.jpg', trip: 0, userIds: [] })).status, 400);
+  assert.equal((await call2('/api/ohgo/tags', { postId: '2925', file: 'nope.jpg', trip: 1, userIds: ['m1'] })).status, 400);
 
   assert.equal((await call2('/api/ohgo/push', { postId: '2925', kind: 'nope' })).status, 400);
   const dup = await call2('/api/ohgo/push', { postId: 'dup', kind: 'catch', photo: {} });
@@ -328,10 +348,9 @@ assert.equal(toPushRequest({ postId: '1', kind: 'schedule', trip: { rows: Array.
 assert.deepEqual(toPushRequest({ postId: '1', kind: 'schedule', trip: { rows: 'x' } }).trip!.rows, []);
 assert.ok(Number.isNaN(toPushRequest({ postId: '1', kind: 'schedule', trip: { capacity: '열명' } }).trip!.capacity), '숫자가 아니면 검사에서 걸린다');
 assert.throws(() => toPushRequest({ postId: '1' }), /등록 종류/);
-assert.deepEqual(
-  toPushRequest({ postId: '1', kind: 'catch', photo: { title: 't', images: ['01.jpg'], useFormatting: true, content: '<img src=x onerror=alert(1)>' } }).photo,
-  { title: 't', description: '', photoDate: null, images: ['01.jpg'], useFormatting: true },
-  '화면에서 온 HTML은 받지 않는다',
+assert.equal(
+  toPushRequest({ postId: '1', kind: 'catch', photo: { title: 't', images: ['01.jpg'], useFormatting: true, content: '<img src=x onerror=alert(1)>' } }).photo!.content,
+  '<img src=x onerror=alert(1)>',
 );
 assert.equal(toPushRequest({ postId: '1', kind: 'catch', photo: { useFormatting: 'yes' } }).photo!.useFormatting, false);
 

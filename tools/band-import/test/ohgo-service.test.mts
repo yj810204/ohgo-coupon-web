@@ -33,7 +33,22 @@ const token = (sub: string, n: number, exp = now() + 3600) => jwt({ sub, role: '
 type Call = { method: string; url: string; headers: Record<string, string>; body: unknown };
 const calls: Call[] = [];
 const storage = new Map<string, { type: string; size: number }>();
-const rows: Record<string, Record<string, unknown>[]> = { community_photos: [], trip_guides: [] };
+const rows: Record<string, Record<string, unknown>[]> = { community_photos: [], trip_guides: [], captain_photos: [], captain_photo_tags: [] };
+const roster = {
+  attendance: [] as Record<string, unknown>[],
+  guests: [] as Record<string, unknown>[],
+  boarding: [] as { user_id: string; trip_role: string }[],
+  guestBoarding: [] as { guest_id: string; trip_role: string }[],
+  extraProfiles: [] as { id: string; name: string; role: string; expo_push_token: string | null }[],
+};
+const idsIn = (param: string | null): string[] | null => {
+  if (!param?.startsWith('in.(') || !param.endsWith(')')) return null;
+  return param
+    .slice(4, -1)
+    .split(',')
+    .map((id) => id.replace(/^"|"$/g, ''))
+    .filter(Boolean);
+};
 const tripDateQueries: string[] = [];
 const fake = {
   issued: 0,
@@ -76,6 +91,7 @@ const fakeFetch = (async (input: string | URL | Request, init: RequestInit = {})
   const bearer = headers.authorization?.replace(/^Bearer /, '') ?? '';
   const who = fake.validTokens.get(bearer) ?? null;
 
+  if (url.origin === 'https://exp.host') return json(200, { data: { status: 'ok' } });
   if (url.origin === SITE) {
     if (url.pathname === '/') return new Response('<script src="/_next/static/chunks/a.js"></script><script src="/_next/static/chunks/b.js"></script><script src="https://cdn.other/x.js"></script>');
     if (url.pathname === '/_next/static/chunks/a.js') return new Response(`var k="${SERVICE}"`);
@@ -113,9 +129,35 @@ const fakeFetch = (async (input: string | URL | Request, init: RequestInit = {})
       return json(400, { error_description: 'Invalid login credentials' });
     }
     if (path === '/rest/v1/profiles') {
-      const id = url.searchParams.get('id')?.replace('eq.', '');
+      const idParam = url.searchParams.get('id') ?? '';
+      const many = idsIn(idParam);
+      if (many) {
+        const catalog = [
+          { id: ADMIN_ID, name: '오고 선장', role: 'admin', expo_push_token: null },
+          { id: USER_ID, name: '손님', role: 'member', expo_push_token: null },
+          ...roster.extraProfiles,
+        ];
+        return json(200, catalog.filter((profile) => many.includes(profile.id)));
+      }
+      const id = idParam.replace('eq.', '');
       if (!who || who !== id) return json(200, []);
       return json(200, [{ id, name: id === ADMIN_ID ? '오고 선장' : '손님', role: id === ADMIN_ID ? 'admin' : 'user' }]);
+    }
+    if (path === '/rest/v1/attendance' && method === 'GET') {
+      const date = url.searchParams.get('date')?.replace(/^eq\./, '');
+      return json(200, roster.attendance.filter((row) => row.date === date));
+    }
+    if (path === '/rest/v1/guest_profiles' && method === 'GET') {
+      const many = idsIn(url.searchParams.get('id'));
+      return json(200, many ? roster.guests.filter((row) => many.includes(String(row.id))) : []);
+    }
+    if (path === '/rest/v1/boarding_info' && method === 'GET') {
+      const many = idsIn(url.searchParams.get('user_id'));
+      return json(200, many ? roster.boarding.filter((row) => many.includes(row.user_id)) : []);
+    }
+    if (path === '/rest/v1/guest_boarding_info' && method === 'GET') {
+      const many = idsIn(url.searchParams.get('guest_id'));
+      return json(200, many ? roster.guestBoarding.filter((row) => many.includes(row.guest_id)) : []);
     }
     const isAdmin = who === ADMIN_ID;
     if (path.startsWith('/storage/v1/object/photos/') && method === 'POST') {
@@ -594,14 +636,27 @@ assert.equal(rows.community_photos.length, 1);
   assert.equal(p.photoFormatted.html, HTML);
   assert.equal(p.photo.description, '4짜 대박 났어요\n\n#낫개');
 
-  // 화면이 HTML을 보내도 쓰지 않고 extracted.json에서 다시 만든다
+  // 편집창에서 고친 HTML은 걸러서 저장한다. 허용하지 않은 태그는 글자만 남긴다
   const formattedLogs: string[] = [];
-  const withHtml = { ...p.photo, content: '<img src=x onerror=alert(1)>' } as typeof p.photo;
-  await service.push({ postId: '2940', kind: 'catch', photo: withHtml }, (m) => formattedLogs.push(m));
+  await service.push({ postId: '2940', kind: 'catch', photo: { ...p.photo, content: '<span style="color:#4f77fd"><b>고침</b></span>' } }, (m) => formattedLogs.push(m));
+  const edited = rows.community_photos.at(-1)!;
+  assert.equal(edited.content, '<span style="color:#4f77fd"><b>고침</b></span>');
+  assert.equal(edited.description, '고침');
+  assert.ok(formattedLogs.some((l) => l.includes('편집한 글자색과 굵게를 살려')));
+  rows.community_photos.pop();
+
+  await service.push({ postId: '2940', kind: 'catch', force: true, photo: { ...p.photo, content: '<img src=x onerror=alert(1)>안녕' } }, () => {});
+  const stripped = rows.community_photos.at(-1)!;
+  assert.equal(stripped.content, undefined);
+  assert.equal(stripped.description, '안녕');
+  rows.community_photos.pop();
+
+  const formattedLogs2: string[] = [];
+  await service.push({ postId: '2940', kind: 'catch', force: true, photo: p.photo }, (m) => formattedLogs2.push(m));
   const row = rows.community_photos.at(-1)!;
   assert.equal(row.content, HTML);
   assert.equal(row.description, '4짜 대박 났어요\n\n#낫개', 'description은 평문');
-  assert.ok(formattedLogs.some((l) => l.includes('글자색과 굵게를 살려')));
+  assert.ok(formattedLogs2.some((l) => l.includes('글자색과 굵게를 살려')));
   rows.community_photos.pop();
 
   await service.push({ postId: '2940', kind: 'catch', force: true, photo: { ...p.photo, useFormatting: false } }, () => {});
@@ -739,6 +794,68 @@ assert.equal(service.isAppLink(`${SITE}.evil.test/`), false);
   assert.equal(calls.filter((c) => c.method === 'POST' && c.url.includes('/storage/v1/object/photos/')).length, uploadsBefore);
   await service.login({ name: '관리자', dob: '800101' });
   assert.ok(readOhgoSession(dir)!.expiresAt > now(), '다시 로그인하면 새 토큰이 저장된다');
+}
+
+// 사진 날짜의 확정 승선자를 태그하면, 등록할 때 내 조황 사진으로 저장하고 회원당 알림은 한 번만 보낸다
+{
+  const member = '33333333-3333-3333-3333-333333333333';
+  const merged = '44444444-4444-4444-4444-444444444444';
+  roster.extraProfiles = [
+    { id: member, name: '홍길동', role: 'member', expo_push_token: 'ExponentPushToken[hong]' },
+    { id: merged, name: '이순신', role: 'member', expo_push_token: 'ExponentPushToken[lee]' },
+  ];
+  roster.guests = [
+    { id: 'guest-open', name: '김손님', merged_to: null },
+    { id: 'guest-sailor', name: '선원김', merged_to: null },
+    { id: 'guest-merged', name: '합친손님', merged_to: merged },
+  ];
+  roster.guestBoarding = [{ guest_id: 'guest-sailor', trip_role: 'sailor' }];
+  roster.attendance = [{
+    date: '2026-10-06',
+    members: [member, 'guest-open'],
+    confirmed_members: { '1': [member, ADMIN_ID, 'guest-sailor'], '2': ['guest-open', 'guest-merged'] },
+  }];
+  const boarders = await service.listBoarders('2026-10-06');
+  assert.equal(boarders.source, 'confirmed');
+  assert.deepEqual(boarders.trips[0].boarders, [{ id: member, name: '홍길동', canNotify: true }]);
+  assert.deepEqual(boarders.trips[1].boarders, [
+    { id: 'guest-open', name: '김손님', canNotify: false },
+    { id: merged, name: '합친손님', canNotify: true },
+  ]);
+  await assert.rejects(service.listBoarders('10/06'), /사진 날짜 형식이 잘못되었습니다/);
+  await service.savePhotoTags('2925', '01.jpg', { trip: 1, userIds: [member, 'guest-open'] });
+  await service.savePhotoTags('2925', '02.jpg', { trip: 2, userIds: [member, merged] });
+  assert.deepEqual((await service.prepare('2925')).photoTags['01.jpg'], { trip: 1, userIds: [member, 'guest-open'] });
+  const logs: string[] = [];
+  const pushed = await service.push({
+    postId: '2925',
+    kind: 'catch',
+    force: true,
+    photo: { ...prepDom.photo, photoDate: '2026-10-06', images: ['01.jpg', '02.jpg'] },
+  }, (message) => logs.push(message));
+  assert.equal(rows.captain_photos.length, 2);
+  assert.equal(rows.captain_photos[0].trip_date, '2026-10-06');
+  assert.deepEqual(rows.captain_photos[0].image_urls, [rows.community_photos.at(-1)!.image_urls[0]]);
+  const tags = rows.captain_photo_tags;
+  assert.equal(tags.filter((row) => row.user_id === member).length, 2);
+  assert.equal(tags.find((row) => row.user_name === '김손님')?.user_id, null);
+  assert.equal(tags.filter((row) => row.user_id === merged).length, 1);
+  const expo = calls.filter((call) => call.url.startsWith('https://exp.host/'));
+  assert.equal(expo.length, 2, '같은 회원은 사진이 여러 장이어도 알림 한 번');
+  const bodies = expo.map((call) => call.body as { to: string; body: string; data: { screen: string } });
+  assert.deepEqual(bodies.map((body) => body.to).sort(), ['ExponentPushToken[hong]', 'ExponentPushToken[lee]']);
+  assert.ok(bodies.every((body) => body.data.screen === 'my-photos' && body.body.includes('2026-10-06')));
+  assert.match(bodies.find((body) => body.to.includes('hong'))!.body, /2장/);
+  assert.match(pushed.tagNote, /홍길동/);
+  assert.match(pushed.tagNote, /앱이 없어 알림을 보내지 않음: 김손님/);
+  assert.ok(logs.some((line) => line.includes('김손님')));
+  await service.savePhotoTags('2925', '01.jpg', { trip: 1, userIds: [] });
+  await service.savePhotoTags('2925', '02.jpg', { trip: 1, userIds: [] });
+  assert.equal((await service.prepare('2925')).photoTags['01.jpg'], undefined);
+  roster.attendance = [];
+  roster.guests = [];
+  roster.extraProfiles = [];
+  roster.guestBoarding = [];
 }
 
 // 로그아웃

@@ -12,6 +12,7 @@ import { hasProfile } from './browser.mts';
 import type { FetchOptions, Log } from './commands.mts';
 import type { PhotoDraft } from './classify.mts';
 import { ImageEditError, parseImageEdit } from './image-edit.mts';
+import { parsePhotoTag, PhotoTagError } from './photo-tags.mts';
 import type { OhgoService, PushRequest, PushResult } from './ohgo-service.mts';
 import { OhgoRequestRejected } from './ohgo-service.mts';
 import { OhgoAuthError } from './ohgo-auth.mts';
@@ -229,6 +230,12 @@ export function createGuiServer(deps: GuiDeps): { server: Server; token: string;
         startJob('push', (log) => ohgo.push(request, log));
         return sendJson(res, 202, state());
       }
+      if (path === '/api/ohgo/boarders') return sendJson(res, 200, await ohgo.listBoarders(str(body.date)));
+      if (path === '/api/ohgo/tags') {
+        if (isBusy()) return sendJson(res, 409, { error: '다른 작업이 진행 중입니다' });
+        const tag = parsePhotoTag({ trip: body.trip, userIds: body.userIds });
+        return sendJson(res, 200, { tags: await ohgo.savePhotoTags(str(body.postId), str(body.file), tag) });
+      }
       if (path === '/api/ohgo/edit' || path === '/api/ohgo/revert') {
         if (isBusy()) return sendJson(res, 409, { error: '다른 작업이 진행 중입니다' });
         const postId = str(body.postId);
@@ -251,6 +258,7 @@ export function createGuiServer(deps: GuiDeps): { server: Server; token: string;
       }
       return sendJson(res, 404, { error: '없는 경로입니다' });
     } catch (err) {
+      if (err instanceof PhotoTagError) return sendJson(res, 400, { error: err.message });
       if (err instanceof OhgoRequestRejected) return sendJson(res, err.status, { error: err.message, code: err.code });
       if (err instanceof OhgoAuthError) return sendJson(res, err.status, { error: err.message, code: err.code });
       return sendJson(res, 500, { error: (err as Error).message });
@@ -285,6 +293,7 @@ export function toPushRequest(body: Record<string, unknown>): PushRequest {
       images: Array.isArray(photo.images) ? photo.images.map(str) : [],
       useFormatting: photo.useFormatting === true,
     };
+    if (typeof photo.content === 'string') draft.content = photo.content.slice(0, 200_000);
     req.photo = draft;
   } else {
     const ref = str(trip.refDate) || new Date().toISOString().slice(0, 10);
