@@ -35,8 +35,11 @@ export default function ProductGridCard({ product, href, onClick }: ProductGridC
           <img
             src={product.imageUrl}
             alt=""
+            width={320}
+            height={320}
             className="w-100 h-100"
             loading="lazy"
+            decoding="async"
             style={{ objectFit: 'contain', display: 'block' }}
           />
         ) : (

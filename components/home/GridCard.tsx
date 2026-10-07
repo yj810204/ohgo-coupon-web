@@ -30,10 +30,13 @@ export default function GridCard({ title, subtitle, badge, imageUrl, href, onCli
         }}
       >
         {imageUrl ? (
-          <img
+            <img
             src={imageUrl}
             alt=""
+            width={480}
+            height={360}
             loading="lazy"
+            decoding="async"
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
         ) : (

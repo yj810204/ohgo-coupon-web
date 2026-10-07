@@ -35,7 +35,10 @@ export default function FeaturedCard({ title, imageUrl, badge, href, onClick }: 
             <img
               src={imageUrl}
               alt=""
+              width={320}
+              height={240}
               loading="lazy"
+              decoding="async"
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
           ) : null}

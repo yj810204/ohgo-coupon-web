@@ -46,6 +46,7 @@ export default function MarketListingCard({ listing, href, onClick }: MarketList
             width={108}
             height={108}
             loading="lazy"
+            decoding="async"
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             onError={() => {
               if (imageUrl && imgSrc !== imageUrl) setImgSrc(imageUrl);

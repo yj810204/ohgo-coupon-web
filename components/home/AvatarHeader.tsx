@@ -38,6 +38,9 @@ export default function AvatarHeader({ userName, avatarUrl, myPageHref, onMyPage
             <img
               src={avatarUrl}
               alt=""
+              width={96}
+              height={96}
+              decoding="async"
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
           ) : (
