@@ -85,9 +85,12 @@
     position: absolute; top: 4px; left: 4px; min-width: 20px; padding: 0 5px; border-radius: 999px;
     background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; pointer-events: none;
   }
-  .thumb.off .num { background: #8e8e93; }
+  .thumb.off .num { background: var(--err); padding: 0 7px; font-size: 12px; }
   .thumb .bar { display: flex; justify-content: space-between; gap: 4px; margin-top: 3px; }
   .thumb .bar button { flex: 1; padding: 1px 0; font-size: 11px; line-height: 18px; border-radius: 5px; }
+  .thumb .pickbtn { display: block; width: 100%; margin-top: 3px; padding: 1px 0; font-size: 11px; line-height: 18px; border-radius: 5px; }
+  .thumb .pickbtn.out { color: var(--err); border-color: #f2c4c4; }
+  .thumb .pickbtn.in { color: var(--accent); border-color: var(--accent); background: var(--accent-weak); font-weight: 600; }
   .thumb .bar button.ed { flex: 1.6; }
   .thumb .edited {
     position: absolute; top: 4px; right: 4px; padding: 0 5px; border-radius: 999px; background: #fff; color: var(--accent);
@@ -228,7 +231,7 @@
           <label class="field"><span>사진 날짜</span><input id="pDate" type="date"></label>
           <div class="field"><span>사진</span><div id="pCount" style="padding-top:8px"></div></div>
         </div>
-        <div class="sub" style="margin:8px 0 0">번호 순서대로 올라갑니다. 사진을 끌어다 놓거나 ◀ ▶로 순서를 바꾸고, 사진을 누르면 빼거나 다시 넣습니다. 편집을 누르면 자르기, 돌리기, 뒤집기를 할 수 있습니다 (원본은 그대로 둡니다). 5MB가 넘는 사진은 줄여서 올립니다.</div>
+        <div class="sub" style="margin:8px 0 0">번호 순서대로 올라갑니다. 사진을 끌어다 놓거나 ◀ ▶로 순서를 바꿉니다. 올리지 않을 사진은 아래 ✕ 빼기를 누르세요 (다시 넣기로 되돌립니다). 편집을 누르면 자르기, 돌리기, 뒤집기를 할 수 있습니다 (원본은 그대로 둡니다). 5MB가 넘는 사진은 줄여서 올립니다.</div>
         <div id="pThumbs" class="thumbs"></div>
       </div>
 
@@ -522,10 +525,11 @@
       img.src = thumbSrc(f);
       img.title = `${f} (누르면 빼거나 다시 넣기)`;
       img.draggable = false;
-      img.addEventListener('click', () => {
+      const togglePick = () => {
         if (picked.has(f)) picked.delete(f); else picked.add(f);
         renderThumbs();
-      });
+      };
+      img.addEventListener('click', togglePick);
       const num = document.createElement('span');
       num.className = 'num';
       num.textContent = picked.has(f) ? String(order.indexOf(f) + 1) : '뺌';
@@ -551,7 +555,13 @@
       const bar = document.createElement('div');
       bar.className = 'bar';
       bar.append(left, edit, right);
-      box.append(img, num, bar);
+      const pick = document.createElement('button');
+      pick.type = 'button';
+      pick.className = picked.has(f) ? 'pickbtn out' : 'pickbtn in';
+      pick.textContent = picked.has(f) ? '✕ 빼기' : '다시 넣기';
+      pick.title = picked.has(f) ? '이 사진은 올리지 않기' : '이 사진도 올리기';
+      pick.addEventListener('click', togglePick);
+      box.append(img, num, bar, pick);
       if (photoEdit(f)) {
         const badge = document.createElement('span');
         badge.className = 'edited';

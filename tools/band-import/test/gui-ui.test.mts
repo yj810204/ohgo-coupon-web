@@ -92,11 +92,24 @@ try {
   assert.deepEqual(await shown(), ['02.jpg:1', '01.jpg:2', '03.png:3', '04.jpg:4']);
 
   // 03을 빼면 번호가 당겨지고, 순서를 바꿔도 뺀 상태는 그 사진에 남는다
-  await page.locator('#pThumbs .thumb[data-file="03.png"] img').click();
+  const t03 = page.locator('#pThumbs .thumb[data-file="03.png"]');
+  const count = async () => page.locator('#pCount').textContent();
+  assert.equal(await t03.locator('button.pickbtn').textContent(), '✕ 빼기');
+  assert.equal(await count(), '4장 올림 (전체 4장)');
+  await t03.locator('button.pickbtn').click();
   assert.deepEqual(await shown(), ['02.jpg:1', '01.jpg:2', '03.png:뺌', '04.jpg:3']);
+  assert.equal(await t03.locator('button.pickbtn').textContent(), '다시 넣기', '뺀 사진은 버튼이 다시 넣기로');
+  assert.equal(await t03.getAttribute('class'), 'thumb off', '흐리게');
+  assert.equal(await count(), '3장 올림 (전체 4장)');
+  await t03.locator('button.pickbtn').click();
+  assert.deepEqual(await shown(), ['02.jpg:1', '01.jpg:2', '03.png:3', '04.jpg:4'], '다시 넣으면 번호가 돌아온다');
+  assert.equal(await count(), '4장 올림 (전체 4장)');
+  await t03.locator('img').click();
+  assert.deepEqual(await shown(), ['02.jpg:1', '01.jpg:2', '03.png:뺌', '04.jpg:3'], '사진을 눌러도 뺀다');
+  assert.equal(await t03.locator('button.pickbtn').textContent(), '다시 넣기');
   await page.locator('#pThumbs .thumb[data-file="03.png"] button.mv').first().click();
   assert.deepEqual(await shown(), ['02.jpg:1', '03.png:뺌', '01.jpg:2', '04.jpg:3']);
-  assert.match(await page.locator('#pCount').textContent() ?? '', /^3장 올림/);
+  assert.equal(await count(), '3장 올림 (전체 4장)');
 
   // 끌어다 놓기: 04를 맨 앞으로
   await page.locator('#pThumbs .thumb[data-file="04.jpg"]').dragTo(page.locator('#pThumbs .thumb[data-file="02.jpg"]'));
