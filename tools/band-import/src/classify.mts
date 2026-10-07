@@ -1,6 +1,6 @@
 import type { ExtractedPost } from './schema.mts';
 import { normalizeTitle } from './title.mts';
-import { findDates, findTripTimes, kstDate, postRefDate } from './trip-parse.mts';
+import { findDates, findTripTimes, kstDate, parseWeeklyRows, postRefDate } from './trip-parse.mts';
 
 /** catch: 조황 사진 게시판(community_photos), schedule: 출조 안내(trip_guides) */
 export type OhgoKind = 'catch' | 'schedule';
@@ -37,6 +37,8 @@ export function classifyPost(post: ExtractedPost, photoCount?: number): Classifi
 
   if (CATCH_TITLE.test(post.title)) catchBoost(4, '제목에 조황이라고 적혀 있음');
   if (SCHEDULE_TITLE.test(post.title)) scheduleBoost(4, '제목에 출조 안내나 모집이 적혀 있음');
+  const dayRows = parseWeeklyRows(post.body, ref).rows.filter((r) => r.departureTime);
+  if (dayRows.length >= 2) scheduleBoost(5, `날짜별 출항 줄 ${dayRows.length}개`);
   if (post.schedules.length > 0) {
     scheduleBoost(3, `Band 일정 첨부 ${post.schedules.length}개`);
   }

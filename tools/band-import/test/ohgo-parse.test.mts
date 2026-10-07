@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { buildPhotoDraft, classifyPost, validatePhotoDraft } from '../src/classify.mts';
 import { buildExtracted } from '../src/extracted.mts';
-import { findPostInJson, normalizeApiPost } from '../src/normalize.mts';
+import { findPostInJson, normalizeApiPost, normalizeDomSnapshot } from '../src/normalize.mts';
 import type { ExtractedPost, ExtractedSchedule } from '../src/schema.mts';
 import {
   findCapacity,
@@ -14,7 +14,8 @@ import {
   findTimes,
   findTripTimes,
   kstDate,
-  parseDateList,
+  parseDateInput,
+  parseWeeklyRows,
   parseTripGuide,
   validateTripDraft,
 } from '../src/trip-parse.mts';
@@ -109,9 +110,9 @@ const fixtureClass = classifyPost(fixturePost);
 assert.equal(fixtureClass.kind, 'schedule');
 assert.ok(fixtureClass.reasons.some((r) => r.includes('Band 일정 첨부')));
 const fixtureTrip = parseTripGuide(fixturePost);
-assert.deepEqual(fixtureTrip.draft.dates, [kstDate(fixturePost.schedules[0].startAt)]);
-assert.equal(fixtureTrip.draft.departureTime, '05:30', '본문의 출항 시각이 첨부 시각보다 우선');
-assert.equal(fixtureTrip.draft.species, '갈치');
+assert.deepEqual(fixtureTrip.draft.rows.map((r) => r.date), [kstDate(fixturePost.schedules[0].startAt)]);
+assert.equal(fixtureTrip.draft.rows[0].departureTime, '05:30', '본문의 출항 시각이 첨부 시각보다 우선');
+assert.equal(fixtureTrip.draft.rows[0].species, '갈치');
 assert.equal(fixtureTrip.draft.capacity, 12);
 assert.deepEqual(fixtureTrip.missing, ['목적지'], '목적지는 못 찾으면 운영자가 채운다');
 
@@ -129,16 +130,12 @@ const schedule = makePost(
 const scheduleClass = classifyPost(schedule);
 assert.equal(scheduleClass.kind, 'schedule');
 const trip = parseTripGuide(schedule);
+assert.equal(trip.source, 'single');
 assert.deepEqual(trip.draft, {
-  dates: ['2026-10-12'],
   destination: '형제섬',
-  departureTime: '05:00',
-  returnTime: '14:00',
-  species: '참돔',
   capacity: 10,
-  price: 120000,
   contact: '010-1234-5678',
-  notes: schedule.body,
+  rows: [{ date: '2026-10-12', departureTime: '05:00', returnTime: '14:00', species: '참돔', price: 120000, notes: schedule.body, selected: true }],
 });
 assert.deepEqual(trip.missing, []);
 assert.deepEqual(validateTripDraft(trip.draft), []);
@@ -151,29 +148,112 @@ const attached = makePost('이번 주 출조 일정입니다', {
   ],
 });
 const attachedTrip = parseTripGuide(attached);
-assert.deepEqual(attachedTrip.draft.dates, ['2026-10-11', '2026-10-12']);
-assert.equal(attachedTrip.draft.departureTime, '05:30');
-assert.equal(attachedTrip.draft.returnTime, '14:00');
+assert.deepEqual(attachedTrip.draft.rows.map((r) => r.date), ['2026-10-11', '2026-10-12']);
+assert.ok(attachedTrip.draft.rows.every((r) => r.departureTime === '05:30' && r.returnTime === '14:00'));
 
 // 필수 칸이 비면 missing으로 알린다
 const vague = parseTripGuide(makePost('다음 출조 공지는 곧 올리겠습니다'));
 assert.deepEqual(vague.missing, ['날짜', '목적지', '출항 시간']);
 assert.equal(validateTripDraft(vague.draft).length, 3);
-assert.deepEqual(validateTripDraft({ ...trip.draft, dates: ['2026-02-30'], departureTime: '5:00' }), [
-  '날짜 형식이 잘못되었습니다: 2026-02-30 (예: 2026-10-12)',
-  '출항 시간 형식이 잘못되었습니다: 5:00 (예: 05:30)',
+assert.deepEqual(validateTripDraft({ ...trip.draft, rows: [{ ...trip.draft.rows[0], date: '2026-02-30', departureTime: '5:00' }] }), [
+  '1번째 줄 날짜 형식이 잘못되었습니다: 2026-02-30 (예: 2026-10-12)',
+  '1번째 줄 출항 시간 형식이 잘못되었습니다: 5:00 (예: 05:30)',
 ]);
+assert.ok(validateTripDraft({ ...trip.draft, rows: [] }).includes('저장할 출조 줄을 1개 이상 고르세요'));
+assert.ok(validateTripDraft({ ...trip.draft, rows: [{ ...trip.draft.rows[0], price: NaN }] }).some((e) => e.includes('1인 요금')));
 assert.ok(validateTripDraft({ ...trip.draft, capacity: NaN }).some((e) => e.includes('정원')));
 
 // 여러 날짜 후보는 힌트로
 const multi = parseTripGuide(makePost('10/12 출항 05:00 목적지 나무섬\n10/13도 같은 시간 출조'));
-assert.deepEqual(multi.draft.dates, ['2026-10-12']);
+assert.deepEqual(multi.draft.rows.map((r) => r.date), ['2026-10-12']);
 assert.ok(multi.hints.some((h) => h.includes('2026-10-13')));
 
 // 날짜 칸 입력 해석
-assert.deepEqual(parseDateList('2026-10-12, 10/13\n10월 14일', '2026-10-06'), ['2026-10-12', '2026-10-13', '2026-10-14']);
-assert.deepEqual(parseDateList('2026-10-12, 2026-10-12', '2026-10-06'), ['2026-10-12']);
-assert.deepEqual(parseDateList('엉뚱', '2026-10-06'), ['엉뚱'], '해석 못한 값은 그대로 두어 검사에서 걸리게 한다');
+assert.equal(parseDateInput('2026-10-12', '2026-10-06'), '2026-10-12');
+assert.equal(parseDateInput(' 10/13 ', '2026-10-06'), '2026-10-13');
+assert.equal(parseDateInput('10월 14일', '2026-10-06'), '2026-10-14');
+assert.equal(parseDateInput('엉뚱', '2026-10-06'), '엉뚱', '해석 못한 값은 그대로 두어 검사에서 걸리게 한다');
+
+// 운영자가 가져온 실제 주간 일정 글(본문 그대로). 화면(DOM)으로 읽어 게시일이 없고 가져온 날이 기준
+const weeklyBody = readFileSync(new URL('./fixtures/schedule-post-weekly.txt', import.meta.url), 'utf8');
+const weeklyDom = normalizeDomSnapshot({ author: '오고피씽', createdText: null, bodyText: weeklyBody, imageUrls: ['https://a.pstatic.net/w/1.jpg'] });
+const weeklyPost = buildExtracted({
+  ref,
+  via: 'dom',
+  post: weeklyDom,
+  images: [{ index: 0, sourceUrl: weeklyDom.images[0].url, file: '01.jpg', width: null, height: null }],
+  fetchedAt: new Date('2026-10-06T23:00:00.000Z'),
+});
+const weeklyClass = classifyPost(weeklyPost);
+assert.equal(weeklyClass.kind, 'schedule', weeklyClass.reasons.join(', '));
+assert.ok(weeklyClass.reasons.some((r) => r.includes('날짜별 출항 줄 7개')));
+const weekly = parseTripGuide(weeklyPost, ['낫개', '형제섬']);
+assert.equal(weekly.source, 'weekly');
+const W = (date: string, departureTime: string, notes: string) => ({ date, species: '감성돔', departureTime, returnTime: '', price: 100000, notes, selected: true });
+assert.deepEqual(weekly.draft, {
+  destination: '낫개',
+  capacity: null,
+  contact: '010-3597-4100',
+  rows: [
+    W('2026-10-05', '06:00', '예약마감'),
+    W('2026-10-06', '07:00', '자리여유'),
+    W('2026-10-07', '06:00', '자리여유'),
+    W('2026-10-08', '06:00', '자리여유'),
+    W('2026-10-09', '06:00', '예약마감'),
+    W('2026-10-10', '06:00', '자리여유'),
+    W('2026-10-11', '06:00', '자리여유'),
+  ],
+});
+assert.deepEqual(weekly.missing, []);
+assert.deepEqual(validateTripDraft(weekly.draft), []);
+assert.ok(weekly.hints.some((h) => h.includes('"낫개"')), '목적지를 기본값으로 넣었다고 알린다');
+assert.ok(weekly.hints.some((h) => h.includes('비고')), '상태를 비고에 넣었다고 알린다');
+for (const row of weekly.draft.rows) {
+  assert.ok(!/카카오|3333|8058209|신분증|최소출항|#/.test(row.notes), `안내문이 비고에 들어가면 안 된다: ${row.notes}`);
+}
+assert.equal(parseTripGuide(weeklyPost).draft.destination, '', '앱 목적지를 모르면 비워 두고 운영자가 채운다');
+
+// 줄 모양이 조금씩 다른 경우
+const variants = parseWeeklyRows(
+  [
+    '10월 5일 ~ 10월 11일',
+    '5일   (월) 감성돔 06시 출항 예약마감',
+    '6일(화) 감성돔 6시30분 출항',
+    '7일 (수) 감성돔 06:30 출항 ~ 14:00 자리 여유',
+    '8일 (목) 감성돔 오전 6시 출항, 오후 문어 1시 출항 18시입항 마감',
+    '9일 (금) 오후문어 2시 출항',
+    '10일 (토) 감성돔/벵에돔 05시 출항 휴항',
+    '* 감성돔선비10만원입니다',
+    '* 문어 선비8만원입니다.',
+    '     (06시출항 13시입항)',
+    '* 문어종일 선비 10만원 입니다 .',
+    '      (06시출항 15시입항)',
+  ].join('\n'),
+  '2026-10-04',
+);
+assert.deepEqual(
+  variants.rows.map((r) => [r.date, r.species, r.departureTime, r.returnTime, r.price, r.notes, r.selected]),
+  [
+    ['2026-10-05', '감성돔', '06:00', '', 100000, '예약마감', true],
+    ['2026-10-06', '감성돔', '06:30', '', 100000, '', true],
+    ['2026-10-07', '감성돔', '06:30', '14:00', 100000, '자리여유', true],
+    ['2026-10-08', '감성돔', '06:00', '', 100000, '', true],
+    ['2026-10-08', '문어', '13:00', '18:00', null, '마감', true],
+    ['2026-10-09', '문어', '14:00', '', null, '', true],
+    ['2026-10-10', '감성돔, 벵에돔', '05:00', '', 100000, '휴항', false],
+  ],
+);
+assert.ok(variants.hints.some((h) => h.includes('문어 선비가 여러 개')), '선비가 둘이면 비우고 알린다');
+assert.ok(variants.hints.some((h) => h.includes('문어 입항 시간이 여러 개')), '입항이 둘이면 비우고 알린다');
+
+// 12월에서 1월로 넘어가는 주
+const yearEnd = parseWeeklyRows('12월 29일 ~ 1월 4일\n29일 (화) 감성돔 06시 출항\n2일 (토) 감성돔 06시 출항', '2026-12-27');
+assert.deepEqual(yearEnd.rows.map((r) => r.date), ['2026-12-29', '2027-01-02']);
+assert.deepEqual(yearEnd.hints, [], '요일이 맞으면 알림이 없다');
+const fetchedInJan = parseWeeklyRows('12월 29일 ~ 1월 4일\n29일 (화) 감성돔 06시 출항\n2일 (토) 감성돔 06시 출항', '2027-01-02');
+assert.deepEqual(fetchedInJan.rows.map((r) => r.date), ['2026-12-29', '2027-01-02'], '1월에 가져와도 12월은 지난해');
+assert.ok(parseWeeklyRows('5일 (화) 감성돔 06시 출항', '2026-10-01').hints.some((h) => h.includes('월요일인데')), '요일이 다르면 알린다');
+assert.deepEqual(parseWeeklyRows('오늘 감성돔 마릿수 좋았습니다\n6일(화) 감성돔 조황', '2026-10-06').rows.filter((r) => r.departureTime), [], '조황 글의 날짜 줄은 출조가 아니다');
 
 // 조황 글 -> 조황 사진 게시판
 const catchPost = makePost('오늘 갑오징어 조황입니다\n손님들 쿨러 가득 채우셨습니다\n수고하셨습니다', { photos: 5 });

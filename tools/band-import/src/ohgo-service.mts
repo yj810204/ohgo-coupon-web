@@ -38,8 +38,11 @@ export type PrepareResult = {
   /** extracted.json과 폴더의 사진이 어긋날 때 알림 */
   photoWarnings: string[];
   trip: TripDraft;
+  tripSource: 'weekly' | 'single';
   tripMissing: string[];
   tripHints: string[];
+  /** 날짜별로 앱에 이미 있는 출조 일정("06:00 낫개 감성돔") */
+  tripDuplicates: Record<string, string[]>;
   ledger: LedgerEntry | null;
   remoteWarnings: string[];
 };
@@ -102,6 +105,12 @@ function loadExtracted(outRoot: string, postId: string): ExtractedPost {
   const errors = validateExtracted(post);
   if (errors.length) throw new OhgoRequestRejected(`extracted.json 형식 오류: ${errors.slice(0, 3).join(', ')}`);
   return post as ExtractedPost;
+}
+
+function tripTitle(draft: TripDraft): string {
+  const dates = [...new Set(draft.rows.map((r) => r.date))].sort();
+  const span = dates.length > 1 ? `${dates[0]} ~ ${dates[dates.length - 1]}` : dates[0] ?? '';
+  return `${span} ${draft.destination.trim()} ${draft.rows.length}건`;
 }
 
 function eqParam(value: string): string {
@@ -209,19 +218,19 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
   const pushTrip = async (cfg: OhgoConfig, client: OhgoClient, draft: TripDraft, log: Log) => {
     const ids: string[] = [];
     try {
-      for (const date of draft.dates) {
+      for (const [i, trip] of draft.rows.entries()) {
         const row: Record<string, unknown> = {
-          date,
+          date: trip.date,
           destination: draft.destination.trim(),
-          departure_time: draft.departureTime,
+          departure_time: trip.departureTime,
         };
-        if (draft.returnTime) row.return_time = draft.returnTime;
-        if (draft.species.trim()) row.species = draft.species.trim();
+        if (trip.returnTime) row.return_time = trip.returnTime;
+        if (trip.species.trim()) row.species = trip.species.trim();
         if (draft.capacity) row.capacity = draft.capacity;
-        if (draft.price) row.price = draft.price;
-        if (draft.notes.trim()) row.notes = draft.notes.trim();
+        if (trip.price) row.price = trip.price;
+        if (trip.notes.trim()) row.notes = trip.notes.trim();
         if (draft.contact.trim()) row.contact = draft.contact.trim();
-        log(`출조 일정 저장 중: ${date} ${draft.departureTime} ${row.destination}`);
+        log(`출조 일정 저장 중 ${i + 1}/${draft.rows.length}: ${trip.date} ${trip.departureTime} ${row.destination}${row.species ? ` ${row.species}` : ''}`);
         ids.push(await client.insert('trip_guides', row, ['contact']));
       }
     } catch (err) {
@@ -263,7 +272,12 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
       if (reader) {
         try {
           const rows = await reader.select('trip_guides', 'select=destination&order=date.desc&limit=300');
-          known = [...new Set(rows.map((r) => String(r.destination ?? '')).filter(Boolean))];
+          const counts = new Map<string, number>();
+          for (const r of rows) {
+            const name = String(r.destination ?? '').trim();
+            if (name) counts.set(name, (counts.get(name) ?? 0) + 1);
+          }
+          known = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name);
         } catch (err) {
           remoteWarnings.push(`앱의 기존 목적지를 읽지 못했습니다: ${(err as Error).message}`);
         }
@@ -273,6 +287,7 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
       const photo = buildPhotoDraft(post, images.files);
       const trip = parseTripGuide(post, known);
 
+      const tripDuplicates: Record<string, string[]> = {};
       if (reader) {
         try {
           for (const title of new Set([photo.title, post.title.trim()].filter(Boolean))) {
@@ -282,11 +297,16 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
               break;
             }
           }
-          for (const date of trip.draft.dates.slice(0, 5)) {
-            const same = await reader.select('trip_guides', `select=id,destination,departure_time&date=${eqParam(date)}`);
-            if (same.length) {
-              const list = same.map((r) => `${r.departure_time ?? ''} ${r.destination ?? ''}`.trim()).join(', ');
-              remoteWarnings.push(`${date}에 이미 등록된 출조 일정 ${same.length}개: ${list}`);
+          const dates = [...new Set(trip.draft.rows.map((r) => r.date).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))];
+          if (dates.length) {
+            const same = await reader.select('trip_guides', `select=id,date,destination,departure_time,species&date=in.(${dates.join(',')})&order=departure_time.asc`);
+            for (const date of dates) {
+              const list = same
+                .filter((r) => String(r.date).slice(0, 10) === date)
+                .map((r) => [r.departure_time, r.destination, r.species].filter(Boolean).join(' '));
+              if (!list.length) continue;
+              tripDuplicates[date] = list;
+              remoteWarnings.push(`${date}에 이미 등록된 출조 일정 ${list.length}개: ${list.join(', ')}`);
             }
           }
         } catch (err) {
@@ -305,8 +325,10 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
         photo,
         photoWarnings: images.warnings,
         trip: trip.draft,
+        tripSource: trip.source,
         tripMissing: trip.missing,
         tripHints: trip.hints,
+        tripDuplicates,
         ledger: project ? findLedgerEntry(opts.dir, project, post.source.bandId, post.source.postId) : null,
         remoteWarnings,
       };
@@ -331,7 +353,7 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
           ? await pushCatch(cfg, client, post, req.photo!, session, log)
           : await pushTrip(cfg, client, req.trip!, log);
       const target = req.kind === 'catch' ? 'community_photos' : 'trip_guides';
-      const title = req.kind === 'catch' ? req.photo!.title : `${req.trip!.dates.join(', ')} ${req.trip!.destination}`;
+      const title = req.kind === 'catch' ? req.photo!.title : tripTitle(req.trip!);
       recordLedgerEntry(opts.dir, {
         project: cfg.projectRef,
         bandId: post.source.bandId,

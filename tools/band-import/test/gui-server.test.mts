@@ -275,24 +275,33 @@ const tripReq = toPushRequest({
   postId: '2925',
   kind: 'schedule',
   force: true,
-  trip: { refDate: '2026-10-06', dates: '2026-10-12, 10/13', destination: '형제섬', departureTime: '05:00', capacity: '10', price: '120,000', notes: 'n' },
+  trip: {
+    refDate: '2026-10-06',
+    destination: '형제섬',
+    capacity: '10',
+    contact: '010-3597-4100',
+    rows: [
+      { date: '2026-10-12', species: '감성돔', departureTime: '05:00', price: '120,000', notes: '자리여유', selected: true },
+      { date: '10/13', departureTime: '06:00', returnTime: '13:00', price: '' },
+    ],
+  },
 });
 assert.deepEqual(tripReq, {
   postId: '2925',
   kind: 'schedule',
   force: true,
   trip: {
-    dates: ['2026-10-12', '2026-10-13'],
     destination: '형제섬',
-    departureTime: '05:00',
-    returnTime: '',
-    species: '',
     capacity: 10,
-    price: 120000,
-    contact: '',
-    notes: 'n',
+    contact: '010-3597-4100',
+    rows: [
+      { date: '2026-10-12', species: '감성돔', departureTime: '05:00', returnTime: '', price: 120000, notes: '자리여유' },
+      { date: '2026-10-13', species: '', departureTime: '06:00', returnTime: '13:00', price: null, notes: '' },
+    ],
   },
 });
+assert.equal(toPushRequest({ postId: '1', kind: 'schedule', trip: { rows: Array.from({ length: 50 }, () => ({})) } }).trip!.rows.length, 32, '너무 많은 줄은 잘라서 검사에서 걸리게 한다');
+assert.deepEqual(toPushRequest({ postId: '1', kind: 'schedule', trip: { rows: 'x' } }).trip!.rows, []);
 assert.ok(Number.isNaN(toPushRequest({ postId: '1', kind: 'schedule', trip: { capacity: '열명' } }).trip!.capacity), '숫자가 아니면 검사에서 걸린다');
 assert.throws(() => toPushRequest({ postId: '1' }), /등록 종류/);
 

@@ -15,7 +15,7 @@ import type { OhgoService, PushRequest, PushResult } from './ohgo-service.mts';
 import { OhgoRequestRejected } from './ohgo-service.mts';
 import { OhgoAuthError } from './ohgo-auth.mts';
 import type { TripDraft } from './trip-parse.mts';
-import { parseDateList } from './trip-parse.mts';
+import { MAX_TRIP_ROWS, parseDateInput } from './trip-parse.mts';
 import type { ExtractedPost } from './schema.mts';
 import { readSession } from './session-store.mts';
 import { parseBandPostUrl } from './url.mts';
@@ -270,16 +270,22 @@ export function toPushRequest(body: Record<string, unknown>): PushRequest {
     req.photo = draft;
   } else {
     const ref = str(trip.refDate) || new Date().toISOString().slice(0, 10);
+    const rows = Array.isArray(trip.rows) ? (trip.rows as unknown[]).slice(0, MAX_TRIP_ROWS + 1) : [];
     const draft: TripDraft = {
-      dates: Array.isArray(trip.dates) ? trip.dates.map(str).filter(Boolean) : parseDateList(str(trip.dates), ref),
       destination: str(trip.destination),
-      departureTime: str(trip.departureTime),
-      returnTime: str(trip.returnTime),
-      species: str(trip.species),
       capacity: intOrNull(trip.capacity),
-      price: intOrNull(trip.price),
       contact: str(trip.contact),
-      notes: str(trip.notes),
+      rows: rows.map((raw) => {
+        const r = (raw ?? {}) as Record<string, unknown>;
+        return {
+          date: parseDateInput(str(r.date), ref),
+          species: str(r.species),
+          departureTime: str(r.departureTime),
+          returnTime: str(r.returnTime),
+          price: intOrNull(r.price),
+          notes: str(r.notes),
+        };
+      }),
     };
     req.trip = draft;
   }
@@ -300,7 +306,7 @@ async function openAppWindow(url: string, onClose: () => void): Promise<ChildPro
     [
       `--app=${url}`,
       `--user-data-dir=${profile}`,
-      '--window-size=600,820',
+      '--window-size=720,880',
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-features=Translate',

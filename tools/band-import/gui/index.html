@@ -77,6 +77,24 @@
   .thumbs img.off { opacity: .25; outline: 2px dashed var(--line); }
   .thumbs img.pick { cursor: pointer; }
   .actions { margin-top: 12px; }
+  .fields.three { grid-template-columns: 1.2fr .8fr 1fr; }
+  .tripwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+  table.trips { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .trips th { font-size: 11px; font-weight: 600; color: var(--muted); text-align: left; padding: 6px 4px; background: #fafafa; border-bottom: 1px solid var(--line); }
+  .trips td { padding: 4px 3px; border-top: 1px solid var(--line); vertical-align: middle; }
+  .trips tr.dup td { border-top: 0; padding: 0 6px 6px 30px; color: var(--warn); font-size: 12px; }
+  .trips tr.off td input:not([type=checkbox]) { opacity: .4; }
+  .trips input { width: 100%; padding: 5px 6px; font: inherit; border: 1px solid var(--line); border-radius: 6px; outline: none; background: #fff; }
+  .trips input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-weak); }
+  .trips input.need { border-color: var(--err); background: #fff6f6; }
+  .trips input[type=checkbox] { width: auto; }
+  .trips .c-date { width: 118px; }
+  .trips .c-date input { width: 88px; }
+  .trips .c-date small { color: var(--muted); margin-left: 3px; }
+  .trips .c-time { width: 62px; }
+  .trips .c-price { width: 78px; }
+  .trips .c-species { width: 92px; }
+  .trips button.x { border: 0; background: none; color: var(--muted); padding: 2px 6px; }
   footer { display: flex; justify-content: flex-end; }
   footer button { font-size: 12px; padding: 6px 10px; color: var(--muted); }
 </style>
@@ -169,16 +187,21 @@
         <div id="schedulePhotoNote" class="box warn hidden"></div>
         <div id="tMissing" class="box err hidden"></div>
         <div id="tHints" class="sub pre" style="margin:8px 0 0"></div>
-        <div class="fields">
-          <label class="field wide" id="fDates"><span>날짜 * (여러 날이면 쉼표로 구분, 날마다 한 건씩 등록)</span><input id="tDates" placeholder="2026-10-12, 2026-10-13"></label>
-          <label class="field wide" id="fDest"><span>목적지 *</span><input id="tDest" placeholder="예: 나무섬, 형제섬"></label>
-          <label class="field" id="fDep"><span>출항 시간 *</span><input id="tDep" type="time"></label>
-          <label class="field"><span>입항 예정</span><input id="tRet" type="time"></label>
-          <label class="field"><span>목표 어종</span><input id="tSpecies" placeholder="예: 참돔, 광어"></label>
+        <div class="fields three">
+          <label class="field" id="fDest"><span>목적지 * (모든 줄에 적용)</span><input id="tDest" placeholder="예: 낫개, 형제섬"></label>
           <label class="field"><span>정원 (명)</span><input id="tCap" type="number" min="0" placeholder="미입력 시 제한 없음"></label>
-          <label class="field"><span>1인 요금 (원)</span><input id="tPrice" type="number" min="0" step="1000"></label>
           <label class="field"><span>예약 문의 (연락처)</span><input id="tContact" placeholder="010-0000-0000"></label>
-          <label class="field wide"><span>비고 / 상세내용</span><textarea id="tNotes" rows="5"></textarea></label>
+        </div>
+        <div class="sub" style="margin:10px 0 4px">출조 한 줄이 앱의 출조 일정 한 건입니다. 체크를 끄면 그 줄은 저장하지 않습니다. 시간은 06:00처럼 적으세요.</div>
+        <div class="tripwrap">
+          <table class="trips">
+            <thead><tr><th></th><th>날짜 *</th><th>어종</th><th>출항 *</th><th>입항</th><th>1인 요금</th><th>비고</th><th></th></tr></thead>
+            <tbody id="tripBody"></tbody>
+          </table>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button id="addTripBtn" type="button" class="link">+ 줄 추가</button>
+          <span id="tripCount" class="sub" style="margin:0"></span>
         </div>
       </div>
 
@@ -367,15 +390,11 @@
     show('schedulePhotoNote', n > 0);
 
     const t = p.trip;
-    $('tDates').value = t.dates.join(', ');
     $('tDest').value = t.destination;
-    $('tDep').value = t.departureTime;
-    $('tRet').value = t.returnTime;
-    $('tSpecies').value = t.species;
     $('tCap').value = t.capacity ?? '';
-    $('tPrice').value = t.price ?? '';
     $('tContact').value = t.contact;
-    $('tNotes').value = t.notes;
+    tripRows = t.rows.map((r) => ({ ...r, price: r.price ?? '', selected: r.selected !== false }));
+    renderTrips();
     $('tHints').textContent = p.tripHints.join('\n');
     show('tHints', p.tripHints.length > 0);
 
@@ -396,18 +415,131 @@
     updatePushButton();
   }
 
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+  const WEEK = '일월화수목금토';
+  let tripRows = [];
+
+  function weekdayOf(date) {
+    if (!DATE_RE.test(date)) return '';
+    const d = new Date(`${date}T00:00:00Z`);
+    return Number.isNaN(d.getTime()) ? '' : `(${WEEK[d.getUTCDay()]})`;
+  }
+
+  function cellInput(row, key, cls, placeholder) {
+    const input = document.createElement('input');
+    input.value = row[key] ?? '';
+    input.placeholder = placeholder || '';
+    input.dataset.key = key;
+    if (key === 'price') input.inputMode = 'numeric';
+    input.addEventListener('input', () => {
+      row[key] = input.value;
+      if (key === 'date') {
+        input.nextElementSibling.textContent = weekdayOf(input.value.trim());
+        renderDupRow(row);
+      }
+      markMissing();
+      updatePushButton();
+    });
+    const td = document.createElement('td');
+    if (cls) td.className = cls;
+    td.appendChild(input);
+    return td;
+  }
+
+  function renderDupRow(row) {
+    const list = (prep && prep.tripDuplicates[row.date.trim()]) || [];
+    row.dupEl.classList.toggle('hidden', list.length === 0);
+    row.dupEl.firstChild.textContent = list.length ? `이 날짜에 앱에 이미 있는 출조: ${list.join(', ')}` : '';
+  }
+
+  function renderTrips() {
+    const body = $('tripBody');
+    body.replaceChildren();
+    tripRows.forEach((row, i) => {
+      const tr = document.createElement('tr');
+      tr.classList.toggle('off', !row.selected);
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.checked = row.selected;
+      check.title = '저장할 줄';
+      check.addEventListener('change', () => { row.selected = check.checked; tr.classList.toggle('off', !row.selected); markMissing(); updatePushButton(); });
+      const tdCheck = document.createElement('td');
+      tdCheck.appendChild(check);
+      const tdDate = cellInput(row, 'date', 'c-date', '2026-10-05');
+      const wd = document.createElement('small');
+      wd.textContent = weekdayOf(row.date);
+      tdDate.appendChild(wd);
+      const del = document.createElement('button');
+      del.className = 'x';
+      del.type = 'button';
+      del.textContent = '×';
+      del.title = '줄 지우기';
+      del.addEventListener('click', () => { tripRows.splice(i, 1); renderTrips(); });
+      const tdDel = document.createElement('td');
+      tdDel.appendChild(del);
+      tr.append(
+        tdCheck, tdDate,
+        cellInput(row, 'species', 'c-species', '어종'),
+        cellInput(row, 'departureTime', 'c-time', '06:00'),
+        cellInput(row, 'returnTime', 'c-time', ''),
+        cellInput(row, 'price', 'c-price', '원'),
+        cellInput(row, 'notes', '', '예: 자리여유'),
+        tdDel,
+      );
+      row.inputs = tr;
+      const dup = document.createElement('tr');
+      dup.className = 'dup';
+      const dupTd = document.createElement('td');
+      dupTd.colSpan = 8;
+      dup.appendChild(dupTd);
+      row.dupEl = dup;
+      dupTd.appendChild(document.createTextNode(''));
+      body.append(tr, dup);
+      renderDupRow(row);
+    });
+    markMissing();
+    updatePushButton();
+  }
+
+  $('addTripBtn').addEventListener('click', () => {
+    const last = tripRows[tripRows.length - 1];
+    tripRows.push({ date: '', species: last ? last.species : '', departureTime: last ? last.departureTime : '', returnTime: last ? last.returnTime : '', price: last ? last.price : '', notes: '', selected: true });
+    renderTrips();
+  });
+
+  function badCells(row) {
+    const bad = [];
+    if (!DATE_RE.test(String(row.date).trim())) bad.push('date');
+    if (!TIME_RE.test(String(row.departureTime).trim())) bad.push('departureTime');
+    if (String(row.returnTime).trim() && !TIME_RE.test(String(row.returnTime).trim())) bad.push('returnTime');
+    if (String(row.price).trim() && !/^\d[\d,]*$/.test(String(row.price).trim())) bad.push('price');
+    return bad;
+  }
+
   function tripMissing() {
     const miss = [];
-    if (!$('tDates').value.trim()) miss.push(['fDates', '날짜']);
-    if (!$('tDest').value.trim()) miss.push(['fDest', '목적지']);
-    if (!$('tDep').value.trim()) miss.push(['fDep', '출항 시간']);
+    if (!$('tDest').value.trim()) miss.push('목적지');
+    const picked = tripRows.filter((r) => r.selected);
+    if (picked.length === 0) miss.push('저장할 줄');
+    if (picked.some((r) => badCells(r).includes('date'))) miss.push('날짜');
+    if (picked.some((r) => badCells(r).includes('departureTime'))) miss.push('출항 시간');
+    if (picked.some((r) => badCells(r).some((k) => k === 'returnTime' || k === 'price'))) miss.push('입항이나 요금 형식');
     return miss;
   }
 
   function markMissing() {
-    const miss = kind === 'schedule' ? tripMissing() : [];
-    for (const id of ['fDates', 'fDest', 'fDep']) $(id).classList.toggle('need', miss.some(([m]) => m === id));
-    $('tMissing').textContent = miss.length ? `Band 글에서 ${miss.map(([, n]) => n).join(', ')}을(를) 찾지 못했습니다. 직접 입력하세요.` : '';
+    const on = kind === 'schedule';
+    const miss = on ? tripMissing() : [];
+    $('fDest').classList.toggle('need', miss.includes('목적지'));
+    for (const row of tripRows) {
+      if (!row.inputs) continue;
+      const bad = on && row.selected ? badCells(row) : [];
+      row.inputs.querySelectorAll('input[data-key]').forEach((el) => el.classList.toggle('need', bad.includes(el.dataset.key)));
+    }
+    const n = tripRows.filter((r) => r.selected).length;
+    $('tripCount').textContent = `${tripRows.length}줄 중 ${n}건 저장`;
+    $('tMissing').textContent = miss.length ? `${miss.join(', ')}을(를) 확인하세요. 빨간 칸을 채우거나 고치면 됩니다.` : '';
     show('tMissing', miss.length > 0);
   }
 
@@ -419,14 +551,15 @@
     if (prep.ledger && !$('force').checked) return '이미 등록한 글입니다';
     if (kind === 'catch' && picked.size === 0) return '사진을 1장 이상 고르세요';
     if (kind === 'catch' && !$('pTitle').value.trim()) return '제목을 입력하세요';
-    if (kind === 'schedule' && tripMissing().length) return '필수 칸을 채우세요';
+    if (kind === 'schedule' && tripMissing().length) return '빨간 칸을 채우세요';
     return '';
   }
 
   function updatePushButton() {
     const why = pushBlocker();
     $('pushBtn').disabled = !!why;
-    $('pushHint').textContent = why || (kind === 'catch' ? '조황 사진 게시판에 바로 올라갑니다' : '출조 일정에 바로 저장됩니다');
+    const n = tripRows.filter((r) => r.selected).length;
+    $('pushHint').textContent = why || (kind === 'catch' ? '조황 사진 게시판에 바로 올라갑니다' : `출조 일정 ${n}건을 한 번에 저장합니다. 하나라도 실패하면 모두 되돌립니다.`);
   }
 
   function pushPayload() {
@@ -438,9 +571,11 @@
       } };
     }
     return { ...base, trip: {
-      refDate: prep.refDate, dates: $('tDates').value, destination: $('tDest').value, departureTime: $('tDep').value,
-      returnTime: $('tRet').value, species: $('tSpecies').value, capacity: $('tCap').value, price: $('tPrice').value,
-      contact: $('tContact').value, notes: $('tNotes').value,
+      refDate: prep.refDate, destination: $('tDest').value, capacity: $('tCap').value, contact: $('tContact').value,
+      rows: tripRows.filter((r) => r.selected).map((r) => ({
+        date: String(r.date).trim(), species: r.species, departureTime: String(r.departureTime).trim(),
+        returnTime: String(r.returnTime).trim(), price: String(r.price).trim(), notes: r.notes,
+      })),
     } };
   }
 
@@ -462,7 +597,7 @@
   }
 
   document.querySelectorAll('input[name=kind]').forEach((el) => el.addEventListener('change', () => setKind(el.value)));
-  ['tDates', 'tDest', 'tDep', 'pTitle'].forEach((id) => $(id).addEventListener('input', () => { markMissing(); updatePushButton(); }));
+  ['tDest', 'pTitle'].forEach((id) => $(id).addEventListener('input', () => { markMissing(); updatePushButton(); }));
   $('force').addEventListener('change', updatePushButton);
 
   $('ohgoModeBtn').addEventListener('click', () => {

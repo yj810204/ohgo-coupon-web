@@ -31,6 +31,7 @@ type Call = { method: string; url: string; headers: Record<string, string>; body
 const calls: Call[] = [];
 const storage = new Map<string, { type: string; size: number }>();
 const rows: Record<string, Record<string, unknown>[]> = { community_photos: [], trip_guides: [] };
+const tripDateQueries: string[] = [];
 const fake = {
   issued: 0,
   validTokens: new Map<string, string>(),
@@ -107,8 +108,16 @@ const fakeFetch = (async (input: string | URL | Request, init: RequestInit = {})
     if (table in rows) {
       if (method === 'GET') {
         const date = url.searchParams.get('date');
-        if (table === 'trip_guides' && date) return json(200, date === 'eq.2026-10-12' ? [{ id: 't0', destination: '나무섬', departure_time: '05:00' }] : []);
-        if (table === 'trip_guides') return json(200, [{ destination: '형제섬' }, { destination: '나무섬' }, { destination: '형제섬' }]);
+        if (table === 'trip_guides' && date) {
+          tripDateQueries.push(date);
+          const existing = [
+            { id: 't0', date: '2026-10-12', destination: '나무섬', departure_time: '05:00' },
+            { id: 't1', date: '2026-10-07', destination: '낫개', departure_time: '06:00', species: '감성돔' },
+          ];
+          const wanted = /^in\.\((.*)\)$/.exec(date)?.[1].split(',') ?? [];
+          return json(200, existing.filter((r) => wanted.includes(r.date)));
+        }
+        if (table === 'trip_guides') return json(200, [{ destination: '나무섬' }, { destination: '낫개' }, { destination: '형제섬' }, { destination: '낫개' }, { destination: '낫개' }]);
         const title = url.searchParams.get('title')?.replace('eq.', '');
         return json(200, rows[table].filter((r) => r.title === title).map((r) => ({ id: r.id, created_at: '2026-10-01T00:00:00Z' })));
       }
@@ -228,11 +237,40 @@ assert.deepEqual(prepCatch.remoteWarnings.filter((w) => w.includes('조황 게�
 const prepTrip = await service.prepare('200');
 assert.equal(prepTrip.classification.kind, 'schedule');
 assert.equal(prepTrip.trip.destination, '형제섬', '앱에 있던 목적지로 채운다');
-assert.deepEqual(prepTrip.trip.dates, ['2026-10-12']);
-assert.equal(prepTrip.trip.departureTime, '05:00');
-assert.equal(prepTrip.trip.returnTime, '14:00');
+assert.deepEqual(prepTrip.trip.rows.map((r) => [r.date, r.departureTime, r.returnTime]), [['2026-10-12', '05:00', '14:00']]);
+assert.equal(prepTrip.tripSource, 'single');
 assert.deepEqual(prepTrip.tripMissing, []);
 assert.ok(prepTrip.remoteWarnings.some((w) => w.includes('2026-10-12에 이미 등록된 출조 일정 1개: 05:00 나무섬')));
+assert.deepEqual(prepTrip.tripDuplicates, { '2026-10-12': ['05:00 나무섬'] });
+
+// 운영자가 가져온 실제 주간 일정 글: 7줄이 7건, 목적지는 앱에서 가장 많이 쓴 낫개
+const WEEKLY_BODY = readFileSync(new URL('./fixtures/schedule-post-weekly.txt', import.meta.url), 'utf8');
+{
+  const ref = parseBandPostUrl('https://band.us/band/88348442/post/300');
+  const dom = normalizeDomSnapshot({ author: '오고피씽', createdText: null, bodyText: WEEKLY_BODY, imageUrls: [] });
+  const extracted = buildExtracted({ ref, via: 'dom', post: dom, images: [], fetchedAt: new Date('2026-10-06T23:00:00.000Z') });
+  mkdirSync(join(outRoot, '300'), { recursive: true });
+  writeFileSync(join(outRoot, '300', 'extracted.json'), JSON.stringify(extracted));
+}
+const prepWeekly = await service.prepare('300');
+assert.equal(prepWeekly.classification.kind, 'schedule');
+assert.equal(prepWeekly.tripSource, 'weekly');
+assert.equal(prepWeekly.trip.destination, '낫개');
+assert.equal(prepWeekly.trip.contact, '010-3597-4100');
+assert.deepEqual(
+  prepWeekly.trip.rows.map((r) => [r.date, r.species, r.departureTime, r.returnTime, r.price, r.notes]),
+  [
+    ['2026-10-05', '감성돔', '06:00', '', 100000, '예약마감'],
+    ['2026-10-06', '감성돔', '07:00', '', 100000, '자리여유'],
+    ['2026-10-07', '감성돔', '06:00', '', 100000, '자리여유'],
+    ['2026-10-08', '감성돔', '06:00', '', 100000, '자리여유'],
+    ['2026-10-09', '감성돔', '06:00', '', 100000, '예약마감'],
+    ['2026-10-10', '감성돔', '06:00', '', 100000, '자리여유'],
+    ['2026-10-11', '감성돔', '06:00', '', 100000, '자리여유'],
+  ],
+);
+assert.deepEqual(prepWeekly.tripDuplicates, { '2026-10-07': ['06:00 낫개 감성돔'] }, '날짜마다 앱에 이미 있는 일정을 알려 준다');
+assert.equal(tripDateQueries.at(-1), 'in.(2026-10-05,2026-10-06,2026-10-07,2026-10-08,2026-10-09,2026-10-10,2026-10-11)', '한 번에 묻는다');
 // 실제 2925 글처럼 화면(DOM)에서 읽은 글: createdAt 없음, 이벤트 글이라 예약 단어와 다음 출조 날짜가 있음
 const DOM_BODY = [
   '오늘6일(화)이벤트4주차감성돔조황입니다.',
@@ -360,8 +398,15 @@ assert.equal(storage.size, before, '실패하면 올린 사진을 정리한다')
 assert.equal(rows.community_photos.length, 1);
 
 // ---------- 일정 등록 ----------
-const tripReq: PushRequest = { postId: '200', kind: 'schedule', trip: { ...prepTrip.trip, dates: ['2026-10-12', '2026-10-13'], contact: '010-1111-2222' } };
-assert.throws(() => service.checkPush({ ...tripReq, trip: { ...tripReq.trip!, destination: ' ', departureTime: '' } }), /목적지을\(를\) 입력하세요\n출항 시간을\(를\) 입력하세요/);
+const tripReq: PushRequest = {
+  postId: '200',
+  kind: 'schedule',
+  trip: { ...prepTrip.trip, contact: '010-1111-2222', rows: [prepTrip.trip.rows[0], { ...prepTrip.trip.rows[0], date: '2026-10-13' }] },
+};
+assert.throws(
+  () => service.checkPush({ ...tripReq, trip: { ...tripReq.trip!, destination: ' ', rows: [{ ...prepTrip.trip.rows[0], departureTime: '' }] } }),
+  /목적지을\(를\) 입력하세요\n출항 시간을\(를\) 입력하세요/,
+);
 
 // 만료된 토큰은 갱신해서 쓴다
 const expiring = readOhgoSession(dir)!;
@@ -382,7 +427,7 @@ assert.deepEqual(
     return_time: '14:00',
     species: '참돔',
     capacity: 10,
-    notes: prepTrip.trip.notes,
+    notes: prepTrip.trip.rows[0].notes,
   })),
   '없는 칸(contact)은 빼고 저장',
 );
@@ -392,6 +437,33 @@ assert.equal(readLedger(dir).entries[`${REF}/88348442/200`].target, 'trip_guides
 fake.failTripInsertAt = fake.tripInserts + 1;
 await assert.rejects(service.push({ ...tripReq, force: true }, () => {}), /trip_guides 저장 실패: boom/);
 assert.equal(rows.trip_guides.length, 2, '실패한 묶음은 남기지 않는다');
+
+// 주간 일정: 체크한 줄만 한 번에 저장, 상태는 비고로
+const weeklyReq: PushRequest = {
+  postId: '300',
+  kind: 'schedule',
+  trip: { ...prepWeekly.trip, rows: prepWeekly.trip.rows.filter((r) => r.date !== '2026-10-07') },
+};
+fake.failTripInsertAt = fake.tripInserts + 3;
+await assert.rejects(service.push(weeklyReq, () => {}), /trip_guides 저장 실패: boom/);
+assert.equal(rows.trip_guides.length, 2, '4번째 줄에서 실패하면 앞의 3건도 지운다');
+const weeklyLogs: string[] = [];
+const weeklyDone = await service.push(weeklyReq, (m) => weeklyLogs.push(m));
+assert.equal(weeklyDone.rowIds.length, 6);
+assert.ok(weeklyLogs.some((l) => l.includes('저장 중 6/6: 2026-10-11 06:00 낫개 감성돔')));
+assert.deepEqual(
+  rows.trip_guides.slice(2).map((r) => [r.date, r.departure_time, r.destination, r.species, r.price, r.notes, r.contact, 'return_time' in r]),
+  [
+    ['2026-10-05', '06:00', '낫개', '감성돔', 100000, '예약마감', '010-3597-4100', false],
+    ['2026-10-06', '07:00', '낫개', '감성돔', 100000, '자리여유', '010-3597-4100', false],
+    ['2026-10-08', '06:00', '낫개', '감성돔', 100000, '자리여유', '010-3597-4100', false],
+    ['2026-10-09', '06:00', '낫개', '감성돔', 100000, '예약마감', '010-3597-4100', false],
+    ['2026-10-10', '06:00', '낫개', '감성돔', 100000, '자리여유', '010-3597-4100', false],
+    ['2026-10-11', '06:00', '낫개', '감성돔', 100000, '자리여유', '010-3597-4100', false],
+  ],
+);
+assert.equal(readLedger(dir).entries[`${REF}/88348442/300`].title, '2026-10-05 ~ 2026-10-11 낫개 6건');
+assert.throws(() => service.checkPush(weeklyReq), (err: OhgoRequestRejected) => err.code === 'DUPLICATE');
 
 // 다른 페이지 주소는 열지 않는다
 assert.equal(service.isAppLink(`${SITE}/community/x`), true);
