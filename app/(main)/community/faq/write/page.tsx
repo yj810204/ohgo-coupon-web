@@ -16,6 +16,8 @@ import {
 } from '@/utils/board-category-service';
 import CategoryChipRow from '@/components/community/CategoryChipRow';
 import NoticeCheckRow from '@/components/community/NoticeCheckRow';
+import CKEditorComponent from '@/components/CKEditor';
+import { isEmptyRichText, storedRichText, toEditorHtml } from '@/lib/rich-text';
 import { useImageEditQueue } from '@/hooks/useImageEditQueue';
 import {
   OHGO_CARD,
@@ -84,7 +86,7 @@ function FaqWriteContent() {
             return;
           }
           setTitle(photo.title || '');
-          setDescription(photo.description || '');
+          setDescription(toEditorHtml(photo.description || ''));
           setIsNotice(Boolean(photo.isNotice));
           setCategory(activeOrFallback(cats, photo.category));
           const urls =
@@ -150,7 +152,7 @@ function FaqWriteContent() {
       alert('제목을 입력해주세요.');
       return;
     }
-    if (!description.trim()) {
+    if (isEmptyRichText(description)) {
       alert('내용을 입력해주세요.');
       return;
     }
@@ -160,7 +162,7 @@ function FaqWriteContent() {
       if (isEdit && editPhotoId) {
         await updatePhoto(editPhotoId, {
           title: title.trim(),
-          description: description.trim(),
+          description: storedRichText(description),
           category,
           isNotice,
           imageUrls: existingUrls,
@@ -174,7 +176,7 @@ function FaqWriteContent() {
           user.uuid,
           user.name,
           title.trim(),
-          description.trim(),
+          storedRichText(description),
           undefined,
           undefined,
           undefined,
@@ -247,13 +249,13 @@ function FaqWriteContent() {
         <label style={{ fontSize: 13, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT, display: 'block', marginBottom: 8 }}>
           내용 *
         </label>
-        <textarea
-          className="form-control"
-          style={{ ...OHGO_INPUT, minHeight: 160 }}
+        <CKEditorComponent
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={setDescription}
           placeholder="회원에게 전달할 팁이나 FAQ를 적어주세요."
           disabled={uploading}
+          minHeight={160}
+          showSourceToggle={false}
         />
       </div>
 
@@ -344,7 +346,7 @@ function FaqWriteContent() {
         type="button"
         className={`btn w-100 fw-semibold ${OHGO_CONFIRM_BTN_CLASS}`}
         style={OHGO_CONFIRM_BTN}
-        disabled={uploading || !title.trim() || !description.trim() || editQueue.isEditing}
+        disabled={uploading || !title.trim() || isEmptyRichText(description) || editQueue.isEditing}
         onClick={() => void handleSubmit()}
       >
         {uploading ? '저장 중...' : isEdit ? '수정 완료' : '등록하기'}

@@ -11,6 +11,8 @@ import { ohgoAlert } from '@/lib/ohgo-dialog';
 import { getPhoto, updatePhoto, uploadPhoto } from '@/utils/community-service';
 import { useImageEditQueue } from '@/hooks/useImageEditQueue';
 import NoticeCheckRow from '@/components/community/NoticeCheckRow';
+import CKEditorComponent from '@/components/CKEditor';
+import { storedRichText, toEditorHtml } from '@/lib/rich-text';
 import {
   OHGO_CARD,
   OHGO_CONFIRM_BTN,
@@ -86,7 +88,7 @@ function CommunityPhotoUploadContent() {
             return;
           }
           setTitle(photo.title || '');
-          setDescription(photo.description || '');
+          setDescription(toEditorHtml(photo.description || ''));
           setIsNotice(Boolean(photo.isNotice));
           const urls =
             photo.imageUrls && photo.imageUrls.length > 0
@@ -154,7 +156,7 @@ function CommunityPhotoUploadContent() {
       if (isEdit && editPhotoId) {
         await updatePhoto(editPhotoId, {
           title: title.trim() || '',
-          description: description.trim() || '',
+          description: storedRichText(description),
           ...(user.isAdmin ? { isNotice } : {}),
           imageUrls: existingUrls,
           imageFile: files.length > 0 ? files : undefined,
@@ -167,7 +169,7 @@ function CommunityPhotoUploadContent() {
           user.uuid,
           user.name,
           title.trim() || undefined,
-          description.trim() || undefined,
+          storedRichText(description) || undefined,
           undefined,
           undefined,
           undefined,
@@ -327,19 +329,17 @@ function CommunityPhotoUploadContent() {
 
       <div style={{ ...OHGO_CARD, padding: '14px 16px', marginBottom: 16 }}>
         <label
-          htmlFor="photo-desc"
           style={{ fontSize: 13, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT, display: 'block', marginBottom: 8 }}
         >
           설명
         </label>
-        <textarea
-          id="photo-desc"
-          className="form-control"
-          style={{ ...OHGO_INPUT, minHeight: 88 }}
+        <CKEditorComponent
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={setDescription}
           placeholder="설명 (선택)"
           disabled={uploading}
+          minHeight={120}
+          showSourceToggle={false}
         />
       </div>
 

@@ -7,6 +7,8 @@ interface CKEditorComponentProps {
   onChange: (data: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  minHeight?: number;
+  showSourceToggle?: boolean;
 }
 
 export default function CKEditorComponent({
@@ -14,6 +16,8 @@ export default function CKEditorComponent({
   onChange,
   disabled = false,
   placeholder = '내용을 입력하세요...',
+  minHeight = 200,
+  showSourceToggle = true,
 }: CKEditorComponentProps) {
   const editorRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -64,6 +68,15 @@ export default function CKEditorComponent({
     }
   }, [value, showSource]);
 
+  // data prop은 처음 한 번만 반영되므로, 글을 나중에 불러오면 직접 넣는다.
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || showSource) return;
+    if (editor.getData() !== value) {
+      editor.setData(value || '');
+    }
+  }, [value, showSource]);
+
   if (!isReady || !EditorComponent) {
     return (
       <div className="form-control" style={{ minHeight: '200px', padding: '12px' }}>
@@ -91,17 +104,19 @@ export default function CKEditorComponent({
   };
 
   return (
-    <div className="ckeditor-wrapper" ref={containerRef}>
-      <div className="d-flex justify-content-end mb-2">
-        <button
-          type="button"
-          className="btn btn-sm btn-outline-secondary"
-          onClick={handleToggleSource}
-          disabled={disabled}
-        >
-          {showSource ? '에디터 모드' : 'HTML 소스 모드'}
-        </button>
-      </div>
+    <div className="ckeditor-wrapper" ref={containerRef} style={{ ['--ck-min-height' as string]: `${minHeight}px` }}>
+      {showSourceToggle ? (
+        <div className="d-flex justify-content-end mb-2">
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-secondary"
+            onClick={handleToggleSource}
+            disabled={disabled}
+          >
+            {showSource ? '에디터 모드' : 'HTML 소스 모드'}
+          </button>
+        </div>
+      ) : null}
       {showSource ? (
         <textarea
           className="form-control"
@@ -146,7 +161,7 @@ export default function CKEditorComponent({
       <style jsx global>{`
         .ckeditor-wrapper .ck-editor__editable,
         .ckeditor-wrapper .ck-content {
-          min-height: 200px;
+          min-height: var(--ck-min-height, 200px);
           word-break: keep-all;
           overflow-wrap: break-word;
         }

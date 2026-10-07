@@ -14,6 +14,7 @@ import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import QnaListItem from '@/components/community/QnaListItem';
 import { formatPhotoCardDate } from '@/lib/mask-member-name';
+import { htmlToPlainText } from '@/lib/rich-text';
 import { useNavigation } from '@/hooks/useNavigation';
 import { OhgoPageLoading } from '@/lib/page-styles';
 
@@ -117,7 +118,7 @@ export default function MyCommunityPostsPage() {
                     ? COMMUNITY_POST_DELETED_MESSAGE
                     : post.title?.trim() || '제목 없음'
                 }
-                excerpt={post.isDeleted ? undefined : post.description?.trim()}
+                excerpt={post.isDeleted ? undefined : htmlToPlainText(post.description || '')}
                 imageUrl={post.imageUrls?.[0] || post.imageUrl || undefined}
                 date={formatPhotoCardDate(post.uploadedAt)}
                 commentCount={post.commentCount}

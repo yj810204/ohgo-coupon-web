@@ -16,6 +16,8 @@ import {
 } from '@/utils/board-category-service';
 import CategoryChipRow from '@/components/community/CategoryChipRow';
 import NoticeCheckRow from '@/components/community/NoticeCheckRow';
+import CKEditorComponent from '@/components/CKEditor';
+import { isEmptyRichText, storedRichText, toEditorHtml } from '@/lib/rich-text';
 import { useImageEditQueue } from '@/hooks/useImageEditQueue';
 import {
   OHGO_CARD,
@@ -95,7 +97,7 @@ function QnaWriteContent() {
             return;
           }
           setTitle(photo.title || '');
-          setDescription(photo.description || '');
+          setDescription(toEditorHtml(photo.description || ''));
           setIsNotice(Boolean(photo.isNotice));
           setCategory(activeOrFallback(cats, photo.category));
           const urls =
@@ -162,7 +164,7 @@ function QnaWriteContent() {
       alert('제목을 입력해주세요.');
       return;
     }
-    if (!description.trim()) {
+    if (isEmptyRichText(description)) {
       alert('질문 내용을 입력해주세요.');
       return;
     }
@@ -172,7 +174,7 @@ function QnaWriteContent() {
       if (isEdit && editPhotoId) {
         await updatePhoto(editPhotoId, {
           title: title.trim(),
-          description: description.trim(),
+          description: storedRichText(description),
           category,
           ...(user.isAdmin ? { isNotice } : {}),
           imageUrls: existingUrls,
@@ -186,7 +188,7 @@ function QnaWriteContent() {
           user.uuid,
           user.name,
           title.trim(),
-          description.trim(),
+          storedRichText(description),
           undefined,
           undefined,
           undefined,
@@ -265,19 +267,17 @@ function QnaWriteContent() {
 
       <div style={{ ...OHGO_CARD, padding: '14px 16px', marginBottom: 12 }}>
         <label
-          htmlFor="qna-desc"
           style={{ fontSize: 13, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT, display: 'block', marginBottom: 8 }}
         >
           내용 *
         </label>
-        <textarea
-          id="qna-desc"
-          className="form-control"
-          style={{ ...OHGO_INPUT, minHeight: 140 }}
+        <CKEditorComponent
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={setDescription}
           placeholder="상황을 자세히 적어주시면 더 정확한 답변을 받을 수 있습니다."
           disabled={uploading}
+          minHeight={160}
+          showSourceToggle={false}
         />
       </div>
 
@@ -381,7 +381,7 @@ function QnaWriteContent() {
         type="button"
         className={`btn w-100 fw-semibold ${OHGO_CONFIRM_BTN_CLASS}`}
         style={OHGO_CONFIRM_BTN}
-        disabled={uploading || !title.trim() || !description.trim() || editQueue.isEditing}
+        disabled={uploading || !title.trim() || isEmptyRichText(description) || editQueue.isEditing}
         onClick={() => void handleSubmit()}
       >
         {uploading ? '저장 중...' : isEdit ? '수정 완료' : '등록하기'}
