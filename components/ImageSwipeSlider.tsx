@@ -188,6 +188,7 @@ export default function ImageSwipeSlider({
           fontWeight: 700,
           fontFamily: OHGO_FONT,
           lineHeight: 1.2,
+          zIndex: 2,
           pointerEvents: 'none',
         }}
       >
@@ -201,6 +202,7 @@ export default function ImageSwipeSlider({
           left: 0,
           right: 0,
           bottom: 10,
+          zIndex: 2,
           pointerEvents: 'none',
         }}
       >

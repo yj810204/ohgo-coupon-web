@@ -35,6 +35,7 @@ export default function BlurFillImage({
       style={{
         position: 'relative',
         overflow: 'hidden',
+        isolation: 'isolate',
         width: '100%',
         height: '100%',
         ...style,
