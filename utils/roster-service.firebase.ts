@@ -639,6 +639,7 @@ export async function createGuestMember(input: {
   emergency: string;
   address: string;
   addressDetail?: string;
+  tripRole?: 'captain' | 'sailor';
 }): Promise<void> {
   const db = getFirebaseDb();
   const userRef = doc(db, 'users', input.uuid);
@@ -651,7 +652,10 @@ export async function createGuestMember(input: {
       phone: input.phone || null,
       createdAt: new Date().toISOString(),
       isAdmin: false,
+      ...(input.tripRole ? { role: input.tripRole } : {}),
     });
+  } else if (input.tripRole) {
+    await updateDoc(userRef, { role: input.tripRole });
   }
 
   await setDoc(
@@ -664,6 +668,7 @@ export async function createGuestMember(input: {
       emergency: input.emergency,
       address: input.address,
       ...(input.addressDetail?.trim() ? { addressDetail: input.addressDetail.trim() } : {}),
+      ...(input.tripRole ? { role: input.tripRole } : {}),
       agreed: true,
       agreedThirdParty: true,
     },

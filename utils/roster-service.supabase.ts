@@ -484,6 +484,7 @@ export async function createGuestMember(input: {
   emergency: string;
   address: string;
   addressDetail?: string;
+  tripRole?: 'captain' | 'sailor';
 }): Promise<void> {
   const supabase = getSupabaseBrowserClient();
   const { error: profileError } = await supabase.from('guest_profiles').insert({

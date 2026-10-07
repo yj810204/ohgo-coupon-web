@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect, useState, Suspense, useCallback, useRef, type CSSProperties } from 'react';
+import { useEffect, useState, Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
 import { resolveAppUser } from '@/lib/auth-session';
 import { getBoardingForm, saveBoardingForm } from '@/utils/boarding-service';
 import { normalizePersonName } from '@/lib/person-name';
-import { IoSearchOutline } from 'react-icons/io5';
-import PostcodeSearchModal, { usePostcodeScript } from '@/components/PostcodeSearchModal';
+import BoardingInfoFields, {
+  EMPTY_BOARDING_INFO,
+  type BoardingInfoValues,
+} from '@/components/boarding/BoardingInfoFields';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal, { OhgoModalButton, OhgoModalCancelLink, OhgoModalText } from '@/components/OhgoModal';
 import {
@@ -16,76 +18,9 @@ import {
   OHGO_CONFIRM_BTN,
   OHGO_CONFIRM_BTN_CLASS,
   OHGO_FONT,
-  OHGO_INPUT,
   OhgoPageLoading,
 } from '@/lib/page-styles';
 import { OHGO_ISOLATED_HTML_WORD_BREAK_CSS } from '@/lib/html-word-break';
-
-const FIELD_LABEL: CSSProperties = {
-  display: 'block',
-  fontSize: 13,
-  fontWeight: 700,
-  color: '#6F767E',
-  fontFamily: OHGO_FONT,
-  marginBottom: 8,
-};
-
-const PILL_RADIUS = 9999;
-
-const segmentInactiveStyle: CSSProperties = {
-  backgroundColor: '#F7F8FA',
-  color: '#6F767E',
-  border: '1.5px solid #C2C6CE',
-};
-
-const segmentActiveStyle: CSSProperties = {
-  backgroundColor: '#1B6FF5',
-  color: '#FFFFFF',
-  border: '1.5px solid #1B6FF5',
-};
-
-const pillFieldStyle: CSSProperties = {
-  borderRadius: PILL_RADIUS,
-  border: '1.5px solid #C2C6CE',
-  padding: '10px 16px',
-  fontFamily: OHGO_FONT,
-  fontSize: 14,
-  color: '#1A1D1F',
-  outline: 'none',
-  boxShadow: 'none',
-  boxSizing: 'border-box',
-  width: '100%',
-};
-
-function SegmentButton({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className="flex-fill"
-      style={{
-        ...(active ? segmentActiveStyle : segmentInactiveStyle),
-        borderRadius: PILL_RADIUS,
-        padding: '10px 12px',
-        fontFamily: OHGO_FONT,
-        fontSize: 14,
-        fontWeight: 600,
-        cursor: 'pointer',
-      }}
-      onClick={onClick}
-    >
-      {label}
-    </button>
-  );
-}
-
 
 const PRIVACY_POLICY_HTML = `
 <!DOCTYPE html>
@@ -160,42 +95,19 @@ function BoardingFormContent() {
   const dateDisplay = searchParams.get('dateDisplay');
   const tripNumber = searchParams.get('tripNumber');
 
-  const [name, setName] = useState('');
-  const [birth, setBirth] = useState('');
-  const [gender, setGender] = useState('');
-  const [phone, setPhone] = useState('');
-  const [emergency, setEmergency] = useState('');
-  const [address, setAddress] = useState('');
-  const [addressDetail, setAddressDetail] = useState('');
+  const [form, setForm] = useState<BoardingInfoValues>(EMPTY_BOARDING_INFO);
+  const patchForm = useCallback((patch: Partial<BoardingInfoValues>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+  }, []);
+  const { name, birth, gender, phone, emergency, address, addressDetail, role } = form;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [role, setRole] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [agreedThirdParty, setAgreedThirdParty] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showThirdPartyModal, setShowThirdPartyModal] = useState(false);
   const [showConsentSheet, setShowConsentSheet] = useState(false);
-  const [showPostcodeModal, setShowPostcodeModal] = useState(false);
   const [loading, setLoading] = useState(true);
-  const addressDetailRef = useRef<HTMLTextAreaElement>(null);
-
-  usePostcodeScript();
-
-  const applySelectedAddress = useCallback((fullAddress: string) => {
-    setAddress(fullAddress);
-    setAddressDetail('');
-    setShowPostcodeModal(false);
-    window.setTimeout(() => addressDetailRef.current?.focus(), 150);
-  }, []);
-
-  const openAddressSearch = useCallback(() => {
-    if (!window.daum?.Postcode && !document.getElementById('daum-postcode-script')) {
-      alert('주소 검색 서비스를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
-      return;
-    }
-    setShowPostcodeModal(true);
-  }, []);
-
   useEffect(() => {
     const formatSignupDob = (raw?: string | null) => {
       if (!raw) return '';
@@ -210,8 +122,8 @@ function BoardingFormContent() {
       try {
         const urlName = paramName ? decodeURIComponent(paramName) : '';
         const urlDob = dob ? formatSignupDob(decodeURIComponent(dob)) : '';
-        if (urlName) setName(urlName);
-        if (urlDob) setBirth(urlDob);
+        if (urlName) patchForm({ name: urlName });
+        if (urlDob) patchForm({ birth: urlDob });
 
         let userUuid = '';
 
@@ -236,19 +148,21 @@ function BoardingFormContent() {
         if (userUuid) {
           const record = await getBoardingForm(userUuid);
           if (record) {
-            setName(record.name || urlName || '');
-            setBirth(record.birth || urlDob || '');
-            setGender(record.gender || '');
-            setPhone(record.phone || '');
-            setEmergency(record.emergency || '');
-            setAddress(record.address || '');
-            setAddressDetail(record.addressDetail || '');
+            setForm({
+              name: record.name || urlName || '',
+              birth: record.birth || urlDob || '',
+              gender: record.gender || '',
+              phone: record.phone || '',
+              emergency: record.emergency || '',
+              address: record.address || '',
+              addressDetail: record.addressDetail || '',
+              role: record.tripRole || '',
+            });
             setAgreed(record.agreed);
             setAgreedThirdParty(record.agreedThirdParty);
-            setRole(record.tripRole || '');
           } else if (!editingOther) {
-            if (!urlName && signupName) setName(signupName);
-            if (!urlDob && signupDob) setBirth(signupDob);
+            if (!urlName && signupName) patchForm({ name: signupName });
+            if (!urlDob && signupDob) patchForm({ birth: signupDob });
           }
         }
       } catch (e) {
@@ -259,35 +173,7 @@ function BoardingFormContent() {
     };
 
     loadData();
-  }, [uuid, paramName, dob]);
-
-  // Format phone number as user types
-  const formatPhoneNumber = (text: string) => {
-    const cleaned = text.replace(/\D/g, '');
-    let formatted = '';
-    if (cleaned.length <= 3) {
-      formatted = cleaned;
-    } else if (cleaned.length <= 7) {
-      formatted = `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
-    } else {
-      formatted = `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7, 11)}`;
-    }
-    return formatted;
-  };
-
-  // Format DOB as user types
-  const formatDOB = (text: string) => {
-    const cleaned = text.replace(/\D/g, '');
-    let formatted = '';
-    if (cleaned.length <= 4) {
-      formatted = cleaned;
-    } else if (cleaned.length <= 6) {
-      formatted = `${cleaned.slice(0, 4)}-${cleaned.slice(4)}`;
-    } else {
-      formatted = `${cleaned.slice(0, 4)}-${cleaned.slice(4, 6)}-${cleaned.slice(6, 8)}`;
-    }
-    return formatted;
-  };
+  }, [uuid, paramName, dob, patchForm]);
 
   const persistBoarding = async (consent: { agreed: boolean; agreedThirdParty: boolean }) => {
     setIsSubmitting(true);
@@ -372,122 +258,7 @@ function BoardingFormContent() {
   return (
     <SubPageFrame title="명부 작성">
       <div className="p-3 mb-3 ohgo-boarding-card" style={OHGO_CARD}>
-        <div className="mb-3">
-          <label style={FIELD_LABEL}>이름 *</label>
-          <input
-            type="text"
-            placeholder="홍길동"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            style={{ ...OHGO_INPUT, width: '100%', backgroundColor: '#FFFFFF' }}
-          />
-        </div>
-
-        <div className="mb-3">
-          <label style={FIELD_LABEL}>생년월일 *</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            placeholder="예: 19900101"
-            value={birth}
-            onChange={(e) => setBirth(formatDOB(e.target.value))}
-            maxLength={10}
-            style={{ ...OHGO_INPUT, width: '100%', backgroundColor: '#FFFFFF' }}
-          />
-        </div>
-
-        <div className="mb-3">
-          <label style={FIELD_LABEL}>성별 *</label>
-          <div className="ohgo-stack-pair">
-            <SegmentButton label="남" active={gender === '남'} onClick={() => setGender('남')} />
-            <SegmentButton label="여" active={gender === '여'} onClick={() => setGender('여')} />
-          </div>
-        </div>
-
-        <div className="mb-3">
-          <label style={FIELD_LABEL}>연락처 *</label>
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
-            maxLength={13}
-            style={{ ...OHGO_INPUT, width: '100%', backgroundColor: '#FFFFFF' }}
-          />
-        </div>
-
-        <div className="mb-3">
-          <label style={FIELD_LABEL}>비상 연락처 *</label>
-          <input
-            type="tel"
-            value={emergency}
-            onChange={(e) => setEmergency(formatPhoneNumber(e.target.value))}
-            maxLength={13}
-            style={{ ...OHGO_INPUT, width: '100%', backgroundColor: '#FFFFFF' }}
-          />
-        </div>
-
-        <div className="mb-3">
-          <label style={FIELD_LABEL}>주소 *</label>
-          <div className="ohgo-stack-pair mb-2">
-            <input
-              type="text"
-              placeholder="주소 검색 버튼을 눌러주세요"
-              value={address}
-              readOnly
-              className="flex-grow-1 min-w-0"
-              style={{
-                ...pillFieldStyle,
-                backgroundColor: address ? '#FFFFFF' : '#F7F8FA',
-                cursor: 'default',
-              }}
-            />
-            <button
-              type="button"
-              onClick={openAddressSearch}
-              className="d-flex align-items-center justify-content-center gap-1 flex-shrink-0"
-              style={{
-                ...segmentActiveStyle,
-                borderRadius: PILL_RADIUS,
-                padding: '10px 18px',
-                fontSize: 14,
-                fontWeight: 600,
-                whiteSpace: 'nowrap',
-                fontFamily: OHGO_FONT,
-                cursor: 'pointer',
-              }}
-            >
-              <IoSearchOutline size={16} />
-              검색
-            </button>
-          </div>
-          <textarea
-            ref={addressDetailRef}
-            rows={3}
-            placeholder={address ? '상세 주소 입력 (동/호수 등)' : '주소 검색 후 상세 주소를 입력하세요'}
-            value={addressDetail}
-            onChange={(e) => setAddressDetail(e.target.value)}
-            autoComplete="address-line2"
-            className="w-100"
-            style={{
-              ...OHGO_INPUT,
-              width: '100%',
-              backgroundColor: '#FFFFFF',
-              resize: 'vertical',
-              minHeight: 72,
-            }}
-          />
-        </div>
-
-        {isAdmin && (
-          <div className="mb-3">
-            <label style={FIELD_LABEL}>역할</label>
-            <div className="d-flex gap-2">
-              <SegmentButton label="선장" active={role === 'captain'} onClick={() => setRole('captain')} />
-              <SegmentButton label="선원" active={role === 'sailor'} onClick={() => setRole('sailor')} />
-              <SegmentButton label="없음" active={role === 'none'} onClick={() => setRole('none')} />
-            </div>
-          </div>
-        )}
+        <BoardingInfoFields values={form} onChange={patchForm} showRole={isAdmin} />
       </div>
 
       <button
@@ -593,11 +364,6 @@ function BoardingFormContent() {
         />
       </OhgoModal>
 
-      <PostcodeSearchModal
-        open={showPostcodeModal}
-        onClose={() => setShowPostcodeModal(false)}
-        onSelect={applySelectedAddress}
-      />
     </SubPageFrame>
   );
 }

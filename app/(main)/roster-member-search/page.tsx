@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/hooks/useAppRouter';
 import {
@@ -11,11 +11,15 @@ import {
   findUserByNameDob,
 } from '@/utils/roster-service';
 import { getUser } from '@/lib/storage';
+import { resolveAppUser } from '@/lib/auth-session';
 import { computeLegacyUuid } from '@/lib/legacy-uuid';
 import { normalizePersonName } from '@/lib/person-name';
 import { IoSearchOutline, IoAddOutline, IoPersonOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
-import PostcodeSearchModal, { usePostcodeScript } from '@/components/PostcodeSearchModal';
+import BoardingInfoFields, {
+  EMPTY_BOARDING_INFO,
+  type BoardingInfoValues,
+} from '@/components/boarding/BoardingInfoFields';
 import {
   OHGO_CARD,
   OHGO_CONFIRM_BTN,
@@ -30,32 +34,11 @@ import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import EmptyState from '@/components/EmptyState';
 import type { CSSProperties } from 'react';
 
-const LABEL: CSSProperties = {
-  display: 'block',
-  fontSize: 13,
-  fontWeight: 700,
-  color: '#6F767E',
-  fontFamily: OHGO_FONT,
-  marginBottom: 8,
-};
-
 const FIELD: CSSProperties = {
   ...OHGO_INPUT,
   width: '100%',
   backgroundColor: '#FFFFFF',
 };
-
-const pillBtn = (active: boolean): CSSProperties => ({
-  border: 'none',
-  borderRadius: 20,
-  padding: '8px 14px',
-  fontSize: 14,
-  fontWeight: 700,
-  fontFamily: OHGO_FONT,
-  backgroundColor: active ? '#EBF1FE' : '#F2F3F5',
-  color: active ? '#1B6FF5' : '#6F767E',
-  cursor: 'pointer',
-});
 
 interface UserData {
   id: string;
@@ -79,16 +62,11 @@ function RosterMemberSearchContent() {
   const [searchResults, setSearchResults] = useState<UserData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showNewMemberForm, setShowNewMemberForm] = useState(false);
-  const [newMemberName, setNewMemberName] = useState('');
-  const [newMemberPhone, setNewMemberPhone] = useState('');
-  const [newMemberDob, setNewMemberDob] = useState('');
-  const [newMemberGender, setNewMemberGender] = useState('');
-  const [newMemberEmergency, setNewMemberEmergency] = useState('');
-  const [newMemberAddress, setNewMemberAddress] = useState('');
-  const [newMemberAddressDetail, setNewMemberAddressDetail] = useState('');
-  const [showPostcode, setShowPostcode] = useState(false);
-  const addressDetailRef = useRef<HTMLInputElement>(null);
-  usePostcodeScript();
+  const [newMember, setNewMember] = useState<BoardingInfoValues>(EMPTY_BOARDING_INFO);
+  const patchNewMember = useCallback((patch: Partial<BoardingInfoValues>) => {
+    setNewMember((prev) => ({ ...prev, ...patch }));
+  }, []);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const searchMembers = useCallback(async () => {
@@ -116,6 +94,8 @@ function RosterMemberSearchContent() {
         router.replace('/login');
         return;
       }
+      const appUser = await resolveAppUser();
+      setIsAdmin(Boolean(appUser?.isAdmin || user.isAdmin));
     };
     checkAuth();
   }, [router]);
@@ -164,43 +144,39 @@ function RosterMemberSearchContent() {
   };
 
   const createNewMemberAndAddToRoster = async () => {
-    if (!newMemberName.trim()) {
+    const dobDigits = newMember.birth.replace(/\D/g, '');
+    if (!newMember.name.trim()) {
       alert('이름을 입력해주세요.');
       return;
     }
-    
-    if (!newMemberPhone.trim()) {
-      alert('전화번호를 입력해주세요.');
-      return;
-    }
-    
-    if (!newMemberDob.trim() || newMemberDob.length !== 8) {
+    if (dobDigits.length !== 8) {
       alert('생년월일을 8자리로 입력해주세요. (예: 19900101)');
       return;
     }
-    
-    if (!newMemberGender) {
+    if (!newMember.gender) {
       alert('성별을 선택해주세요.');
       return;
     }
-    
-    if (!newMemberEmergency.trim()) {
+    if (!newMember.phone.trim()) {
+      alert('연락처를 입력해주세요.');
+      return;
+    }
+    if (!newMember.emergency.trim()) {
       alert('비상 연락처를 입력해주세요.');
       return;
     }
-    
-    if (!newMemberAddress.trim()) {
+    if (!newMember.address.trim()) {
       alert('주소 검색으로 주소를 입력해주세요.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const name = normalizePersonName(newMemberName);
-      const dob = newMemberDob.trim();
-      const phone = newMemberPhone.trim();
-      const emergency = newMemberEmergency.trim();
-      const address = newMemberAddress.trim();
+      const name = normalizePersonName(newMember.name);
+      const dob = dobDigits;
+      const phone = newMember.phone.trim();
+      const emergency = newMember.emergency.trim();
+      const address = newMember.address.trim();
       const existingId = await findUserByNameDob(name, dob);
       const memberUuid = existingId ?? computeLegacyUuid(name, dob);
 
@@ -226,10 +202,11 @@ function RosterMemberSearchContent() {
         name,
         dob,
         phone,
-        gender: newMemberGender,
+        gender: newMember.gender,
         emergency,
         address,
-        addressDetail: newMemberAddressDetail.trim() || undefined,
+        addressDetail: newMember.addressDetail.trim() || undefined,
+        tripRole: isAdmin && (newMember.role === 'captain' || newMember.role === 'sailor') ? newMember.role : undefined,
       });
 
       await addMemberToDailyRoster(String(date), memberUuid, parseInt(tripNumber || '1'));
@@ -352,93 +329,7 @@ function RosterMemberSearchContent() {
           >
             새 회원 등록
           </div>
-          <div className="mb-3">
-            <label style={LABEL}>이름 *</label>
-            <input
-              type="text"
-              value={newMemberName}
-              onChange={(e) => setNewMemberName(e.target.value)}
-              style={FIELD}
-            />
-          </div>
-          <div className="mb-3">
-            <label style={LABEL}>생년월일 (8자리) *</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="예: 19900101"
-              value={newMemberDob}
-              onChange={(e) => setNewMemberDob(e.target.value.replace(/\D/g, '').slice(0, 8))}
-              maxLength={8}
-              style={FIELD}
-            />
-          </div>
-          <div className="mb-3">
-            <label style={LABEL}>전화번호 *</label>
-            <input
-              type="tel"
-              value={newMemberPhone}
-              onChange={(e) => setNewMemberPhone(e.target.value)}
-              style={FIELD}
-            />
-          </div>
-          <div className="mb-3">
-            <label style={LABEL}>성별 *</label>
-            <div className="d-flex gap-2">
-              {(['남', '여'] as const).map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  className="flex-fill"
-                  style={pillBtn(newMemberGender === g)}
-                  onClick={() => setNewMemberGender(g)}
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="mb-3">
-            <label style={LABEL}>비상 연락처 *</label>
-            <input
-              type="tel"
-              value={newMemberEmergency}
-              onChange={(e) => setNewMemberEmergency(e.target.value)}
-              style={FIELD}
-            />
-          </div>
-          <div className="mb-3">
-            <label style={LABEL}>주소 *</label>
-            <div className="d-flex gap-2 mb-2">
-              <input
-                type="text"
-                value={newMemberAddress}
-                readOnly
-                placeholder="주소 검색 버튼을 눌러주세요"
-                onClick={() => setShowPostcode(true)}
-                className="flex-grow-1 min-w-0"
-                style={{ ...FIELD, backgroundColor: newMemberAddress ? '#FFFFFF' : '#F7F8FA', cursor: 'pointer' }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPostcode(true)}
-                className="d-flex align-items-center justify-content-center gap-1 flex-shrink-0"
-                style={{ ...pillBtn(true), borderRadius: 10, padding: '10px 16px', whiteSpace: 'nowrap' }}
-              >
-                <IoSearchOutline size={16} />
-                검색
-              </button>
-            </div>
-            <input
-              ref={addressDetailRef}
-              type="text"
-              value={newMemberAddressDetail}
-              onChange={(e) => setNewMemberAddressDetail(e.target.value)}
-              placeholder={newMemberAddress ? '상세 주소 (동/호수 등)' : '주소 검색 후 상세 주소를 입력하세요'}
-              autoComplete="address-line2"
-              style={FIELD}
-            />
-          </div>
+          <BoardingInfoFields values={newMember} onChange={patchNewMember} showRole={isAdmin} />
           <button
             type="button"
             className={`btn w-100 d-flex align-items-center justify-content-center gap-2 ${OHGO_CONFIRM_BTN_CLASS}`}
@@ -569,16 +460,6 @@ function RosterMemberSearchContent() {
       ) : searchText.trim() && !isLoading ? (
         <EmptyState icon={IoSearchOutline} message="검색 결과가 없습니다." />
       ) : null}
-      <PostcodeSearchModal
-        open={showPostcode}
-        onClose={() => setShowPostcode(false)}
-        onSelect={(address) => {
-          setNewMemberAddress(address);
-          setNewMemberAddressDetail('');
-          setShowPostcode(false);
-          window.setTimeout(() => addressDetailRef.current?.focus(), 150);
-        }}
-      />
     </SubPageFrame>
   );
 }
