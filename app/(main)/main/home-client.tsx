@@ -4,10 +4,9 @@ import { useEffect, useCallback, useState, Fragment } from 'react';
 import { getUser } from '@/lib/storage';
 import { resolveAppUser, peekAppUser } from '@/lib/auth-session';
 import { isDevAuthBypass } from '@/lib/dev-auth';
-import { getStamps, getCouponCount } from '@/utils/stamp-service';
-import { getPhotos, COMMUNITY_POST_DELETED_MESSAGE, type CommunityPhoto } from '@/utils/community-service';
-import { getPhotosForUser, type CaptainPhoto } from '@/utils/captain-photo-service';
-import { getActiveGames, type Game } from '@/lib/game-service';
+import { COMMUNITY_POST_DELETED_MESSAGE, type CommunityPhoto } from '@/utils/community-service.shared';
+import type { CaptainPhoto } from '@/utils/captain-photo-service.shared';
+import type { Game } from '@/lib/game-service.shared';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import AvatarHeader from '@/components/home/AvatarHeader';
@@ -23,31 +22,26 @@ import TripTidePanel from '@/components/trip/TripTidePanel';
 import WindWeatherCard from '@/components/trip/WindWeatherCard';
 import MarketListingCard from '@/components/market/MarketListingCard';
 import {
-  getTripsInDateRange,
   getWeekRange,
   tripDateToStr,
   type TripGuide,
-} from '@/utils/trip-guide-service';
-import { getApprovedListings, type MarketListing } from '@/utils/market-service';
-import { getAvatarPublicUrl } from '@/utils/member-profile-service';
+} from '@/utils/trip-guide-shared';
+import type { MarketListing } from '@/utils/market-service.shared';
 import { displayMemberName, formatPhotoCardDate } from '@/lib/mask-member-name';
 import {
   DEFAULT_HOME_SECTIONS,
   DEFAULT_HOME_SECTION_ORDER,
-  getSiteSettings,
   normalizeHomeSectionOrder,
   type HomeSectionId,
   type HomeSectionVisibility,
-} from '@/utils/site-settings-service';
+} from '@/utils/site-settings-shared';
 import {
   categoryLabel,
-  getBoardCategories,
   type BoardCategory,
 } from '@/utils/board-category-service';
 import { IoBookOutline, IoGameControllerOutline, IoHelpCircleOutline, IoStorefrontOutline } from 'react-icons/io5';
 import EmptyState from '@/components/EmptyState';
 import { OHGO_CARD, OHGO_LIST_DIVIDER, OhgoPageLoading } from '@/lib/page-styles';
-import { confirmBoardingForStampScan } from '@/lib/stamps/confirm-boarding-for-scan';
 import type { PublicHomeFeed } from '@/lib/public-feed-types';
 
 function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
@@ -111,21 +105,40 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
     applyHomeLayout({ homeSections: visibility, homeSectionOrder: sectionOrder });
 
     const weekRange = getWeekRange(new Date());
+    const [
+      stampsApi,
+      communityApi,
+      gamesApi,
+      marketApi,
+      captainApi,
+      profileApi,
+      tripsApi,
+      boardApi,
+    ] = await Promise.all([
+      import('@/utils/stamp-service'),
+      import('@/utils/community-service'),
+      import('@/lib/game-service'),
+      import('@/utils/market-service'),
+      import('@/utils/captain-photo-service'),
+      import('@/utils/member-profile-service'),
+      import('@/utils/trip-guide-service'),
+      import('@/utils/board-category-service'),
+    ]);
     const [stamps, coupons, photoList, faqList, qnaList, faqCats, qnaCats, activeGames, marketItems, taggedPhotos, avatar, trips] =
       await Promise.allSettled([
-        visibility.stampCoupon ? getStamps(uuid) : Promise.resolve([]),
-        visibility.stampCoupon ? getCouponCount(uuid) : Promise.resolve(0),
-        visibility.community ? getPhotos(4) : Promise.resolve([]),
-        visibility.community ? getPhotos(3, 'faq') : Promise.resolve([]),
-        visibility.community ? getPhotos(3, 'qna') : Promise.resolve([]),
-        visibility.community ? getBoardCategories('faq', { includeInactive: true }) : Promise.resolve([]),
-        visibility.community ? getBoardCategories('qna', { includeInactive: true }) : Promise.resolve([]),
-        visibility.miniGames ? getActiveGames() : Promise.resolve([]),
-        visibility.market ? getApprovedListings() : Promise.resolve([]),
-        visibility.myPhotos ? getPhotosForUser(uuid) : Promise.resolve([]),
-        getAvatarPublicUrl(uuid),
+        visibility.stampCoupon ? stampsApi.getStamps(uuid) : Promise.resolve([]),
+        visibility.stampCoupon ? stampsApi.getCouponCount(uuid) : Promise.resolve(0),
+        visibility.community ? communityApi.getPhotos(4) : Promise.resolve([]),
+        visibility.community ? communityApi.getPhotos(3, 'faq') : Promise.resolve([]),
+        visibility.community ? communityApi.getPhotos(3, 'qna') : Promise.resolve([]),
+        visibility.community ? boardApi.getBoardCategories('faq', { includeInactive: true }) : Promise.resolve([]),
+        visibility.community ? boardApi.getBoardCategories('qna', { includeInactive: true }) : Promise.resolve([]),
+        visibility.miniGames ? gamesApi.getActiveGames() : Promise.resolve([]),
+        visibility.market ? marketApi.getApprovedListings() : Promise.resolve([]),
+        visibility.myPhotos ? captainApi.getPhotosForUser(uuid) : Promise.resolve([]),
+        profileApi.getAvatarPublicUrl(uuid),
         visibility.weeklyTrip
-          ? getTripsInDateRange(tripDateToStr(weekRange.start), tripDateToStr(weekRange.end))
+          ? tripsApi.getTripsInDateRange(tripDateToStr(weekRange.start), tripDateToStr(weekRange.end))
           : Promise.resolve([]),
       ]);
 
@@ -146,6 +159,7 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
 
   const handleRefresh = useCallback(async () => {
     try {
+      const { getSiteSettings } = await import('@/utils/site-settings-service');
       const settingsPromise = getSiteSettings();
       const peeked = peekAppUser();
       const cached = peeked
@@ -277,6 +291,7 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
                   couponHref={`/coupons?${query}`}
                   onQrScan={async () => {
                     if (!user?.uuid) return false;
+                    const { confirmBoardingForStampScan } = await import('@/lib/stamps/confirm-boarding-for-scan');
                     const gate = await confirmBoardingForStampScan(user.uuid);
                     if (gate === 'go_form') navigate('/boarding-form');
                     if (gate !== 'ok') return false;

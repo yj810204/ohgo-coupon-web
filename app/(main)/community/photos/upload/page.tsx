@@ -11,7 +11,7 @@ import { ohgoAlert } from '@/lib/ohgo-dialog';
 import { getPhoto, updatePhoto, uploadPhoto } from '@/utils/community-service';
 import { useImageEditQueue } from '@/hooks/useImageEditQueue';
 import NoticeCheckRow from '@/components/community/NoticeCheckRow';
-import CKEditorComponent from '@/components/CKEditor';
+const CKEditorComponent = dynamic(() => import('@/components/CKEditor'), { ssr: false });
 import { postBodyHtml, storedRichText, toEditorHtml } from '@/lib/rich-text';
 import {
   OHGO_CARD,

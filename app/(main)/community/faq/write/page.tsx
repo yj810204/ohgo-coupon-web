@@ -16,7 +16,7 @@ import {
 } from '@/utils/board-category-service';
 import CategoryChipRow from '@/components/community/CategoryChipRow';
 import NoticeCheckRow from '@/components/community/NoticeCheckRow';
-import CKEditorComponent from '@/components/CKEditor';
+const CKEditorComponent = dynamic(() => import('@/components/CKEditor'), { ssr: false });
 import { isEmptyRichText, postBodyHtml, storedRichText, toEditorHtml } from '@/lib/rich-text';
 import { useImageEditQueue } from '@/hooks/useImageEditQueue';
 import {
