@@ -22,6 +22,7 @@ const prep: PrepareResult = {
   sourceUrl: 'https://band.us/band/88348442/post/2925',
   title: '감성돔 조황',
   refDate: '2026-10-06',
+  sourceCreatedAt: '2026-10-06T01:00:00.000Z',
   classification: { kind: 'catch', scores: { catch: 9, schedule: 0 }, reasons: ['제목에 조황'] },
   photo: { title: '감성돔 조황', description: '4짜 대박\n#낫개', photoDate: '2026-10-06', images: FILES, useFormatting: true },
   photoWarnings: [],
@@ -94,6 +95,12 @@ try {
   await page.evaluate(() => (window as unknown as { loadOhgo: (id: string) => Promise<void> }).loadOhgo('2925'));
   const thumbs = page.locator('#pThumbs .thumb');
   await thumbs.first().waitFor();
+  assert.match(await page.locator('#pDateNote').textContent() ?? '', /게시판에는 2026-10-06 10:00 \(한국 시간\)로 보이고[\s\S]*Band에 올린 시각입니다/);
+  await page.locator('#pDate').fill('2026-10-07');
+  assert.match(await page.locator('#pDateNote').textContent() ?? '', /게시판에는 2026-10-07 12:00 \(한국 시간\)로 보이고[\s\S]*낮 12시로 둡니다/);
+  await page.locator('#pDate').fill('');
+  assert.match(await page.locator('#pDateNote').textContent() ?? '', /등록한 시각으로 올라갑니다/);
+  await page.locator('#pDate').fill('2026-10-06');
   const shown = async () => thumbs.evaluateAll((els) => els.map((el) => `${(el as HTMLElement).dataset.file}:${el.querySelector('.num')!.textContent}`));
   assert.deepEqual(await shown(), ['01.jpg:1', '02.jpg:2', '03.png:3', '04.jpg:4']);
   assert.equal(await page.locator('#pThumbs button').count(), 4, '사진마다 빼기 버튼 하나만 있다 (화살표, 편집 버튼 없음)');
