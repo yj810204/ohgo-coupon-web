@@ -86,12 +86,10 @@
     background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; pointer-events: none;
   }
   .thumb.off .num { background: var(--err); padding: 0 7px; font-size: 12px; }
-  .thumb .bar { display: flex; justify-content: space-between; gap: 4px; margin-top: 3px; }
-  .thumb .bar button { flex: 1; padding: 1px 0; font-size: 11px; line-height: 18px; border-radius: 5px; }
+  .thumb img.pick { cursor: zoom-in; }
   .thumb .pickbtn { display: block; width: 100%; margin-top: 3px; padding: 1px 0; font-size: 11px; line-height: 18px; border-radius: 5px; }
   .thumb .pickbtn.out { color: var(--err); border-color: #f2c4c4; }
   .thumb .pickbtn.in { color: var(--accent); border-color: var(--accent); background: var(--accent-weak); font-weight: 600; }
-  .thumb .bar button.ed { flex: 1.6; }
   .thumb .edited {
     position: absolute; top: 4px; right: 4px; padding: 0 5px; border-radius: 999px; background: #fff; color: var(--accent);
     border: 1px solid var(--accent); font-size: 10px; font-weight: 700; line-height: 16px; pointer-events: none;
@@ -231,7 +229,7 @@
           <label class="field"><span>사진 날짜</span><input id="pDate" type="date"></label>
           <div class="field"><span>사진</span><div id="pCount" style="padding-top:8px"></div></div>
         </div>
-        <div class="sub" style="margin:8px 0 0">번호 순서대로 올라갑니다. 사진을 끌어다 놓거나 ◀ ▶로 순서를 바꿉니다. 올리지 않을 사진은 아래 ✕ 빼기를 누르세요 (다시 넣기로 되돌립니다). 편집을 누르면 자르기, 돌리기, 뒤집기를 할 수 있습니다 (원본은 그대로 둡니다). 5MB가 넘는 사진은 줄여서 올립니다.</div>
+        <div class="sub" style="margin:8px 0 0">번호 순서대로 올라갑니다. 사진을 끌어다 놓으면 순서가 바뀝니다. 사진을 누르면 자르기, 돌리기, 뒤집기를 할 수 있습니다 (원본은 그대로 둡니다). 올리지 않을 사진은 아래 ✕ 빼기를 누르세요 (다시 넣기로 되돌립니다). 5MB가 넘는 사진은 줄여서 올립니다.</div>
         <div id="pThumbs" class="thumbs"></div>
       </div>
 
@@ -399,6 +397,7 @@
   let picked = new Set();
   let photoOrder = [];
   let dragFile = null;
+  let draggedSincePress = false;
   let emailMode = false;
   let pushedFor = null;
 
@@ -514,7 +513,7 @@
 
   function renderThumbs() {
     const order = uploadOrder();
-    $('pThumbs').replaceChildren(...photoOrder.map((f, i) => {
+    $('pThumbs').replaceChildren(...photoOrder.map((f) => {
       const box = document.createElement('div');
       box.className = 'thumb';
       box.classList.toggle('off', !picked.has(f));
@@ -523,45 +522,28 @@
       const img = document.createElement('img');
       img.className = 'pick';
       img.src = thumbSrc(f);
-      img.title = `${f} (누르면 빼거나 다시 넣기)`;
+      img.title = `${f} (누르면 편집, 끌어서 순서 바꾸기)`;
       img.draggable = false;
-      const togglePick = () => {
-        if (picked.has(f)) picked.delete(f); else picked.add(f);
-        renderThumbs();
-      };
-      img.addEventListener('click', togglePick);
+      // 끌어다 놓은 뒤 새로 누르지 않고 들어오는 click은 끌기의 끝이라 무시한다
+      img.addEventListener('mousedown', () => { draggedSincePress = false; });
+      img.addEventListener('click', () => {
+        if (draggedSincePress) { draggedSincePress = false; return; }
+        openEditor(f);
+      });
       const num = document.createElement('span');
       num.className = 'num';
       num.textContent = picked.has(f) ? String(order.indexOf(f) + 1) : '뺌';
-      const left = document.createElement('button');
-      left.type = 'button';
-      left.className = 'mv';
-      left.textContent = '◀';
-      left.title = '앞으로';
-      left.disabled = i === 0;
-      left.addEventListener('click', () => movePhoto(f, i - 1));
-      const right = document.createElement('button');
-      right.type = 'button';
-      right.className = 'mv';
-      right.textContent = '▶';
-      right.title = '뒤로';
-      right.disabled = i === photoOrder.length - 1;
-      right.addEventListener('click', () => movePhoto(f, i + 1));
-      const edit = document.createElement('button');
-      edit.type = 'button';
-      edit.className = 'mv ed';
-      edit.textContent = '편집';
-      edit.addEventListener('click', () => openEditor(f));
-      const bar = document.createElement('div');
-      bar.className = 'bar';
-      bar.append(left, edit, right);
       const pick = document.createElement('button');
       pick.type = 'button';
+      pick.draggable = false;
       pick.className = picked.has(f) ? 'pickbtn out' : 'pickbtn in';
       pick.textContent = picked.has(f) ? '✕ 빼기' : '다시 넣기';
       pick.title = picked.has(f) ? '이 사진은 올리지 않기' : '이 사진도 올리기';
-      pick.addEventListener('click', togglePick);
-      box.append(img, num, bar, pick);
+      pick.addEventListener('click', () => {
+        if (picked.has(f)) picked.delete(f); else picked.add(f);
+        renderThumbs();
+      });
+      box.append(img, num, pick);
       if (photoEdit(f)) {
         const badge = document.createElement('span');
         badge.className = 'edited';
@@ -574,7 +556,7 @@
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', f);
       });
-      box.addEventListener('dragend', () => { dragFile = null; box.classList.remove('dragging'); });
+      box.addEventListener('dragend', () => { dragFile = null; draggedSincePress = true; box.classList.remove('dragging'); });
       box.addEventListener('dragover', (e) => { if (dragFile && dragFile !== f) { e.preventDefault(); box.classList.add('over'); } });
       box.addEventListener('dragleave', () => box.classList.remove('over'));
       box.addEventListener('drop', (e) => {
