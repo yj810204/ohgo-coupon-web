@@ -2,7 +2,7 @@
 
 import { useEffect, useCallback, useState, Fragment } from 'react';
 import { getUser } from '@/lib/storage';
-import { resolveAppUser } from '@/lib/auth-session';
+import { resolveAppUser, peekAppUser } from '@/lib/auth-session';
 import { isDevAuthBypass } from '@/lib/dev-auth';
 import { getStamps, getCouponCount } from '@/utils/stamp-service';
 import { getPhotos, COMMUNITY_POST_DELETED_MESSAGE, type CommunityPhoto } from '@/utils/community-service';
@@ -146,7 +146,10 @@ export default function MainPage() {
   const handleRefresh = useCallback(async () => {
     try {
       const settingsPromise = getSiteSettings();
-      const cached = await getUser();
+      const peeked = peekAppUser();
+      const cached = peeked
+        ? { uuid: peeked.uuid, name: peeked.name, dob: peeked.dob, isAdmin: peeked.isAdmin }
+        : await getUser();
       if (cached?.uuid) {
         const settings = await settingsPromise;
         applyHomeLayout(settings);

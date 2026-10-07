@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from '@/hooks/useAppRouter';
-import { getUser } from '@/lib/storage';
+import { useAuth } from '@/contexts/AuthContext';
 import { IoImageOutline, IoBoatOutline, IoHelpCircleOutline, IoBookOutline, IoChevronForwardOutline, IoWaterOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import AppLink from '@/components/AppLink';
@@ -61,15 +61,13 @@ const subMenuItems = [
 
 export default function CommunityPage() {
   const router = useRouter();
+  const { user, ready } = useAuth();
   const [counts, setCounts] = useState<Partial<Record<string, number>>>({});
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const user = await getUser();
-      if (!user?.uuid) router.replace('/login');
-    };
-    checkAuth();
-  }, [router]);
+    if (!ready) return;
+    if (!user?.uuid) router.replace('/login');
+  }, [ready, user, router]);
 
   useEffect(() => {
     const loadCounts = async () => {

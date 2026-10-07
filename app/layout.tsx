@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { LoadingProvider } from "@/contexts/LoadingContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 import PageLoader from "@/components/PageLoader";
 import SiteTitle from "@/components/SiteTitle";
 import BottomTabBar from "@/components/BottomTabBar";
@@ -44,17 +45,19 @@ export default function RootLayout({
       <body className="antialiased" suppressHydrationWarning>
         <NativeBridgeInit />
         <SiteTitle />
-        <LoadingProvider>
-          <div className="container-fluid px-0 bg-gray-50">
-            {children}
-          </div>
-          <BottomTabBar />
-          <PageLoader />
-          <OhgoDialogHost />
-          <ClientErrorBoundary>
-            <AppPopupHost />
-          </ClientErrorBoundary>
-        </LoadingProvider>
+        <AuthProvider>
+          <LoadingProvider>
+            <div className="container-fluid px-0 bg-gray-50">
+              {children}
+            </div>
+            <BottomTabBar />
+            <PageLoader />
+            <OhgoDialogHost />
+            <ClientErrorBoundary>
+              <AppPopupHost />
+            </ClientErrorBoundary>
+          </LoadingProvider>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -14,36 +14,51 @@ const inflight = new Map<string, Promise<unknown>>();
 export function cachedFetch<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
   const now = Date.now();
   const hit = store.get(key);
-  if (hit && hit.expiresAt > now) {
+  const fresh = Boolean(hit && hit.expiresAt > now);
+  if (fresh && hit) {
     return Promise.resolve(hit.value as T);
   }
 
   const pending = inflight.get(key);
+  // 만료된 값은 바로 돌려주고, 같은 키 요청은 뒤에서 한 번만 갱신한다.
+  if (hit && !fresh) {
+    if (!pending) start();
+    return Promise.resolve(hit.value as T);
+  }
   if (pending) return pending as Promise<T>;
+  return start();
 
-  const promise = fn()
-    .then((value) => {
-      store.set(key, { value, expiresAt: Date.now() + ttlMs });
-      inflight.delete(key);
-      return value;
-    })
-    .catch((err) => {
-      inflight.delete(key);
-      throw err;
-    });
-
-  inflight.set(key, promise);
-  return promise;
+  function start(): Promise<T> {
+    const promise = fn()
+      .then((value) => {
+        if (inflight.get(key) === promise) {
+          store.set(key, { value, expiresAt: Date.now() + ttlMs });
+          inflight.delete(key);
+        }
+        return value;
+      })
+      .catch((err) => {
+        if (inflight.get(key) === promise) inflight.delete(key);
+        if (hit) return hit.value as T;
+        throw err;
+      });
+    inflight.set(key, promise);
+    return promise;
+  }
 }
 
 /** prefix 없으면 전체 무효화. prefix 있으면 해당 키로 시작하는 항목만 제거 */
 export function invalidateCache(prefix?: string): void {
   if (!prefix) {
     store.clear();
+    inflight.clear();
     return;
   }
-  for (const key of store.keys()) {
+  for (const key of [...store.keys()]) {
     if (key.startsWith(prefix)) store.delete(key);
+  }
+  for (const key of [...inflight.keys()]) {
+    if (key.startsWith(prefix)) inflight.delete(key);
   }
 }
 

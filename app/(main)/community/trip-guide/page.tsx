@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   getReservationCount,
   getReservationSettings,
@@ -184,6 +185,7 @@ function TripScheduleRow({ trip, onClick }: { trip: TripGuide; onClick: () => vo
 
 export default function TripGuidePage() {
   const router = useRouter();
+  const { user: authUser, ready: authReady } = useAuth();
   const today = new Date();
   const todayStr = tripDateToStr(today);
   const [year, setYear] = useState(today.getFullYear());
@@ -199,14 +201,15 @@ export default function TripGuidePage() {
   const [calendarExpanded, setCalendarExpanded] = useState(false);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const user = await getUser();
-      if (!user?.uuid) { router.replace('/login'); return; }
-      const settings = await getReservationSettings();
+    if (!authReady) return;
+    if (!authUser?.uuid) {
+      router.replace('/login');
+      return;
+    }
+    void getReservationSettings().then((settings) => {
       setReservationEnabled(settings.enabled);
-    };
-    checkAuth();
-  }, [router]);
+    });
+  }, [authReady, authUser, router]);
 
   useEffect(() => {
     if (!modalTrip) {
