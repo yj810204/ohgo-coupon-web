@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { CSSProperties, MouseEvent, ReactNode } from 'react';
 import { useLoading } from '@/contexts/LoadingContext';
+import { armClientNavigation } from '@/lib/navigation-guard';
 
 type AppLinkProps = {
   href: string;
@@ -15,11 +16,6 @@ type AppLinkProps = {
   ariaCurrent?: 'page' | undefined;
   onClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
 };
-
-function pathOf(href: string) {
-  const q = href.indexOf('?');
-  return q === -1 ? href : href.slice(0, q);
-}
 
 /** 프리페치가 되는 내부 링크. 실제 이동이 150ms를 넘기면 상단 로더가 나온다. */
 export default function AppLink({
@@ -46,7 +42,9 @@ export default function AppLink({
       onClick={(event) => {
         onClick?.(event);
         if (event.defaultPrevented) return;
-        if (pathOf(href) !== pathname) setLoading(true);
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+        const armed = armClientNavigation(pathname, href);
+        if (armed.targetPath) setLoading(true);
       }}
     >
       {children}

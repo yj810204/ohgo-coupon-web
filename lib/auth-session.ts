@@ -1,5 +1,6 @@
 import { getUser } from '@/lib/storage';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
+import { withTimeoutFallback } from '@/lib/with-timeout';
 import {
   syncLocalUserFromSupabaseSession,
   getProfileByUserId,
@@ -26,6 +27,16 @@ function profileToAppUser(profile: AppProfile): AppUser {
 }
 
 const APP_USER_TTL_MS = 45_000;
+export const AUTH_WAIT_MS = 1_500;
+
+function localToAppUser(local: { uuid: string; name?: string; dob?: string; isAdmin?: boolean }): AppUser {
+  return {
+    uuid: local.uuid,
+    name: local.name || '',
+    dob: local.dob || '',
+    isAdmin: Boolean(local.isAdmin),
+  };
+}
 let appUserCache: { user: AppUser | null; expiresAt: number } | null = null;
 let appUserInflight: Promise<AppUser | null> | null = null;
 
@@ -44,6 +55,22 @@ export function peekAppUser(): AppUser | null {
   return appUserCache?.user ?? null;
 }
 
+/** 메모리 캐시 또는 localStorage. 화면을 네트워크보다 먼저 연다. */
+export function peekStoredAppUser(): AppUser | null {
+  const cached = peekAppUser();
+  if (cached) return cached;
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('userInfo');
+    if (!raw) return null;
+    const local = JSON.parse(raw) as { uuid?: string; name?: string; dob?: string; isAdmin?: boolean };
+    if (!local?.uuid) return null;
+    return localToAppUser({ uuid: local.uuid, name: local.name, dob: local.dob, isAdmin: local.isAdmin });
+  } catch {
+    return null;
+  }
+}
+
 async function resolveAppUserUncached(): Promise<AppUser | null> {
   if (isDevAuthBypass()) {
     return { ...DEV_MOCK_USER };
@@ -52,10 +79,8 @@ async function resolveAppUserUncached(): Promise<AppUser | null> {
   const localUser = await getUser();
 
   if (!localUser?.uuid && isSupabaseConfigured()) {
-    const profile = await syncLocalUserFromSupabaseSession();
-    if (profile) {
-      return profileToAppUser(profile);
-    }
+    const profile = await withTimeoutFallback(syncLocalUserFromSupabaseSession(), AUTH_WAIT_MS, null);
+    if (profile) return profileToAppUser(profile);
     return null;
   }
 
@@ -63,40 +88,21 @@ async function resolveAppUserUncached(): Promise<AppUser | null> {
 
   if (!isSupabaseConfigured()) return null;
 
-  let profile = await getProfileByUserId(localUser.uuid);
-  if (!profile) {
-    profile = await syncLocalUserFromSupabaseSession();
-  }
-  if (!profile) return null;
+  const profile = await withTimeoutFallback(
+    (async () => {
+      const found = await getProfileByUserId(localUser.uuid);
+      if (found) return found;
+      return syncLocalUserFromSupabaseSession();
+    })(),
+    AUTH_WAIT_MS,
+    null,
+  );
+  if (!profile) return localToAppUser(localUser);
   return profileToAppUser(profile);
 }
 
-/** localStorage + Supabase 세션 검증. 로그인된 사용자만 45초 캐시. null은 캐시하지 않음. */
-export async function resolveAppUser(options?: { force?: boolean }): Promise<AppUser | null> {
-  const cached = appUserCache?.user ? appUserCache : null;
-  const fresh = Boolean(cached && cached.expiresAt > Date.now());
-  if (!options?.force && fresh && cached) {
-    return cached.user;
-  }
-  if (!options?.force && cached?.user) {
-    if (!appUserInflight) {
-      const request = resolveAppUserUncached()
-        .then((user) => {
-          if (appUserInflight === request) appUserInflight = null;
-          if (user) appUserCache = { user, expiresAt: Date.now() + APP_USER_TTL_MS };
-          return user;
-        })
-        .catch((error) => {
-          if (appUserInflight === request) appUserInflight = null;
-          throw error;
-        });
-      appUserInflight = request;
-      void request.catch(() => undefined);
-    }
-    return cached.user;
-  }
+function trackRefresh(): Promise<AppUser | null> {
   if (appUserInflight) return appUserInflight;
-
   const request = resolveAppUserUncached()
     .then((user) => {
       if (appUserInflight === request) appUserInflight = null;
@@ -111,9 +117,29 @@ export async function resolveAppUser(options?: { force?: boolean }): Promise<App
       if (appUserInflight === request) appUserInflight = null;
       throw error;
     });
-
   appUserInflight = request;
   return request;
+}
+
+/** localStorage + Supabase 세션 검증. 캐시가 있으면 바로 돌려주고 프로필은 뒤에서 갱신한다. */
+export async function resolveAppUser(options?: { force?: boolean }): Promise<AppUser | null> {
+  const cached = appUserCache?.user ? appUserCache : null;
+  const fresh = Boolean(cached && cached.expiresAt > Date.now());
+  if (!options?.force && fresh && cached) {
+    return cached.user;
+  }
+
+  const immediate = options?.force ? null : peekStoredAppUser();
+  if (immediate) {
+    void trackRefresh().catch(() => undefined);
+    return immediate;
+  }
+
+  if (appUserInflight && !options?.force) {
+    return withTimeoutFallback(appUserInflight, AUTH_WAIT_MS, null);
+  }
+
+  return withTimeoutFallback(trackRefresh(), AUTH_WAIT_MS, peekStoredAppUser());
 }
 
 export function getHomePathForUser(user: AppUser): string {

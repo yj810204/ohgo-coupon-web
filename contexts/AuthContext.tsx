@@ -3,11 +3,14 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   invalidateAppUserCache,
-  peekAppUser,
+  peekStoredAppUser,
   resolveAppUser,
+  AUTH_WAIT_MS,
   type AppUser,
 } from '@/lib/auth-session';
+import { resumeAuthSession, visibilityIntent } from '@/lib/resume-session';
 import { getSupabaseBrowserClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import { withTimeoutFallback } from '@/lib/with-timeout';
 import type { AuthChangeEvent } from '@supabase/supabase-js';
 
 type AuthContextValue = {
@@ -23,18 +26,17 @@ if (typeof window !== 'undefined') {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AppUser | null>(null);
-  const [ready, setReady] = useState(false);
+  const [user, setUser] = useState<AppUser | null>(() => (typeof window === 'undefined' ? null : peekStoredAppUser()));
+  const [ready, setReady] = useState(() => (typeof window === 'undefined' ? false : peekStoredAppUser() != null));
 
   useEffect(() => {
     let cancelled = false;
-    const seeded = peekAppUser();
-    if (seeded) setUser(seeded);
+    const cached = peekStoredAppUser();
 
-    void resolveAppUser()
+    void withTimeoutFallback(resolveAppUser(cached ? { force: true } : undefined), AUTH_WAIT_MS, cached)
       .then((next) => {
         if (cancelled) return;
-        setUser(next);
+        if (next) setUser(next);
         setReady(true);
       })
       .catch(() => {
@@ -48,6 +50,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const supabase = getSupabaseBrowserClient();
+
+    const refreshOnResume = () => {
+      const nowSec = Math.floor(Date.now() / 1000);
+      void resumeAuthSession(supabase.auth, nowSec).then((result) => {
+        if (cancelled) return;
+        if (result === 'signed-out') {
+          invalidateAppUserCache();
+          setUser(null);
+          setReady(true);
+          return;
+        }
+        setReady(true);
+        if (result === 'refreshed') {
+          void withTimeoutFallback(resolveAppUser({ force: true }), AUTH_WAIT_MS, peekStoredAppUser()).then((next) => {
+            if (!cancelled && next) setUser(next);
+          });
+        }
+      });
+    };
+
+    const onVisibility = () => {
+      const intent = visibilityIntent(document.visibilityState === 'hidden' ? 'hidden' : 'visible');
+      if (intent === 'pause') {
+        supabase.auth.stopAutoRefresh?.();
+        return;
+      }
+      refreshOnResume();
+    };
+
+    const onPageShow = (event: Event) => {
+      const shown = event as PageTransitionEvent;
+      if (!shown.persisted) return;
+      refreshOnResume();
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pageshow', onPageShow);
+
     const { data } = supabase.auth.onAuthStateChange((event: AuthChangeEvent) => {
       if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') return;
       if (event === 'SIGNED_OUT') {
@@ -57,14 +97,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        void resolveAppUser({ force: true }).then((next) => {
-          if (!cancelled) setUser(next);
+        void withTimeoutFallback(resolveAppUser({ force: true }), AUTH_WAIT_MS, peekStoredAppUser()).then((next) => {
+          if (!cancelled && next) setUser(next);
         });
       }
     });
 
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pageshow', onPageShow);
       data.subscription.unsubscribe();
     };
   }, []);
@@ -74,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       ready,
       refresh: async () => {
-        const next = await resolveAppUser({ force: true });
+        const next = await withTimeoutFallback(resolveAppUser({ force: true }), AUTH_WAIT_MS, peekStoredAppUser());
         setUser(next);
         setReady(true);
         return next;

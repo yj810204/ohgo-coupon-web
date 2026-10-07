@@ -1,8 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { SESSION_NETWORK_MS, middlewareAuthPlan, needsNetworkUserCheck, protectedJwtAllows } from '@/lib/session-gate';
+import { withTimeout } from '@/lib/with-timeout';
 
 const BASE64_PREFIX = 'base64-';
-const FRESH_FOR_SEC = 120;
 
 function decodeBase64Url(value: string): string {
   const pad = value.length % 4 === 0 ? '' : '='.repeat(4 - (value.length % 4));
@@ -54,16 +55,6 @@ export function readAccessTokenExpiry(request: NextRequest): number | null {
   return null;
 }
 
-export function needsNetworkUserCheck(pathname: string): boolean {
-  return (
-    pathname === '/admin' ||
-    pathname.startsWith('/admin-') ||
-    pathname.startsWith('/admin/') ||
-    pathname.startsWith('/boarding-ledger') ||
-    pathname.startsWith('/boarding-records')
-  );
-}
-
 export async function updateSession(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -82,12 +73,14 @@ export async function updateSession(request: NextRequest) {
 
   const expiry = readAccessTokenExpiry(request);
   const nowSec = Math.floor(Date.now() / 1000);
-  const tokenFresh = expiry != null && expiry > nowSec + FRESH_FOR_SEC;
-  if (tokenFresh && !needsNetworkUserCheck(request.nextUrl.pathname)) {
+  const pathname = request.nextUrl.pathname;
+  const plan = middlewareAuthPlan({ pathname, expiry, nowSec });
+  // 유효한 토큰이 있으면 갱신을 기다리지 않고 페이지를 연다.
+  if (plan === 'skip' || plan === 'allow-jwt') {
     return NextResponse.next({ request });
   }
 
-  let supabaseResponse = NextResponse.next({ request });
+  const supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(url, anonKey, {
     cookies: {
@@ -103,7 +96,19 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  let failed = false;
+  try {
+    await withTimeout(supabase.auth.getUser(), SESSION_NETWORK_MS);
+  } catch {
+    failed = true;
+  }
+
+  if (failed && needsNetworkUserCheck(pathname) && !protectedJwtAllows(expiry, nowSec)) {
+    const login = request.nextUrl.clone();
+    login.pathname = '/login';
+    login.search = '';
+    return NextResponse.redirect(login);
+  }
 
   return supabaseResponse;
 }
