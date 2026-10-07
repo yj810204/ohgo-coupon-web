@@ -3,7 +3,7 @@ import { TimeoutError, withTimeout } from '@/lib/with-timeout';
 /** 액세스 토큰이 이 초 안에 끝나면 재개 시 갱신한다. */
 export const REFRESH_SKEW_SEC = 60;
 
-export const RESUME_TIMEOUT_MS = 4000;
+export const RESUME_TIMEOUT_MS = 1000;
 
 export type ResumeResult = 'fresh' | 'refreshed' | 'signed-out' | 'timeout' | 'offline';
 

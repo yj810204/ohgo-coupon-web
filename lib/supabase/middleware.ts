@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { SESSION_NETWORK_MS, sessionGate } from '@/lib/session-gate';
-import { withTimeoutFallback } from '@/lib/with-timeout';
+import { SESSION_NETWORK_MS, middlewareAuthPlan, needsNetworkUserCheck, protectedJwtAllows } from '@/lib/session-gate';
+import { withTimeout } from '@/lib/with-timeout';
 
 const BASE64_PREFIX = 'base64-';
 
@@ -73,8 +73,10 @@ export async function updateSession(request: NextRequest) {
 
   const expiry = readAccessTokenExpiry(request);
   const nowSec = Math.floor(Date.now() / 1000);
-  // 만료된 토큰도 로그인 페이지로 보내지 않는다. 확인이 멈추면 이동만 막히므로 시간을 제한한다.
-  if (sessionGate({ pathname: request.nextUrl.pathname, expiry, nowSec }) === 'skip') {
+  const pathname = request.nextUrl.pathname;
+  const plan = middlewareAuthPlan({ pathname, expiry, nowSec });
+  // 유효한 토큰이 있으면 갱신을 기다리지 않고 페이지를 연다.
+  if (plan === 'skip' || plan === 'allow-jwt') {
     return NextResponse.next({ request });
   }
 
@@ -94,7 +96,19 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  await withTimeoutFallback(supabase.auth.getUser(), SESSION_NETWORK_MS, null);
+  let failed = false;
+  try {
+    await withTimeout(supabase.auth.getUser(), SESSION_NETWORK_MS);
+  } catch {
+    failed = true;
+  }
+
+  if (failed && needsNetworkUserCheck(pathname) && !protectedJwtAllows(expiry, nowSec)) {
+    const login = request.nextUrl.clone();
+    login.pathname = '/login';
+    login.search = '';
+    return NextResponse.redirect(login);
+  }
 
   return supabaseResponse;
 }

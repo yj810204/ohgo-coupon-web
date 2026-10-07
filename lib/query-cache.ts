@@ -6,7 +6,7 @@
 import { TimeoutError, withTimeout } from '@/lib/with-timeout';
 
 /** 캐시가 없을 때 이 시간보다 오래 걸리면 기다림을 끊고, 다음 호출이 다시 요청할 수 있게 한다. */
-export const CACHE_WAIT_MS = 12_000;
+export const CACHE_WAIT_MS = 1_500;
 
 type CacheEntry = {
   value: unknown;

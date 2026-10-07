@@ -15,7 +15,9 @@ import {
   settleNavigation,
   stuckTarget,
 } from './navigation-guard.ts';
-import { sessionGate } from './session-gate.ts';
+import { CACHE_WAIT_MS, cachedFetch, invalidateCache } from './query-cache.ts';
+import { RESUME_TIMEOUT_MS } from './resume-session.ts';
+import { SESSION_NETWORK_MS, middlewareAuthPlan, protectedJwtAllows, sessionGate } from './session-gate.ts';
 import { TimeoutError, withTimeout, withTimeoutFallback } from './with-timeout.ts';
 import {
   isDefinitiveSignOut,
@@ -24,9 +26,13 @@ import {
   visibilityIntent,
   type ResumeAuth,
 } from './resume-session.ts';
-import { CACHE_WAIT_MS, cachedFetch, invalidateCache } from './query-cache.ts';
 
 const now = 1_000_000;
+
+assert.equal(NAV_FALLBACK_MS, 3000);
+assert.equal(RESUME_TIMEOUT_MS, 1000);
+assert.equal(SESSION_NETWORK_MS, 1500);
+assert.equal(CACHE_WAIT_MS, 1500);
 
 // 같은 경로는 로더를 켜지 않는다
 assert.equal(armNavigation('/main', '/main', now), null);
@@ -49,7 +55,7 @@ assert.equal(settleNavigation(pendingRsc, '/community', 0, now + 500).targetPath
 assert.equal(settleNavigation(armed, '/community', 0, now + RSC_GRACE_MS - 1).targetPath, '/community');
 assert.equal(settleNavigation(armed, '/community', 0, now + RSC_GRACE_MS).targetPath, null);
 
-// 8초가 지나도 주소가 그대로면 그 주소로 다시 연다
+// 3초가 지나도 주소가 그대로면 그 주소로 다시 연다
 assert.equal(stuckTarget(armed, '/main', 0, now + NAV_FALLBACK_MS), '/community');
 
 const back = armHistoryBack('/community', now);
@@ -103,6 +109,14 @@ assert.equal(actionOnOnline(settleNavigation(pendingRsc, '/community', 0, now + 
 assert.equal(sessionGate({ pathname: '/main', expiry: now / 1000 - 10, nowSec: now / 1000 }), 'verify');
 assert.equal(sessionGate({ pathname: '/main', expiry: now / 1000 + 600, nowSec: now / 1000 }), 'skip');
 assert.equal(sessionGate({ pathname: '/admin', expiry: now / 1000 + 600, nowSec: now / 1000 }), 'verify');
+
+const nowSec = now / 1000;
+assert.equal(middlewareAuthPlan({ pathname: '/main', expiry: nowSec + 600, nowSec }), 'skip');
+assert.equal(middlewareAuthPlan({ pathname: '/admin', expiry: nowSec + 30, nowSec }), 'allow-jwt');
+assert.equal(middlewareAuthPlan({ pathname: '/boarding-ledger', expiry: nowSec - 5, nowSec }), 'network');
+assert.equal(protectedJwtAllows(nowSec + 30, nowSec), true);
+assert.equal(protectedJwtAllows(nowSec - 5, nowSec), false);
+assert.equal(protectedJwtAllows(null, nowSec), false);
 
 const hung = withTimeout(new Promise(() => undefined), 20);
 await assert.rejects(hung, (error: unknown) => error instanceof TimeoutError);

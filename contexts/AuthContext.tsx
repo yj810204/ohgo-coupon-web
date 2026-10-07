@@ -3,16 +3,15 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   invalidateAppUserCache,
-  peekAppUser,
+  peekStoredAppUser,
   resolveAppUser,
+  AUTH_WAIT_MS,
   type AppUser,
 } from '@/lib/auth-session';
 import { resumeAuthSession, visibilityIntent } from '@/lib/resume-session';
 import { getSupabaseBrowserClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import { withTimeoutFallback } from '@/lib/with-timeout';
 import type { AuthChangeEvent } from '@supabase/supabase-js';
-
-const AUTH_READY_MS = 8_000;
 
 type AuthContextValue = {
   user: AppUser | null;
@@ -27,23 +26,21 @@ if (typeof window !== 'undefined') {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AppUser | null>(() => (typeof window === 'undefined' ? null : peekAppUser()));
-  const [ready, setReady] = useState(false);
+  const [user, setUser] = useState<AppUser | null>(() => (typeof window === 'undefined' ? null : peekStoredAppUser()));
+  const [ready, setReady] = useState(() => (typeof window === 'undefined' ? false : peekStoredAppUser() != null));
 
   useEffect(() => {
     let cancelled = false;
+    const cached = peekStoredAppUser();
 
-    void withTimeoutFallback(resolveAppUser(), AUTH_READY_MS, peekAppUser())
+    void withTimeoutFallback(resolveAppUser(cached ? { force: true } : undefined), AUTH_WAIT_MS, cached)
       .then((next) => {
         if (cancelled) return;
-        setUser(next);
+        if (next) setUser(next);
         setReady(true);
       })
       .catch(() => {
-        if (!cancelled) {
-          setUser(peekAppUser());
-          setReady(true);
-        }
+        if (!cancelled) setReady(true);
       });
 
     if (!isSupabaseConfigured()) {
@@ -66,8 +63,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setReady(true);
         if (result === 'refreshed') {
-          void withTimeoutFallback(resolveAppUser({ force: true }), AUTH_READY_MS, peekAppUser()).then((next) => {
-            if (!cancelled) setUser(next);
+          void withTimeoutFallback(resolveAppUser({ force: true }), AUTH_WAIT_MS, peekStoredAppUser()).then((next) => {
+            if (!cancelled && next) setUser(next);
           });
         }
       });
@@ -100,8 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        void withTimeoutFallback(resolveAppUser({ force: true }), AUTH_READY_MS, peekAppUser()).then((next) => {
-          if (!cancelled) setUser(next);
+        void withTimeoutFallback(resolveAppUser({ force: true }), AUTH_WAIT_MS, peekStoredAppUser()).then((next) => {
+          if (!cancelled && next) setUser(next);
         });
       }
     });
@@ -119,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       ready,
       refresh: async () => {
-        const next = await withTimeoutFallback(resolveAppUser({ force: true }), AUTH_READY_MS, peekAppUser());
+        const next = await withTimeoutFallback(resolveAppUser({ force: true }), AUTH_WAIT_MS, peekStoredAppUser());
         setUser(next);
         setReady(true);
         return next;

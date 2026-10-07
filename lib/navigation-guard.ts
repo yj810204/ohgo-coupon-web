@@ -1,5 +1,5 @@
 /** 이동이 이 시간 안에 끝나지 않으면 해당 주소로 문서를 다시 연다. */
-export const NAV_FALLBACK_MS = 8000;
+export const NAV_FALLBACK_MS = 3000;
 
 /** 주소만 먼저 바뀌고 RSC 요청이 바로 뒤따르는 경우를 구분하는 짧은 여유. */
 export const RSC_GRACE_MS = 120;
