@@ -3,6 +3,7 @@ import "./globals.css";
 import { LoadingProvider } from "@/contexts/LoadingContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import PageLoader from "@/components/PageLoader";
+import NavigationRecovery from "@/components/NavigationRecovery";
 import SiteTitle from "@/components/SiteTitle";
 import BottomTabBar from "@/components/BottomTabBar";
 import NativeBridgeInit from "@/components/NativeBridgeInit";
@@ -51,6 +52,7 @@ export default function RootLayout({
               {children}
             </div>
             <BottomTabBar />
+            <NavigationRecovery />
             <PageLoader />
             <OhgoDialogHost />
             <ClientErrorBoundary>

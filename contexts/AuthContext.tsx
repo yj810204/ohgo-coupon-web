@@ -7,8 +7,12 @@ import {
   resolveAppUser,
   type AppUser,
 } from '@/lib/auth-session';
+import { resumeAuthSession, visibilityIntent } from '@/lib/resume-session';
 import { getSupabaseBrowserClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import { withTimeoutFallback } from '@/lib/with-timeout';
 import type { AuthChangeEvent } from '@supabase/supabase-js';
+
+const AUTH_READY_MS = 8_000;
 
 type AuthContextValue = {
   user: AppUser | null;
@@ -23,22 +27,23 @@ if (typeof window !== 'undefined') {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AppUser | null>(null);
+  const [user, setUser] = useState<AppUser | null>(() => (typeof window === 'undefined' ? null : peekAppUser()));
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    const seeded = peekAppUser();
-    if (seeded) setUser(seeded);
 
-    void resolveAppUser()
+    void withTimeoutFallback(resolveAppUser(), AUTH_READY_MS, peekAppUser())
       .then((next) => {
         if (cancelled) return;
         setUser(next);
         setReady(true);
       })
       .catch(() => {
-        if (!cancelled) setReady(true);
+        if (!cancelled) {
+          setUser(peekAppUser());
+          setReady(true);
+        }
       });
 
     if (!isSupabaseConfigured()) {
@@ -48,6 +53,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const supabase = getSupabaseBrowserClient();
+
+    const refreshOnResume = () => {
+      const nowSec = Math.floor(Date.now() / 1000);
+      void resumeAuthSession(supabase.auth, nowSec).then((result) => {
+        if (cancelled) return;
+        if (result === 'signed-out') {
+          invalidateAppUserCache();
+          setUser(null);
+          setReady(true);
+          return;
+        }
+        setReady(true);
+        if (result === 'refreshed') {
+          void withTimeoutFallback(resolveAppUser({ force: true }), AUTH_READY_MS, peekAppUser()).then((next) => {
+            if (!cancelled) setUser(next);
+          });
+        }
+      });
+    };
+
+    const onVisibility = () => {
+      const intent = visibilityIntent(document.visibilityState === 'hidden' ? 'hidden' : 'visible');
+      if (intent === 'pause') {
+        supabase.auth.stopAutoRefresh?.();
+        return;
+      }
+      refreshOnResume();
+    };
+
+    const onPageShow = (event: Event) => {
+      const shown = event as PageTransitionEvent;
+      if (!shown.persisted) return;
+      refreshOnResume();
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pageshow', onPageShow);
+
     const { data } = supabase.auth.onAuthStateChange((event: AuthChangeEvent) => {
       if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') return;
       if (event === 'SIGNED_OUT') {
@@ -57,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-        void resolveAppUser({ force: true }).then((next) => {
+        void withTimeoutFallback(resolveAppUser({ force: true }), AUTH_READY_MS, peekAppUser()).then((next) => {
           if (!cancelled) setUser(next);
         });
       }
@@ -65,6 +108,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pageshow', onPageShow);
       data.subscription.unsubscribe();
     };
   }, []);
@@ -74,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       ready,
       refresh: async () => {
-        const next = await resolveAppUser({ force: true });
+        const next = await withTimeoutFallback(resolveAppUser({ force: true }), AUTH_READY_MS, peekAppUser());
         setUser(next);
         setReady(true);
         return next;

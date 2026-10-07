@@ -3,6 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation';
 import { useCallback, startTransition } from 'react';
 import { useLoading } from '@/contexts/LoadingContext';
+import { armClientBack, armClientNavigation } from '@/lib/navigation-guard';
 
 /**
  * 앱 내 페이지 이동.
@@ -16,6 +17,9 @@ export function useNavigation() {
   const navigate = useCallback(
     (path: string) => {
       if (path === pathname) return;
+      if (path.startsWith('/') && typeof window !== 'undefined') {
+        armClientNavigation(window.location.pathname, path);
+      }
       setLoading(true);
       startTransition(() => {
         router.push(path);
@@ -27,6 +31,9 @@ export function useNavigation() {
   const navigateReplace = useCallback(
     (path: string) => {
       if (path === pathname) return;
+      if (path.startsWith('/') && typeof window !== 'undefined') {
+        armClientNavigation(window.location.pathname, path);
+      }
       setLoading(true);
       startTransition(() => {
         router.replace(path);
@@ -36,6 +43,7 @@ export function useNavigation() {
   );
 
   const navigateBack = useCallback(() => {
+    if (typeof window !== 'undefined') armClientBack(window.location.pathname);
     setLoading(true);
     startTransition(() => {
       router.back();

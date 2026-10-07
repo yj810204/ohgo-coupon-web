@@ -1,8 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { SESSION_NETWORK_MS, sessionGate } from '@/lib/session-gate';
+import { withTimeoutFallback } from '@/lib/with-timeout';
 
 const BASE64_PREFIX = 'base64-';
-const FRESH_FOR_SEC = 120;
 
 function decodeBase64Url(value: string): string {
   const pad = value.length % 4 === 0 ? '' : '='.repeat(4 - (value.length % 4));
@@ -54,16 +55,6 @@ export function readAccessTokenExpiry(request: NextRequest): number | null {
   return null;
 }
 
-export function needsNetworkUserCheck(pathname: string): boolean {
-  return (
-    pathname === '/admin' ||
-    pathname.startsWith('/admin-') ||
-    pathname.startsWith('/admin/') ||
-    pathname.startsWith('/boarding-ledger') ||
-    pathname.startsWith('/boarding-records')
-  );
-}
-
 export async function updateSession(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -82,12 +73,12 @@ export async function updateSession(request: NextRequest) {
 
   const expiry = readAccessTokenExpiry(request);
   const nowSec = Math.floor(Date.now() / 1000);
-  const tokenFresh = expiry != null && expiry > nowSec + FRESH_FOR_SEC;
-  if (tokenFresh && !needsNetworkUserCheck(request.nextUrl.pathname)) {
+  // 만료된 토큰도 로그인 페이지로 보내지 않는다. 확인이 멈추면 이동만 막히므로 시간을 제한한다.
+  if (sessionGate({ pathname: request.nextUrl.pathname, expiry, nowSec }) === 'skip') {
     return NextResponse.next({ request });
   }
 
-  let supabaseResponse = NextResponse.next({ request });
+  const supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(url, anonKey, {
     cookies: {
@@ -103,7 +94,7 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  await withTimeoutFallback(supabase.auth.getUser(), SESSION_NETWORK_MS, null);
 
   return supabaseResponse;
 }

@@ -1,5 +1,6 @@
 import { getUser } from '@/lib/storage';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
+import { withTimeoutFallback } from '@/lib/with-timeout';
 import {
   syncLocalUserFromSupabaseSession,
   getProfileByUserId,
@@ -26,6 +27,16 @@ function profileToAppUser(profile: AppProfile): AppUser {
 }
 
 const APP_USER_TTL_MS = 45_000;
+const AUTH_WAIT_MS = 6_000;
+
+function localToAppUser(local: { uuid: string; name?: string; dob?: string; isAdmin?: boolean }): AppUser {
+  return {
+    uuid: local.uuid,
+    name: local.name || '',
+    dob: local.dob || '',
+    isAdmin: Boolean(local.isAdmin),
+  };
+}
 let appUserCache: { user: AppUser | null; expiresAt: number } | null = null;
 let appUserInflight: Promise<AppUser | null> | null = null;
 
@@ -52,10 +63,8 @@ async function resolveAppUserUncached(): Promise<AppUser | null> {
   const localUser = await getUser();
 
   if (!localUser?.uuid && isSupabaseConfigured()) {
-    const profile = await syncLocalUserFromSupabaseSession();
-    if (profile) {
-      return profileToAppUser(profile);
-    }
+    const profile = await withTimeoutFallback(syncLocalUserFromSupabaseSession(), AUTH_WAIT_MS, null);
+    if (profile) return profileToAppUser(profile);
     return null;
   }
 
@@ -63,11 +72,16 @@ async function resolveAppUserUncached(): Promise<AppUser | null> {
 
   if (!isSupabaseConfigured()) return null;
 
-  let profile = await getProfileByUserId(localUser.uuid);
-  if (!profile) {
-    profile = await syncLocalUserFromSupabaseSession();
-  }
-  if (!profile) return null;
+  const profile = await withTimeoutFallback(
+    (async () => {
+      const found = await getProfileByUserId(localUser.uuid);
+      if (found) return found;
+      return syncLocalUserFromSupabaseSession();
+    })(),
+    AUTH_WAIT_MS,
+    null,
+  );
+  if (!profile) return localToAppUser(localUser);
   return profileToAppUser(profile);
 }
 

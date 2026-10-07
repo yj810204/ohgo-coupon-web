@@ -1,8 +1,9 @@
 'use client';
 
 import { useRouter as useNextRouter, usePathname } from 'next/navigation';
-import { useCallback, startTransition, useMemo } from 'react';
+import { startTransition, useMemo } from 'react';
 import { useLoading } from '@/contexts/LoadingContext';
+import { armClientBack, armClientNavigation } from '@/lib/navigation-guard';
 
 function splitHref(href: string): { path: string; search: string } {
   const q = href.indexOf('?');
@@ -28,52 +29,48 @@ export function useRouter() {
   const pathname = usePathname();
   const { setLoading } = useLoading();
 
-  const shouldShowLoading = useCallback(
-    (href: string) => {
+  return useMemo(() => {
+    const shouldShowLoading = (href: string) => {
       const { path, search } = splitHref(href);
       const current = currentLocation();
-      // SSR/hydration 직후 window가 비어 있으면 pathname 훅으로 폴백
       const curPath = current.path || pathname;
       const curSearch = current.path ? current.search : '';
       return path !== curPath || search !== curSearch;
-    },
-    [pathname]
-  );
+    };
 
-  const push = useCallback(
-    (href: string, options?: Parameters<typeof router.push>[1]) => {
-      if (shouldShowLoading(href)) setLoading(true);
+    const push = (href: string, options?: Parameters<typeof router.push>[1]) => {
+      if (shouldShowLoading(href)) {
+        if (href.startsWith('/')) armClientNavigation(currentLocation().path || pathname, href);
+        setLoading(true);
+      }
       startTransition(() => {
         router.push(href, options);
       });
-    },
-    [router, setLoading, shouldShowLoading]
-  );
+    };
 
-  const replace = useCallback(
-    (href: string, options?: Parameters<typeof router.replace>[1]) => {
-      if (shouldShowLoading(href)) setLoading(true);
+    const replace = (href: string, options?: Parameters<typeof router.replace>[1]) => {
+      if (shouldShowLoading(href)) {
+        if (href.startsWith('/')) armClientNavigation(currentLocation().path || pathname, href);
+        setLoading(true);
+      }
       startTransition(() => {
         router.replace(href, options);
       });
-    },
-    [router, setLoading, shouldShowLoading]
-  );
+    };
 
-  const back = useCallback(() => {
-    setLoading(true);
-    startTransition(() => {
-      router.back();
-    });
-  }, [router, setLoading]);
+    const back = () => {
+      armClientBack(currentLocation().path || pathname);
+      setLoading(true);
+      startTransition(() => {
+        router.back();
+      });
+    };
 
-  return useMemo(
-    () => ({
+    return {
       ...router,
       push,
       replace,
       back,
-    }),
-    [router, push, replace, back]
-  );
+    };
+  }, [router, pathname, setLoading]);
 }

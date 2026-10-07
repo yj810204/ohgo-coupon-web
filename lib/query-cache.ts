@@ -3,6 +3,11 @@
  * 읽기 경로 전용. 쓰기 함수는 캐시를 우회해야 한다.
  */
 
+import { TimeoutError, withTimeout } from '@/lib/with-timeout';
+
+/** 캐시가 없을 때 이 시간보다 오래 걸리면 기다림을 끊고, 다음 호출이 다시 요청할 수 있게 한다. */
+export const CACHE_WAIT_MS = 12_000;
+
 type CacheEntry = {
   value: unknown;
   expiresAt: number;
@@ -11,7 +16,12 @@ type CacheEntry = {
 const store = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<unknown>>();
 
-export function cachedFetch<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+export function cachedFetch<T>(
+  key: string,
+  ttlMs: number,
+  fn: () => Promise<T>,
+  waitMs: number = CACHE_WAIT_MS,
+): Promise<T> {
   const now = Date.now();
   const hit = store.get(key);
   const fresh = Boolean(hit && hit.expiresAt > now);
@@ -19,22 +29,20 @@ export function cachedFetch<T>(key: string, ttlMs: number, fn: () => Promise<T>)
     return Promise.resolve(hit.value as T);
   }
 
-  const pending = inflight.get(key);
+  const pending = inflight.get(key) as Promise<T> | undefined;
   // 만료된 값은 바로 돌려주고, 같은 키 요청은 뒤에서 한 번만 갱신한다.
   if (hit && !fresh) {
     if (!pending) start();
     return Promise.resolve(hit.value as T);
   }
-  if (pending) return pending as Promise<T>;
-  return start();
+  if (pending) return waitFor(pending);
+  return waitFor(start());
 
   function start(): Promise<T> {
     const promise = fn()
       .then((value) => {
-        if (inflight.get(key) === promise) {
-          store.set(key, { value, expiresAt: Date.now() + ttlMs });
-          inflight.delete(key);
-        }
+        store.set(key, { value, expiresAt: Date.now() + ttlMs });
+        if (inflight.get(key) === promise) inflight.delete(key);
         return value;
       })
       .catch((err) => {
@@ -44,6 +52,17 @@ export function cachedFetch<T>(key: string, ttlMs: number, fn: () => Promise<T>)
       });
     inflight.set(key, promise);
     return promise;
+  }
+
+  function waitFor(promise: Promise<T>): Promise<T> {
+    return withTimeout(promise, waitMs).catch((err) => {
+      if (err instanceof TimeoutError) {
+        const current = inflight.get(key);
+        if (current === promise) inflight.delete(key);
+        if (hit) return hit.value as T;
+      }
+      throw err;
+    });
   }
 }
 
