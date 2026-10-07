@@ -12,6 +12,8 @@ import type { OhgoCredentials } from './ohgo-auth.mts';
 import { clearOhgoSession, ensureFreshSession, loginOhgo, OhgoAuthError, readOhgoSession, saveOhgoSession } from './ohgo-auth.mts';
 import { newPhotoObjectPath, OhgoClient } from './ohgo-client.mts';
 import { resolvePostImages } from './post-images.mts';
+import type { ImageRecord, PushRecorder } from './push-log.mts';
+import { createPushRecorder, PUSH_LOG_FILE } from './push-log.mts';
 import { formattedBody } from './rich-text.mts';
 import type { FormattedBody } from './rich-text.mts';
 import type { Fetch, OhgoConfig } from './ohgo-config.mts';
@@ -135,6 +137,32 @@ function eqParam(value: string): string {
   return `eq.${encodeURIComponent(value)}`;
 }
 
+/** 단계별 실패. 메시지를 그대로 화면에 보여 준다 */
+export class PushStepError extends Error {}
+
+/** 저장한 글의 image_urls가 올린 사진과 같고, 공개 주소로 열리는지 본다. 문제가 없으면 null */
+async function verifySavedPhotos(client: OhgoClient, fetchImpl: Fetch, rowId: string, urls: string[]): Promise<string | null> {
+  let saved;
+  try {
+    saved = await client.select('community_photos', `select=id,image_urls&id=${eqParam(rowId)}`);
+  } catch (err) {
+    return `글을 다시 읽지 못했습니다: ${(err as Error).message}`;
+  }
+  const got = saved[0]?.image_urls;
+  if (!saved.length) return '글이 보이지 않습니다';
+  if (!Array.isArray(got) || got.length === 0) return `사진 목록(image_urls)이 비어 있습니다 (올린 사진 ${urls.length}장)`;
+  if (got.length !== urls.length || got.some((u, i) => u !== urls[i])) {
+    return `사진 목록(image_urls)이 올린 사진과 다릅니다 (저장 ${got.length}장, 올린 사진 ${urls.length}장)`;
+  }
+  for (const [i, url] of urls.entries()) {
+    const res = await fetchImpl(url, { method: 'HEAD' }).catch((e: Error) => e);
+    if (res instanceof Error) return `사진 ${i + 1}을 열지 못했습니다: ${res.message}`;
+    const type = res.headers.get('content-type') ?? '';
+    if (!res.ok || !type.startsWith('image/')) return `사진 ${i + 1}이 앱에서 열리지 않습니다 (HTTP ${res.status}${type ? `, ${type}` : ''})`;
+  }
+  return null;
+}
+
 export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
   const fetchImpl = opts.fetchImpl ?? fetch;
   const env = opts.env ?? process.env;
@@ -190,28 +218,74 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
     }
   };
 
-  const pushCatch = async (cfg: OhgoConfig, client: OhgoClient, post: ExtractedPost, draft: PhotoDraft, session: { userId: string; name: string }, log: Log) => {
+  const pushCatch = async (
+    cfg: OhgoConfig,
+    client: OhgoClient,
+    post: ExtractedPost,
+    draft: PhotoDraft,
+    session: { userId: string; name: string },
+    log: Log,
+    rec: PushRecorder,
+    checkFetch: Fetch,
+  ) => {
     const outDir = join(opts.outRoot, post.source.postId);
     const uploaded: string[] = [];
     const urls: string[] = [];
     let resized = 0;
+    let rowId: string | null = null;
     const edits = readEdits(outDir);
+    const total = draft.images.length;
     const encoder = await (opts.createReencoder ?? createBrowserReencoder)();
     try {
       for (const [i, original] of draft.images.entries()) {
         const file = uploadFileFor(outDir, original, edits);
+        const image: ImageRecord = {
+          n: i + 1,
+          original,
+          file,
+          fileBytes: null,
+          uploadBytes: null,
+          contentType: null,
+          resized: false,
+          objectPath: null,
+          ok: false,
+          error: null,
+        };
+        rec.run.images.push(image);
+        const label = `사진 ${i + 1}/${total} (${file === original ? file : `${original}의 편집본 ${file}`})`;
         if (file !== original) log(`사진 ${original}: 편집한 사진(${file})을 올립니다`);
-        const prepared = await prepareImage(readFileSync(join(outDir, file)), file, encoder.reencode);
+        let prepared;
+        try {
+          const bytes = readFileSync(join(outDir, file));
+          image.fileBytes = bytes.length;
+          if (bytes.length === 0) throw new Error('파일이 비어 있습니다');
+          prepared = await prepareImage(bytes, file, encoder.reencode);
+        } catch (err) {
+          image.error = (err as Error).message;
+          throw new PushStepError(`${label} 준비 실패: ${image.error}`);
+        }
+        image.uploadBytes = prepared.bytes.length;
+        image.contentType = prepared.contentType;
+        image.resized = prepared.resized;
         if (prepared.resized) {
           resized++;
           log(`사진 ${file}: ${(prepared.originalBytes / 1048576).toFixed(1)}MB → ${(prepared.bytes.length / 1048576).toFixed(1)}MB로 줄였습니다`);
         }
         const path = newPhotoObjectPath(prepared.ext);
-        log(`사진 올리는 중 ${i + 1}/${draft.images.length}`);
-        urls.push(await client.uploadPhoto(path, prepared.bytes, prepared.contentType));
+        image.objectPath = path;
+        log(`사진 올리는 중 ${i + 1}/${total} (${(prepared.bytes.length / 1048576).toFixed(1)}MB)`);
+        try {
+          urls.push(await client.uploadPhoto(path, prepared.bytes, prepared.contentType));
+        } catch (err) {
+          image.error = (err as Error).message;
+          throw new PushStepError(`${label} 올리기 실패: ${image.error}`);
+        }
+        image.ok = true;
         uploaded.push(path);
+        rec.save();
         if (opts.uploadGapMs) await new Promise((r) => setTimeout(r, opts.uploadGapMs));
       }
+      if (urls.length !== total) throw new PushStepError(`사진 ${total}장 중 ${urls.length}장만 올라갔습니다`);
       const row: Record<string, unknown> = {
         uploaded_by: session.userId,
         uploaded_by_name: session.name,
@@ -231,13 +305,47 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
         }
       }
       log('조황 게시판에 글을 저장하는 중');
-      const id = await client.insert('community_photos', row, ['uploaded_by_name', 'photo_date', 'board_type']);
-      return { rowIds: [id], links: [`${cfg.baseUrl}/community/${id}`], resized };
-    } catch (err) {
-      if (uploaded.length) {
-        log('저장에 실패해 올린 사진을 지웁니다');
-        await client.removePhotos(uploaded).catch((e: Error) => log(`올린 사진 정리 실패: ${e.message}`));
+      try {
+        rowId = await client.insert('community_photos', row, ['uploaded_by_name', 'photo_date', 'board_type']);
+      } catch (err) {
+        throw new PushStepError(`조황 게시판 저장 실패: ${(err as Error).message}`);
       }
+      log(`저장한 글을 다시 읽어 사진 ${total}장을 확인하는 중`);
+      const problem = await verifySavedPhotos(client, checkFetch, rowId, urls);
+      if (problem) throw new PushStepError(`저장한 글을 확인해 보니 ${problem}`);
+      log(`앱에서 사진 ${total}장이 열리는 것을 확인했습니다`);
+      return { rowIds: [rowId], links: [`${cfg.baseUrl}/community/${rowId}`], resized };
+    } catch (err) {
+      const notes: string[] = [];
+      let rowLeft = false;
+      if (rowId) {
+        log('확인에 실패해 저장한 글을 지웁니다');
+        try {
+          await client.deleteRow('community_photos', rowId);
+          notes.push('저장한 글은 지웠습니다.');
+        } catch (e) {
+          rowLeft = true;
+          log(`저장한 글 지우기 실패: ${(e as Error).message}`);
+          notes.push(`저장한 글을 지우지 못했습니다. 앱에서 직접 지우세요: ${cfg.baseUrl}/community/${rowId}`);
+        }
+      } else {
+        notes.push('조황 게시판에 글은 만들지 않았습니다.');
+      }
+      if (uploaded.length && !rowLeft) {
+        log(`올린 사진 ${uploaded.length}장을 지웁니다`);
+        try {
+          const removed = await client.removePhotos(uploaded);
+          const left = uploaded.filter((p) => !removed.includes(p));
+          if (left.length) {
+            log(`지우지 못한 사진: ${left.join(', ')}`);
+            notes.push(`올린 사진 ${left.length}장은 서버 권한 때문에 지우지 못해 Storage에 남았습니다 (앱에는 안 보입니다).`);
+          }
+        } catch (e) {
+          log(`올린 사진 정리 실패: ${(e as Error).message}`);
+          notes.push(`올린 사진 ${uploaded.length}장을 지우지 못했습니다 (앱에는 안 보입니다).`);
+        }
+      }
+      if (err instanceof PushStepError) err.message = `${err.message}\n${notes.join(' ')}`;
       throw err;
     } finally {
       await encoder.close();
@@ -390,22 +498,44 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
 
     checkPush,
 
-    async push(req, log) {
+    async push(req, outerLog) {
       checkPush(req);
       const post = loadExtracted(opts.outRoot, req.postId);
-      const cfg = await config();
-      let session;
+      const rec = createPushRecorder(join(opts.outRoot, post.source.postId), { postId: post.source.postId, kind: req.kind });
+      const logFile = `out/${post.source.postId}/${PUSH_LOG_FILE}`;
+      const log: Log = (msg) => {
+        rec.note(msg);
+        outerLog(msg);
+      };
+      const traced = rec.fetch(fetchImpl);
+      let done;
       try {
-        session = await ensureFreshSession(cfg, opts.dir, fetchImpl);
+        const cfg = await config();
+        rec.run.supabase = cfg.projectRef;
+        let session;
+        try {
+          session = await ensureFreshSession(cfg, opts.dir, traced);
+        } catch (err) {
+          if (err instanceof OhgoAuthError) throw new OhgoRequestRejected(err.message, 401);
+          throw err;
+        }
+        rec.run.user = session.name;
+        rec.save();
+        const client = new OhgoClient(cfg, session.accessToken, traced);
+        done =
+          req.kind === 'catch'
+            ? await pushCatch(cfg, client, post, req.photo!, session, log, rec, traced)
+            : await pushTrip(cfg, client, req.trip!, log);
+        done = { ...done, cfg, session };
       } catch (err) {
-        if (err instanceof OhgoAuthError) throw new OhgoRequestRejected(err.message, 401);
+        const message = (err as Error).message;
+        rec.finish({ ok: false, error: message });
+        log(`등록 실패. 자세한 기록: ${logFile}`);
+        (err as Error).message = `${message}\n자세한 기록: ${logFile} (문제가 계속되면 이 파일을 보내 주세요)`;
         throw err;
       }
-      const client = new OhgoClient(cfg, session.accessToken, fetchImpl);
-      const done =
-        req.kind === 'catch'
-          ? await pushCatch(cfg, client, post, req.photo!, session, log)
-          : await pushTrip(cfg, client, req.trip!, log);
+      rec.finish({ ok: true, rowIds: done.rowIds });
+      const { cfg, session } = done;
       const target = req.kind === 'catch' ? 'community_photos' : 'trip_guides';
       const title = req.kind === 'catch' ? req.photo!.title : tripTitle(req.trip!);
       recordLedgerEntry(opts.dir, {

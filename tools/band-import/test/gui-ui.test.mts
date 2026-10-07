@@ -35,6 +35,7 @@ const prep: PrepareResult = {
   remoteWarnings: [],
 };
 const pushes: PushRequest[] = [];
+let failNextPush = false;
 const edits: string[] = [];
 let editMap: PrepareResult['photoEdits'] = {};
 const ohgo: OhgoService = {
@@ -44,6 +45,10 @@ const ohgo: OhgoService = {
   prepare: async () => ({ ...structuredClone(prep), photoEdits: editMap }),
   checkPush: () => {},
   push: async (req) => {
+    if (failNextPush) {
+      failNextPush = false;
+      throw new Error('사진 2/3 (02.jpg) 올리기 실패: 사진 업로드 실패: too big (HTTP 413)\n조황 게시판에 글은 만들지 않았습니다.\n자세한 기록: out/2925/push-log.json');
+    }
     pushes.push(req);
     return { kind: req.kind, target: 'community_photos', rowIds: ['r1'], links: ['https://ohgo.test/community/r1'], title: 't', resizedImages: 0 };
   },
@@ -85,11 +90,15 @@ try {
   await thumbs.first().waitFor();
   const shown = async () => thumbs.evaluateAll((els) => els.map((el) => `${(el as HTMLElement).dataset.file}:${el.querySelector('.num')!.textContent}`));
   assert.deepEqual(await shown(), ['01.jpg:1', '02.jpg:2', '03.png:3', '04.jpg:4']);
-  assert.equal(await thumbs.first().locator('button[title="앞으로"]').isDisabled(), true, '첫 사진은 앞으로 못 간다');
+  assert.equal(await page.locator('#pThumbs button').count(), 4, '사진마다 빼기 버튼 하나만 있다 (화살표, 편집 버튼 없음)');
+  const editorOpen = async () => page.locator('#editModal:not(.hidden)').count();
 
-  // ▶ 버튼: 01을 한 칸 뒤로
-  await thumbs.nth(0).locator('button[title="뒤로"]').click();
+  // 끌어다 놓기: 01을 02 자리로. 끌어도 편집 창은 열리지 않는다
+  await page.locator('#pThumbs .thumb[data-file="01.jpg"]').dragTo(page.locator('#pThumbs .thumb[data-file="02.jpg"]'));
   assert.deepEqual(await shown(), ['02.jpg:1', '01.jpg:2', '03.png:3', '04.jpg:4']);
+  assert.equal(await editorOpen(), 0, '끌기는 누르기로 치지 않는다');
+  await page.locator('#pThumbs .thumb[data-file="01.jpg"] img').dispatchEvent('click');
+  assert.equal(await editorOpen(), 0, '놓은 뒤 따라오는 click도 무시한다');
 
   // 03을 빼면 번호가 당겨지고, 순서를 바꿔도 뺀 상태는 그 사진에 남는다
   const t03 = page.locator('#pThumbs .thumb[data-file="03.png"]');
@@ -105,10 +114,15 @@ try {
   assert.deepEqual(await shown(), ['02.jpg:1', '01.jpg:2', '03.png:3', '04.jpg:4'], '다시 넣으면 번호가 돌아온다');
   assert.equal(await count(), '4장 올림 (전체 4장)');
   await t03.locator('img').click();
-  assert.deepEqual(await shown(), ['02.jpg:1', '01.jpg:2', '03.png:뺌', '04.jpg:3'], '사진을 눌러도 뺀다');
+  await page.locator('#editModal:not(.hidden)').waitFor();
+  assert.deepEqual(await shown(), ['02.jpg:1', '01.jpg:2', '03.png:3', '04.jpg:4'], '사진을 누르면 편집 창만 열리고 빼지 않는다');
+  await page.keyboard.press('Escape');
+  await page.locator('#editModal.hidden').waitFor({ state: 'attached' });
+  await t03.locator('button.pickbtn').click();
   assert.equal(await t03.locator('button.pickbtn').textContent(), '다시 넣기');
-  await page.locator('#pThumbs .thumb[data-file="03.png"] button.mv').first().click();
+  await t03.dragTo(page.locator('#pThumbs .thumb[data-file="01.jpg"]'));
   assert.deepEqual(await shown(), ['02.jpg:1', '03.png:뺌', '01.jpg:2', '04.jpg:3']);
+  assert.equal(await editorOpen(), 0);
   assert.equal(await count(), '3장 올림 (전체 4장)');
 
   // 끌어다 놓기: 04를 맨 앞으로
@@ -117,7 +131,7 @@ try {
 
   // 편집: 오른쪽으로 돌리고 4:3으로 자르면 그 값이 저장되고, 썸네일은 편집본을 보여 준다
   const thumb02 = page.locator('#pThumbs .thumb[data-file="02.jpg"]');
-  await thumb02.locator('button.ed').click();
+  await thumb02.locator('img').click();
   await page.locator('#editModal:not(.hidden)').waitFor();
   assert.equal(await page.locator('#edRevert').isDisabled(), true, '편집 전에는 되돌릴 것이 없다');
   await page.locator('#edSave:not([disabled])').waitFor();
@@ -136,7 +150,7 @@ try {
   assert.match(await thumb02.locator('img').getAttribute('src') ?? '', /edited_02\.jpg/);
 
   // 뒤집은 상태에서 오른쪽으로 돌리면 화면 기준으로 돈다 (저장값은 270)
-  await page.locator('#pThumbs .thumb[data-file="01.jpg"] button.ed').click();
+  await page.locator('#pThumbs .thumb[data-file="01.jpg"]').locator('img').click();
   await page.locator('#edFlip').click();
   await page.locator('#edRotR').click();
   await page.locator('#edSave').click();
@@ -144,7 +158,7 @@ try {
   assert.equal(edits[1], 'edit 01.jpg {"rotate":270,"flipH":true,"crop":null}');
 
   // 다시 열면 저장한 값으로 열리고, 원본으로 되돌릴 수 있다
-  await thumb02.locator('button.ed').click();
+  await thumb02.locator('img').click();
   assert.equal(await page.locator('[data-ratio="free"]').getAttribute('class'), 'on');
   assert.equal(await page.locator('#edRevert').isDisabled(), false);
   await page.locator('#edRevert').click();
@@ -154,13 +168,13 @@ try {
   assert.match(await thumb02.locator('img').getAttribute('src') ?? '', /\/02\.jpg/);
 
   // 취소하면 아무것도 저장하지 않는다
-  await thumb02.locator('button.ed').click();
+  await thumb02.locator('img').click();
   await page.locator('#edRotL').click();
   await page.keyboard.press('Escape');
   assert.equal(edits.length, 3);
 
   // 자르기 상자: 오른쪽 아래 모서리를 끌면 줄고, 가운데를 끌면 옮겨진다 (사진 밖으로는 안 나감)
-  await page.locator('#pThumbs .thumb[data-file="04.jpg"] button.ed').click();
+  await page.locator('#pThumbs .thumb[data-file="04.jpg"]').locator('img').click();
   await page.locator('#editModal:not(.hidden)').waitFor();
   await page.waitForFunction(() => document.getElementById('edSize')!.textContent !== '');
   const se = await page.locator('#edCrop i[data-h="se"]').boundingBox();
@@ -201,8 +215,18 @@ try {
   await page.locator('#pFormat').check();
   assert.equal(await page.locator('#fmtNote').textContent(), '');
 
+  // 등록이 실패하면 등록 버튼 바로 아래에 이유를 보여 주고, 다시 누를 수 있다
+  failNextPush = true;
+  await page.locator('#pushBtn').click();
+  await page.locator('#pushError:not(.hidden)').waitFor();
+  const errText = await page.locator('#pushErrorText').textContent();
+  assert.match(errText ?? '', /사진 2\/3 \(02\.jpg\) 올리기 실패[\s\S]*글은 만들지 않았습니다[\s\S]*push-log\.json/);
+  assert.equal(await page.locator('#pushResult').isVisible(), false);
+  await page.locator('#pushBtn:not([disabled])').waitFor();
+
   await page.locator('#pushBtn').click();
   await page.locator('#pushResult:not(.hidden)').waitFor();
+  assert.equal(await page.locator('#pushError').isVisible(), false, '다시 성공하면 실패 안내를 지운다');
   assert.deepEqual(pushes[0].photo!.images, ['04.jpg', '02.jpg', '01.jpg'], '보이는 순서대로, 뺀 사진 없이 보낸다');
   assert.equal(pushes[0].photo!.useFormatting, true);
   assert.deepEqual(errors, []);

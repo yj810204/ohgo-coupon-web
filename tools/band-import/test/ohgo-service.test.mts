@@ -3,6 +3,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, wri
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildExtracted } from '../src/extracted.mts';
+import { editedFileName } from '../src/image-edit.mts';
+import { PUSH_LOG_FILE, readPushRuns } from '../src/push-log.mts';
 import { createBrowserReencoder, MAX_UPLOAD_BYTES, prepareImage } from '../src/image-prep.mts';
 import { LEDGER_FILE, readLedger } from '../src/ledger.mts';
 import { OHGO_SESSION_FILE, readOhgoSession, saveOhgoSession } from '../src/ohgo-auth.mts';
@@ -38,6 +40,15 @@ const fake = {
   missingColumns: new Set<string>(),
   failTripInsertAt: -1,
   tripInserts: 0,
+  /** n번째(0부터) 사진 올리기를 거절한다 */
+  rejectUploadAt: -1,
+  uploads: 0,
+  /** 권한이 없어 Storage 삭제가 아무것도 안 지우고 200으로 답하는 경우 */
+  storageDeleteNoop: false,
+  /** 저장은 되지만 image_urls가 빈 채로 읽히는 경우 */
+  dropImageUrls: false,
+  /** 공개 주소가 열리지 않는 경우 */
+  publicBroken: false,
 };
 
 function issue(sub: string, exp?: number) {
@@ -75,8 +86,14 @@ const fakeFetch = (async (input: string | URL | Request, init: RequestInit = {})
     }
   }
   if (url.origin === SB) {
-    if (headers.apikey !== ANON) return json(401, { message: 'no apikey' });
     const path = url.pathname;
+    if (path.startsWith('/storage/v1/object/public/photos/') && method === 'HEAD') {
+      const key = decodeURIComponent(path.slice('/storage/v1/object/public/photos/'.length));
+      const obj = storage.get(key);
+      if (!obj || fake.publicBroken) return new Response(null, { status: 400, headers: { 'content-type': 'application/json' } });
+      return new Response(null, { status: 200, headers: { 'content-type': obj.type } });
+    }
+    if (headers.apikey !== ANON) return json(401, { message: 'no apikey' });
     if (path === '/auth/v1/token') {
       const b = body as Record<string, string>;
       if (url.searchParams.get('grant_type') === 'refresh_token') {
@@ -96,13 +113,18 @@ const fakeFetch = (async (input: string | URL | Request, init: RequestInit = {})
     const isAdmin = who === ADMIN_ID;
     if (path.startsWith('/storage/v1/object/photos/') && method === 'POST') {
       if (!who) return json(403, { message: 'new row violates row-level security policy' });
+      if (fake.uploads++ === fake.rejectUploadAt) {
+        return json(413, { statusCode: '413', error: 'Payload too large', message: 'The object exceeded the maximum allowed size' });
+      }
       const key = decodeURIComponent(path.slice('/storage/v1/object/photos/'.length));
       storage.set(key, { type: headers['content-type'], size: (body as Uint8Array).length });
       return json(200, { Key: `photos/${key}` });
     }
     if (path === '/storage/v1/object/photos' && method === 'DELETE') {
-      for (const p of (body as { prefixes: string[] }).prefixes) storage.delete(p);
-      return json(200, []);
+      if (fake.storageDeleteNoop) return json(200, []);
+      const prefixes = (body as { prefixes: string[] }).prefixes.filter((p) => storage.has(p));
+      for (const p of prefixes) storage.delete(p);
+      return json(200, prefixes.map((name) => ({ name, bucket_id: 'photos' })));
     }
     const table = path.replace('/rest/v1/', '');
     if (table in rows) {
@@ -116,6 +138,11 @@ const fakeFetch = (async (input: string | URL | Request, init: RequestInit = {})
           ];
           const wanted = /^in\.\((.*)\)$/.exec(date)?.[1].split(',') ?? [];
           return json(200, existing.filter((r) => wanted.includes(r.date)));
+        }
+        const byId = url.searchParams.get('id');
+        if (byId) {
+          const found = rows[table].filter((r) => `eq.${r.id}` === byId);
+          return json(200, found.map((r) => ({ id: r.id, image_urls: fake.dropImageUrls ? null : r.image_urls })));
         }
         if (table === 'trip_guides') return json(200, [{ destination: '나무섬' }, { destination: '낫개' }, { destination: '형제섬' }, { destination: '낫개' }, { destination: '낫개' }]);
         const title = url.searchParams.get('title')?.replace('eq.', '');
@@ -454,6 +481,80 @@ assert.equal(rows.community_photos.length, 1);
   await service.editImage('2925', '03.jpg', { rotate: 180, flipH: false, crop: null });
   assert.deepEqual(await service.editImage('2925', '03.jpg', { rotate: 0, flipH: false, crop: null }), {});
   assert.equal(existsSync(join(outRoot, '2925', 'edited_03.jpg')), false);
+}
+
+// 운영자 신고: 11장을 모두 편집하고 2장을 뺀 뒤 등록했는데 앱에 사진이 없었다
+{
+  const pid = '2925';
+  for (const f of ELEVEN) await service.editImage(pid, f, { rotate: 90, flipH: false, crop: null });
+  const chosen = ELEVEN.filter((f) => f !== '04.jpg' && f !== '10.png');
+  const req: PushRequest = { postId: pid, kind: 'catch', force: true, photo: { ...prepDom.photo, images: chosen } };
+  const rowsBefore = rows.community_photos.length;
+  const storageBefore = storage.size;
+  const runs = () => readPushRuns(join(outRoot, pid));
+  const uploadCalls = () => calls.filter((c) => c.method === 'POST' && c.url.includes('/storage/v1/object/photos/'));
+
+  // 서버가 두 번째 사진을 거절하고, 첫 사진 정리도 권한 때문에 조용히 안 되는 경우
+  fake.uploads = 0;
+  fake.rejectUploadAt = 1;
+  fake.storageDeleteNoop = true;
+  const failLogs: string[] = [];
+  await assert.rejects(service.push(req, (m) => failLogs.push(m)), (err: Error) => {
+    assert.match(err.message, /^사진 2\/9 \(02\.jpg의 편집본 edited_02\.jpg\) 올리기 실패: 사진 업로드 실패: The object exceeded the maximum allowed size \(HTTP 413\)\. 사진이 서버가 받는 크기보다 큽니다/);
+    assert.match(err.message, /조황 게시판에 글은 만들지 않았습니다/);
+    assert.match(err.message, /올린 사진 1장은 서버 권한 때문에 지우지 못해 Storage에 남았습니다/);
+    assert.match(err.message, /자세한 기록: out\/2925\/push-log\.json/);
+    return true;
+  });
+  fake.rejectUploadAt = -1;
+  fake.storageDeleteNoop = false;
+  assert.equal(rows.community_photos.length, rowsBefore, '사진이 하나라도 실패하면 글을 만들지 않는다');
+  assert.equal(storage.size, storageBefore + 1, '못 지운 1장이 남는다');
+  const failed = runs().at(-1)!;
+  assert.equal(failed.ok, false);
+  assert.equal(failed.user, '오고 선장');
+  assert.equal(failed.supabase, REF);
+  assert.deepEqual(failed.images.map((i) => [i.file, i.ok]), [['edited_01.jpg', true], ['edited_02.jpg', false]]);
+  assert.equal(failed.images[0].fileBytes, Buffer.byteLength('edited-img-01.jpg'));
+  assert.equal(failed.images[0].contentType, 'image/jpeg');
+  assert.ok(failed.requests.some((r) => r.status === 413 && r.reply.includes('maximum allowed size')), '서버 응답을 남긴다');
+  assert.ok(failed.messages.some((m) => m.includes('지우지 못한 사진')));
+  assert.ok(failLogs.some((m) => m.includes('자세한 기록')));
+  const logText = readFileSync(join(outRoot, pid, PUSH_LOG_FILE), 'utf8');
+  const sess = readOhgoSession(dir)!;
+  assert.ok(!logText.includes(sess.accessToken) && !logText.includes(sess.refreshToken) && !logText.includes(ANON), '토큰과 키는 기록하지 않는다');
+  storage.delete(failed.images[0].objectPath!);
+
+  // 저장은 됐는데 image_urls가 빈 채로 읽히면 글과 사진을 지우고 알린다
+  fake.dropImageUrls = true;
+  await assert.rejects(service.push(req, () => {}), /사진 목록\(image_urls\)이 비어 있습니다 \(올린 사진 9장\)\n저장한 글은 지웠습니다/);
+  fake.dropImageUrls = false;
+  assert.equal(rows.community_photos.length, rowsBefore);
+  assert.equal(storage.size, storageBefore, '올린 사진도 지운다');
+
+  // 공개 주소로 사진이 안 열려도 마찬가지
+  fake.publicBroken = true;
+  await assert.rejects(service.push(req, () => {}), /사진 1이 앱에서 열리지 않습니다 \(HTTP 400/);
+  fake.publicBroken = false;
+  assert.equal(rows.community_photos.length, rowsBefore);
+  assert.equal(storage.size, storageBefore);
+
+  // 정상: 편집본 9장이 고른 순서대로 올라가고, 다시 읽어 확인까지 한다
+  const okLogs: string[] = [];
+  const before = uploadCalls().length;
+  await service.push(req, (m) => okLogs.push(m));
+  const sent = uploadCalls().slice(before);
+  assert.deepEqual(sent.map((c) => Buffer.from(c.body as Uint8Array).toString()), chosen.map((f) => `edited-img-${f}`));
+  const row = rows.community_photos.at(-1)!;
+  assert.equal((row.image_urls as string[]).length, 9);
+  assert.ok(okLogs.includes('앱에서 사진 9장이 열리는 것을 확인했습니다'));
+  const ok = runs().at(-1)!;
+  assert.equal(ok.ok, true);
+  assert.deepEqual(ok.rowIds, [row.id]);
+  assert.deepEqual(ok.images.map((i) => i.file), chosen.map((f) => editedFileName(f)));
+  assert.equal(runs().length, 5, '최근 5번만 남긴다');
+  rows.community_photos.pop();
+  for (const f of ELEVEN) await service.revertImage(pid, f);
 }
 
 // Band 본문 서식(글자색, 굵게): 켜면 content에 안전한 HTML, description은 평문 그대로
