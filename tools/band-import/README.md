@@ -30,6 +30,8 @@ npm run band:login
 
 브라우저 창이 열리면 Band에 로그인합니다. 로그인이 확인되면 창이 자동으로 닫히고 세션이 `tools/band-import/user-data/`에 저장됩니다. 이미 로그인되어 있으면 바로 끝납니다. 세션이 만료되면 다시 실행하세요.
 
+Band 로그인 쿠키 일부는 브라우저를 닫으면 사라지는 세션 쿠키입니다. 그래서 login이 끝날 때 Band 쿠키를 `user-data/band-session.json`에 따로 저장하고, fetch가 시작할 때 되살립니다. 이 기능이 생기기 전에 로그인했다면 `npm run band:login`을 한 번 다시 실행하세요. fetch에 `--headed`를 붙일 필요는 없습니다.
+
 ### 2. 게시글 가져오기
 
 ```bash

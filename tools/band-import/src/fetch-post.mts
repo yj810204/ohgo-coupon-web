@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { BrowserContext, Page } from 'playwright';
+import type { BrowserContext } from 'playwright';
+import { isBandCookie } from './session-store.mts';
 import { isBandApiHost } from './auth-state.mts';
 import { trackLoginState } from './browser.mts';
 import { buildExtracted } from './extracted.mts';
@@ -10,12 +11,13 @@ import type { ExtractedImage, ExtractedPost } from './schema.mts';
 import type { BandPostRef } from './url.mts';
 
 const IMAGE_DOWNLOAD_GAP_MS = 400;
+const NOT_LOGGED_IN_GRACE_MS = 5000;
 
 type Captured = { post: Record<string, unknown>; url: string };
 
-function captureApiPost(page: Page, postId: string): { get: () => Captured | null } {
+function captureApiPost(context: BrowserContext, postId: string): { get: () => Captured | null } {
   let captured: Captured | null = null;
-  page.on('response', async (res) => {
+  context.on('response', async (res) => {
     if (captured) return;
     let host: string;
     try {
@@ -102,25 +104,30 @@ export async function fetchBandPost(args: {
 }): Promise<{ extracted: ExtractedPost; outDir: string }> {
   const { context, ref, outRoot, timeoutMs } = args;
   const log = args.log ?? console.log;
+  const login = trackLoginState(context);
+  const api = captureApiPost(context, ref.postId);
   const page = context.pages()[0] ?? (await context.newPage());
-  const login = trackLoginState(page);
-  const api = captureApiPost(page, ref.postId);
 
   log(`열기: ${ref.canonicalUrl}`);
   await page.goto(ref.canonicalUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
 
   const deadline = Date.now() + timeoutMs;
+  let noneSince: number | null = null;
   let dom: DomSnapshot | null = null;
   while (Date.now() < deadline) {
     if (api.get()) break;
-    if (login.current() === 'none') {
-      throw new Error('Band에 로그인되어 있지 않습니다. 먼저 `npm run band:login` 을 실행하세요.');
-    }
     dom = await page.evaluate(readPostDom).catch(() => null);
     if (dom && dom.bodyText.trim()) {
       // API 응답이 DOM보다 늦게 오는 경우를 위해 잠깐 더 기다린다
       await page.waitForTimeout(1500);
       break;
+    }
+    // 로그인 상태 응답이 NONE이어도 토큰 갱신이나 재요청 뒤 게시글이 뜰 수 있어 바로 실패하지 않는다
+    if (login.current() === 'none') {
+      noneSince ??= Date.now();
+      if (Date.now() - noneSince > NOT_LOGGED_IN_GRACE_MS) break;
+    } else {
+      noneSince = null;
     }
     await page.waitForTimeout(500);
   }
@@ -139,14 +146,19 @@ export async function fetchBandPost(args: {
     warnings.push('API 응답을 찾지 못해 화면(DOM)에서 추출했습니다. 이미지가 일부만 잡혔을 수 있습니다');
     log('API 응답을 찾지 못해 DOM에서 추출합니다');
   } else {
+    const bandCookies = (await context.cookies()).filter(isBandCookie).length;
+    const diag = `(로그인 상태: ${login.lastRaw() ?? '응답 없음'}, Band 쿠키 ${bandCookies}개)`;
+    if (login.current() === 'none') {
+      throw new Error(`Band에 로그인되어 있지 않습니다 ${diag}. \`npm run band:login\` 으로 다시 로그인하세요.`);
+    }
     const blocked = await page
       .getByText('멤버만 볼 수 있습니다')
       .isVisible()
       .catch(() => false);
     throw new Error(
       blocked
-        ? '게시글을 볼 권한이 없습니다(밴드 멤버 로그인 필요). `npm run band:login` 후 다시 시도하세요.'
-        : `게시글을 ${Math.round(timeoutMs / 1000)}초 안에 읽지 못했습니다. --headed 로 화면을 확인해 보세요.`,
+        ? `게시글을 볼 권한이 없습니다(밴드 멤버 로그인 필요) ${diag}. \`npm run band:login\` 후 다시 시도하세요.`
+        : `게시글을 ${Math.round(timeoutMs / 1000)}초 안에 읽지 못했습니다 ${diag}. --headed 로 화면을 확인해 보세요.`,
     );
   }
 

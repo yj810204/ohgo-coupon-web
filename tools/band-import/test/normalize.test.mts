@@ -99,10 +99,12 @@ assert.equal(imageFileName(9, 'https://a/x.PNG', null), '10.png');
 assert.equal(imageFileName(2, 'https://a/x.jpeg', 'application/octet-stream'), '03.jpg');
 assert.equal(imageFileName(3, 'https://a/x', null), '04.jpg');
 
-assert.equal(parseAuthKeyScript('new M({ signedUser: false, authenticateState : "NONE" })'), 'none');
-assert.equal(parseAuthKeyScript('new M({ signedUser: true, authenticateState : "USER" })'), 'user');
-assert.equal(parseAuthKeyScript('authenticateState: "USER"'), 'user');
-assert.equal(parseAuthKeyScript('var x = 1'), 'unknown');
+assert.deepEqual(parseAuthKeyScript('new M({ signedUser: false, authenticateState : "NONE" })'), { state: 'none', raw: 'NONE' });
+assert.deepEqual(parseAuthKeyScript('new M({ signedUser: true, authenticateState : "USER" })'), { state: 'user', raw: 'USER' });
+assert.deepEqual(parseAuthKeyScript('new M({ signedUser: true, authenticateState : "LIMITED" })'), { state: 'none', raw: 'LIMITED' });
+assert.deepEqual(parseAuthKeyScript('authenticateState: "USER"'), { state: 'user', raw: 'USER' });
+assert.deepEqual(parseAuthKeyScript('signedUser: true'), { state: 'user', raw: 'signedUser=true' });
+assert.deepEqual(parseAuthKeyScript('var x = 1'), { state: 'unknown', raw: null });
 assert.ok(isAuthKeyUrl('https://auth.band.us/s/login/getKey?_t=1&callback=cb'));
 assert.ok(!isAuthKeyUrl('https://auth.band.us/login_page'));
 assert.ok(isBandApiHost('api.band.us'));

@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { BrowserContext } from 'playwright';
 import { openContext } from '../src/browser.mts';
+import { restoreSession, saveSession } from '../src/session-store.mts';
 import { fetchBandPost } from '../src/fetch-post.mts';
 import type { ImageDownloader } from '../src/fetch-post.mts';
 import { validateExtracted } from '../src/schema.mts';
@@ -19,7 +20,14 @@ const PNG_1PX = Buffer.from(
   'base64',
 );
 
-type Scenario = { signedUser: boolean; api: boolean; dom: boolean };
+type Scenario = {
+  /** login 단계에서 Band 세션 쿠키를 받았는지 */
+  loggedIn: boolean;
+  /** fetch 시작 시 저장된 세션을 복원하는지 */
+  restore: boolean;
+  api: boolean;
+  dom: boolean;
+};
 
 function pageHtml({ api, dom }: Scenario): string {
   const domMarkup = dom
@@ -39,33 +47,59 @@ function pageHtml({ api, dom }: Scenario): string {
   </body></html>`;
 }
 
+async function routeFakeBand(context: BrowserContext, scenario: Scenario): Promise<void> {
+  await context.route('**/*', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.hostname === 'band.us' && url.pathname === '/band/88348442/post/2925') {
+      return route.fulfill({ contentType: 'text/html; charset=utf-8', body: pageHtml(scenario) });
+    }
+    if (url.hostname === 'auth.band.us') {
+      // 실제 Band처럼 요청에 실린 세션 쿠키로만 로그인 상태를 정한다
+      const signed = /(^|;\s*)band_session=ok(;|$)/.test((await route.request().allHeaders()).cookie ?? '');
+      return route.fulfill({
+        contentType: 'text/javascript',
+        body: `var cfg = { signedUser: ${signed}, authenticateState : "${signed ? 'USER' : 'NONE'}" };`,
+      });
+    }
+    if (url.hostname === 'api-us.band.us') {
+      return route.fulfill({
+        contentType: 'application/json;charset=UTF-8',
+        headers: { 'access-control-allow-origin': '*' },
+        body: fixture,
+      });
+    }
+    return route.abort();
+  });
+}
+
 async function withScenario(scenario: Scenario, run: (ctx: BrowserContext, outRoot: string) => Promise<void>) {
   const dir = mkdtempSync(join(tmpdir(), 'band-import-test-'));
-  const context = await openContext({ userDataDir: join(dir, 'profile'), headless: true });
+  const userDataDir = join(dir, 'profile');
   try {
-    await context.route('**/*', (route) => {
-      const url = new URL(route.request().url());
-      if (url.hostname === 'band.us' && url.pathname === '/band/88348442/post/2925') {
-        return route.fulfill({ contentType: 'text/html; charset=utf-8', body: pageHtml(scenario) });
-      }
-      if (url.hostname === 'auth.band.us') {
-        return route.fulfill({
-          contentType: 'text/javascript',
-          body: `var cfg = { signedUser: ${scenario.signedUser}, authenticateState : "${scenario.signedUser ? 'USER' : 'NONE'}" };`,
-        });
-      }
-      if (url.hostname === 'api-us.band.us') {
-        return route.fulfill({
-          contentType: 'application/json;charset=UTF-8',
-          headers: { 'access-control-allow-origin': '*' },
-          body: fixture,
-        });
-      }
-      return route.abort();
-    });
-    await run(context, join(dir, 'out'));
+    // login: 헤드 모드에서 세션 쿠키(만료일 없음)를 받고 저장한 뒤 브라우저를 닫는다
+    const loginContext = await openContext({ userDataDir, headless: false });
+    if (scenario.loggedIn) {
+      await loginContext.addCookies([
+        { name: 'band_session', value: 'ok', domain: '.band.us', path: '/', expires: -1, secure: true, sameSite: 'None' },
+        { name: 'band_persist', value: '1', domain: '.band.us', path: '/', expires: Date.now() / 1000 + 86400 },
+      ]);
+    }
+    await saveSession(loginContext, userDataDir);
+    await loginContext.close();
+
+    // fetch: 같은 프로필을 headless로 다시 연다. 세션 쿠키는 이 시점에 사라져 있다
+    const context = await openContext({ userDataDir, headless: true });
+    try {
+      const jar = (await context.cookies()).map((c) => c.name);
+      assert.ok(!jar.includes('band_session'), '재시작 후 세션 쿠키는 프로필에서 사라진다');
+      if (scenario.loggedIn) assert.ok(jar.includes('band_persist'), 'headed에서 받은 영속 쿠키는 headless에서도 보인다');
+      if (scenario.restore) await restoreSession(context, userDataDir);
+      await routeFakeBand(context, scenario);
+      await run(context, join(dir, 'out'));
+    } finally {
+      await context.close();
+    }
   } finally {
-    await context.close();
     rmSync(dir, { recursive: true, force: true });
   }
 }
@@ -79,7 +113,7 @@ const download: ImageDownloader = async (url) => {
   return { body: PNG_1PX, contentType: 'image/png' };
 };
 
-await withScenario({ signedUser: true, api: true, dom: true }, async (context, outRoot) => {
+await withScenario({ loggedIn: true, restore: true, api: true, dom: true }, async (context, outRoot) => {
   const { extracted, outDir } = await fetchBandPost({ context, ref, outRoot, timeoutMs: 10_000, log: quiet, download });
   assert.equal(extracted.extractedVia, 'api');
   assert.equal(extracted.author, '오고피싱 선장');
@@ -96,7 +130,7 @@ await withScenario({ signedUser: true, api: true, dom: true }, async (context, o
   assert.deepEqual(onDisk, extracted);
 });
 
-await withScenario({ signedUser: true, api: false, dom: true }, async (context, outRoot) => {
+await withScenario({ loggedIn: true, restore: true, api: false, dom: true }, async (context, outRoot) => {
   const { extracted, outDir } = await fetchBandPost({ context, ref, outRoot, timeoutMs: 10_000, log: quiet, download });
   assert.equal(extracted.extractedVia, 'dom');
   assert.equal(extracted.author, 'DOM 작성자');
@@ -109,17 +143,26 @@ await withScenario({ signedUser: true, api: false, dom: true }, async (context, 
   assert.equal(extracted.warnings.length, 1);
 });
 
-await withScenario({ signedUser: false, api: false, dom: false }, async (context, outRoot) => {
+// 운영자 버그 재현: login은 성공했지만 세션 쿠키를 복원하지 않으면 NONE 으로 보인다
+await withScenario({ loggedIn: true, restore: false, api: false, dom: false }, async (context, outRoot) => {
   await assert.rejects(
-    fetchBandPost({ context, ref, outRoot, timeoutMs: 10_000, log: quiet, download }),
-    /로그인되어 있지 않습니다/,
+    fetchBandPost({ context, ref, outRoot, timeoutMs: 15_000, log: quiet, download }),
+    /로그인되어 있지 않습니다 \(로그인 상태: NONE, Band 쿠키 1개\)/,
   );
+});
+
+// 로그인 상태 응답이 NONE이어도 게시글 응답이 오면 실패로 보지 않는다
+await withScenario({ loggedIn: false, restore: true, api: true, dom: false }, async (context, outRoot) => {
+  const { extracted } = await fetchBandPost({ context, ref, outRoot, timeoutMs: 15_000, log: quiet, download });
+  assert.equal(extracted.extractedVia, 'api');
 });
 
 assert.deepEqual(requestedImages, [
   'https://coresos-phinf.pstatic.net/a/test/one.jpg',
   'https://coresos-phinf.pstatic.net/a/test/two.png',
   'https://coresos-phinf.pstatic.net/a/dom/1.jpg',
+  'https://coresos-phinf.pstatic.net/a/test/one.jpg',
+  'https://coresos-phinf.pstatic.net/a/test/two.png',
 ]);
 
 console.log('band-import offline fetch tests passed');
