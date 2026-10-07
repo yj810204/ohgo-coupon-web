@@ -887,6 +887,7 @@ function PhotoDetailContent() {
             urls={photoUrls}
             alt={photo.title || (isFaq ? '팁 사진' : isQna ? '질문 사진' : '조황사진')}
             onImageClick={(_url, index) => setPreviewIndex(index)}
+            autoPlayMs={previewIndex == null ? 3500 : 0}
           />
         )}
         </div>
