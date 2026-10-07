@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildExtracted } from '../src/extracted.mts';
@@ -181,6 +181,7 @@ writePost('100', '오늘 참돔 조황입니다\n손님들 손맛 보셨습니�
 writePost('200', '[출조 안내] 10월 12일 참돔 출조\n형제섬 갑니다\n출항 05:00 ~ 14:00\n정원 10명', {});
 
 const reencodeSteps: number[] = [];
+const editorCalls: string[] = [];
 const service = createOhgoService({
   dir,
   outRoot,
@@ -190,6 +191,13 @@ const service = createOhgoService({
     reencode: async (_bytes, _type, step) => {
       reencodeSteps.push(step.maxEdge);
       return step.maxEdge > 2048 ? Buffer.alloc(MAX_UPLOAD_BYTES + 1) : Buffer.from('jpeg-small');
+    },
+    close: async () => {},
+  }),
+  createImageEditor: async () => ({
+    apply: async (bytes, type, edit) => {
+      editorCalls.push(`${type} ${bytes.toString()} ${JSON.stringify(edit)}`);
+      return { bytes: Buffer.from(`edited-${bytes.toString()}`), contentType: 'image/jpeg', width: 20, height: 40 };
     },
     close: async () => {},
   }),
@@ -409,6 +417,43 @@ assert.equal(rows.community_photos.length, 1);
   assert.deepEqual(row.image_urls, keysInOrder.map((k) => publicPhotoUrl(SB, k)), 'image_urls도 같은 순서');
   assert.equal(new URL(sent[1].url).pathname.endsWith('.png'), true, 'PNG는 그대로 PNG');
   rows.community_photos.pop();
+}
+
+// 사진 편집: 원본은 두고 edited_NN 파일을 만들어 그것을 올린다
+{
+  const edit = { rotate: 90 as const, flipH: true, crop: { x: 0, y: 0, w: 1, h: 0.5 } };
+  const edits = await service.editImage('2925', '02.jpg', edit);
+  assert.deepEqual(editorCalls, [`image/jpeg img-02.jpg ${JSON.stringify(edit)}`]);
+  assert.equal(edits['02.jpg'].output, 'edited_02.jpg');
+  assert.deepEqual([edits['02.jpg'].width, edits['02.jpg'].height], [20, 40]);
+  assert.equal(readFileSync(join(outRoot, '2925', '02.jpg'), 'utf8'), 'img-02.jpg', '원본은 그대로');
+  assert.equal(readFileSync(join(outRoot, '2925', 'edited_02.jpg'), 'utf8'), 'edited-img-02.jpg');
+  const again = await service.prepare('2925');
+  assert.deepEqual(again.photo.images, ELEVEN, '편집본은 사진 목록에 따로 들어가지 않는다');
+  assert.deepEqual(Object.keys(again.photoEdits), ['02.jpg']);
+  assert.deepEqual(again.photoEdits['02.jpg'].edit, edit);
+
+  const uploadsBefore = calls.filter((c) => c.url.includes('/storage/v1/object/photos/')).length;
+  const editLogs: string[] = [];
+  await service.push({ postId: '2925', kind: 'catch', force: true, photo: { ...prepDom.photo, images: ['02.jpg', '01.jpg'] } }, (m) => editLogs.push(m));
+  const sent = calls.filter((c) => c.url.includes('/storage/v1/object/photos/')).slice(uploadsBefore);
+  assert.deepEqual(sent.map((c) => Buffer.from(c.body as Uint8Array).toString()), ['edited-img-02.jpg', 'img-01.jpg'], '편집한 사진을 올린다');
+  assert.ok(editLogs.some((l) => l.includes('02.jpg: 편집한 사진(edited_02.jpg)을 올립니다')));
+  rows.community_photos.pop();
+
+  await assert.rejects(service.editImage('2925', 'edited_02.jpg', edit), /편집할 수 없는 사진입니다/);
+  await assert.rejects(service.editImage('2925', '../100/01.jpg', edit), /편집할 수 없는 사진입니다/);
+  await assert.rejects(service.editImage('../x', '01.jpg', edit), /잘못된 게시글 번호/);
+
+  const reverted = await service.revertImage('2925', '02.jpg');
+  assert.deepEqual(reverted, {});
+  assert.equal(existsSync(join(outRoot, '2925', 'edited_02.jpg')), false, '편집본을 지운다');
+  assert.deepEqual((await service.prepare('2925')).photoEdits, {});
+
+  // 아무것도 바꾸지 않은 편집은 되돌리기와 같다
+  await service.editImage('2925', '03.jpg', { rotate: 180, flipH: false, crop: null });
+  assert.deepEqual(await service.editImage('2925', '03.jpg', { rotate: 0, flipH: false, crop: null }), {});
+  assert.equal(existsSync(join(outRoot, '2925', 'edited_03.jpg')), false);
 }
 
 // ---------- 일정 등록 ----------

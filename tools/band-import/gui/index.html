@@ -88,6 +88,26 @@
   .thumb.off .num { background: #8e8e93; }
   .thumb .bar { display: flex; justify-content: space-between; gap: 4px; margin-top: 3px; }
   .thumb .bar button { flex: 1; padding: 1px 0; font-size: 11px; line-height: 18px; border-radius: 5px; }
+  .thumb .bar button.ed { flex: 1.6; }
+  .thumb .edited {
+    position: absolute; top: 4px; right: 4px; padding: 0 5px; border-radius: 999px; background: #fff; color: var(--accent);
+    border: 1px solid var(--accent); font-size: 10px; font-weight: 700; line-height: 16px; pointer-events: none;
+  }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
+  .sheet { background: var(--card); border-radius: 12px; padding: 14px; width: 100%; max-width: 680px; max-height: 100%; overflow: auto; }
+  .stage { position: relative; margin: 10px auto; padding: 12px; width: fit-content; overflow: hidden; touch-action: none; user-select: none; background: #2b2b2e; border-radius: 8px; }
+  .stage canvas { display: block; }
+  .cropbox { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,.5); cursor: move; }
+  .cropbox i { position: absolute; width: 16px; height: 16px; background: #fff; border: 2px solid var(--accent); border-radius: 3px; }
+  .cropbox i[data-h=nw] { left: -9px; top: -9px; cursor: nwse-resize; }
+  .cropbox i[data-h=ne] { right: -9px; top: -9px; cursor: nesw-resize; }
+  .cropbox i[data-h=sw] { left: -9px; bottom: -9px; cursor: nesw-resize; }
+  .cropbox i[data-h=se] { right: -9px; bottom: -9px; cursor: nwse-resize; }
+  .tools { flex-wrap: wrap; margin-top: 6px; }
+  .tools > span { font-size: 12px; color: var(--muted); min-width: 40px; }
+  .tools button { padding: 6px 10px; font-size: 13px; }
+  .tools button.on { border-color: var(--accent); background: var(--accent-weak); color: var(--accent); font-weight: 600; }
+  .grow { flex: 1; }
   .actions { margin-top: 12px; }
   .fields.three { grid-template-columns: 1.2fr .8fr 1fr; }
   .tripwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
@@ -191,7 +211,7 @@
           <label class="field"><span>사진 날짜</span><input id="pDate" type="date"></label>
           <div class="field"><span>사진</span><div id="pCount" style="padding-top:8px"></div></div>
         </div>
-        <div class="sub" style="margin:8px 0 0">번호 순서대로 올라갑니다. 사진을 끌어다 놓거나 ◀ ▶로 순서를 바꾸고, 사진을 누르면 빼거나 다시 넣습니다. 5MB가 넘는 사진은 줄여서 올립니다.</div>
+        <div class="sub" style="margin:8px 0 0">번호 순서대로 올라갑니다. 사진을 끌어다 놓거나 ◀ ▶로 순서를 바꾸고, 사진을 누르면 빼거나 다시 넣습니다. 편집을 누르면 자르기, 돌리기, 뒤집기를 할 수 있습니다 (원본은 그대로 둡니다). 5MB가 넘는 사진은 줄여서 올립니다.</div>
         <div id="pThumbs" class="thumbs"></div>
       </div>
 
@@ -227,6 +247,37 @@
   </div>
 
   <footer><button id="quitBtn">종료</button></footer>
+
+  <div id="editModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="sheet">
+      <div class="session"><h2 class="sec">사진 편집 <span id="edName" class="sub"></span></h2><span id="edSize" class="sub" style="margin:0"></span></div>
+      <div id="edStage" class="stage">
+        <canvas id="edCanvas"></canvas>
+        <div id="edCrop" class="cropbox"><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i></div>
+      </div>
+      <div class="row tools">
+        <span>자르기</span>
+        <button type="button" data-ratio="free">자유</button>
+        <button type="button" data-ratio="4:3">4:3</button>
+        <button type="button" data-ratio="1:1">1:1</button>
+        <button type="button" data-ratio="3:4">3:4</button>
+        <button type="button" id="edNoCrop">자르지 않기</button>
+      </div>
+      <div class="row tools">
+        <span>방향</span>
+        <button type="button" id="edRotL">↺ 왼쪽으로 돌리기</button>
+        <button type="button" id="edRotR">↻ 오른쪽으로 돌리기</button>
+        <button type="button" id="edFlip">⇋ 좌우 뒤집기</button>
+      </div>
+      <div id="edErr" class="box err hidden"></div>
+      <div class="row actions">
+        <button type="button" id="edRevert">원본으로 되돌리기</button>
+        <span class="grow"></span>
+        <button type="button" id="edCancel">취소</button>
+        <button type="button" id="edSave" class="primary">저장</button>
+      </div>
+    </div>
+  </div>
 
 <script>
   const TOKEN = '__GUI_TOKEN__';
@@ -425,8 +476,14 @@
     renderThumbs();
   }
 
+  function photoEdit(file) {
+    return (prep && prep.photoEdits && prep.photoEdits[file]) || null;
+  }
+
   function thumbSrc(file) {
-    return `/out/${prep.postId}/${encodeURIComponent(file)}?t=${TOKEN}`;
+    const ed = photoEdit(file);
+    const name = ed ? ed.output : file;
+    return `/out/${prep.postId}/${encodeURIComponent(name)}?t=${TOKEN}${ed ? `&v=${encodeURIComponent(ed.updatedAt)}` : ''}`;
   }
 
   function renderThumbs() {
@@ -463,10 +520,21 @@
       right.title = '뒤로';
       right.disabled = i === photoOrder.length - 1;
       right.addEventListener('click', () => movePhoto(f, i + 1));
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'mv ed';
+      edit.textContent = '편집';
+      edit.addEventListener('click', () => openEditor(f));
       const bar = document.createElement('div');
       bar.className = 'bar';
-      bar.append(left, right);
+      bar.append(left, edit, right);
       box.append(img, num, bar);
+      if (photoEdit(f)) {
+        const badge = document.createElement('span');
+        badge.className = 'edited';
+        badge.textContent = '편집됨';
+        box.append(badge);
+      }
       box.addEventListener('dragstart', (e) => {
         dragFile = f;
         box.classList.add('dragging');
@@ -672,6 +740,204 @@
     show('pushResult', true);
     updatePushButton();
   }
+
+
+  // ---------- 사진 편집 ----------
+  // 서버(src/image-edit.mts)와 같은 순서: 시계 방향으로 돌리고, 돌린 화면 기준으로 좌우를 뒤집고, 자른다
+  const RATIOS = { '4:3': 4 / 3, '1:1': 1, '3:4': 3 / 4 };
+  const FULL = { x: 0, y: 0, w: 1, h: 1 };
+  const STAGE_PAD = 12;
+  let ed = null;
+
+  function openEditor(file) {
+    const saved = photoEdit(file);
+    const e = saved ? saved.edit : { rotate: 0, flipH: false, crop: null };
+    ed = { file, img: new Image(), rotate: e.rotate, flipH: e.flipH, crop: { ...(e.crop || FULL) }, ratio: 'free', saving: false };
+    $('edName').textContent = file;
+    $('edSize').textContent = '';
+    show('edErr', false);
+    $('edRevert').disabled = !saved;
+    show('editModal', true);
+    const current = ed;
+    setEditorReady(false);
+    current.img.onload = () => { if (ed === current) { setEditorReady(true); drawEditor(); } };
+    current.img.onerror = () => { if (ed === current) editError('사진을 열지 못했습니다'); };
+    current.img.src = `/out/${prep.postId}/${encodeURIComponent(file)}?t=${TOKEN}`;
+    updateRatioButtons();
+  }
+
+  function setEditorReady(on) {
+    document.querySelectorAll('#editModal .tools button').forEach((b) => { b.disabled = !on; });
+    $('edSave').disabled = !on;
+  }
+
+  function closeEditor() {
+    ed = null;
+    show('editModal', false);
+  }
+
+  function editError(msg) {
+    $('edErr').textContent = msg;
+    show('edErr', true);
+  }
+
+  function turnedSize() {
+    const { naturalWidth: w, naturalHeight: h } = ed.img;
+    return ed.rotate % 180 ? { w: h, h: w } : { w, h };
+  }
+
+  function drawEditor() {
+    if (!ed || !ed.img.naturalWidth) return;
+    const t = turnedSize();
+    const maxW = Math.min(620, window.innerWidth - 96);
+    const maxH = Math.max(200, window.innerHeight - 300);
+    const scale = Math.min(maxW / t.w, maxH / t.h, 1);
+    const cw = Math.max(1, Math.round(t.w * scale));
+    const ch = Math.max(1, Math.round(t.h * scale));
+    const dpr = window.devicePixelRatio || 1;
+    const canvas = $('edCanvas');
+    canvas.width = Math.round(cw * dpr);
+    canvas.height = Math.round(ch * dpr);
+    canvas.style.width = `${cw}px`;
+    canvas.style.height = `${ch}px`;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.translate(cw / 2, ch / 2);
+    if (ed.flipH) ctx.scale(-1, 1);
+    ctx.rotate((ed.rotate * Math.PI) / 180);
+    const iw = ed.img.naturalWidth * scale;
+    const ih = ed.img.naturalHeight * scale;
+    ctx.drawImage(ed.img, -iw / 2, -ih / 2, iw, ih);
+    ed.view = { cw, ch };
+    placeCrop();
+  }
+
+  function placeCrop() {
+    const { cw, ch } = ed.view;
+    const box = $('edCrop');
+    box.style.left = `${STAGE_PAD + ed.crop.x * cw}px`;
+    box.style.top = `${STAGE_PAD + ed.crop.y * ch}px`;
+    box.style.width = `${ed.crop.w * cw}px`;
+    box.style.height = `${ed.crop.h * ch}px`;
+    const t = turnedSize();
+    $('edSize').textContent = `${Math.round(ed.crop.w * t.w)} x ${Math.round(ed.crop.h * t.h)}`;
+  }
+
+  /** 비율 r(가로/세로, 실제 픽셀 기준)로 가운데에 가장 크게 */
+  function centeredCrop(r) {
+    const t = turnedSize();
+    let w = 1;
+    let h = (t.w / r) / t.h;
+    if (h > 1) { h = 1; w = (t.h * r) / t.w; }
+    return { x: (1 - w) / 2, y: (1 - h) / 2, w, h };
+  }
+
+  function setRatio(name) {
+    ed.ratio = name;
+    if (RATIOS[name]) ed.crop = centeredCrop(RATIOS[name]);
+    updateRatioButtons();
+    placeCrop();
+  }
+
+  function updateRatioButtons() {
+    document.querySelectorAll('[data-ratio]').forEach((b) => b.classList.toggle('on', !!ed && b.dataset.ratio === ed.ratio));
+  }
+
+  function turn(dir) {
+    ed.rotate = (ed.rotate + (ed.flipH ? -dir : dir) * 90 + 360) % 360;
+    ed.crop = RATIOS[ed.ratio] ? centeredCrop(RATIOS[ed.ratio]) : { ...FULL };
+    drawEditor();
+  }
+
+  function currentEdit() {
+    const c = ed.crop;
+    const full = c.x < 1e-4 && c.y < 1e-4 && c.w > 0.9999 && c.h > 0.9999;
+    const r = (v) => Math.round(v * 1e6) / 1e6;
+    return { rotate: ed.rotate, flipH: ed.flipH, crop: full ? null : { x: r(c.x), y: r(c.y), w: r(Math.min(c.w, 1 - c.x)), h: r(Math.min(c.h, 1 - c.y)) } };
+  }
+
+  // 자르기 상자 끌기: 가운데는 옮기기, 모서리는 크기 바꾸기 (반대쪽 모서리 고정)
+  let cropDrag = null;
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  $('edCrop').addEventListener('pointerdown', (e) => {
+    if (!ed || !ed.view) return;
+    e.preventDefault();
+    const handle = e.target.dataset ? e.target.dataset.h : undefined;
+    cropDrag = { handle, startX: e.clientX, startY: e.clientY, start: { ...ed.crop } };
+    $('edCrop').setPointerCapture(e.pointerId);
+  });
+  $('edCrop').addEventListener('pointermove', (e) => {
+    if (!cropDrag || !ed) return;
+    const { cw, ch } = ed.view;
+    const s = cropDrag.start;
+    const dx = (e.clientX - cropDrag.startX) / cw;
+    const dy = (e.clientY - cropDrag.startY) / ch;
+    if (!cropDrag.handle) {
+      ed.crop = { ...s, x: clamp(s.x + dx, 0, 1 - s.w), y: clamp(s.y + dy, 0, 1 - s.h) };
+      return placeCrop();
+    }
+    const h = cropDrag.handle;
+    const ax = h.includes('w') ? s.x + s.w : s.x;
+    const ay = h.includes('n') ? s.y + s.h : s.y;
+    const px = clamp((h.includes('w') ? s.x : s.x + s.w) + dx, 0, 1);
+    const py = clamp((h.includes('n') ? s.y : s.y + s.h) + dy, 0, 1);
+    const sx = h.includes('w') ? -1 : 1;
+    const sy = h.includes('n') ? -1 : 1;
+    const maxW = (sx > 0 ? 1 - ax : ax) * cw;
+    const maxH = (sy > 0 ? 1 - ay : ay) * ch;
+    let wpx = Math.max(24, Math.min(maxW, Math.abs(px - ax) * cw));
+    let hpx = Math.max(24, Math.min(maxH, Math.abs(py - ay) * ch));
+    const r = RATIOS[ed.ratio];
+    if (r) {
+      wpx = Math.max(wpx, hpx * r);
+      hpx = wpx / r;
+      if (wpx > maxW) { wpx = maxW; hpx = wpx / r; }
+      if (hpx > maxH) { hpx = maxH; wpx = hpx * r; }
+    }
+    const w = Math.min(wpx / cw, sx > 0 ? 1 - ax : ax);
+    const hh = Math.min(hpx / ch, sy > 0 ? 1 - ay : ay);
+    ed.crop = { x: sx > 0 ? ax : ax - w, y: sy > 0 ? ay : ay - hh, w, h: hh };
+    placeCrop();
+  });
+  const endCropDrag = () => { cropDrag = null; };
+  $('edCrop').addEventListener('pointerup', endCropDrag);
+  $('edCrop').addEventListener('pointercancel', endCropDrag);
+
+  document.querySelectorAll('[data-ratio]').forEach((b) => b.addEventListener('click', () => setRatio(b.dataset.ratio)));
+  $('edNoCrop').addEventListener('click', () => { ed.ratio = 'free'; ed.crop = { ...FULL }; updateRatioButtons(); placeCrop(); });
+  $('edRotL').addEventListener('click', () => turn(-1));
+  $('edRotR').addEventListener('click', () => turn(1));
+  $('edFlip').addEventListener('click', () => {
+    ed.flipH = !ed.flipH;
+    ed.crop = { ...ed.crop, x: 1 - ed.crop.x - ed.crop.w };
+    drawEditor();
+  });
+  $('edCancel').addEventListener('click', closeEditor);
+  $('editModal').addEventListener('click', (e) => { if (e.target === $('editModal')) closeEditor(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ed) closeEditor(); });
+  window.addEventListener('resize', () => { if (ed) drawEditor(); });
+
+  async function saveEdit(path, body) {
+    if (!ed || ed.saving) return;
+    ed.saving = true;
+    $('edSave').disabled = true;
+    $('edRevert').disabled = true;
+    try {
+      const res = await api(path, { postId: prep.postId, file: ed.file, ...body });
+      prep.photoEdits = res.edits;
+      closeEditor();
+      renderThumbs();
+    } catch (err) {
+      editError(err.message);
+      if (ed) ed.saving = false;
+    } finally {
+      $('edSave').disabled = false;
+      $('edRevert').disabled = !(ed && photoEdit(ed.file));
+    }
+  }
+  $('edSave').addEventListener('click', () => saveEdit('/api/ohgo/edit', { edit: currentEdit() }));
+  $('edRevert').addEventListener('click', () => saveEdit('/api/ohgo/revert', {}));
 
   document.querySelectorAll('input[name=kind]').forEach((el) => el.addEventListener('change', () => setKind(el.value)));
   ['tDest', 'pTitle'].forEach((id) => $(id).addEventListener('input', () => { markMissing(); updatePushButton(); }));
