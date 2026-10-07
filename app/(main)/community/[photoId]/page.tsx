@@ -53,7 +53,7 @@ import {
 } from '@/lib/page-styles';
 import EmptyState from '@/components/EmptyState';
 import ImageSwipeSlider from '@/components/ImageSwipeSlider';
-import { isRichHtml } from '@/lib/rich-text';
+import { isRichHtml, sanitizeRichHtml } from '@/lib/rich-text';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
 import { lockBodyScroll, unlockBodyScroll } from '@/lib/body-scroll-lock';
 import { displayMemberName, maskAuthorName } from '@/lib/mask-member-name';
@@ -1079,7 +1079,7 @@ function PhotoDetailContent() {
                     fontSize: 14,
                     color: '#1A1D1F',
                   }}
-                  dangerouslySetInnerHTML={{ __html: photo.content }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(photo.content) }}
                 />
               ) : photo.description ? (
                 isRichHtml(photo.description) ? (
@@ -1093,7 +1093,7 @@ function PhotoDetailContent() {
                       fontSize: 14,
                       color: '#1A1D1F',
                     }}
-                    dangerouslySetInnerHTML={{ __html: photo.description }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(photo.description) }}
                   />
                 ) : (
                   <p style={{ ...META, fontSize: 14, marginBottom: 0, whiteSpace: 'pre-wrap' }}>
