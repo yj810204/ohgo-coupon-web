@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BAND_GREEN, iconLayout } from '../mac/render-icon.mts';
-
-class SkipFallback extends Error {}
 
 const MAC_DIR = fileURLToPath(new URL('../mac/', import.meta.url));
 
@@ -50,50 +50,39 @@ assert.ok(iconLayout(16).badge.size > iconLayout(64).badge.size, '작은 크기�
 assert.ok(iconLayout(64).badge.size > iconLayout(1024).badge.size, '작은 크기일수록 배지가 크다');
 assert.deepEqual(pngSize(readFileSync(new URL('../gui/favicon.png', import.meta.url))), [128, 128]);
 
-// make-app.sh: sips/iconutil이 있으면(macOS) iconset을 만들어 iconutil로 .icns를 만든다
+// make-app.sh: sips/iconutil이 있어도 다시 만들지 않고 커밋된 .icns를 그대로 복사한다
 const work = mkdtempSync(join(tmpdir(), 'band-app-test-'));
 try {
   const bin = join(work, 'bin');
-  execFileSync('mkdir', ['-p', bin]);
+  mkdirSync(bin);
   const calls = join(work, 'calls.log');
-  writeFileSync(
-    join(bin, 'sips'),
-    `#!/bin/bash\necho "sips $*" >> "${calls}"\nout="\${@: -1}"\ncp "$4" "$out"\n`,
-  );
-  writeFileSync(
-    join(bin, 'iconutil'),
-    `#!/bin/bash\necho "iconutil $*" >> "${calls}"\nls "$3" > "${join(work, 'iconset.txt')}"\necho fake-icns > "$5"\n`,
-  );
-  chmodSync(join(bin, 'sips'), 0o755);
-  chmodSync(join(bin, 'iconutil'), 0o755);
+  for (const tool of ['sips', 'iconutil']) {
+    writeFileSync(join(bin, tool), `#!/bin/bash\necho "${tool} $*" >> "${calls}"\nexit 1\n`);
+    chmodSync(join(bin, tool), 0o755);
+  }
   execFileSync('bash', [join(MAC_DIR, 'make-app.sh'), join(work, 'out')], {
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
     stdio: 'pipe',
   });
+  assert.equal(existsSync(calls), false, 'sips, iconutil을 부르지 않는다');
   const app = join(work, 'out', 'Band 가져오기.app');
-  assert.deepEqual(readFileSync(join(work, 'iconset.txt'), 'utf8').trim().split('\n').sort(), [
-    'icon_128x128.png', 'icon_128x128@2x.png', 'icon_16x16.png', 'icon_16x16@2x.png', 'icon_256x256.png',
-    'icon_256x256@2x.png', 'icon_32x32.png', 'icon_32x32@2x.png', 'icon_512x512.png', 'icon_512x512@2x.png',
-  ]);
-  const log = readFileSync(calls, 'utf8');
-  assert.ok(log.includes('sips -z 1024 1024'));
-  assert.match(log, /iconutil -c icns .*AppIcon\.iconset -o .*Resources\/AppIcon\.icns/);
-  assert.equal(readFileSync(join(app, 'Contents/Resources/AppIcon.icns'), 'utf8'), 'fake-icns\n');
+  assert.ok(readFileSync(join(app, 'Contents/Resources/AppIcon.icns')).equals(icns));
+  assert.deepEqual(readdirSync(join(app, 'Contents/Resources')), ['AppIcon.icns']);
+  assert.deepEqual(readdirSync(join(app, 'Contents')).sort(), ['Info.plist', 'MacOS', 'Resources']);
   assert.match(readFileSync(join(app, 'Contents/Info.plist'), 'utf8'), /<key>CFBundleIconFile<\/key><string>AppIcon<\/string>/);
 
-  // sips/iconutil이 없으면 커밋된 .icns를 복사한다 (Mac에서는 /usr/bin에 실제 도구가 있어 건너뛴다)
-  if (existsSync('/usr/bin/sips')) throw new SkipFallback();
-  const noMac = join(work, 'out2');
-  execFileSync('bash', [join(MAC_DIR, 'make-app.sh'), noMac], {
-    env: { ...process.env, PATH: '/usr/bin:/bin' },
-    stdio: 'pipe',
-  });
-  const copied = join(noMac, 'Band 가져오기.app', 'Contents/Resources/AppIcon.icns');
-  assert.ok(existsSync(copied));
-  assert.ok(readFileSync(copied).equals(icns));
-  assert.deepEqual(readdirSync(join(noMac, 'Band 가져오기.app', 'Contents')).sort(), ['Info.plist', 'MacOS', 'Resources']);
-} catch (err) {
-  if (!(err instanceof SkipFallback)) throw err;
+  // 커밋된 .icns가 없으면 band:icon 안내와 함께 실패한다
+  const fakeTool = join(work, 'tool');
+  mkdirSync(join(fakeTool, 'mac'), { recursive: true });
+  copyFileSync(join(MAC_DIR, 'make-app.sh'), join(fakeTool, 'mac', 'make-app.sh'));
+  let stderr = '';
+  try {
+    execFileSync('bash', [join(fakeTool, 'mac', 'make-app.sh'), join(work, 'out2')], { stdio: 'pipe' });
+    assert.fail('아이콘이 없으면 실패해야 한다');
+  } catch (err) {
+    stderr = String((err as { stderr?: Buffer }).stderr ?? '');
+  }
+  assert.match(stderr, /npm run band:icon/);
 } finally {
   rmSync(work, { recursive: true, force: true });
 }

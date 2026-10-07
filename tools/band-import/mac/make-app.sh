@@ -42,22 +42,14 @@ exec /bin/zsh -lc 'npm run -s band:gui' >>"\$LOG" 2>&1
 LAUNCHER
 chmod +x "$APP/Contents/MacOS/band-import"
 
-# 아이콘: Mac 기본 도구(sips, iconutil)로 AppIcon.png에서 모든 크기를 만들고, 없으면 미리 만든 .icns를 쓴다
-ICON_SRC="$TOOL_DIR/mac/AppIcon.png"
-ICON_OUT="$APP/Contents/Resources/AppIcon.icns"
-if command -v sips >/dev/null && command -v iconutil >/dev/null; then
-  ICONSET="$(mktemp -d)/AppIcon.iconset"
-  mkdir -p "$ICONSET"
-  for size in 16 32 128 256 512; do
-    sips -z "$size" "$size" "$ICON_SRC" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
-    double=$((size * 2))
-    sips -z "$double" "$double" "$ICON_SRC" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
-  done
-  iconutil -c icns "$ICONSET" -o "$ICON_OUT"
-  rm -rf "$(dirname "$ICONSET")"
-else
-  cp "$TOOL_DIR/mac/AppIcon.icns" "$ICON_OUT"
+# 아이콘: 커밋된 .icns를 그대로 쓴다. 16, 32px은 단순화한 그림이 따로 들어 있어서
+# 1024 PNG를 줄여 다시 만들면 안 된다. 다시 만들 때는 `npm run band:icon`을 쓴다.
+ICON_SRC="$TOOL_DIR/mac/AppIcon.icns"
+if [ ! -f "$ICON_SRC" ]; then
+  echo "아이콘 파일이 없습니다: $ICON_SRC (npm run band:icon 으로 만드세요)" >&2
+  exit 1
 fi
+cp "$ICON_SRC" "$APP/Contents/Resources/AppIcon.icns"
 
 # Finder가 예전 아이콘을 계속 보여 주지 않도록 번들 수정 시각을 갱신한다
 touch "$APP"
