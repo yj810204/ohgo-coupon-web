@@ -27,7 +27,7 @@ const prep: PrepareResult = {
   photo: { title: '감성돔 조황', description: '4짜 대박\n#낫개', photoDate: '2026-10-06', images: FILES, useFormatting: true },
   photoWarnings: [],
   photoEdits: {},
-  photoFormatted: { html: '<span style="color:#ff3445">4짜</span> <b>대박</b><br>#낫개', text: '4짜 대박\n#낫개' },
+  photoFormatted: { html: '<p><span style="color:#ff3445;">4짜</span> <strong>대박</strong></p><p>#낫개</p>', text: '4짜 대박\n#낫개' },
   trip: { rows: [], destination: '', capacity: null, contact: '' },
   tripSource: 'single',
   tripMissing: [],
@@ -212,8 +212,9 @@ try {
   type Payload = { photo: { useFormatting: boolean; description: string } };
   const payload = () => page.evaluate(() => (window as unknown as { pushPayload: () => Payload }).pushPayload());
   assert.equal(await page.locator('#fmtBox').isVisible(), true);
-  assert.equal(await page.locator('#fmtPreview span').getAttribute('style'), 'color:#ff3445');
-  assert.equal(await page.locator('#fmtPreview b').textContent(), '대박');
+  assert.equal(await page.locator('#fmtPreview span').getAttribute('style'), 'color:#ff3445;');
+  assert.equal(await page.locator('#fmtPreview strong').textContent(), '대박');
+  assert.match(await page.locator('#fmtBox').textContent() ?? '', /굵게와 기울임만 남고/);
   assert.equal(await page.locator('#pFormat').isChecked(), true);
   assert.equal((await payload()).photo.useFormatting, true);
   await page.locator('#pDesc').fill('4짜 대박\n#낫개\n고침');

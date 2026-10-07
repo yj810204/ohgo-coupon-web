@@ -311,7 +311,7 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
         const html = postFormatted(post, buildPhotoDraft(post).title).html;
         if (html) {
           row.content = html;
-          log('Band 본문의 글자색과 굵게를 살려 올립니다');
+          log('Band 본문의 글자색, 배경색, 굵게, 기울임, 밑줄, 취소선, 글자 크기를 살려 올립니다');
         }
       }
       log('조황 게시판에 글을 저장하는 중');
