@@ -26,6 +26,7 @@ export default function CKEditorComponent({
   const [EditorComponent, setEditorComponent] = useState<any>(null);
   const [showSource, setShowSource] = useState(false);
   const [sourceValue, setSourceValue] = useState(value);
+  const [loadError, setLoadError] = useState(false);
 
   // CKEditor 로드
   useEffect(() => {
@@ -35,6 +36,23 @@ export default function CKEditorComponent({
     let mounted = true;
 
     const loadEditor = async () => {
+      // Next가 에디터 묶음을 나중에 넣을 때 document.currentScript 가 비어
+      // 청크 주소 조회가 실패한다. 방금 넣은 스크립트를 대신 쓴다.
+      const currentScript = Object.getOwnPropertyDescriptor(Document.prototype, 'currentScript');
+      if (currentScript?.get) {
+        Object.defineProperty(Document.prototype, 'currentScript', {
+          configurable: true,
+          get() {
+            const current = currentScript.get!.call(this);
+            if (current) return current;
+            const scripts = document.getElementsByTagName('script');
+            for (let i = scripts.length - 1; i >= 0; i -= 1) {
+              if (scripts[i].getAttribute('src')) return scripts[i];
+            }
+            return null;
+          },
+        });
+      }
       try {
         const [{ CKEditor }, ck] = await Promise.all([
           import('@ckeditor/ckeditor5-react'),
@@ -73,6 +91,7 @@ export default function CKEditorComponent({
         setIsReady(true);
       } catch (error) {
         console.error('Error loading CKEditor:', error);
+        if (mounted) setLoadError(true);
       }
     };
 
@@ -102,7 +121,7 @@ export default function CKEditorComponent({
   if (!isReady || !EditorComponent) {
     return (
       <div className="form-control" style={{ minHeight: '200px', padding: '12px' }}>
-        <div className="text-muted">에디터 로딩 중...</div>
+        <div className="text-muted">{loadError ? '에디터를 불러오지 못했습니다. 새로고침해 주세요.' : '에디터 로딩 중...'}</div>
       </div>
     );
   }
