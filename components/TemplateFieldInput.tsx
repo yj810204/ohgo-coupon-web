@@ -1,5 +1,6 @@
 'use client';
 
+import KoreanDateField from '@/components/pickers/KoreanDateField';
 import { TemplateField, TemplateFieldType } from '@/utils/community-template-service';
 
 interface TemplateFieldInputProps {
@@ -37,13 +38,13 @@ export default function TemplateFieldInput({ field, value, onChange, disabled = 
 
     case 'date':
       return (
-        <input
-          type="date"
+        <KoreanDateField
           className="form-control form-control-sm"
           value={typeof value === 'string' ? value : ''}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(next) => onChange(next)}
           disabled={disabled}
           required={field.required}
+          ariaLabel={field.label || '날짜'}
         />
       );
 

@@ -25,6 +25,7 @@ import {
   OHGO_LIST_DIVIDER,
   OhgoPageLoading,
 } from '@/lib/page-styles';
+import KoreanDateTimeField from '@/components/pickers/KoreanDateTimeField';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
 function toDatetimeLocalValue(iso?: string): string {
@@ -492,25 +493,25 @@ export default function AdminGameSettingsPage() {
             <div className="row g-2">
               <div className="col-6">
                 <label style={LABEL}>시작일</label>
-                <input
-                  type="datetime-local"
+                <KoreanDateTimeField
                   className="form-control"
                   style={{ ...OHGO_INPUT, fontSize: 13 }}
                   value={globalSettings.tournament_start_date}
-                  onChange={e =>
-                    setGlobalSettings({ ...globalSettings, tournament_start_date: e.target.value })
+                  ariaLabel="시작일"
+                  onChange={(next) =>
+                    setGlobalSettings({ ...globalSettings, tournament_start_date: next })
                   }
                 />
               </div>
               <div className="col-6">
                 <label style={LABEL}>종료일</label>
-                <input
-                  type="datetime-local"
+                <KoreanDateTimeField
                   className="form-control"
                   style={{ ...OHGO_INPUT, fontSize: 13 }}
                   value={globalSettings.tournament_end_date}
-                  onChange={e =>
-                    setGlobalSettings({ ...globalSettings, tournament_end_date: e.target.value })
+                  ariaLabel="종료일"
+                  onChange={(next) =>
+                    setGlobalSettings({ ...globalSettings, tournament_end_date: next })
                   }
                 />
               </div>

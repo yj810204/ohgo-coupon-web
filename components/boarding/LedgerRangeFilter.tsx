@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { presetRange, validateRange, type BoardingRange } from '@/lib/boarding-ledger.shared';
 import { getTodayDate } from '@/lib/kst-date';
+import KoreanDateField from '@/components/pickers/KoreanDateField';
 import { OHGO_CARD, OHGO_FONT, OHGO_INPUT } from '@/lib/page-styles';
 
 export type LedgerRangePreset = 'all' | 'thisMonth' | 'lastMonth' | 'thisYear' | 'custom';
@@ -87,20 +88,18 @@ export default function LedgerRangeFilter({
       </div>
       {preset === 'custom' && (
         <div className="d-flex align-items-center gap-2 mt-3">
-          <input
-            type="date"
+          <KoreanDateField
             value={start}
-            onChange={(e) => applyCustom(e.target.value, end)}
+            onChange={(next) => applyCustom(next, end)}
             style={{ ...OHGO_INPUT, flex: 1, minWidth: 0 }}
-            aria-label="시작일"
+            ariaLabel="시작일"
           />
           <span style={{ color: '#6F767E', fontFamily: OHGO_FONT }}>~</span>
-          <input
-            type="date"
+          <KoreanDateField
             value={end}
-            onChange={(e) => applyCustom(start, e.target.value)}
+            onChange={(next) => applyCustom(start, next)}
             style={{ ...OHGO_INPUT, flex: 1, minWidth: 0 }}
-            aria-label="종료일"
+            ariaLabel="종료일"
           />
         </div>
       )}

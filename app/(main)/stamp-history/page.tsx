@@ -9,6 +9,7 @@ import SubPageActionBar from '@/components/SubPageActionBar';
 import EmptyState from '@/components/EmptyState';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
 import { IoTimeOutline } from 'react-icons/io5';
+import KoreanDateField from '@/components/pickers/KoreanDateField';
 import { OHGO_CARD, OHGO_FONT, OHGO_SECONDARY_BTN, OhgoPageLoading } from '@/lib/page-styles';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
 
@@ -91,20 +92,20 @@ function StampHistoryPageContent() {
         <div className="p-3 mb-3" style={OHGO_CARD}>
             <div className="mb-2">
               <label className="form-label small">시작일</label>
-              <input
-                type="date"
+              <KoreanDateField
                 className="form-control form-control-sm"
+                ariaLabel="시작일"
                 value={startDate ? format(startDate, 'yyyy-MM-dd') : ''}
-                onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value) : undefined)}
+                onChange={(next) => setStartDate(next ? new Date(next) : undefined)}
               />
             </div>
             <div className="mb-2">
               <label className="form-label small">종료일</label>
-              <input
-                type="date"
+              <KoreanDateField
                 className="form-control form-control-sm"
+                ariaLabel="종료일"
                 value={endDate ? format(endDate, 'yyyy-MM-dd') : ''}
-                onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : undefined)}
+                onChange={(next) => setEndDate(next ? new Date(next) : undefined)}
               />
             </div>
             <div className="ohgo-filter-group w-100 mb-2" role="group">

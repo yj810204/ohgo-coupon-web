@@ -13,6 +13,8 @@ import {
   type FishingLogInput,
 } from '@/utils/fishing-operation-service';
 import { IoCheckmarkOutline } from 'react-icons/io5';
+import KoreanDateField from '@/components/pickers/KoreanDateField';
+import KoreanTimeField from '@/components/pickers/KoreanTimeField';
 import SubPageFrame from '@/components/SubPageFrame';
 import {
   OHGO_CONFIRM_BTN_CLASS,
@@ -143,33 +145,34 @@ function FishingLogFormContent() {
     <SubPageFrame title={editId ? '조업일지 수정' : '조업일지 작성'}>
       <div className="mb-3">
         <label style={LABEL}>날짜 *</label>
-        <input
-          type="date"
+        <KoreanDateField
           className="form-control"
           value={form.date}
-          onChange={(e) => setField('date', e.target.value)}
+          onChange={(next) => setField('date', next)}
           style={OHGO_INPUT}
+          ariaLabel="날짜"
+          required
         />
       </div>
       <div className="row g-2 mb-3">
         <div className="col-6">
           <label style={LABEL}>출항</label>
-          <input
-            type="time"
+          <KoreanTimeField
             className="form-control"
-            value={form.departureTime}
-            onChange={(e) => setField('departureTime', e.target.value)}
+            value={form.departureTime || ''}
+            onChange={(next) => setField('departureTime', next)}
             style={OHGO_INPUT}
+            ariaLabel="출항"
           />
         </div>
         <div className="col-6">
           <label style={LABEL}>입항</label>
-          <input
-            type="time"
+          <KoreanTimeField
             className="form-control"
-            value={form.arrivalTime}
-            onChange={(e) => setField('arrivalTime', e.target.value)}
+            value={form.arrivalTime || ''}
+            onChange={(next) => setField('arrivalTime', next)}
             style={OHGO_INPUT}
+            ariaLabel="입항"
           />
         </div>
       </div>
