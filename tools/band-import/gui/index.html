@@ -1,0 +1,1181 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Band 가져오기</title>
+<link rel="icon" type="image/png" href="/favicon.png">
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #fff; --text: #1d1d1f; --muted: #6e6e73; --line: #e3e4e8;
+    --accent: #6b4ce6; --accent-weak: #efeafe; --ok: #1f8a4c; --err: #c62828; --warn: #a15c00;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px; background: var(--bg); color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .session { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #eee; color: var(--muted); }
+  .badge.ok { background: #e6f4ec; color: var(--ok); }
+  input[type=url] {
+    flex: 1; min-width: 0; padding: 10px 12px; font-size: 14px; border: 1px solid var(--line); border-radius: 8px; outline: none;
+  }
+  input[type=url]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+  button {
+    padding: 9px 14px; font-size: 14px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; white-space: nowrap;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  label.opt { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 12px; margin-top: 10px; }
+  .status { font-weight: 600; margin-bottom: 6px; }
+  .status.running { color: var(--accent); }
+  .status.done { color: var(--ok); }
+  .status.error { color: var(--err); }
+  pre.log {
+    margin: 0; max-height: 160px; overflow: auto; background: #fafafa; border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px; font: 12px/1.45 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-all;
+  }
+  .result h2 { font-size: 16px; margin: 0 0 6px; }
+  .meta { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+  .warn { color: var(--warn); font-size: 12px; }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; margin: 10px 0; }
+  .thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; background: #eee; }
+  .hidden { display: none !important; }
+  .spinner {
+    display: inline-block; width: 12px; height: 12px; border: 2px solid var(--accent-weak); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -1px; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  h2.sec { font-size: 16px; margin: 0; }
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-top: 10px; }
+  .field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .field.wide { grid-column: 1 / -1; }
+  .field > span { font-size: 12px; color: var(--muted); }
+  .field input, .field textarea, .login input {
+    width: 100%; padding: 8px 10px; font: inherit; border: 1px solid var(--line); border-radius: 8px; outline: none; background: #fff;
+  }
+  .field textarea { resize: vertical; min-height: 84px; }
+  .field input:focus, .field textarea:focus, .login input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+  .field.need input { border-color: var(--err); background: #fff6f6; }
+  .login { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .login .row input { flex: 1; min-width: 0; }
+  button.link { border: 0; background: none; color: var(--accent); padding: 4px 6px; font-size: 12px; }
+  .seg { display: flex; gap: 6px; margin-top: 12px; }
+  .seg label { flex: 1; text-align: center; padding: 8px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-weight: 600; }
+  .seg input { display: none; }
+  .seg label.on { border-color: var(--accent); background: var(--accent-weak); color: var(--accent); }
+  .box { border-radius: 8px; padding: 8px 10px; font-size: 13px; margin-top: 10px; }
+  .pre { white-space: pre-wrap; }
+  .box.warn { background: #fff4e0; color: var(--warn); }
+  .box.err { background: #fdecec; color: var(--err); }
+  .box.ok { background: #e6f4ec; color: var(--ok); }
+  .thumbs img.off { opacity: .25; outline: 2px dashed var(--line); }
+  .thumbs img.pick { cursor: pointer; }
+  .thumb { position: relative; border-radius: 6px; cursor: grab; }
+  .thumb img { display: block; }
+  .thumb.off img { opacity: .25; outline: 2px dashed var(--line); }
+  .thumb.dragging { opacity: .4; }
+  .thumb.over { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .thumb .num {
+    position: absolute; top: 4px; left: 4px; min-width: 20px; padding: 0 5px; border-radius: 999px;
+    background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; pointer-events: none;
+  }
+  .thumb.off .num { background: var(--err); padding: 0 7px; font-size: 12px; }
+  .thumb img.pick { cursor: zoom-in; }
+  .thumb .pickbtn { display: block; width: 100%; margin-top: 3px; padding: 1px 0; font-size: 11px; line-height: 18px; border-radius: 5px; }
+  .thumb .pickbtn.out { color: var(--err); border-color: #f2c4c4; }
+  .thumb .pickbtn.in { color: var(--accent); border-color: var(--accent); background: var(--accent-weak); font-weight: 600; }
+  .thumb .edited {
+    position: absolute; top: 4px; right: 4px; padding: 0 5px; border-radius: 999px; background: #fff; color: var(--accent);
+    border: 1px solid var(--accent); font-size: 10px; font-weight: 700; line-height: 16px; pointer-events: none;
+  }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
+  .sheet { background: var(--card); border-radius: 12px; padding: 14px; width: 100%; max-width: 680px; max-height: 100%; overflow: auto; }
+  .stage { position: relative; margin: 10px auto; padding: 12px; width: fit-content; overflow: hidden; touch-action: none; user-select: none; background: #2b2b2e; border-radius: 8px; }
+  .stage canvas { display: block; }
+  .cropbox { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,.5); cursor: move; }
+  .cropbox i { position: absolute; width: 16px; height: 16px; background: #fff; border: 2px solid var(--accent); border-radius: 3px; }
+  .cropbox i[data-h=nw] { left: -9px; top: -9px; cursor: nwse-resize; }
+  .cropbox i[data-h=ne] { right: -9px; top: -9px; cursor: nesw-resize; }
+  .cropbox i[data-h=sw] { left: -9px; bottom: -9px; cursor: nesw-resize; }
+  .cropbox i[data-h=se] { right: -9px; bottom: -9px; cursor: nwse-resize; }
+  .tools { flex-wrap: wrap; margin-top: 6px; }
+  .tools > span { font-size: 12px; color: var(--muted); min-width: 40px; }
+  .tools button { padding: 6px 10px; font-size: 13px; }
+  .tools button.on { border-color: var(--accent); background: var(--accent-weak); color: var(--accent); font-weight: 600; }
+  .grow { flex: 1; }
+  .fmtpreview {
+    margin-top: 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff;
+    font-size: 14px; line-height: 1.6; color: #1a1d1f; max-height: 220px; overflow: auto; word-break: keep-all; overflow-wrap: break-word;
+  }
+  #fmtNote:empty { display: none; }
+  #fmtWrap > span { font-size: 12px; color: var(--muted); }
+  #fmtBox label.opt { color: var(--text); font-size: 13px; }
+  #fmtBox input[type=checkbox] { width: auto; margin: 0; }
+  #fmtWrap { margin-top: 4px; }
+  .actions { margin-top: 12px; }
+  .fields.three { grid-template-columns: 1.2fr .8fr 1fr; }
+  .tripwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+  table.trips { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .trips th { font-size: 11px; font-weight: 600; color: var(--muted); text-align: left; padding: 6px 4px; background: #fafafa; border-bottom: 1px solid var(--line); }
+  .trips td { padding: 4px 3px; border-top: 1px solid var(--line); vertical-align: middle; }
+  .trips tr.dup td { border-top: 0; padding: 0 6px 6px 30px; color: var(--warn); font-size: 12px; }
+  .trips tr.off td input:not([type=checkbox]) { opacity: .4; }
+  .trips input { width: 100%; padding: 5px 6px; font: inherit; border: 1px solid var(--line); border-radius: 6px; outline: none; background: #fff; }
+  .trips input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-weak); }
+  .trips input.need { border-color: var(--err); background: #fff6f6; }
+  .trips input[type=checkbox] { width: auto; }
+  .trips .c-date { width: 118px; }
+  .trips .c-date input { width: 88px; }
+  .trips .c-date small { color: var(--muted); margin-left: 3px; }
+  .trips .c-time { width: 62px; }
+  .trips .c-price { width: 78px; }
+  .trips .c-species { width: 92px; }
+  .trips button.x { border: 0; background: none; color: var(--muted); padding: 2px 6px; }
+  footer { display: flex; justify-content: flex-end; }
+  footer button { font-size: 12px; padding: 6px 10px; color: var(--muted); }
+</style>
+</head>
+<body>
+  <h1>Band 게시글 가져오기</h1>
+  <div class="sub">본인 밴드의 게시글만, 필요한 만큼만 가져오세요.</div>
+
+  <div class="card session">
+    <div>
+      <div>로그인 세션 <span id="sessionBadge" class="badge">확인 중</span></div>
+      <div id="sessionInfo" class="sub" style="margin:2px 0 0"></div>
+    </div>
+    <button id="loginBtn">로그인</button>
+  </div>
+
+  <div class="card">
+    <form id="fetchForm" class="row">
+      <input id="url" type="url" placeholder="https://band.us/band/88348442/post/2925" autocomplete="off" spellcheck="false" autofocus>
+      <button id="pasteBtn" type="button">붙여넣기</button>
+      <button id="fetchBtn" class="primary" type="submit">가져오기</button>
+    </form>
+    <label class="opt"><input id="headless" type="checkbox"> 브라우저 창 없이 가져오기 (안 되면 자동으로 창을 띄워 다시 시도)</label>
+  </div>
+
+  <div id="jobCard" class="card hidden">
+    <div id="status" class="status"></div>
+    <pre id="log" class="log"></pre>
+  </div>
+
+  <div id="resultCard" class="card result hidden">
+    <h2 id="resTitle"></h2>
+    <div id="resMeta" class="meta"></div>
+    <div id="resWarn" class="warn"></div>
+    <div id="thumbs" class="thumbs"></div>
+    <div class="row">
+      <button id="openBtn">결과 폴더 열기</button>
+      <span id="resPath" class="sub" style="margin:0"></span>
+    </div>
+  </div>
+
+  <div id="ohgoCard" class="card hidden">
+    <div class="session">
+      <h2 class="sec">오고피씽에 등록</h2>
+      <div><span id="ohgoBadge" class="badge">확인 중</span><button id="ohgoReloginBtn" class="link hidden" type="button">다시 로그인</button><button id="ohgoLogoutBtn" class="link hidden" type="button">로그아웃</button></div>
+    </div>
+    <div id="ohgoConfigErr" class="box err hidden"></div>
+
+    <form id="ohgoLoginForm" class="login hidden">
+      <div class="sub" style="margin:0">오고피씽 관리자 계정으로 한 번 로그인하면 이 Mac에 저장됩니다. 앱에 로그인할 때 쓰는 이름과 생년월일을 넣으세요.</div>
+      <div id="nameDobRow" class="row">
+        <input id="ohgoName" placeholder="이름" autocomplete="off">
+        <input id="ohgoDob" placeholder="생년월일 (예: 800101)" inputmode="numeric" autocomplete="off">
+      </div>
+      <div id="emailRow" class="row hidden">
+        <input id="ohgoEmail" type="email" placeholder="이메일" autocomplete="off">
+        <input id="ohgoPassword" type="password" placeholder="비밀번호" autocomplete="off">
+      </div>
+      <div class="row">
+        <button id="ohgoLoginBtn" class="primary" type="submit">관리자 로그인</button>
+        <button id="ohgoModeBtn" class="link" type="button">이메일 계정으로 로그인</button>
+      </div>
+    </form>
+
+    <div id="ohgoBody" class="hidden">
+      <div class="seg">
+        <label id="kindCatch"><input type="radio" name="kind" value="catch">조황 사진 게시판<span id="kindCatchCount"></span></label>
+        <label id="kindSchedule"><input type="radio" name="kind" value="schedule">출조 일정</label>
+      </div>
+      <div id="classifyInfo" class="sub" style="margin:6px 0 0"></div>
+      <div id="dupBox" class="box warn hidden">
+        <div id="dupText"></div>
+        <label class="opt" style="margin-top:6px"><input id="force" type="checkbox"> 그래도 다시 등록</label>
+      </div>
+      <div id="remoteWarn" class="box warn pre hidden"></div>
+
+      <div id="catchPane">
+        <div id="photoWarn" class="box warn pre hidden"></div>
+        <div class="fields">
+          <label class="field wide"><span>제목</span><input id="pTitle" maxlength="100"></label>
+          <label class="field wide"><span>내용</span><textarea id="pDesc" rows="6"></textarea></label>
+          <div id="fmtBox" class="field wide hidden">
+            <label class="opt" style="margin:0"><input id="pFormat" type="checkbox"> Band 본문의 글자색, 배경색, 굵게, 기울임, 밑줄, 취소선, 글자 크기를 살리기</label>
+            <div class="sub" style="margin-top:4px">글 화면에는 서식이 그대로 보입니다. 앱에서 글을 고치면 지금은 굵게와 기울임만 남고, 글자색, 배경색, 밑줄, 취소선, 글자 크기는 빠집니다.</div>
+            <div id="fmtNote" class="warn"></div>
+            <div id="fmtWrap">
+              <span>앱에 보일 내용 미리보기</span>
+              <div id="fmtPreview" class="fmtpreview"></div>
+            </div>
+          </div>
+          <label class="field"><span>사진 날짜</span><input id="pDate" type="date"></label>
+          <div class="field"><span>사진</span><div id="pCount" style="padding-top:8px"></div></div>
+        </div>
+        <div id="pDateNote" class="sub" style="margin:6px 0 0"></div>
+        <div class="sub" style="margin:8px 0 0">번호 순서대로 올라갑니다. 사진을 끌어다 놓으면 순서가 바뀝니다. 사진을 누르면 자르기, 돌리기, 뒤집기를 할 수 있습니다 (원본은 그대로 둡니다). 올리지 않을 사진은 아래 ✕ 빼기를 누르세요 (다시 넣기로 되돌립니다). 5MB가 넘는 사진은 줄여서 올립니다.</div>
+        <div id="pThumbs" class="thumbs"></div>
+      </div>
+
+      <div id="schedulePane" class="hidden">
+        <div id="schedulePhotoNote" class="box warn hidden"></div>
+        <div id="tMissing" class="box err hidden"></div>
+        <div id="tHints" class="sub pre" style="margin:8px 0 0"></div>
+        <div class="fields three">
+          <label class="field" id="fDest"><span>목적지 * (모든 줄에 적용)</span><input id="tDest" placeholder="예: 낫개, 형제섬"></label>
+          <label class="field"><span>정원 (명)</span><input id="tCap" type="number" min="0" placeholder="미입력 시 제한 없음"></label>
+          <label class="field"><span>예약 문의 (연락처)</span><input id="tContact" placeholder="010-0000-0000"></label>
+        </div>
+        <div class="sub" style="margin:10px 0 4px">출조 한 줄이 앱의 출조 일정 한 건입니다. 체크를 끄면 그 줄은 저장하지 않습니다. 시간은 06:00처럼 적으세요.</div>
+        <div class="tripwrap">
+          <table class="trips">
+            <thead><tr><th></th><th>날짜 *</th><th>어종</th><th>출항 *</th><th>입항</th><th>1인 요금</th><th>비고</th><th></th></tr></thead>
+            <tbody id="tripBody"></tbody>
+          </table>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button id="addTripBtn" type="button" class="link">+ 줄 추가</button>
+          <span id="tripCount" class="sub" style="margin:0"></span>
+        </div>
+      </div>
+
+      <div class="row actions">
+        <button id="pushBtn" class="primary" type="button">오고피씽에 등록</button>
+        <span id="pushHint" class="sub" style="margin:0"></span>
+      </div>
+    </div>
+
+    <div id="pushError" class="box err hidden">
+      <b>등록하지 못했습니다.</b>
+      <div id="pushErrorText" class="pre" style="margin-top:4px"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="pushReloginBtn" class="primary hidden" type="button">다시 로그인</button>
+        <button id="pushLogBtn" type="button">기록 폴더 열기</button>
+      </div>
+    </div>
+    <div id="pushResult" class="box ok hidden"></div>
+  </div>
+
+  <footer><button id="quitBtn">종료</button></footer>
+
+  <div id="editModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="sheet">
+      <div class="session"><h2 class="sec">사진 편집 <span id="edName" class="sub"></span></h2><span id="edSize" class="sub" style="margin:0"></span></div>
+      <div id="edStage" class="stage">
+        <canvas id="edCanvas"></canvas>
+        <div id="edCrop" class="cropbox"><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i></div>
+      </div>
+      <div class="row tools">
+        <span>자르기</span>
+        <button type="button" data-ratio="free">자유</button>
+        <button type="button" data-ratio="4:3">4:3</button>
+        <button type="button" data-ratio="1:1">1:1</button>
+        <button type="button" data-ratio="3:4">3:4</button>
+        <button type="button" id="edNoCrop">자르지 않기</button>
+      </div>
+      <div class="row tools">
+        <span>방향</span>
+        <button type="button" id="edRotL">↺ 왼쪽으로 돌리기</button>
+        <button type="button" id="edRotR">↻ 오른쪽으로 돌리기</button>
+        <button type="button" id="edFlip">⇋ 좌우 뒤집기</button>
+      </div>
+      <div id="edErr" class="box err hidden"></div>
+      <div class="row actions">
+        <button type="button" id="edRevert">원본으로 되돌리기</button>
+        <span class="grow"></span>
+        <button type="button" id="edCancel">취소</button>
+        <button type="button" id="edSave" class="primary">저장</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const TOKEN = '__GUI_TOKEN__';
+  const $ = (id) => document.getElementById(id);
+  let lastJobId = null;
+  let lastResult = null;
+  let polling = null;
+
+  async function api(path, body) {
+    const res = await fetch(path, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { 'x-gui-token': TOKEN, 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data.error || `요청 실패 (${res.status})`);
+      err.code = data.code || null;
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }
+
+  function formatTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  function render(state) {
+    const badge = $('sessionBadge');
+    if (state.savedSessionAt) {
+      badge.textContent = '저장됨';
+      badge.className = 'badge ok';
+      $('sessionInfo').textContent = `마지막 저장 ${formatTime(state.savedSessionAt)}`;
+    } else {
+      badge.textContent = state.hasProfile ? '저장본 없음' : '로그인 필요';
+      badge.className = 'badge';
+      $('sessionInfo').textContent = '처음 한 번 로그인을 눌러 Band에 로그인하세요.';
+    }
+    $('loginBtn').disabled = state.busy;
+    $('fetchBtn').disabled = state.busy;
+    busy = state.busy;
+    updatePushButton();
+
+    const job = state.job;
+    if (!job) return;
+    $('jobCard').classList.remove('hidden');
+    const name = { login: '로그인', fetch: '가져오기', push: '오고피씽 등록' }[job.kind];
+    const status = $('status');
+    status.className = `status ${job.status}`;
+    if (job.status === 'running') {
+      status.innerHTML = `<span class="spinner"></span>${name} 진행 중`;
+    } else if (job.status === 'done') {
+      status.textContent = `${name} 완료`;
+    } else {
+      status.textContent = `${name} 실패: ${job.error}`;
+    }
+    const log = $('log');
+    const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 4;
+    log.textContent = job.logs.join('\n');
+    if (atBottom) log.scrollTop = log.scrollHeight;
+
+    if (job.status !== 'running' && job.id !== lastJobId) {
+      if (job.kind === 'fetch' && job.status === 'done' && job.result) showResult(job.result);
+      if (job.kind === 'push') showPushDone(job);
+    }
+    if (job.status !== 'running') lastJobId = job.id;
+  }
+
+  function showResult(r) {
+    lastResult = r;
+    $('resultCard').classList.remove('hidden');
+    $('resTitle').textContent = r.title || '(제목 없음)';
+    const via = r.extractedVia === 'api' ? 'API' : '화면(DOM)';
+    const parts = [`이미지 ${r.imageCount}개`, `추출 방식 ${via}`];
+    if (r.scheduleCount) parts.push(`일정 첨부 ${r.scheduleCount}개`);
+    if (r.scheduleLikeLines.length) parts.push(`일정 같은 줄 ${r.scheduleLikeLines.length}개`);
+    $('resMeta').textContent = parts.join(', ');
+    $('resWarn').textContent = r.warnings.join(' / ');
+    $('resPath').textContent = `${r.outDir}/extracted.json`;
+    const thumbs = $('thumbs');
+    thumbs.replaceChildren(...r.imageFiles.map((f) => {
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.src = `/out/${r.postId}/${encodeURIComponent(f)}?t=${TOKEN}`;
+      img.alt = f;
+      return img;
+    }));
+    loadOhgo(r.postId);
+  }
+
+  // ---------- 오고피씽 등록 ----------
+  let busy = false;
+  let ohgoUser = null;
+  let prep = null;
+  let kind = 'catch';
+  let picked = new Set();
+  let photoOrder = [];
+  let dragFile = null;
+  let draggedSincePress = false;
+  let emailMode = false;
+  let pushedFor = null;
+  let loginNeeded = false;
+  /** 로그인이 만료돼 멈춘 등록. 로그인에 성공하면 이 내용 그대로 다시 보낸다 */
+  let pendingPush = null;
+
+  function show(id, on) { $(id).classList.toggle('hidden', !on); }
+
+  function renderOhgoState(st) {
+    ohgoUser = st.user;
+    const badge = $('ohgoBadge');
+    badge.textContent = st.user ? `관리자 ${st.user.name}` : '로그인 필요';
+    badge.className = st.user ? 'badge ok' : 'badge';
+    show('ohgoLogoutBtn', !!st.user);
+    show('ohgoReloginBtn', loginNeeded);
+    show('ohgoConfigErr', !!st.configError);
+    $('ohgoConfigErr').textContent = st.configError || '';
+    show('ohgoLoginForm', loginNeeded || (!st.user && !st.configError));
+    updatePushButton();
+  }
+
+  async function loadOhgo(postId) {
+    show('ohgoCard', true);
+    show('ohgoBody', false);
+    show('pushResult', false);
+    show('pushError', false);
+    show('pushReloginBtn', false);
+    pendingPush = null;
+    loginNeeded = false;
+    pushedFor = null;
+    try {
+      renderOhgoState(await api('/api/ohgo/state'));
+      prep = await api('/api/ohgo/prepare', { postId });
+      fillOhgo(prep);
+    } catch (err) {
+      $('ohgoConfigErr').textContent = err.message;
+      show('ohgoConfigErr', true);
+    }
+  }
+
+  function setKind(k) {
+    kind = k;
+    document.querySelectorAll('input[name=kind]').forEach((el) => { el.checked = el.value === k; });
+    $('kindCatch').classList.toggle('on', k === 'catch');
+    $('kindSchedule').classList.toggle('on', k === 'schedule');
+    show('catchPane', k === 'catch');
+    show('schedulePane', k === 'schedule');
+    if (prep) {
+      const c = prep.classification;
+      const label = c.kind === 'catch' ? '조황 사진 게시판' : '출조 일정';
+      const head = c.kind === k ? `자동 분류: ${label}` : `직접 바꿈 (자동 분류는 ${label})`;
+      $('classifyInfo').textContent = `${head} (조황 ${c.scores.catch}점, 일정 ${c.scores.schedule}점). 근거: ${c.reasons.join(', ') || '단서 없음'}`;
+    }
+    markMissing();
+    updatePushButton();
+  }
+
+  function fillOhgo(p) {
+    show('ohgoBody', true);
+    $('pTitle').value = p.photo.title;
+    $('pDesc').value = p.photo.description;
+    $('pDate').value = p.photo.photoDate || '';
+    updateBoardDate();
+    picked = new Set(p.photo.images);
+    photoOrder = [...p.photo.images];
+    const fmt = p.photoFormatted && p.photoFormatted.html;
+    show('fmtBox', !!fmt);
+    $('fmtPreview').innerHTML = fmt || '';
+    $('pFormat').checked = !!fmt && p.photo.useFormatting !== false;
+    $('fmtNote').textContent = '';
+    updateFormatting();
+    renderThumbs();
+    const n = p.photo.images.length;
+    $('kindCatchCount').textContent = ` (사진 ${n}장)`;
+    $('photoWarn').textContent = (p.photoWarnings || []).join('\n');
+    show('photoWarn', (p.photoWarnings || []).length > 0);
+    $('schedulePhotoNote').textContent = `출조 일정에는 사진이 올라가지 않습니다. 사진 ${n}장을 올리려면 위에서 조황 사진 게시판을 고르세요.`;
+    show('schedulePhotoNote', n > 0);
+
+    const t = p.trip;
+    $('tDest').value = t.destination;
+    $('tCap').value = t.capacity ?? '';
+    $('tContact').value = t.contact;
+    tripRows = t.rows.map((r) => ({ ...r, price: r.price ?? '', selected: r.selected !== false }));
+    renderTrips();
+    $('tHints').textContent = p.tripHints.join('\n');
+    show('tHints', p.tripHints.length > 0);
+
+    $('force').checked = false;
+    show('dupBox', !!p.ledger);
+    if (p.ledger) {
+      const where = p.ledger.target === 'community_photos' ? '조황 사진 게시판' : '출조 일정';
+      $('dupText').textContent = `이미 등록한 게시글입니다. ${formatTime(p.ledger.registeredAt)}에 ${where}에 올렸습니다 (${p.ledger.by || '관리자'}).`;
+    }
+    $('remoteWarn').textContent = p.remoteWarnings.join('\n');
+    show('remoteWarn', p.remoteWarnings.length > 0);
+    setKind(p.classification.kind);
+  }
+
+  /** Band 시각을 한국 날짜와 시:분으로. 이 컴퓨터의 시간대와 상관없이 계산한다 */
+  function kstParts(iso) {
+    const t = Date.parse(iso);
+    if (Number.isNaN(t)) return null;
+    const d = new Date(t + 9 * 3600 * 1000);
+    return { date: d.toISOString().slice(0, 10), hm: d.toISOString().slice(11, 16) };
+  }
+
+  /** 게시판 목록과 상세는 이 시각(created_at)으로 보이고 정렬된다 */
+  function updateBoardDate() {
+    const date = $('pDate').value;
+    const note = $('pDateNote');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      note.textContent = '사진 날짜가 비어 있으면 게시판에는 등록한 시각으로 올라갑니다.';
+      return;
+    }
+    const band = prep && prep.sourceCreatedAt ? kstParts(prep.sourceCreatedAt) : null;
+    const same = band && band.date === date;
+    const hm = same ? band.hm : '12:00';
+    const why = same ? 'Band에 올린 시각입니다.' : (band ? '사진 날짜가 Band 글과 달라 낮 12시로 둡니다.' : 'Band 글 시각을 알 수 없어 낮 12시로 둡니다.');
+    note.textContent = `게시판에는 ${date} ${hm} (한국 시간)로 보이고, 그 시각 순서로 올라갑니다. ${why}`;
+  }
+
+  /** 올릴 순서: 화면에 보이는 순서에서 뺀 사진을 건너뛴 것 */
+  function uploadOrder() {
+    return photoOrder.filter((f) => picked.has(f));
+  }
+
+  function movePhoto(file, to) {
+    const from = photoOrder.indexOf(file);
+    if (from < 0 || to < 0 || to >= photoOrder.length || from === to) return;
+    photoOrder.splice(from, 1);
+    photoOrder.splice(to, 0, file);
+    renderThumbs();
+  }
+
+  function photoEdit(file) {
+    return (prep && prep.photoEdits && prep.photoEdits[file]) || null;
+  }
+
+  function thumbSrc(file) {
+    const ed = photoEdit(file);
+    const name = ed ? ed.output : file;
+    return `/out/${prep.postId}/${encodeURIComponent(name)}?t=${TOKEN}${ed ? `&v=${encodeURIComponent(ed.updatedAt)}` : ''}`;
+  }
+
+  function renderThumbs() {
+    const order = uploadOrder();
+    $('pThumbs').replaceChildren(...photoOrder.map((f) => {
+      const box = document.createElement('div');
+      box.className = 'thumb';
+      box.classList.toggle('off', !picked.has(f));
+      box.draggable = true;
+      box.dataset.file = f;
+      const img = document.createElement('img');
+      img.className = 'pick';
+      img.src = thumbSrc(f);
+      img.title = `${f} (누르면 편집, 끌어서 순서 바꾸기)`;
+      img.draggable = false;
+      // 끌어다 놓은 뒤 새로 누르지 않고 들어오는 click은 끌기의 끝이라 무시한다
+      img.addEventListener('mousedown', () => { draggedSincePress = false; });
+      img.addEventListener('click', () => {
+        if (draggedSincePress) { draggedSincePress = false; return; }
+        openEditor(f);
+      });
+      const num = document.createElement('span');
+      num.className = 'num';
+      num.textContent = picked.has(f) ? String(order.indexOf(f) + 1) : '뺌';
+      const pick = document.createElement('button');
+      pick.type = 'button';
+      pick.draggable = false;
+      pick.className = picked.has(f) ? 'pickbtn out' : 'pickbtn in';
+      pick.textContent = picked.has(f) ? '✕ 빼기' : '다시 넣기';
+      pick.title = picked.has(f) ? '이 사진은 올리지 않기' : '이 사진도 올리기';
+      pick.addEventListener('click', () => {
+        if (picked.has(f)) picked.delete(f); else picked.add(f);
+        renderThumbs();
+      });
+      box.append(img, num, pick);
+      if (photoEdit(f)) {
+        const badge = document.createElement('span');
+        badge.className = 'edited';
+        badge.textContent = '편집됨';
+        box.append(badge);
+      }
+      box.addEventListener('dragstart', (e) => {
+        dragFile = f;
+        box.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', f);
+      });
+      box.addEventListener('dragend', () => { dragFile = null; draggedSincePress = true; box.classList.remove('dragging'); });
+      box.addEventListener('dragover', (e) => { if (dragFile && dragFile !== f) { e.preventDefault(); box.classList.add('over'); } });
+      box.addEventListener('dragleave', () => box.classList.remove('over'));
+      box.addEventListener('drop', (e) => {
+        e.preventDefault();
+        box.classList.remove('over');
+        if (dragFile && dragFile !== f) movePhoto(dragFile, photoOrder.indexOf(f));
+      });
+      return box;
+    }));
+    updatePhotoCount();
+  }
+
+  function updatePhotoCount() {
+    if (!prep) return;
+    $('pCount').textContent = `${picked.size}장 올림 (전체 ${prep.photo.images.length}장)`;
+    updatePushButton();
+  }
+
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+  const WEEK = '일월화수목금토';
+  let tripRows = [];
+
+  function weekdayOf(date) {
+    if (!DATE_RE.test(date)) return '';
+    const d = new Date(`${date}T00:00:00Z`);
+    return Number.isNaN(d.getTime()) ? '' : `(${WEEK[d.getUTCDay()]})`;
+  }
+
+  function cellInput(row, key, cls, placeholder) {
+    const input = document.createElement('input');
+    input.value = row[key] ?? '';
+    input.placeholder = placeholder || '';
+    input.dataset.key = key;
+    if (key === 'price') input.inputMode = 'numeric';
+    input.addEventListener('input', () => {
+      row[key] = input.value;
+      if (key === 'date') {
+        input.nextElementSibling.textContent = weekdayOf(input.value.trim());
+        renderDupRow(row);
+      }
+      markMissing();
+      updatePushButton();
+    });
+    const td = document.createElement('td');
+    if (cls) td.className = cls;
+    td.appendChild(input);
+    return td;
+  }
+
+  function renderDupRow(row) {
+    const list = (prep && prep.tripDuplicates[row.date.trim()]) || [];
+    row.dupEl.classList.toggle('hidden', list.length === 0);
+    row.dupEl.firstChild.textContent = list.length ? `이 날짜에 앱에 이미 있는 출조: ${list.join(', ')}` : '';
+  }
+
+  function renderTrips() {
+    const body = $('tripBody');
+    body.replaceChildren();
+    tripRows.forEach((row, i) => {
+      const tr = document.createElement('tr');
+      tr.classList.toggle('off', !row.selected);
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.checked = row.selected;
+      check.title = '저장할 줄';
+      check.addEventListener('change', () => { row.selected = check.checked; tr.classList.toggle('off', !row.selected); markMissing(); updatePushButton(); });
+      const tdCheck = document.createElement('td');
+      tdCheck.appendChild(check);
+      const tdDate = cellInput(row, 'date', 'c-date', '2026-10-05');
+      const wd = document.createElement('small');
+      wd.textContent = weekdayOf(row.date);
+      tdDate.appendChild(wd);
+      const del = document.createElement('button');
+      del.className = 'x';
+      del.type = 'button';
+      del.textContent = '×';
+      del.title = '줄 지우기';
+      del.addEventListener('click', () => { tripRows.splice(i, 1); renderTrips(); });
+      const tdDel = document.createElement('td');
+      tdDel.appendChild(del);
+      tr.append(
+        tdCheck, tdDate,
+        cellInput(row, 'species', 'c-species', '어종'),
+        cellInput(row, 'departureTime', 'c-time', '06:00'),
+        cellInput(row, 'returnTime', 'c-time', ''),
+        cellInput(row, 'price', 'c-price', '원'),
+        cellInput(row, 'notes', '', '예: 자리여유'),
+        tdDel,
+      );
+      row.inputs = tr;
+      const dup = document.createElement('tr');
+      dup.className = 'dup';
+      const dupTd = document.createElement('td');
+      dupTd.colSpan = 8;
+      dup.appendChild(dupTd);
+      row.dupEl = dup;
+      dupTd.appendChild(document.createTextNode(''));
+      body.append(tr, dup);
+      renderDupRow(row);
+    });
+    markMissing();
+    updatePushButton();
+  }
+
+  $('addTripBtn').addEventListener('click', () => {
+    const last = tripRows[tripRows.length - 1];
+    tripRows.push({ date: '', species: last ? last.species : '', departureTime: last ? last.departureTime : '', returnTime: last ? last.returnTime : '', price: last ? last.price : '', notes: '', selected: true });
+    renderTrips();
+  });
+
+  function badCells(row) {
+    const bad = [];
+    if (!DATE_RE.test(String(row.date).trim())) bad.push('date');
+    if (!TIME_RE.test(String(row.departureTime).trim())) bad.push('departureTime');
+    if (String(row.returnTime).trim() && !TIME_RE.test(String(row.returnTime).trim())) bad.push('returnTime');
+    if (String(row.price).trim() && !/^\d[\d,]*$/.test(String(row.price).trim())) bad.push('price');
+    return bad;
+  }
+
+  function tripMissing() {
+    const miss = [];
+    if (!$('tDest').value.trim()) miss.push('목적지');
+    const picked = tripRows.filter((r) => r.selected);
+    if (picked.length === 0) miss.push('저장할 줄');
+    if (picked.some((r) => badCells(r).includes('date'))) miss.push('날짜');
+    if (picked.some((r) => badCells(r).includes('departureTime'))) miss.push('출항 시간');
+    if (picked.some((r) => badCells(r).some((k) => k === 'returnTime' || k === 'price'))) miss.push('입항이나 요금 형식');
+    return miss;
+  }
+
+  function markMissing() {
+    const on = kind === 'schedule';
+    const miss = on ? tripMissing() : [];
+    $('fDest').classList.toggle('need', miss.includes('목적지'));
+    for (const row of tripRows) {
+      if (!row.inputs) continue;
+      const bad = on && row.selected ? badCells(row) : [];
+      row.inputs.querySelectorAll('input[data-key]').forEach((el) => el.classList.toggle('need', bad.includes(el.dataset.key)));
+    }
+    const n = tripRows.filter((r) => r.selected).length;
+    $('tripCount').textContent = `${tripRows.length}줄 중 ${n}건 저장`;
+    $('tMissing').textContent = miss.length ? `${miss.join(', ')}을(를) 확인하세요. 빨간 칸을 채우거나 고치면 됩니다.` : '';
+    show('tMissing', miss.length > 0);
+  }
+
+  function pushBlocker() {
+    if (!prep) return '가져온 게시글이 없습니다';
+    if (!ohgoUser) return '먼저 관리자 로그인을 하세요';
+    if (busy) return '다른 작업이 진행 중입니다';
+    if (pushedFor === prep.postId) return '등록을 마쳤습니다';
+    if (prep.ledger && !$('force').checked) return '이미 등록한 글입니다';
+    if (kind === 'catch' && picked.size === 0) return '사진을 1장 이상 고르세요';
+    if (kind === 'catch' && !$('pTitle').value.trim()) return '제목을 입력하세요';
+    if (kind === 'schedule' && tripMissing().length) return '빨간 칸을 채우세요';
+    return '';
+  }
+
+  function updatePushButton() {
+    const why = pushBlocker();
+    $('pushBtn').disabled = !!why;
+    const n = tripRows.filter((r) => r.selected).length;
+    $('pushHint').textContent = why || (kind === 'catch' ? '조황 사진 게시판에 바로 올라갑니다' : `출조 일정 ${n}건을 한 번에 저장합니다. 하나라도 실패하면 모두 되돌립니다.`);
+  }
+
+  function pushPayload() {
+    const base = { postId: prep.postId, kind, force: $('force').checked };
+    if (kind === 'catch') {
+      return { ...base, photo: {
+        title: $('pTitle').value, description: $('pDesc').value, photoDate: $('pDate').value || null,
+        images: uploadOrder(),
+        useFormatting: formattingOn(),
+      } };
+    }
+    return { ...base, trip: {
+      refDate: prep.refDate, destination: $('tDest').value, capacity: $('tCap').value, contact: $('tContact').value,
+      rows: tripRows.filter((r) => r.selected).map((r) => ({
+        date: String(r.date).trim(), species: r.species, departureTime: String(r.departureTime).trim(),
+        returnTime: String(r.returnTime).trim(), price: String(r.price).trim(), notes: r.notes,
+      })),
+    } };
+  }
+
+  function showPushDone(job) {
+    if (job.status === 'error') {
+      $('pushErrorText').textContent = job.error || '알 수 없는 오류';
+      show('pushError', true);
+      const relogin = job.errorCode === 'LOGIN_REQUIRED';
+      show('pushReloginBtn', relogin);
+      if (relogin) {
+        loginNeeded = true;
+        if (!pendingPush && prep) pendingPush = pushPayload();
+        show('ohgoReloginBtn', true);
+        show('ohgoLoginForm', true);
+      }
+      $('pushError').scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    show('pushError', false);
+    show('pushReloginBtn', false);
+    const r = job.result;
+    pushedFor = prep ? prep.postId : null;
+    const box = $('pushResult');
+    const where = r.kind === 'catch' ? '조황 사진 게시판' : `출조 일정 ${r.rowIds.length}건`;
+    box.replaceChildren(document.createTextNode(`${where}에 등록했습니다.${r.resizedImages ? ` (줄인 사진 ${r.resizedImages}장)` : ''} `));
+    for (const link of r.links) {
+      const b = document.createElement('button');
+      b.textContent = r.kind === 'catch' ? '앱에서 보기' : '출조 관리 열기';
+      b.addEventListener('click', () => api('/api/ohgo/open-link', { url: link }).catch((e) => showError(e.message)));
+      box.appendChild(b);
+    }
+    show('pushResult', true);
+    updatePushButton();
+  }
+
+
+  // ---------- 사진 편집 ----------
+  // 서버(src/image-edit.mts)와 같은 순서: 시계 방향으로 돌리고, 돌린 화면 기준으로 좌우를 뒤집고, 자른다
+  const RATIOS = { '4:3': 4 / 3, '1:1': 1, '3:4': 3 / 4 };
+  const FULL = { x: 0, y: 0, w: 1, h: 1 };
+  const STAGE_PAD = 12;
+  let ed = null;
+
+  function openEditor(file) {
+    const saved = photoEdit(file);
+    const e = saved ? saved.edit : { rotate: 0, flipH: false, crop: null };
+    ed = { file, img: new Image(), rotate: e.rotate, flipH: e.flipH, crop: { ...(e.crop || FULL) }, ratio: 'free', saving: false };
+    $('edName').textContent = file;
+    $('edSize').textContent = '';
+    show('edErr', false);
+    $('edRevert').disabled = !saved;
+    show('editModal', true);
+    const current = ed;
+    setEditorReady(false);
+    current.img.onload = () => { if (ed === current) { setEditorReady(true); drawEditor(); } };
+    current.img.onerror = () => { if (ed === current) editError('사진을 열지 못했습니다'); };
+    current.img.src = `/out/${prep.postId}/${encodeURIComponent(file)}?t=${TOKEN}`;
+    updateRatioButtons();
+  }
+
+  function setEditorReady(on) {
+    document.querySelectorAll('#editModal .tools button').forEach((b) => { b.disabled = !on; });
+    $('edSave').disabled = !on;
+  }
+
+  function closeEditor() {
+    ed = null;
+    show('editModal', false);
+  }
+
+  function editError(msg) {
+    $('edErr').textContent = msg;
+    show('edErr', true);
+  }
+
+  function turnedSize() {
+    const { naturalWidth: w, naturalHeight: h } = ed.img;
+    return ed.rotate % 180 ? { w: h, h: w } : { w, h };
+  }
+
+  function drawEditor() {
+    if (!ed || !ed.img.naturalWidth) return;
+    const t = turnedSize();
+    const maxW = Math.min(620, window.innerWidth - 96);
+    const maxH = Math.max(200, window.innerHeight - 300);
+    const scale = Math.min(maxW / t.w, maxH / t.h, 1);
+    const cw = Math.max(1, Math.round(t.w * scale));
+    const ch = Math.max(1, Math.round(t.h * scale));
+    const dpr = window.devicePixelRatio || 1;
+    const canvas = $('edCanvas');
+    canvas.width = Math.round(cw * dpr);
+    canvas.height = Math.round(ch * dpr);
+    canvas.style.width = `${cw}px`;
+    canvas.style.height = `${ch}px`;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.translate(cw / 2, ch / 2);
+    if (ed.flipH) ctx.scale(-1, 1);
+    ctx.rotate((ed.rotate * Math.PI) / 180);
+    const iw = ed.img.naturalWidth * scale;
+    const ih = ed.img.naturalHeight * scale;
+    ctx.drawImage(ed.img, -iw / 2, -ih / 2, iw, ih);
+    ed.view = { cw, ch };
+    placeCrop();
+  }
+
+  function placeCrop() {
+    const { cw, ch } = ed.view;
+    const box = $('edCrop');
+    box.style.left = `${STAGE_PAD + ed.crop.x * cw}px`;
+    box.style.top = `${STAGE_PAD + ed.crop.y * ch}px`;
+    box.style.width = `${ed.crop.w * cw}px`;
+    box.style.height = `${ed.crop.h * ch}px`;
+    const t = turnedSize();
+    $('edSize').textContent = `${Math.round(ed.crop.w * t.w)} x ${Math.round(ed.crop.h * t.h)}`;
+  }
+
+  /** 비율 r(가로/세로, 실제 픽셀 기준)로 가운데에 가장 크게 */
+  function centeredCrop(r) {
+    const t = turnedSize();
+    let w = 1;
+    let h = (t.w / r) / t.h;
+    if (h > 1) { h = 1; w = (t.h * r) / t.w; }
+    return { x: (1 - w) / 2, y: (1 - h) / 2, w, h };
+  }
+
+  function setRatio(name) {
+    ed.ratio = name;
+    if (RATIOS[name]) ed.crop = centeredCrop(RATIOS[name]);
+    updateRatioButtons();
+    placeCrop();
+  }
+
+  function updateRatioButtons() {
+    document.querySelectorAll('[data-ratio]').forEach((b) => b.classList.toggle('on', !!ed && b.dataset.ratio === ed.ratio));
+  }
+
+  function turn(dir) {
+    ed.rotate = (ed.rotate + (ed.flipH ? -dir : dir) * 90 + 360) % 360;
+    ed.crop = RATIOS[ed.ratio] ? centeredCrop(RATIOS[ed.ratio]) : { ...FULL };
+    drawEditor();
+  }
+
+  function currentEdit() {
+    const c = ed.crop;
+    const full = c.x < 1e-4 && c.y < 1e-4 && c.w > 0.9999 && c.h > 0.9999;
+    const r = (v) => Math.round(v * 1e6) / 1e6;
+    return { rotate: ed.rotate, flipH: ed.flipH, crop: full ? null : { x: r(c.x), y: r(c.y), w: r(Math.min(c.w, 1 - c.x)), h: r(Math.min(c.h, 1 - c.y)) } };
+  }
+
+  // 자르기 상자 끌기: 가운데는 옮기기, 모서리는 크기 바꾸기 (반대쪽 모서리 고정)
+  let cropDrag = null;
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  $('edCrop').addEventListener('pointerdown', (e) => {
+    if (!ed || !ed.view) return;
+    e.preventDefault();
+    const handle = e.target.dataset ? e.target.dataset.h : undefined;
+    cropDrag = { handle, startX: e.clientX, startY: e.clientY, start: { ...ed.crop } };
+    $('edCrop').setPointerCapture(e.pointerId);
+  });
+  $('edCrop').addEventListener('pointermove', (e) => {
+    if (!cropDrag || !ed) return;
+    const { cw, ch } = ed.view;
+    const s = cropDrag.start;
+    const dx = (e.clientX - cropDrag.startX) / cw;
+    const dy = (e.clientY - cropDrag.startY) / ch;
+    if (!cropDrag.handle) {
+      ed.crop = { ...s, x: clamp(s.x + dx, 0, 1 - s.w), y: clamp(s.y + dy, 0, 1 - s.h) };
+      return placeCrop();
+    }
+    const h = cropDrag.handle;
+    const ax = h.includes('w') ? s.x + s.w : s.x;
+    const ay = h.includes('n') ? s.y + s.h : s.y;
+    const px = clamp((h.includes('w') ? s.x : s.x + s.w) + dx, 0, 1);
+    const py = clamp((h.includes('n') ? s.y : s.y + s.h) + dy, 0, 1);
+    const sx = h.includes('w') ? -1 : 1;
+    const sy = h.includes('n') ? -1 : 1;
+    const maxW = (sx > 0 ? 1 - ax : ax) * cw;
+    const maxH = (sy > 0 ? 1 - ay : ay) * ch;
+    let wpx = Math.max(24, Math.min(maxW, Math.abs(px - ax) * cw));
+    let hpx = Math.max(24, Math.min(maxH, Math.abs(py - ay) * ch));
+    const r = RATIOS[ed.ratio];
+    if (r) {
+      wpx = Math.max(wpx, hpx * r);
+      hpx = wpx / r;
+      if (wpx > maxW) { wpx = maxW; hpx = wpx / r; }
+      if (hpx > maxH) { hpx = maxH; wpx = hpx * r; }
+    }
+    const w = Math.min(wpx / cw, sx > 0 ? 1 - ax : ax);
+    const hh = Math.min(hpx / ch, sy > 0 ? 1 - ay : ay);
+    ed.crop = { x: sx > 0 ? ax : ax - w, y: sy > 0 ? ay : ay - hh, w, h: hh };
+    placeCrop();
+  });
+  const endCropDrag = () => { cropDrag = null; };
+  $('edCrop').addEventListener('pointerup', endCropDrag);
+  $('edCrop').addEventListener('pointercancel', endCropDrag);
+
+  document.querySelectorAll('[data-ratio]').forEach((b) => b.addEventListener('click', () => setRatio(b.dataset.ratio)));
+  $('edNoCrop').addEventListener('click', () => { ed.ratio = 'free'; ed.crop = { ...FULL }; updateRatioButtons(); placeCrop(); });
+  $('edRotL').addEventListener('click', () => turn(-1));
+  $('edRotR').addEventListener('click', () => turn(1));
+  $('edFlip').addEventListener('click', () => {
+    ed.flipH = !ed.flipH;
+    ed.crop = { ...ed.crop, x: 1 - ed.crop.x - ed.crop.w };
+    drawEditor();
+  });
+  $('edCancel').addEventListener('click', closeEditor);
+  $('editModal').addEventListener('click', (e) => { if (e.target === $('editModal')) closeEditor(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ed) closeEditor(); });
+  window.addEventListener('resize', () => { if (ed) drawEditor(); });
+
+  async function saveEdit(path, body) {
+    if (!ed || ed.saving) return;
+    ed.saving = true;
+    $('edSave').disabled = true;
+    $('edRevert').disabled = true;
+    try {
+      const res = await api(path, { postId: prep.postId, file: ed.file, ...body });
+      prep.photoEdits = res.edits;
+      closeEditor();
+      renderThumbs();
+    } catch (err) {
+      editError(err.message);
+      if (ed) ed.saving = false;
+    } finally {
+      $('edSave').disabled = false;
+      $('edRevert').disabled = !(ed && photoEdit(ed.file));
+    }
+  }
+  $('edSave').addEventListener('click', () => saveEdit('/api/ohgo/edit', { edit: currentEdit() }));
+  $('edRevert').addEventListener('click', () => saveEdit('/api/ohgo/revert', {}));
+
+  // ---------- 본문 서식 ----------
+  // 서식을 살리면 앱은 content(미리보기)를 보여 주고 내용 칸(description)은 보이지 않는다
+  function formattingOn() {
+    return !!(prep && prep.photoFormatted && prep.photoFormatted.html) && $('pFormat').checked;
+  }
+
+  function descChanged() {
+    return !!prep && $('pDesc').value !== prep.photo.description;
+  }
+
+  function updateFormatting() {
+    show('fmtWrap', formattingOn());
+    if (formattingOn() && descChanged()) {
+      $('fmtNote').textContent = '내용 칸을 고쳤습니다. 서식을 살리면 앱에는 고친 내용이 아니라 아래 미리보기가 보입니다.';
+    }
+  }
+
+  $('pDesc').addEventListener('input', () => {
+    if (formattingOn() && descChanged()) {
+      $('pFormat').checked = false;
+      $('fmtNote').textContent = '내용을 고쳐서 서식 없이 고친 내용으로 올립니다. 서식을 살리려면 다시 체크하세요.';
+    }
+    updateFormatting();
+  });
+  $('pFormat').addEventListener('change', () => {
+    $('fmtNote').textContent = '';
+    updateFormatting();
+  });
+
+  document.querySelectorAll('input[name=kind]').forEach((el) => el.addEventListener('change', () => setKind(el.value)));
+  ['tDest', 'pTitle'].forEach((id) => $(id).addEventListener('input', () => { markMissing(); updatePushButton(); }));
+  $('pDate').addEventListener('input', updateBoardDate);
+  $('force').addEventListener('change', updatePushButton);
+
+  $('ohgoModeBtn').addEventListener('click', () => {
+    emailMode = !emailMode;
+    show('nameDobRow', !emailMode);
+    show('emailRow', emailMode);
+    $('ohgoModeBtn').textContent = emailMode ? '이름과 생년월일로 로그인' : '이메일 계정으로 로그인';
+  });
+
+  $('ohgoLoginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('ohgoLoginBtn').disabled = true;
+    try {
+      const body = emailMode
+        ? { email: $('ohgoEmail').value, password: $('ohgoPassword').value }
+        : { name: $('ohgoName').value, dob: $('ohgoDob').value };
+      const retry = pendingPush;
+      renderOhgoState(await api('/api/ohgo/login', body));
+      pendingPush = null;
+      loginNeeded = false;
+      show('ohgoReloginBtn', false);
+      show('ohgoLoginForm', false);
+      $('ohgoPassword').value = '';
+      $('ohgoDob').value = '';
+      if (retry) {
+        show('pushError', false);
+        show('pushReloginBtn', false);
+        $('pushBtn').disabled = true;
+        await api('/api/ohgo/push', retry);
+        startPolling();
+      }
+    } catch (err) {
+      $('ohgoConfigErr').textContent = err.message;
+      show('ohgoConfigErr', true);
+    } finally {
+      $('ohgoLoginBtn').disabled = false;
+    }
+  });
+
+  $('ohgoLogoutBtn').addEventListener('click', async () => {
+    try { renderOhgoState(await api('/api/ohgo/logout', {})); } catch (err) { showError(err.message); }
+  });
+
+  $('pushBtn').addEventListener('click', async () => {
+    if (pushBlocker()) return;
+    $('pushBtn').disabled = true;
+    show('pushError', false);
+    try {
+      await api('/api/ohgo/push', pushPayload());
+      startPolling();
+    } catch (err) {
+      if (err.code === 'DUPLICATE') show('dupBox', true);
+      showError(err.message);
+      $('pushErrorText').textContent = err.message;
+      show('pushError', true);
+      updatePushButton();
+    }
+  });
+
+  function focusLogin() {
+    loginNeeded = true;
+    show('ohgoReloginBtn', true);
+    show('ohgoLoginForm', true);
+    $('ohgoLoginForm').scrollIntoView({ block: 'nearest' });
+    (emailMode ? $('ohgoEmail') : $('ohgoName')).focus();
+  }
+  $('pushReloginBtn').addEventListener('click', focusLogin);
+  $('ohgoReloginBtn').addEventListener('click', focusLogin);
+
+  $('pushLogBtn').addEventListener('click', async () => {
+    if (!prep) return;
+    try { await api('/api/open', { postId: prep.postId }); } catch (err) { showError(err.message); }
+  });
+
+  async function refresh() {
+    try {
+      const state = await api('/api/state');
+      render(state);
+      if (!state.busy && polling) { clearInterval(polling); polling = null; }
+    } catch (err) {
+      $('status').textContent = `연결 끊김: ${err.message}`;
+    }
+  }
+
+  function startPolling() {
+    if (!polling) polling = setInterval(refresh, 700);
+    refresh();
+  }
+
+  function showError(message) {
+    $('jobCard').classList.remove('hidden');
+    $('status').className = 'status error';
+    $('status').textContent = message;
+  }
+
+  $('loginBtn').addEventListener('click', async () => {
+    try { await api('/api/login', {}); startPolling(); } catch (err) { showError(err.message); }
+  });
+
+  $('fetchForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const url = $('url').value.trim();
+    if (!url) { $('url').focus(); return; }
+    $('resultCard').classList.add('hidden');
+    try {
+      await api('/api/fetch', { url, headless: $('headless').checked });
+      startPolling();
+    } catch (err) { showError(err.message); }
+  });
+
+  $('pasteBtn').addEventListener('click', async () => {
+    try {
+      const text = (await navigator.clipboard.readText()).trim();
+      if (text) $('url').value = text;
+    } catch {
+      $('url').focus();
+      showError('클립보드를 읽지 못했습니다. 입력칸에 Cmd+V 로 붙여넣으세요.');
+    }
+  });
+
+  $('openBtn').addEventListener('click', async () => {
+    if (!lastResult) return;
+    try { await api('/api/open', { postId: lastResult.postId }); } catch (err) { showError(err.message); }
+  });
+
+  $('quitBtn').addEventListener('click', async () => {
+    try { await api('/api/quit', {}); } catch {}
+    document.body.innerHTML = '<p style="padding:24px">종료했습니다. 이 창을 닫으세요.</p>';
+    setTimeout(() => window.close(), 300);
+  });
+
+  startPolling();
+</script>
+</body>
+</html>
