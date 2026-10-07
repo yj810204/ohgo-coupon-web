@@ -9,11 +9,9 @@ import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/Oh
 import { resolveAppUser } from '@/lib/auth-session';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
 import { isNativeApp, saveImageToDevice } from '@/lib/native-bridge';
-import { OHGO_FONT, OhgoPageLoading } from '@/lib/page-styles';
+import { OhgoPageLoading } from '@/lib/page-styles';
 import { getPhotosForUser, type CaptainPhoto } from '@/utils/captain-photo-service';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
-
-const FONT = OHGO_FONT;
 
 type GalleryItem = {
   photo: CaptainPhoto;
@@ -21,10 +19,22 @@ type GalleryItem = {
   index: number;
 };
 
-function tripLabel(iso: string): string {
+function tripParts(iso: string): { month: number; day: number } | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  if (!match) return '조황 사진';
-  return `${Number(match[2])}월 ${Number(match[3])}일 조황`;
+  if (!match) return null;
+  return { month: Number(match[2]), day: Number(match[3]) };
+}
+
+function tripLabel(iso: string): string {
+  const parts = tripParts(iso);
+  if (!parts) return '조황 사진';
+  return `${parts.month}월 ${parts.day}일 조황`;
+}
+
+function shortDate(iso: string): string {
+  const parts = tripParts(iso);
+  if (!parts) return '';
+  return `${parts.month}.${parts.day}`;
 }
 
 function MyPhotosContent() {
@@ -149,29 +159,86 @@ function MyPhotosContent() {
             gap: 3,
           }}
         >
-          {gallery.map((item) => (
-            <button
-              key={`${item.photo.id}-${item.index}`}
-              type="button"
-              onClick={() => setDetail(item)}
-              aria-label="조황 사진 보기"
-              style={{
-                padding: 0,
-                border: 'none',
-                borderRadius: 8,
-                overflow: 'hidden',
-                cursor: 'pointer',
-                backgroundColor: '#F2F3F5',
-              }}
-            >
-              <img
-                src={item.url}
-                alt=""
-                loading="lazy"
-                style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }}
-              />
-            </button>
-          ))}
+          {gallery.map((item) => {
+            const date = shortDate(item.photo.tripDate);
+            const busy = deletingId === item.photo.id;
+            return (
+              <div
+                key={`${item.photo.id}-${item.index}`}
+                style={{
+                  position: 'relative',
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  backgroundColor: '#F2F3F5',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setDetail(item)}
+                  aria-label={date ? `${date} 조황 사진 보기` : '조황 사진 보기'}
+                  style={{
+                    padding: 0,
+                    border: 'none',
+                    width: '100%',
+                    cursor: 'pointer',
+                    background: 'none',
+                    display: 'block',
+                  }}
+                >
+                  <img
+                    src={item.url}
+                    alt=""
+                    loading="lazy"
+                    style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }}
+                  />
+                </button>
+                {date && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      left: 6,
+                      bottom: 6,
+                      padding: '2px 6px',
+                      borderRadius: 999,
+                      backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                      color: '#fff',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      lineHeight: 1.4,
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    {date}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  aria-label="삭제"
+                  disabled={busy}
+                  onClick={() => void removePhoto(item.photo)}
+                  style={{
+                    position: 'absolute',
+                    top: 6,
+                    right: 6,
+                    width: 28,
+                    height: 28,
+                    padding: 0,
+                    border: 'none',
+                    borderRadius: 999,
+                    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: busy ? 'default' : 'pointer',
+                    opacity: busy ? 0.5 : 1,
+                  }}
+                >
+                  <IoTrashOutline size={15} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -182,26 +249,9 @@ function MyPhotosContent() {
         size="lg"
         footer={
           <>
-            <OhgoModalButton onClick={() => void saveToGallery()} disabled={saving || deletingId !== ''}>
+            <OhgoModalButton onClick={() => void saveToGallery()} disabled={saving}>
               {saving ? '저장 중...' : '갤러리로 저장'}
             </OhgoModalButton>
-            <button
-              type="button"
-              onClick={() => detail && void removePhoto(detail.photo)}
-              disabled={!detail || deletingId === detail.photo.id}
-              style={{
-                border: 'none',
-                background: 'none',
-                color: '#FF3B30',
-                fontFamily: FONT,
-                fontSize: 15,
-                fontWeight: 600,
-                padding: '8px 0 0',
-              }}
-            >
-              <IoTrashOutline size={16} style={{ marginRight: 4, verticalAlign: -2 }} />
-              삭제
-            </button>
             <OhgoModalCancelLink onClick={() => setDetail(null)}>닫기</OhgoModalCancelLink>
           </>
         }
