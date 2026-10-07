@@ -1,7 +1,21 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import 'ckeditor5/ckeditor5.css';
+import { BAND_EDITOR_COLORS, EDITOR_FONT_SIZE_OPTIONS } from '@/lib/editor-colors';
+
+interface EditorHandle {
+  getData: () => string;
+  setData: (data: string) => void;
+}
+
+interface EditorViewProps {
+  data?: string;
+  disabled?: boolean;
+  config?: Record<string, unknown>;
+  onChange?: (event: unknown, editor: EditorHandle) => void;
+  onReady?: (editor: EditorHandle) => void;
+}
 
 interface CKEditorComponentProps {
   value: string;
@@ -20,10 +34,10 @@ export default function CKEditorComponent({
   minHeight = 200,
   showSourceToggle = true,
 }: CKEditorComponentProps) {
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<EditorHandle | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isReady, setIsReady] = useState(false);
-  const [EditorComponent, setEditorComponent] = useState<any>(null);
+  const [EditorComponent, setEditorComponent] = useState<((props: EditorViewProps) => ReactElement) | null>(null);
   const [showSource, setShowSource] = useState(false);
   const [sourceValue, setSourceValue] = useState(value);
   const [loadError, setLoadError] = useState(false);
@@ -68,6 +82,8 @@ export default function CKEditorComponent({
           ck.Heading,
           ck.Bold,
           ck.Italic,
+          ck.Underline,
+          ck.Strikethrough,
           ck.Font,
           ck.Link,
           ck.List,
@@ -76,7 +92,8 @@ export default function CKEditorComponent({
           ck.TableToolbar,
         ];
 
-        setEditorComponent(() => (props: any) => (
+        function EditorView(props: EditorViewProps) {
+          return (
           <CKEditor
             editor={ck.ClassicEditor}
             {...props}
@@ -85,10 +102,23 @@ export default function CKEditorComponent({
               plugins,
               language: 'ko',
               translations: [ko.default],
+              fontSize: { options: [...EDITOR_FONT_SIZE_OPTIONS] },
+              fontColor: {
+                colors: BAND_EDITOR_COLORS,
+                columns: 6,
+                colorPicker: { format: 'hex' },
+              },
+              fontBackgroundColor: {
+                colors: BAND_EDITOR_COLORS,
+                columns: 6,
+                colorPicker: { format: 'hex' },
+              },
               ...props.config,
             }}
           />
-        ));
+          );
+        }
+        setEditorComponent(() => EditorView);
         setIsReady(true);
       } catch (error) {
         console.error('Error loading CKEditor:', error);
@@ -180,6 +210,10 @@ export default function CKEditorComponent({
               '|',
               'bold',
               'italic',
+              'underline',
+              'strikethrough',
+              '|',
+              'fontSize',
               'fontColor',
               'fontBackgroundColor',
               '|',
@@ -194,11 +228,10 @@ export default function CKEditorComponent({
               'redo',
             ],
           }}
-          onChange={(event: any, editor: any) => {
-            const data = editor.getData();
-            onChange(data);
+          onChange={(_event, editor) => {
+            onChange(editor.getData());
           }}
-          onReady={(editor: any) => {
+          onReady={(editor) => {
             editorRef.current = editor;
           }}
         />

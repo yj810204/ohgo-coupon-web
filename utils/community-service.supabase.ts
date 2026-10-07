@@ -1,3 +1,4 @@
+import { sanitizeRichHtml } from '@/lib/rich-text';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { getSettingsValue, setSettingsValue } from '@/lib/settings-store';
 import { awardQnaAcceptedPoints, deductCommentPoints } from './community-point-service';
@@ -288,7 +289,7 @@ export async function uploadPhoto(
   };
   if (category) row.category = category;
   if (isNotice) row.is_notice = true;
-  if (content !== undefined) row.content = content ?? null;
+  if (content !== undefined) row.content = content == null ? null : sanitizeRichHtml(content);
   if (photoDate) row.photo_date = photoDate.toISOString().split('T')[0];
   if (templateId) row.template_id = templateId;
   if (templateFieldValues) row.template_field_values = templateFieldValues;
@@ -341,8 +342,8 @@ export async function updatePhoto(
   if (updates.category !== undefined) updateData.category = updates.category || null;
   if (updates.isNotice !== undefined) updateData.is_notice = updates.isNotice;
   if (updates.title !== undefined) updateData.title = updates.title;
-  if (updates.description !== undefined) updateData.description = updates.description;
-  if (updates.content !== undefined) updateData.content = updates.content;
+  if (updates.description !== undefined) updateData.description = sanitizeRichHtml(updates.description);
+  if (updates.content !== undefined) updateData.content = sanitizeRichHtml(updates.content);
   if (updates.photoDate !== undefined) {
     updateData.photo_date = updates.photoDate
       ? updates.photoDate.toISOString().split('T')[0]
