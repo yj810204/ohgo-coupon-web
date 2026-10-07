@@ -28,7 +28,7 @@ const prep: PrepareResult = {
   photoWarnings: [],
   photoEdits: {},
   photoTags: {},
-  photoFormatted: { html: '<span style="color:#ff3445">4짜</span> <b>대박</b><br>#낫개', text: '4짜 대박\n#낫개' },
+  photoFormatted: { html: '<p><span style="color:#ff3445;">4짜</span> <strong>대박</strong></p><p>#낫개</p>', text: '4짜 대박\n#낫개' },
   trip: { rows: [], destination: '', capacity: null, contact: '' },
   tripSource: 'single',
   tripMissing: [],
@@ -230,8 +230,8 @@ try {
   // 본문은 편집창 하나다. 글자색과 굵게가 등록 값에 그대로 담긴다
   type Payload = { photo: { useFormatting: boolean; description: string; content: string } };
   const payload = () => page.evaluate(() => (window as unknown as { pushPayload: () => Payload }).pushPayload());
-  assert.equal(await page.locator('#pEditor span').getAttribute('style'), 'color:#ff3445');
-  assert.equal(await page.locator('#pEditor b').textContent(), '대박');
+  assert.equal(await page.locator('#pEditor span').getAttribute('style'), 'color:#ff3445;');
+  assert.equal(await page.locator('#pEditor strong').textContent(), '대박');
   assert.equal((await payload()).photo.useFormatting, true);
   assert.match((await payload()).photo.content, /color:#ff3445/);
   assert.match((await payload()).photo.description, /4짜 대박/);

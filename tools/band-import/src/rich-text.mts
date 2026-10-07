@@ -1,14 +1,22 @@
 /**
- * Band 본문의 글자색과 굵게를 오고피씽 community_photos.content(HTML)로 옮긴다.
+ * Band 본문 서식을 오고피씽 community_photos.content(HTML)로 옮긴다.
  *
- * 앱 상세 화면은 content를 걸러 내지 않고 그대로 innerHTML로 그리므로, 여기서 만든 HTML에는
- * <b>, </b>, <br>, <span style="color:#rrggbb">(아래 팔레트 색만), </span> 외에는 아무것도 들어가지 않는다.
- * 나머지 태그는 모두 버리고(글자는 남김) 글자는 모두 이스케이프한다.
+ * 앱 상세 화면은 content를 걸러 내지 않고 그대로 innerHTML로 그린다.
+ * 여기서 만든 HTML은 CKEditor 5가 같은 서식을 다시 저장할 때 쓰는 모양이다.
+ *   <p>, <strong>, <i>, <s>, <u>,
+ *   <span style="background-color:#rrggbb;color:#rrggbb;font-size:18px|22px;">
+ * 색은 Band 팔레트 11색만, 글자 크기는 18px(l)과 22px(xl)만 둔다.
+ * 그 밖의 태그와 속성은 버리고 글자는 모두 이스케이프한다.
+ *
+ * 앱이 쓰는 classic 빌드(41)는 <p>, <strong>, <i>만 유지한다.
+ * 글자색, 배경색, 밑줄, 취소선, 글자 크기는 글 화면에는 보이지만,
+ * 수정 화면의 에디터가 플러그인을 갖기 전에는 저장할 때 빠진다.
  */
 
 /**
- * Band 웹(boot.bundle.js 2026-10 기준)의 band:color 값 → 화면 색.
- * color12는 기본색(색 없음)이다.
+ * Band 웹(boot.bundle.js 2026-10-07)의 band:color 값 → 화면 색.
+ * color12는 기본색(색 없음)이다. 배경색 태그(band:bgcolor)는 이 스크립트에 없고,
+ * 화면 HTML의 background-color가 같은 색표에 있을 때만 남긴다.
  */
 export const BAND_COLORS: Record<string, string> = {
   color01: '#ff3692',
@@ -25,13 +33,26 @@ export const BAND_COLORS: Record<string, string> = {
 };
 const PALETTE = new Set(Object.values(BAND_COLORS));
 
+/** band:size value. l은 18px, xl은 22px. M과 그 밖은 기본 크기 */
+export const BAND_FONT_SIZE: Record<string, string> = { l: '18px', xl: '22px' };
+const SIZES = new Set(Object.values(BAND_FONT_SIZE));
+
 export type RawContent = {
   /** band: API의 content(band:color 같은 Band 마크업), dom: 화면 본문의 innerHTML */
   format: 'band' | 'dom';
   html: string;
 };
 
-export type Run = { text: string; bold: boolean; color: string | null };
+export type Run = {
+  text: string;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strike: boolean;
+  color: string | null;
+  background: string | null;
+  size: string | null;
+};
 
 /** 글자와 함께 버리는 태그 */
 const DROP_WITH_CONTENT = new Set(['script', 'style', 'noscript', 'template', 'iframe', 'object', 'embed', 'svg', 'math', 'textarea', 'select', 'title', 'head']);
@@ -71,15 +92,36 @@ export function paletteColor(value: string | null): string | null {
   return hex && PALETTE.has(hex) ? hex : null;
 }
 
-/** 색을 지정했으면 팔레트 색 또는 null(색 없음). 색 지정이 없으면 undefined */
-function declaredColor(style: string | null, fontColor: string | null): string | null | undefined {
-  const m = style ? /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(style) : null;
-  if (m) return paletteColor(m[1].replace(/!important/i, ''));
-  if (fontColor) return paletteColor(fontColor);
-  return undefined;
+function styleDecl(style: string, prop: string): string | null {
+  const m = new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+)`, 'i').exec(style);
+  return m ? m[1].replace(/!important/i, '').trim() : null;
+}
+
+function fontSize(value: string | null): string | null {
+  if (!value) return null;
+  const v = value.trim().toLowerCase();
+  if (v in BAND_FONT_SIZE) return BAND_FONT_SIZE[v];
+  const px = /^(\d+(?:\.\d+)?)\s*px$/.exec(v);
+  const size = px ? `${Number(px[1])}px` : null;
+  return size && SIZES.has(size) ? size : null;
 }
 
 const TOKEN = /<!--[\s\S]*?(?:-->|$)|<(\/?)([a-zA-Z][\w:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>|[^<]+|</g;
+
+type Frame = {
+  name: string;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strike: boolean;
+  color: string | null | undefined;
+  background: string | null | undefined;
+  size: string | null | undefined;
+};
+
+function sameStyle(a: Run, b: Run): boolean {
+  return a.bold === b.bold && a.italic === b.italic && a.underline === b.underline && a.strike === b.strike && a.color === b.color && a.background === b.background && a.size === b.size;
+}
 
 /** 본문을 줄 단위 글자 조각으로 나눈다 */
 export function parseRichContent(raw: RawContent): Run[][] {
@@ -89,13 +131,12 @@ export function parseRichContent(raw: RawContent): Run[][] {
   // 화면 본문은 줄바꿈이 <br>이고, 태그 사이의 줄바꿈 문자는 화면에 보이는 줄바꿈이 아닐 수도 있다
   const literalNewlines = raw.format === 'band' || !/<br\b/i.test(src);
 
-  type Frame = { name: string; bold: boolean; color: string | null | undefined };
   const stack: Frame[] = [];
   const lines: Run[][] = [[]];
   let skip: string | null = null;
-  const bold = () => stack.some((f) => f.bold);
-  const color = () => {
-    for (let i = stack.length - 1; i >= 0; i--) if (stack[i].color !== undefined) return stack[i].color ?? null;
+  const flag = (key: 'bold' | 'italic' | 'underline' | 'strike') => stack.some((f) => f[key]);
+  const inherit = (key: 'color' | 'background' | 'size') => {
+    for (let i = stack.length - 1; i >= 0; i--) if (stack[i][key] !== undefined) return stack[i][key] ?? null;
     return null;
   };
   const newline = () => lines.push([]);
@@ -103,7 +144,18 @@ export function parseRichContent(raw: RawContent): Run[][] {
     const parts = text.split('\n');
     parts.forEach((part, i) => {
       if (i > 0) newline();
-      if (part) lines[lines.length - 1].push({ text: part, bold: bold(), color: color() });
+      if (part) {
+        lines[lines.length - 1].push({
+          text: part,
+          bold: flag('bold'),
+          italic: flag('italic'),
+          underline: flag('underline'),
+          strike: flag('strike'),
+          color: inherit('color'),
+          background: inherit('background'),
+          size: inherit('size'),
+        });
+      }
     });
   };
 
@@ -137,14 +189,32 @@ export function parseRichContent(raw: RawContent): Run[][] {
     }
     if (BLOCK.has(name) && lines[lines.length - 1].length) newline();
     if (/\/\s*$/.test(attrs) || name === 'img' || name === 'hr' || name === 'input' || name === 'wbr') continue;
-    const frame: Frame = { name, bold: name === 'b' || name === 'strong', color: undefined };
-    if (name === 'band:color') {
+    const frame: Frame = { name, bold: name === 'b' || name === 'strong', italic: name === 'i' || name === 'em', underline: name === 'u', strike: name === 's' || name === 'del' || name === 'strike', color: undefined, background: undefined, size: undefined };
+    if (name === 'band:color' || name === 'band:bgcolor') {
       const value = (attr(attrs, 'value') ?? '').trim().toLowerCase();
-      frame.color = BAND_COLORS[value] ?? null;
-    } else if (name === 'span' || name === 'font') {
-      const declared = declaredColor(attr(attrs, 'style'), name === 'font' ? attr(attrs, 'color') : null);
-      if (declared !== undefined) frame.color = declared;
-      if (/(?:^|;)\s*font-weight\s*:\s*(bold|[6-9]00)/i.test(attr(attrs, 'style') ?? '')) frame.bold = true;
+      frame[name === 'band:color' ? 'color' : 'background'] = BAND_COLORS[value] ?? null;
+    } else if (name === 'band:size') {
+      frame.size = fontSize((attr(attrs, 'value') ?? '').trim().toLowerCase());
+    }
+    const style = attr(attrs, 'style');
+    if (style) {
+      const declared = styleDecl(style, 'color');
+      if (declared) frame.color = paletteColor(declared);
+      const bgDeclared = styleDecl(style, 'background-color') ?? styleDecl(style, 'background');
+      if (bgDeclared) frame.background = paletteColor(bgDeclared);
+      const size = fontSize(styleDecl(style, 'font-size'));
+      if (size) frame.size = size;
+      if (/(?:^|;)\s*font-weight\s*:\s*(bold|[6-9]00)/i.test(style)) frame.bold = true;
+      if (/(?:^|;)\s*font-style\s*:\s*italic/i.test(style)) frame.italic = true;
+      const deco = styleDecl(style, 'text-decoration') ?? styleDecl(style, 'text-decoration-line');
+      if (deco && !/none/i.test(deco)) {
+        if (/underline/i.test(deco)) frame.underline = true;
+        if (/line-through/i.test(deco)) frame.strike = true;
+      }
+    }
+    if (name === 'font') {
+      const raw = attr(attrs, 'color');
+      if (raw) frame.color = paletteColor(raw);
     }
     stack.push(frame);
   }
@@ -154,7 +224,7 @@ export function parseRichContent(raw: RawContent): Run[][] {
     for (const r of runs) {
       const text = r.text.replace(/\u00a0/g, ' ');
       const last = merged[merged.length - 1];
-      if (last && last.bold === r.bold && last.color === r.color) last.text += text;
+      if (last && sameStyle(last, r)) last.text += text;
       else merged.push({ ...r, text });
     }
     // 줄 끝 공백 정리
@@ -181,33 +251,58 @@ export function lineText(line: Run[]): string {
 }
 
 export function hasFormatting(lines: Run[][]): boolean {
-  return lines.some((l) => l.some((r) => r.text.trim() && (r.bold || r.color)));
+  return lines.some((l) => l.some((r) => r.text.trim() && (r.bold || r.italic || r.underline || r.strike || r.color || r.background || r.size)));
+}
+
+/** CKEditor 5 getData()와 같은 감싸기 순서: span, i, s, strong, u */
+function renderRun(r: Run): string {
+  let html = escapeHtml(r.text);
+  if (r.underline) html = `<u>${html}</u>`;
+  if (r.bold) html = `<strong>${html}</strong>`;
+  if (r.strike) html = `<s>${html}</s>`;
+  if (r.italic) html = `<i>${html}</i>`;
+  const style: string[] = [];
+  if (r.background && PALETTE.has(r.background)) style.push(`background-color:${r.background}`);
+  if (r.color && PALETTE.has(r.color)) style.push(`color:${r.color}`);
+  if (r.size && SIZES.has(r.size)) style.push(`font-size:${r.size}`);
+  if (style.length) html = `<span style="${style.join(';')};">${html}</span>`;
+  return html;
 }
 
 export function renderRuns(lines: Run[][]): string {
-  return lines
-    .map((line) =>
-      line
-        .map((r) => {
-          let html = escapeHtml(r.text);
-          if (r.bold) html = `<b>${html}</b>`;
-          if (r.color && PALETTE.has(r.color)) html = `<span style="color:${r.color}">${html}</span>`;
-          return html;
-        })
-        .join(''),
-    )
-    .join('<br>');
+  return lines.map((line) => (line.length ? `<p>${line.map(renderRun).join('')}</p>` : '<p>&nbsp;</p>')).join('');
 }
 
-const SAFE_TAG = /<(?:b|\/b|br|\/span|span style="color:#[0-9a-f]{6}")>/g;
+const SAFE_TAG = /<(?:p|\/p|strong|\/strong|i|\/i|u|\/u|s|\/s|\/span|span style="([^"]*)")>/g;
+
+function isSafeStyle(style: string): boolean {
+  if (!style.endsWith(';')) return false;
+  const parts = style.slice(0, -1).split(';');
+  if (!parts.length || parts.some((p) => !p || /\s/.test(p))) return false;
+  let prev = '';
+  const seen = new Set<string>();
+  for (const part of parts) {
+    const cut = part.indexOf(':');
+    if (cut <= 0) return false;
+    const key = part.slice(0, cut);
+    const value = part.slice(cut + 1);
+    if (seen.has(key) || key <= prev) return false;
+    prev = key;
+    seen.add(key);
+    if ((key === 'color' || key === 'background-color') && PALETTE.has(value)) continue;
+    if (key === 'font-size' && SIZES.has(value)) continue;
+    return false;
+  }
+  return true;
+}
 
 /** 허용한 태그 말고는 <, >가 하나도 남지 않았는지 마지막으로 확인한다 */
 export function assertSafeHtml(html: string): string {
-  const rest = html.replace(SAFE_TAG, '');
+  const rest = html.replace(SAFE_TAG, (whole, style: string | undefined) => {
+    if (whole.startsWith('<span') && !isSafeStyle(style ?? '')) return whole;
+    return '';
+  });
   if (/[<>]/.test(rest)) throw new Error('본문 서식 변환 결과가 안전하지 않습니다');
-  for (const m of html.matchAll(/<span style="color:(#[0-9a-f]{6})">/g)) {
-    if (!PALETTE.has(m[1])) throw new Error('본문 서식 변환 결과가 안전하지 않습니다');
-  }
   return html;
 }
 
