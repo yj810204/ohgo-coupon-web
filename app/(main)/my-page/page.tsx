@@ -400,6 +400,7 @@ export default function MyPage() {
               ? [{ icon: IoCalendarOutline, color: '#237FFF', label: '나의 예약', path: '/my-reservations' }]
               : []),
             { icon: IoCreateOutline, color: '#00BCD4', label: '내가쓴글', path: '/community/my' },
+            { icon: IoCameraOutline, color: '#1B6FF5', label: '내 조황 사진', path: '/my-photos' },
             { icon: IoStorefrontOutline, color: '#9C27B0', label: '판매관리', path: '/market/my' },
             { icon: IoNotificationsOutline, color: '#FF9500', label: '알림 내역', path: '/notification-history' },
           ].map(({ icon: Icon, color, label, path }, idx) => (
