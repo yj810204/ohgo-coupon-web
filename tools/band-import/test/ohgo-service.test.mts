@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildExtracted } from '../src/extracted.mts';
@@ -7,7 +7,7 @@ import { editedFileName } from '../src/image-edit.mts';
 import { PUSH_LOG_FILE, readPushRuns } from '../src/push-log.mts';
 import { createBrowserReencoder, MAX_UPLOAD_BYTES, prepareImage } from '../src/image-prep.mts';
 import { LEDGER_FILE, readLedger } from '../src/ledger.mts';
-import { OHGO_SESSION_FILE, readOhgoSession, saveOhgoSession } from '../src/ohgo-auth.mts';
+import { ensureFreshSession, OHGO_SESSION_FILE, readOhgoSession, saveOhgoSession } from '../src/ohgo-auth.mts';
 import { imageFileName, normalizeApiPost, normalizeDomSnapshot } from '../src/normalize.mts';
 import { newPhotoObjectPath, publicPhotoUrl } from '../src/ohgo-client.mts';
 import { findSupabaseConfigInText, resolveOhgoConfig } from '../src/ohgo-config.mts';
@@ -49,6 +49,8 @@ const fake = {
   dropImageUrls: false,
   /** 공개 주소가 열리지 않는 경우 */
   publicBroken: false,
+  /** 갱신 요청을 가로챈다. Response를 돌려주면 그것을 쓰고, null이면 평소대로 */
+  onRefresh: null as ((token: string) => Response | null) | null,
 };
 
 function issue(sub: string, exp?: number) {
@@ -97,6 +99,10 @@ const fakeFetch = (async (input: string | URL | Request, init: RequestInit = {})
     if (path === '/auth/v1/token') {
       const b = body as Record<string, string>;
       if (url.searchParams.get('grant_type') === 'refresh_token') {
+        if (fake.onRefresh) {
+          const custom = fake.onRefresh(b.refresh_token);
+          if (custom) return custom;
+        }
         const sub = fake.validTokens.get(b.refresh_token);
         if (!sub) return json(400, { error_description: 'Invalid Refresh Token' });
         fake.validTokens.delete(b.refresh_token);
@@ -663,6 +669,61 @@ assert.throws(() => service.checkPush(weeklyReq), (err: OhgoRequestRejected) => 
 assert.equal(service.isAppLink(`${SITE}/community/x`), true);
 assert.equal(service.isAppLink('https://evil.test/'), false);
 assert.equal(service.isAppLink(`${SITE}.evil.test/`), false);
+
+// 로그인 갱신: 겹쳐도 토큰은 한 번만 바꾸고, 새 토큰은 바로 파일에 남는다
+{
+  const refreshCount = () => calls.filter((c) => c.url.includes('grant_type=refresh_token')).length;
+  const saved = readOhgoSession(dir)!;
+  saveOhgoSession(dir, { ...saved, expiresAt: now() - 30 });
+  const before = refreshCount();
+  const [first, second] = await Promise.all([ensureFreshSession(discovered, dir, fakeFetch), ensureFreshSession(discovered, dir, fakeFetch)]);
+  assert.equal(refreshCount(), before + 1, '같은 토큰으로 두 번 갱신하지 않는다');
+  assert.equal(first.refreshToken, second.refreshToken);
+  assert.equal(readOhgoSession(dir)!.refreshToken, first.refreshToken, '돌린 토큰이 파일에 있다');
+  assert.notEqual(first.refreshToken, saved.refreshToken);
+  assert.equal(existsSync(join(dir, 'session.lock')), false, '잠금을 푼다');
+
+  // 갱신 중에 죽은 잠금(한 시간 전)은 치우고 다시 갱신한다
+  saveOhgoSession(dir, { ...readOhgoSession(dir)!, expiresAt: now() - 30 });
+  writeFileSync(join(dir, 'session.lock'), '');
+  const old = new Date(Date.now() - 120_000);
+  utimesSync(join(dir, 'session.lock'), old, old);
+  await ensureFreshSession(discovered, dir, fakeFetch);
+  assert.equal(existsSync(join(dir, 'session.lock')), false);
+  assert.ok(readOhgoSession(dir)!.expiresAt > now());
+
+  // 서버가 "이미 쓴 토큰"이라고 해도, 다른 쪽이 새 토큰을 저장해 뒀으면 그것을 쓴다
+  saveOhgoSession(dir, { ...readOhgoSession(dir)!, expiresAt: now() - 30 });
+  const handed = issue(ADMIN_ID);
+  const beforeHandoff = refreshCount();
+  fake.onRefresh = (token) => {
+    const kept = readOhgoSession(dir)!;
+    assert.equal(token, kept.refreshToken);
+    saveOhgoSession(dir, { ...kept, accessToken: handed.access_token, refreshToken: handed.refresh_token, expiresAt: handed.expires_at });
+    fake.onRefresh = null;
+    return json(400, { error: 'invalid_grant', error_description: 'Invalid Refresh Token: Already Used' });
+  };
+  const reused = await ensureFreshSession(discovered, dir, fakeFetch);
+  assert.equal(reused.refreshToken, handed.refresh_token);
+  assert.equal(refreshCount(), beforeHandoff + 1, '저장돼 있는 새 토큰을 또 갱신하지 않는다');
+
+  // 토큰이 서버에 없으면 사진을 한 장도 올리지 않고 다시 로그인을 요구한다
+  saveOhgoSession(dir, { ...readOhgoSession(dir)!, expiresAt: now() - 30 });
+  fake.onRefresh = () => json(400, { error_description: 'Invalid Refresh Token: Refresh Token Not Found' });
+  const storageBefore = storage.size;
+  const uploadsBefore = calls.filter((c) => c.method === 'POST' && c.url.includes('/storage/v1/object/photos/')).length;
+  await assert.rejects(service.push({ ...catchReq, force: true }, () => {}), (err: OhgoRequestRejected) => {
+    assert.equal(err.code, 'LOGIN_REQUIRED');
+    assert.match(err.message, /다시 로그인을 누르세요/);
+    assert.match(err.message, /Refresh Token Not Found/);
+    return true;
+  });
+  fake.onRefresh = null;
+  assert.equal(storage.size, storageBefore, '로그인이 안 되면 사진을 올리지 않는다');
+  assert.equal(calls.filter((c) => c.method === 'POST' && c.url.includes('/storage/v1/object/photos/')).length, uploadsBefore);
+  await service.login({ name: '관리자', dob: '800101' });
+  assert.ok(readOhgoSession(dir)!.expiresAt > now(), '다시 로그인하면 새 토큰이 저장된다');
+}
 
 // 로그아웃
 st = await service.logout();

@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { createGuiServer } from '../src/gui-server.mts';
 import type { OhgoService, PrepareResult, PushRequest } from '../src/ohgo-service.mts';
+import { OhgoRequestRejected } from '../src/ohgo-service.mts';
 
 // 실제 화면(gui/index.html)을 Chromium에서 열어 조황 사진 순서 바꾸기를 확인한다
 const dir = mkdtempSync(join(tmpdir(), 'band-gui-ui-'));
@@ -36,6 +37,7 @@ const prep: PrepareResult = {
 };
 const pushes: PushRequest[] = [];
 let failNextPush = false;
+let loginFail = false;
 const edits: string[] = [];
 let editMap: PrepareResult['photoEdits'] = {};
 const ohgo: OhgoService = {
@@ -45,6 +47,10 @@ const ohgo: OhgoService = {
   prepare: async () => ({ ...structuredClone(prep), photoEdits: editMap }),
   checkPush: () => {},
   push: async (req) => {
+    if (loginFail) {
+      loginFail = false;
+      throw new OhgoRequestRejected('오고피씽 로그인이 만료되었습니다. 아래 다시 로그인을 누르세요.', 401, 'LOGIN_REQUIRED');
+    }
     if (failNextPush) {
       failNextPush = false;
       throw new Error('사진 2/3 (02.jpg) 올리기 실패: 사진 업로드 실패: too big (HTTP 413)\n조황 게시판에 글은 만들지 않았습니다.\n자세한 기록: out/2925/push-log.json');
@@ -221,6 +227,7 @@ try {
   await page.locator('#pushError:not(.hidden)').waitFor();
   const errText = await page.locator('#pushErrorText').textContent();
   assert.match(errText ?? '', /사진 2\/3 \(02\.jpg\) 올리기 실패[\s\S]*글은 만들지 않았습니다[\s\S]*push-log\.json/);
+  assert.equal(await page.locator('#pushReloginBtn').isVisible(), false, '사진 오류에는 로그인 버튼이 없다');
   assert.equal(await page.locator('#pushResult').isVisible(), false);
   await page.locator('#pushBtn:not([disabled])').waitFor();
 
@@ -229,6 +236,29 @@ try {
   assert.equal(await page.locator('#pushError').isVisible(), false, '다시 성공하면 실패 안내를 지운다');
   assert.deepEqual(pushes[0].photo!.images, ['04.jpg', '02.jpg', '01.jpg'], '보이는 순서대로, 뺀 사진 없이 보낸다');
   assert.equal(pushes[0].photo!.useFormatting, true);
+
+  // 로그인이 만료되면 다시 로그인 버튼이 나오고, 로그인하면 그때의 선택 그대로 다시 등록한다
+  await page.evaluate(() => (window as unknown as { loadOhgo: (id: string) => Promise<void> }).loadOhgo('2925'));
+  await page.locator('#pThumbs .thumb').first().waitFor();
+  await page.locator('#pTitle').fill('이어서 올릴 제목');
+  await page.locator('#pFormat').uncheck();
+  await page.locator('#pThumbs .thumb[data-file="02.jpg"] button.pickbtn').click();
+  loginFail = true;
+  await page.locator('#pushBtn').click();
+  await page.locator('#pushReloginBtn:not(.hidden)').waitFor();
+  assert.equal(await page.locator('#ohgoReloginBtn').isVisible(), true, '계정 칸에도 다시 로그인');
+  assert.equal(await page.locator('#ohgoLoginForm').isVisible(), true);
+  await page.locator('#pTitle').fill('로그인 중에 고친 제목');
+  await page.locator('#pFormat').check();
+  await page.locator('#pThumbs .thumb[data-file="02.jpg"] button.pickbtn').click();
+  await page.locator('#ohgoName').fill('선장');
+  await page.locator('#ohgoDob').fill('800101');
+  await page.locator('#ohgoLoginBtn').click();
+  await page.locator('#pushResult:not(.hidden)').waitFor();
+  assert.equal(await page.locator('#pushReloginBtn').isVisible(), false);
+  assert.equal(pushes[1].photo!.title, '이어서 올릴 제목', '로그인 뒤에 고친 값이 아니라 멈추기 전의 등록');
+  assert.equal(pushes[1].photo!.useFormatting, false);
+  assert.deepEqual(pushes[1].photo!.images, ['01.jpg', '03.png', '04.jpg']);
   assert.deepEqual(errors, []);
 } finally {
   await browser.close();
