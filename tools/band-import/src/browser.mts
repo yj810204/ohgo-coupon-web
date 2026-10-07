@@ -8,6 +8,7 @@ import type { AuthKeyInfo, LoginState } from './auth-state.mts';
 export type BrowserOptions = {
   userDataDir: string;
   headless: boolean;
+  userAgent?: string;
 };
 
 export function resolveUserDataDir(fromEnv: string | undefined, fallback: string): string {
@@ -19,7 +20,7 @@ export function hasProfile(userDataDir: string): boolean {
   return existsSync(userDataDir) && readdirSync(userDataDir).length > 0;
 }
 
-export async function openContext({ userDataDir, headless }: BrowserOptions): Promise<BrowserContext> {
+export async function openContext({ userDataDir, headless, userAgent }: BrowserOptions): Promise<BrowserContext> {
   if (!isAbsolute(userDataDir)) throw new Error(`user-data 경로는 절대 경로여야 합니다: ${userDataDir}`);
   mkdirSync(userDataDir, { recursive: true });
   // 기본 headless는 chrome-headless-shell(별도 실행 파일)이라 headed와 같은 Chromium으로 맞춘다.
@@ -29,6 +30,7 @@ export async function openContext({ userDataDir, headless }: BrowserOptions): Pr
     return await chromium.launchPersistentContext(userDataDir, {
       headless,
       channel,
+      userAgent,
       locale: 'ko-KR',
       timezoneId: 'Asia/Seoul',
       viewport: { width: 1280, height: 900 },

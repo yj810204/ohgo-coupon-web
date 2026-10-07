@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { BrowserContext } from 'playwright';
 import { openContext } from '../src/browser.mts';
+import { runFetch } from '../src/commands.mts';
 import { restoreSession, saveSession } from '../src/session-store.mts';
 import { fetchBandPost } from '../src/fetch-post.mts';
 import type { ImageDownloader } from '../src/fetch-post.mts';
@@ -27,6 +28,8 @@ type Scenario = {
   restore: boolean;
   api: boolean;
   dom: boolean;
+  /** false면 로그인과 상관없이 게시글을 내려준다 */
+  membersOnly?: boolean;
 };
 
 function pageHtml({ api, dom }: Scenario): string {
@@ -38,7 +41,7 @@ function pageHtml({ api, dom }: Scenario): string {
          </div></div></div>`
     : '';
   const apiScript = api
-    ? `fetch('https://api-us.band.us/v2.0.0/get_post?band_no=88348442&post_no=2925&resolution_type=4')`
+    ? `fetch('https://bapi.band.us/v2.0.0/batch', { method: 'POST', body: 'payload=[]' })`
     : '';
   return `<!doctype html><html><head><meta charset="utf-8"></head><body>
     <script src="https://auth.band.us/s/login/getKey?_t=1&callback=cb"></script>
@@ -50,22 +53,29 @@ function pageHtml({ api, dom }: Scenario): string {
 async function routeFakeBand(context: BrowserContext, scenario: Scenario): Promise<void> {
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
+    // 실제 Band처럼 세션 쿠키로만 로그인 상태를 정하고, headless 표시가 있는 User-Agent는 로그인으로 보지 않는다
+    const headers = await route.request().allHeaders();
+    const signed =
+      /(^|;\s*)band_session=ok(;|$)/.test(headers.cookie ?? '') && !(headers['user-agent'] ?? '').includes('HeadlessChrome');
     if (url.hostname === 'band.us' && url.pathname === '/band/88348442/post/2925') {
-      return route.fulfill({ contentType: 'text/html; charset=utf-8', body: pageHtml(scenario) });
+      const visible = signed || scenario.membersOnly === false;
+      const html = pageHtml(visible ? scenario : { ...scenario, api: false, dom: false });
+      return route.fulfill({ contentType: 'text/html; charset=utf-8', body: html });
     }
     if (url.hostname === 'auth.band.us') {
-      // 실제 Band처럼 요청에 실린 세션 쿠키로만 로그인 상태를 정한다
-      const signed = /(^|;\s*)band_session=ok(;|$)/.test((await route.request().allHeaders()).cookie ?? '');
       return route.fulfill({
         contentType: 'text/javascript',
         body: `var cfg = { signedUser: ${signed}, authenticateState : "${signed ? 'USER' : 'NONE'}" };`,
       });
     }
-    if (url.hostname === 'api-us.band.us') {
+    if (url.hostname === 'bapi.band.us') {
       return route.fulfill({
         contentType: 'application/json;charset=UTF-8',
         headers: { 'access-control-allow-origin': '*' },
-        body: fixture,
+        body: JSON.stringify({
+          result_code: 1,
+          result_data: { batch_result: [JSON.parse(fixture), { result_code: 1, result_data: { emotions: [] } }] },
+        }),
       });
     }
     return route.abort();
@@ -84,11 +94,13 @@ async function withScenario(scenario: Scenario, run: (ctx: BrowserContext, outRo
         { name: 'band_persist', value: '1', domain: '.band.us', path: '/', expires: Date.now() / 1000 + 86400 },
       ]);
     }
-    await saveSession(loginContext, userDataDir);
+    const loginPage = loginContext.pages()[0] ?? (await loginContext.newPage());
+    const userAgent = await loginPage.evaluate(() => navigator.userAgent);
+    await saveSession(loginContext, userDataDir, userAgent);
     await loginContext.close();
 
     // fetch: 같은 프로필을 headless로 다시 연다. 세션 쿠키는 이 시점에 사라져 있다
-    const context = await openContext({ userDataDir, headless: true });
+    const context = await openContext({ userDataDir, headless: true, userAgent });
     try {
       const jar = (await context.cookies()).map((c) => c.name);
       assert.ok(!jar.includes('band_session'), '재시작 후 세션 쿠키는 프로필에서 사라진다');
@@ -125,6 +137,11 @@ await withScenario({ loggedIn: true, restore: true, api: true, dom: true }, asyn
   );
   assert.ok(existsSync(join(outDir, '01.png')));
   assert.ok(existsSync(join(outDir, 'api-post.json')));
+  const network = JSON.parse(readFileSync(join(outDir, 'network-log.json'), 'utf8'));
+  assert.deepEqual(
+    network.filter((e: { matched: boolean }) => e.matched).map((e: { url: string }) => e.url),
+    ['https://bapi.band.us/v2.0.0/batch'],
+  );
   const onDisk = JSON.parse(readFileSync(join(outDir, 'extracted.json'), 'utf8'));
   assert.deepEqual(validateExtracted(onDisk), []);
   assert.deepEqual(onDisk, extracted);
@@ -152,9 +169,79 @@ await withScenario({ loggedIn: true, restore: false, api: false, dom: false }, a
 });
 
 // 로그인 상태 응답이 NONE이어도 게시글 응답이 오면 실패로 보지 않는다
-await withScenario({ loggedIn: false, restore: true, api: true, dom: false }, async (context, outRoot) => {
+await withScenario({ loggedIn: false, restore: true, api: true, dom: false, membersOnly: false }, async (context, outRoot) => {
   const { extracted } = await fetchBandPost({ context, ref, outRoot, timeoutMs: 15_000, log: quiet, download });
   assert.equal(extracted.extractedVia, 'api');
+});
+
+// runFetch: headless에서도 login 때의 User-Agent를 써서 로그인 상태로 보인다
+async function withLoggedInProfile(saveUserAgent: boolean, loggedIn: boolean, run: (userDataDir: string, outRoot: string) => Promise<void>) {
+  const dir = mkdtempSync(join(tmpdir(), 'band-import-run-'));
+  const userDataDir = join(dir, 'profile');
+  try {
+    const loginContext = await openContext({ userDataDir, headless: false });
+    if (loggedIn) {
+      await loginContext.addCookies([
+        { name: 'band_session', value: 'ok', domain: '.band.us', path: '/', expires: -1, secure: true, sameSite: 'None' },
+      ]);
+    }
+    const page = loginContext.pages()[0] ?? (await loginContext.newPage());
+    const ua = await page.evaluate(() => navigator.userAgent);
+    await saveSession(loginContext, userDataDir, saveUserAgent ? ua : undefined);
+    await loginContext.close();
+    await run(userDataDir, join(dir, 'out'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const url = 'https://band.us/band/88348442/post/2925';
+for (const saveUserAgent of [true, false]) {
+  await withLoggedInProfile(saveUserAgent, true, async (userDataDir, outRoot) => {
+    const logs: string[] = [];
+    let contexts = 0;
+    const { extracted } = await runFetch({
+      url,
+      headless: true,
+      userDataDir,
+      outRoot,
+      timeoutMs: 10_000,
+      log: (m) => logs.push(m),
+      download,
+      prepareContext: async (context) => {
+        contexts++;
+        await routeFakeBand(context, { loggedIn: true, restore: true, api: false, dom: true });
+      },
+    });
+    assert.equal(extracted.extractedVia, 'dom');
+    assert.equal(contexts, 1, `창 모드 재시도 없이 headless로 끝난다 (UA 저장 ${saveUserAgent})`);
+    assert.ok(!logs.some((l) => l.includes('창 모드로 다시')));
+  });
+}
+
+// headless에서 로그인이 안 되면 창 모드로 한 번 더 시도한다
+await withLoggedInProfile(true, false, async (userDataDir, outRoot) => {
+  const logs: string[] = [];
+  const modes: boolean[] = [];
+  await assert.rejects(
+    runFetch({
+      url,
+      headless: true,
+      userDataDir,
+      outRoot,
+      timeoutMs: 10_000,
+      log: (m) => logs.push(m),
+      download,
+      prepareContext: async (context) => {
+        modes.push(true);
+        await routeFakeBand(context, { loggedIn: false, restore: true, api: false, dom: false });
+      },
+    }),
+    /로그인되어 있지 않습니다/,
+  );
+  assert.equal(modes.length, 2);
+  assert.ok(logs.some((l) => l.includes('창 모드로 다시 시도합니다')));
+  assert.ok(logs.some((l) => l.includes('(창 모드)')));
 });
 
 assert.deepEqual(requestedImages, [
@@ -163,6 +250,23 @@ assert.deepEqual(requestedImages, [
   'https://coresos-phinf.pstatic.net/a/dom/1.jpg',
   'https://coresos-phinf.pstatic.net/a/test/one.jpg',
   'https://coresos-phinf.pstatic.net/a/test/two.png',
+  'https://coresos-phinf.pstatic.net/a/dom/1.jpg',
+  'https://coresos-phinf.pstatic.net/a/dom/1.jpg',
 ]);
+
+// 대조군: User-Agent를 맞추지 않은 headless는 같은 쿠키로도 로그인 상태로 보이지 않는다
+await withLoggedInProfile(true, true, async (userDataDir) => {
+  const context = await openContext({ userDataDir, headless: true });
+  try {
+    await restoreSession(context, userDataDir);
+    await routeFakeBand(context, { loggedIn: true, restore: true, api: true, dom: true });
+    await assert.rejects(
+      fetchBandPost({ context, ref, outRoot: join(userDataDir, '..', 'out'), timeoutMs: 10_000, log: quiet, download }),
+      /로그인되어 있지 않습니다/,
+    );
+  } finally {
+    await context.close();
+  }
+});
 
 console.log('band-import offline fetch tests passed');

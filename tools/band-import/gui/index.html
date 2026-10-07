@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Band 가져오기</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #fff; --text: #1d1d1f; --muted: #6e6e73; --line: #e3e4e8;
+    --accent: #6b4ce6; --accent-weak: #efeafe; --ok: #1f8a4c; --err: #c62828; --warn: #a15c00;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px; background: var(--bg); color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .session { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #eee; color: var(--muted); }
+  .badge.ok { background: #e6f4ec; color: var(--ok); }
+  input[type=url] {
+    flex: 1; min-width: 0; padding: 10px 12px; font-size: 14px; border: 1px solid var(--line); border-radius: 8px; outline: none;
+  }
+  input[type=url]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+  button {
+    padding: 9px 14px; font-size: 14px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; white-space: nowrap;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  label.opt { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 12px; margin-top: 10px; }
+  .status { font-weight: 600; margin-bottom: 6px; }
+  .status.running { color: var(--accent); }
+  .status.done { color: var(--ok); }
+  .status.error { color: var(--err); }
+  pre.log {
+    margin: 0; max-height: 160px; overflow: auto; background: #fafafa; border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px; font: 12px/1.45 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-all;
+  }
+  .result h2 { font-size: 16px; margin: 0 0 6px; }
+  .meta { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+  .warn { color: var(--warn); font-size: 12px; }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; margin: 10px 0; }
+  .thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; background: #eee; }
+  .hidden { display: none; }
+  .spinner {
+    display: inline-block; width: 12px; height: 12px; border: 2px solid var(--accent-weak); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -1px; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  footer { display: flex; justify-content: flex-end; }
+  footer button { font-size: 12px; padding: 6px 10px; color: var(--muted); }
+</style>
+</head>
+<body>
+  <h1>Band 게시글 가져오기</h1>
+  <div class="sub">본인 밴드의 게시글만, 필요한 만큼만 가져오세요.</div>
+
+  <div class="card session">
+    <div>
+      <div>로그인 세션 <span id="sessionBadge" class="badge">확인 중</span></div>
+      <div id="sessionInfo" class="sub" style="margin:2px 0 0"></div>
+    </div>
+    <button id="loginBtn">로그인</button>
+  </div>
+
+  <div class="card">
+    <form id="fetchForm" class="row">
+      <input id="url" type="url" placeholder="https://band.us/band/88348442/post/2925" autocomplete="off" spellcheck="false" autofocus>
+      <button id="pasteBtn" type="button">붙여넣기</button>
+      <button id="fetchBtn" class="primary" type="submit">가져오기</button>
+    </form>
+    <label class="opt"><input id="headless" type="checkbox"> 브라우저 창 없이 가져오기 (안 되면 자동으로 창을 띄워 다시 시도)</label>
+  </div>
+
+  <div id="jobCard" class="card hidden">
+    <div id="status" class="status"></div>
+    <pre id="log" class="log"></pre>
+  </div>
+
+  <div id="resultCard" class="card result hidden">
+    <h2 id="resTitle"></h2>
+    <div id="resMeta" class="meta"></div>
+    <div id="resWarn" class="warn"></div>
+    <div id="thumbs" class="thumbs"></div>
+    <div class="row">
+      <button id="openBtn">결과 폴더 열기</button>
+      <span id="resPath" class="sub" style="margin:0"></span>
+    </div>
+  </div>
+
+  <footer><button id="quitBtn">종료</button></footer>
+
+<script>
+  const TOKEN = '__GUI_TOKEN__';
+  const $ = (id) => document.getElementById(id);
+  let lastJobId = null;
+  let lastResult = null;
+  let polling = null;
+
+  async function api(path, body) {
+    const res = await fetch(path, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { 'x-gui-token': TOKEN, 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `요청 실패 (${res.status})`);
+    return data;
+  }
+
+  function formatTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  function render(state) {
+    const badge = $('sessionBadge');
+    if (state.savedSessionAt) {
+      badge.textContent = '저장됨';
+      badge.className = 'badge ok';
+      $('sessionInfo').textContent = `마지막 저장 ${formatTime(state.savedSessionAt)}`;
+    } else {
+      badge.textContent = state.hasProfile ? '저장본 없음' : '로그인 필요';
+      badge.className = 'badge';
+      $('sessionInfo').textContent = '처음 한 번 로그인을 눌러 Band에 로그인하세요.';
+    }
+    $('loginBtn').disabled = state.busy;
+    $('fetchBtn').disabled = state.busy;
+
+    const job = state.job;
+    if (!job) return;
+    $('jobCard').classList.remove('hidden');
+    const name = job.kind === 'login' ? '로그인' : '가져오기';
+    const status = $('status');
+    status.className = `status ${job.status}`;
+    if (job.status === 'running') {
+      status.innerHTML = `<span class="spinner"></span>${name} 진행 중`;
+    } else if (job.status === 'done') {
+      status.textContent = `${name} 완료`;
+    } else {
+      status.textContent = `${name} 실패: ${job.error}`;
+    }
+    const log = $('log');
+    const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 4;
+    log.textContent = job.logs.join('\n');
+    if (atBottom) log.scrollTop = log.scrollHeight;
+
+    if (job.status === 'done' && job.result && job.id !== lastJobId) showResult(job.result);
+    if (job.status !== 'running') lastJobId = job.id;
+  }
+
+  function showResult(r) {
+    lastResult = r;
+    $('resultCard').classList.remove('hidden');
+    $('resTitle').textContent = r.title || '(제목 없음)';
+    const via = r.extractedVia === 'api' ? 'API' : '화면(DOM)';
+    const parts = [`이미지 ${r.imageCount}개`, `추출 방식 ${via}`];
+    if (r.scheduleCount) parts.push(`일정 첨부 ${r.scheduleCount}개`);
+    if (r.scheduleLikeLines.length) parts.push(`일정 같은 줄 ${r.scheduleLikeLines.length}개`);
+    $('resMeta').textContent = parts.join(', ');
+    $('resWarn').textContent = r.warnings.join(' / ');
+    $('resPath').textContent = `${r.outDir}/extracted.json`;
+    const thumbs = $('thumbs');
+    thumbs.replaceChildren(...r.imageFiles.map((f) => {
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.src = `/out/${r.postId}/${encodeURIComponent(f)}?t=${TOKEN}`;
+      img.alt = f;
+      return img;
+    }));
+  }
+
+  async function refresh() {
+    try {
+      const state = await api('/api/state');
+      render(state);
+      if (!state.busy && polling) { clearInterval(polling); polling = null; }
+    } catch (err) {
+      $('status').textContent = `연결 끊김: ${err.message}`;
+    }
+  }
+
+  function startPolling() {
+    if (!polling) polling = setInterval(refresh, 700);
+    refresh();
+  }
+
+  function showError(message) {
+    $('jobCard').classList.remove('hidden');
+    $('status').className = 'status error';
+    $('status').textContent = message;
+  }
+
+  $('loginBtn').addEventListener('click', async () => {
+    try { await api('/api/login', {}); startPolling(); } catch (err) { showError(err.message); }
+  });
+
+  $('fetchForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const url = $('url').value.trim();
+    if (!url) { $('url').focus(); return; }
+    $('resultCard').classList.add('hidden');
+    try {
+      await api('/api/fetch', { url, headless: $('headless').checked });
+      startPolling();
+    } catch (err) { showError(err.message); }
+  });
+
+  $('pasteBtn').addEventListener('click', async () => {
+    try {
+      const text = (await navigator.clipboard.readText()).trim();
+      if (text) $('url').value = text;
+    } catch {
+      $('url').focus();
+      showError('클립보드를 읽지 못했습니다. 입력칸에 Cmd+V 로 붙여넣으세요.');
+    }
+  });
+
+  $('openBtn').addEventListener('click', async () => {
+    if (!lastResult) return;
+    try { await api('/api/open', { postId: lastResult.postId }); } catch (err) { showError(err.message); }
+  });
+
+  $('quitBtn').addEventListener('click', async () => {
+    try { await api('/api/quit', {}); } catch {}
+    document.body.innerHTML = '<p style="padding:24px">종료했습니다. 이 창을 닫으세요.</p>';
+    setTimeout(() => window.close(), 300);
+  });
+
+  startPolling();
+</script>
+</body>
+</html>

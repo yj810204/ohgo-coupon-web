@@ -9,6 +9,7 @@ import {
   imageFileName,
   normalizeApiPost,
   normalizeDomSnapshot,
+  parseJsonLoose,
   toIso,
   toOriginalImageUrl,
 } from '../src/normalize.mts';
@@ -20,6 +21,16 @@ assert.equal(findPostInJson(fixture, '2925')?.post_no, 2925);
 assert.equal(findPostInJson([{ result_data: { emotions: [] } }, fixture], '2925')?.post_no, 2925);
 assert.equal(findPostInJson(fixture, '2926'), null);
 assert.equal(findPostInJson({ post_no: 2925 }, '2925'), null, 'content/attachment 없는 객체는 post가 아님');
+
+// bapi.band.us/v2.0.0/batch 응답: result_data.batch_result[] 안에 단건 응답이 객체 또는 문자열로 들어 있다
+const batch = { result_code: 1, result_data: { batch_result: [fixture, { result_code: 1, result_data: { emotions: [] } }] } };
+assert.equal(findPostInJson(batch, '2925')?.post_no, 2925);
+const batchString = { result_code: 1, result_data: { batch_result: [{ status: 200, body: JSON.stringify(fixture) }] } };
+assert.equal(findPostInJson(batchString, '2925')?.post_no, 2925);
+assert.deepEqual(parseJsonLoose('cb_1({"a":1});'), { a: 1 });
+assert.deepEqual(parseJsonLoose(' {"a":1} '), { a: 1 });
+assert.equal(parseJsonLoose('var x = 1'), undefined);
+assert.equal(findPostInJson(parseJsonLoose(`jQuery123(${JSON.stringify(fixture)})`), '2925')?.post_no, 2925);
 
 const post = normalizeApiPost(findPostInJson(fixture, '2925')!);
 assert.equal(post.author, '오고피싱 선장');
@@ -109,7 +120,10 @@ assert.ok(isAuthKeyUrl('https://auth.band.us/s/login/getKey?_t=1&callback=cb'));
 assert.ok(!isAuthKeyUrl('https://auth.band.us/login_page'));
 assert.ok(isBandApiHost('api.band.us'));
 assert.ok(isBandApiHost('api-us.band.us'));
+assert.ok(isBandApiHost('bapi.band.us'));
+assert.ok(isBandApiHost('bapi-us.band.us'));
 assert.ok(!isBandApiHost('auth.band.us'));
+assert.ok(!isBandApiHost('evilband.us'));
 assert.ok(!isBandApiHost('api.band.us.evil.com'));
 
 console.log('band-import normalize tests passed');

@@ -24,6 +24,10 @@ export function parseAuthKeyScript(script: string): AuthKeyInfo {
   return { state: 'unknown', raw: null };
 }
 
+/**
+ * 게시글 데이터가 올 수 있는 Band 호스트. 단건 API(api.band.us, api-us.band.us 등)와
+ * 게시글 상세가 쓰는 배치 API(bapi.band.us/v2.0.0/batch)를 모두 포함한다.
+ */
 export function isBandApiHost(hostname: string): boolean {
-  return /^api(-[a-z0-9]+)?\.band\.us$/.test(hostname);
+  return /^([a-z0-9-]+\.)*band\.us$/.test(hostname) && hostname !== 'auth.band.us';
 }

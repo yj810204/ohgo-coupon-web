@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import type { Cookie } from 'playwright';
 import { resolveUserDataDir } from '../src/browser.mts';
-import { cookiesToRestore, countSessionOnly, isBandCookie } from '../src/session-store.mts';
+import { cookiesToRestore, countSessionOnly, isBandCookie, toHeadedUserAgent } from '../src/session-store.mts';
 
 const cookie = (name: string, domain: string, expires: number, path = '/'): Cookie => ({
   name,
@@ -43,5 +43,11 @@ assert.equal(resolveUserDataDir(undefined, '/abs/user-data'), '/abs/user-data');
 assert.equal(resolveUserDataDir('  ', '/abs/user-data'), '/abs/user-data');
 assert.equal(resolveUserDataDir('/other', '/abs/user-data'), '/other');
 assert.equal(resolveUserDataDir('rel/profile', '/abs/user-data'), join(process.cwd(), 'rel/profile'));
+
+assert.equal(
+  toHeadedUserAgent('Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/148.0.0.0 Safari/537.36'),
+  'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
+);
+assert.equal(toHeadedUserAgent('Mozilla/5.0 Chrome/148.0.0.0'), 'Mozilla/5.0 Chrome/148.0.0.0');
 
 console.log('band-import session-store tests passed');

@@ -14,13 +14,33 @@ function pick(obj: Rec, ...keys: string[]): unknown {
   return undefined;
 }
 
+/** JSON 또는 JSONP(callback({...})) 본문을 파싱한다. 실패하면 undefined */
+export function parseJsonLoose(text: string): Json | undefined {
+  const trimmed = text.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const jsonp = /^[\w$.]+\s*\(([\s\S]*)\)\s*;?$/.exec(trimmed);
+    if (!jsonp) return undefined;
+    try {
+      return JSON.parse(jsonp[1]);
+    } catch {
+      return undefined;
+    }
+  }
+}
+
 /**
- * Band 웹 API 응답(단건 또는 배치 응답 배열)에서 post_no가 일치하는 post 객체를 찾는다.
+ * Band 웹 API 응답(단건, 배치 batch_result 배열, 문자열로 감싼 JSON)에서 post_no가 일치하는 post 객체를 찾는다.
  * 경로나 래핑 구조가 바뀌어도 동작하도록 응답 전체를 탐색한다.
  */
-export function findPostInJson(json: Json, postId: string, maxDepth = 8): Rec | null {
+export function findPostInJson(json: Json, postId: string, maxDepth = 10): Rec | null {
   const seen = new Set<unknown>();
   const walk = (node: Json, depth: number): Rec | null => {
+    if (typeof node === 'string' && depth <= maxDepth && /^\s*[[{]/.test(node) && node.includes(postId)) {
+      const inner = parseJsonLoose(node);
+      return inner === undefined ? null : walk(inner, depth + 1);
+    }
     if (depth > maxDepth || node === null || typeof node !== 'object' || seen.has(node)) return null;
     seen.add(node);
     if (Array.isArray(node)) {

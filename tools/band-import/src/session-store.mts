@@ -11,6 +11,8 @@ export const SESSION_FILE_NAME = 'band-session.json';
 export type SessionSnapshot = {
   savedAt: string;
   cookies: Cookie[];
+  /** login(창 모드) 때의 User-Agent. headless 실행도 이 값으로 맞춰야 Band가 같은 브라우저로 본다 */
+  userAgent?: string;
 };
 
 export function sessionFilePath(userDataDir: string): string {
@@ -43,10 +45,15 @@ export function readSession(userDataDir: string): SessionSnapshot | null {
   }
 }
 
-export async function saveSession(context: BrowserContext, userDataDir: string): Promise<SessionSnapshot> {
+export async function saveSession(
+  context: BrowserContext,
+  userDataDir: string,
+  userAgent?: string,
+): Promise<SessionSnapshot> {
   const snapshot: SessionSnapshot = {
     savedAt: new Date().toISOString(),
     cookies: (await context.cookies()).filter(isBandCookie),
+    userAgent: userAgent ?? readSession(userDataDir)?.userAgent,
   };
   const file = sessionFilePath(userDataDir);
   writeFileSync(file, `${JSON.stringify(snapshot, null, 2)}\n`, { mode: 0o600 });
@@ -67,4 +74,9 @@ export async function restoreSession(
 
 export function countSessionOnly(cookies: Cookie[]): number {
   return cookies.filter((c) => c.expires === -1).length;
+}
+
+/** headless Chromium의 User-Agent에서 HeadlessChrome 표시를 지운다 */
+export function toHeadedUserAgent(userAgent: string): string {
+  return userAgent.replace(/HeadlessChrome\//g, 'Chrome/');
 }

@@ -5,7 +5,13 @@ import { isBandCookie } from './session-store.mts';
 import { isBandApiHost } from './auth-state.mts';
 import { trackLoginState } from './browser.mts';
 import { buildExtracted } from './extracted.mts';
-import { findPostInJson, imageFileName, normalizeApiPost, normalizeDomSnapshot } from './normalize.mts';
+import {
+  findPostInJson,
+  imageFileName,
+  normalizeApiPost,
+  normalizeDomSnapshot,
+  parseJsonLoose,
+} from './normalize.mts';
 import type { DomSnapshot, NormalizedPost } from './normalize.mts';
 import type { ExtractedImage, ExtractedPost } from './schema.mts';
 import type { BandPostRef } from './url.mts';
@@ -13,28 +19,56 @@ import type { BandPostRef } from './url.mts';
 const IMAGE_DOWNLOAD_GAP_MS = 400;
 const NOT_LOGGED_IN_GRACE_MS = 5000;
 
+export class NotLoggedInError extends Error {}
+
+function writeNetworkLog(outRoot: string, postId: string, entries: NetworkLogEntry[]): string {
+  const outDir = join(outRoot, postId);
+  mkdirSync(outDir, { recursive: true });
+  writeFileSync(join(outDir, 'network-log.json'), `${JSON.stringify(entries, null, 2)}\n`);
+  return outDir;
+}
+
 type Captured = { post: Record<string, unknown>; url: string };
 
-function captureApiPost(context: BrowserContext, postId: string): { get: () => Captured | null } {
+/** 진단용. 토큰이 들어갈 수 있는 쿼리스트링은 남기지 않는다 */
+export type NetworkLogEntry = { url: string; status: number; contentType: string; matched: boolean };
+
+function captureApiPost(
+  context: BrowserContext,
+  postId: string,
+): { get: () => Captured | null; log: () => NetworkLogEntry[] } {
   let captured: Captured | null = null;
+  const entries: NetworkLogEntry[] = [];
   context.on('response', async (res) => {
-    if (captured) return;
-    let host: string;
+    let url: URL;
     try {
-      host = new URL(res.url()).hostname;
+      url = new URL(res.url());
     } catch {
       return;
     }
-    if (!isBandApiHost(host)) return;
-    if (!(res.headers()['content-type'] ?? '').includes('json')) return;
+    if (!isBandApiHost(url.hostname)) return;
+    const contentType = res.headers()['content-type'] ?? '';
+    if (!/json|javascript|text\/plain/.test(contentType)) return;
+    const entry: NetworkLogEntry = {
+      url: `${url.origin}${url.pathname}`,
+      status: res.status(),
+      contentType,
+      matched: false,
+    };
+    entries.push(entry);
+    if (captured) return;
     try {
-      const post = findPostInJson(await res.json(), postId);
-      if (post && !captured) captured = { post, url: res.url().split('?')[0] };
+      const json = parseJsonLoose(await res.text());
+      const post = json === undefined ? null : findPostInJson(json, postId);
+      if (post && !captured) {
+        captured = { post, url: entry.url };
+        entry.matched = true;
+      }
     } catch {
-      // JSON이 아니거나 이미 닫힌 응답
+      // 이미 닫힌 응답
     }
   });
-  return { get: () => captured };
+  return { get: () => captured, log: () => entries };
 }
 
 /** 브라우저 안에서 실행된다. Band 웹 게시글 상세 템플릿(postWrap / dPostTextView) 기준 */
@@ -146,10 +180,11 @@ export async function fetchBandPost(args: {
     warnings.push('API 응답을 찾지 못해 화면(DOM)에서 추출했습니다. 이미지가 일부만 잡혔을 수 있습니다');
     log('API 응답을 찾지 못해 DOM에서 추출합니다');
   } else {
+    writeNetworkLog(outRoot, ref.postId, api.log());
     const bandCookies = (await context.cookies()).filter(isBandCookie).length;
     const diag = `(로그인 상태: ${login.lastRaw() ?? '응답 없음'}, Band 쿠키 ${bandCookies}개)`;
     if (login.current() === 'none') {
-      throw new Error(`Band에 로그인되어 있지 않습니다 ${diag}. \`npm run band:login\` 으로 다시 로그인하세요.`);
+      throw new NotLoggedInError(`Band에 로그인되어 있지 않습니다 ${diag}. 로그인을 다시 실행하세요.`);
     }
     const blocked = await page
       .getByText('멤버만 볼 수 있습니다')
@@ -157,13 +192,12 @@ export async function fetchBandPost(args: {
       .catch(() => false);
     throw new Error(
       blocked
-        ? `게시글을 볼 권한이 없습니다(밴드 멤버 로그인 필요) ${diag}. \`npm run band:login\` 후 다시 시도하세요.`
+        ? `게시글을 볼 권한이 없습니다(밴드 멤버 로그인 필요) ${diag}. 로그인 후 다시 시도하세요.`
         : `게시글을 ${Math.round(timeoutMs / 1000)}초 안에 읽지 못했습니다 ${diag}. --headed 로 화면을 확인해 보세요.`,
     );
   }
 
-  const outDir = join(outRoot, ref.postId);
-  mkdirSync(outDir, { recursive: true });
+  const outDir = writeNetworkLog(outRoot, ref.postId, api.log());
   if (captured) {
     writeFileSync(join(outDir, 'api-post.json'), `${JSON.stringify(captured.post, null, 2)}\n`);
   }
