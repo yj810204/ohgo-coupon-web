@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import 'ckeditor5/ckeditor5.css';
 
 interface CKEditorComponentProps {
   value: string;
@@ -35,17 +36,38 @@ export default function CKEditorComponent({
 
     const loadEditor = async () => {
       try {
-        const [{ CKEditor }, ClassicEditor] = await Promise.all([
+        const [{ CKEditor }, ck] = await Promise.all([
           import('@ckeditor/ckeditor5-react'),
-          import('@ckeditor/ckeditor5-build-classic')
+          import('ckeditor5'),
+          import('ckeditor5/build/translations/ko.js'),
         ]);
 
         if (!mounted) return;
 
+        const plugins = [
+          ck.Essentials,
+          ck.Paragraph,
+          ck.Heading,
+          ck.Bold,
+          ck.Italic,
+          ck.Font,
+          ck.Link,
+          ck.List,
+          ck.BlockQuote,
+          ck.Table,
+          ck.TableToolbar,
+        ];
+
         setEditorComponent(() => (props: any) => (
           <CKEditor
-            editor={ClassicEditor.default}
+            editor={ck.ClassicEditor}
             {...props}
+            config={{
+              licenseKey: 'GPL',
+              plugins,
+              language: 'ko',
+              ...props.config,
+            }}
           />
         ));
         setIsReady(true);
@@ -138,6 +160,9 @@ export default function CKEditorComponent({
               '|',
               'bold',
               'italic',
+              'fontColor',
+              'fontBackgroundColor',
+              '|',
               'link',
               'bulletedList',
               'numberedList',

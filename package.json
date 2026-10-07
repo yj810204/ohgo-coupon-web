@@ -30,6 +30,7 @@
     "@ckeditor/ckeditor5-source-editing": "^47.3.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.107.0",
+    "ckeditor5": "^47.7.5",
     "date-fns": "^4.1.0",
     "firebase": "^11.10.0",
     "html2canvas": "^1.4.1",

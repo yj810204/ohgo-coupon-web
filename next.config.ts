@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  transpilePackages: ['ckeditor5', '@ckeditor/ckeditor5-react'],
   // 개발 모드 하단 N(Dev Indicator) 버튼 비표시
   devIndicators: false,
   // Supabase 미생성 Database 타입으로 인한 임시 우회 (배포 복구용)
