@@ -54,10 +54,10 @@ export default function CKEditorComponent({
         });
       }
       try {
-        const [{ CKEditor }, ck] = await Promise.all([
+        const [{ CKEditor }, ck, ko] = await Promise.all([
           import('@ckeditor/ckeditor5-react'),
           import('ckeditor5'),
-          import('ckeditor5/build/translations/ko.js'),
+          import('ckeditor5/translations/ko.js'),
         ]);
 
         if (!mounted) return;
@@ -84,6 +84,7 @@ export default function CKEditorComponent({
               licenseKey: 'GPL',
               plugins,
               language: 'ko',
+              translations: [ko.default],
               ...props.config,
             }}
           />
