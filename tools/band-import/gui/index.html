@@ -76,6 +76,18 @@
   .box.ok { background: #e6f4ec; color: var(--ok); }
   .thumbs img.off { opacity: .25; outline: 2px dashed var(--line); }
   .thumbs img.pick { cursor: pointer; }
+  .thumb { position: relative; border-radius: 6px; cursor: grab; }
+  .thumb img { display: block; }
+  .thumb.off img { opacity: .25; outline: 2px dashed var(--line); }
+  .thumb.dragging { opacity: .4; }
+  .thumb.over { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .thumb .num {
+    position: absolute; top: 4px; left: 4px; min-width: 20px; padding: 0 5px; border-radius: 999px;
+    background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; pointer-events: none;
+  }
+  .thumb.off .num { background: #8e8e93; }
+  .thumb .bar { display: flex; justify-content: space-between; gap: 4px; margin-top: 3px; }
+  .thumb .bar button { flex: 1; padding: 1px 0; font-size: 11px; line-height: 18px; border-radius: 5px; }
   .actions { margin-top: 12px; }
   .fields.three { grid-template-columns: 1.2fr .8fr 1fr; }
   .tripwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
@@ -179,7 +191,7 @@
           <label class="field"><span>사진 날짜</span><input id="pDate" type="date"></label>
           <div class="field"><span>사진</span><div id="pCount" style="padding-top:8px"></div></div>
         </div>
-        <div class="sub" style="margin:8px 0 0">사진을 누르면 빼거나 다시 넣습니다. 5MB가 넘는 사진은 줄여서 올립니다.</div>
+        <div class="sub" style="margin:8px 0 0">번호 순서대로 올라갑니다. 사진을 끌어다 놓거나 ◀ ▶로 순서를 바꾸고, 사진을 누르면 빼거나 다시 넣습니다. 5MB가 넘는 사진은 줄여서 올립니다.</div>
         <div id="pThumbs" class="thumbs"></div>
       </div>
 
@@ -314,6 +326,8 @@
   let prep = null;
   let kind = 'catch';
   let picked = new Set();
+  let photoOrder = [];
+  let dragFile = null;
   let emailMode = false;
   let pushedFor = null;
 
@@ -369,19 +383,8 @@
     $('pDesc').value = p.photo.description;
     $('pDate').value = p.photo.photoDate || '';
     picked = new Set(p.photo.images);
-    $('pThumbs').replaceChildren(...p.photo.images.map((f) => {
-      const img = document.createElement('img');
-      img.className = 'pick';
-      img.src = `/out/${p.postId}/${encodeURIComponent(f)}?t=${TOKEN}`;
-      img.title = f;
-      img.addEventListener('click', () => {
-        if (picked.has(f)) picked.delete(f); else picked.add(f);
-        img.classList.toggle('off', !picked.has(f));
-        updatePhotoCount();
-      });
-      return img;
-    }));
-    updatePhotoCount();
+    photoOrder = [...p.photo.images];
+    renderThumbs();
     const n = p.photo.images.length;
     $('kindCatchCount').textContent = ` (사진 ${n}장)`;
     $('photoWarn').textContent = (p.photoWarnings || []).join('\n');
@@ -407,6 +410,80 @@
     $('remoteWarn').textContent = p.remoteWarnings.join('\n');
     show('remoteWarn', p.remoteWarnings.length > 0);
     setKind(p.classification.kind);
+  }
+
+  /** 올릴 순서: 화면에 보이는 순서에서 뺀 사진을 건너뛴 것 */
+  function uploadOrder() {
+    return photoOrder.filter((f) => picked.has(f));
+  }
+
+  function movePhoto(file, to) {
+    const from = photoOrder.indexOf(file);
+    if (from < 0 || to < 0 || to >= photoOrder.length || from === to) return;
+    photoOrder.splice(from, 1);
+    photoOrder.splice(to, 0, file);
+    renderThumbs();
+  }
+
+  function thumbSrc(file) {
+    return `/out/${prep.postId}/${encodeURIComponent(file)}?t=${TOKEN}`;
+  }
+
+  function renderThumbs() {
+    const order = uploadOrder();
+    $('pThumbs').replaceChildren(...photoOrder.map((f, i) => {
+      const box = document.createElement('div');
+      box.className = 'thumb';
+      box.classList.toggle('off', !picked.has(f));
+      box.draggable = true;
+      box.dataset.file = f;
+      const img = document.createElement('img');
+      img.className = 'pick';
+      img.src = thumbSrc(f);
+      img.title = `${f} (누르면 빼거나 다시 넣기)`;
+      img.draggable = false;
+      img.addEventListener('click', () => {
+        if (picked.has(f)) picked.delete(f); else picked.add(f);
+        renderThumbs();
+      });
+      const num = document.createElement('span');
+      num.className = 'num';
+      num.textContent = picked.has(f) ? String(order.indexOf(f) + 1) : '뺌';
+      const left = document.createElement('button');
+      left.type = 'button';
+      left.className = 'mv';
+      left.textContent = '◀';
+      left.title = '앞으로';
+      left.disabled = i === 0;
+      left.addEventListener('click', () => movePhoto(f, i - 1));
+      const right = document.createElement('button');
+      right.type = 'button';
+      right.className = 'mv';
+      right.textContent = '▶';
+      right.title = '뒤로';
+      right.disabled = i === photoOrder.length - 1;
+      right.addEventListener('click', () => movePhoto(f, i + 1));
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      bar.append(left, right);
+      box.append(img, num, bar);
+      box.addEventListener('dragstart', (e) => {
+        dragFile = f;
+        box.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', f);
+      });
+      box.addEventListener('dragend', () => { dragFile = null; box.classList.remove('dragging'); });
+      box.addEventListener('dragover', (e) => { if (dragFile && dragFile !== f) { e.preventDefault(); box.classList.add('over'); } });
+      box.addEventListener('dragleave', () => box.classList.remove('over'));
+      box.addEventListener('drop', (e) => {
+        e.preventDefault();
+        box.classList.remove('over');
+        if (dragFile && dragFile !== f) movePhoto(dragFile, photoOrder.indexOf(f));
+      });
+      return box;
+    }));
+    updatePhotoCount();
   }
 
   function updatePhotoCount() {
@@ -567,7 +644,7 @@
     if (kind === 'catch') {
       return { ...base, photo: {
         title: $('pTitle').value, description: $('pDesc').value, photoDate: $('pDate').value || null,
-        images: prep.photo.images.filter((f) => picked.has(f)),
+        images: uploadOrder(),
       } };
     }
     return { ...base, trip: {

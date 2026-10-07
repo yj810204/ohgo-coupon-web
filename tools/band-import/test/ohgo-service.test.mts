@@ -397,6 +397,20 @@ fake.missingColumns.clear();
 assert.equal(storage.size, before, '실패하면 올린 사진을 정리한다');
 assert.equal(rows.community_photos.length, 1);
 
+// 화면에서 바꾼 순서대로 올리고, 뺀 사진은 올리지 않는다
+{
+  const order = ['03.jpg', '11.png', '01.jpg', '07.jpg'];
+  const uploadsBefore = calls.filter((c) => c.url.includes('/storage/v1/object/photos/')).length;
+  await service.push({ postId: '2925', kind: 'catch', photo: { ...prepDom.photo, images: order } }, () => {});
+  const sent = calls.filter((c) => c.url.includes('/storage/v1/object/photos/')).slice(uploadsBefore);
+  assert.deepEqual(sent.map((c) => Buffer.from(c.body as Uint8Array).toString()), order.map((f) => `img-${f}`), '올리는 순서');
+  const row = rows.community_photos.at(-1)!;
+  const keysInOrder = sent.map((c) => decodeURIComponent(new URL(c.url).pathname.slice('/storage/v1/object/photos/'.length)));
+  assert.deepEqual(row.image_urls, keysInOrder.map((k) => publicPhotoUrl(SB, k)), 'image_urls도 같은 순서');
+  assert.equal(new URL(sent[1].url).pathname.endsWith('.png'), true, 'PNG는 그대로 PNG');
+  rows.community_photos.pop();
+}
+
 // ---------- 일정 등록 ----------
 const tripReq: PushRequest = {
   postId: '200',
