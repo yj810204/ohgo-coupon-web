@@ -512,11 +512,12 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
       try {
         const cfg = await config();
         rec.run.supabase = cfg.projectRef;
+        log('오고피씽 로그인 확인 중');
         let session;
         try {
           session = await ensureFreshSession(cfg, opts.dir, traced);
         } catch (err) {
-          if (err instanceof OhgoAuthError) throw new OhgoRequestRejected(err.message, 401);
+          if (err instanceof OhgoAuthError) throw new OhgoRequestRejected(err.message, err.status, err.code);
           throw err;
         }
         rec.run.user = session.name;

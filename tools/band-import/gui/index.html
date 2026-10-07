@@ -181,7 +181,7 @@
   <div id="ohgoCard" class="card hidden">
     <div class="session">
       <h2 class="sec">오고피씽에 등록</h2>
-      <div><span id="ohgoBadge" class="badge">확인 중</span><button id="ohgoLogoutBtn" class="link hidden" type="button">로그아웃</button></div>
+      <div><span id="ohgoBadge" class="badge">확인 중</span><button id="ohgoReloginBtn" class="link hidden" type="button">다시 로그인</button><button id="ohgoLogoutBtn" class="link hidden" type="button">로그아웃</button></div>
     </div>
     <div id="ohgoConfigErr" class="box err hidden"></div>
 
@@ -264,7 +264,10 @@
     <div id="pushError" class="box err hidden">
       <b>등록하지 못했습니다.</b>
       <div id="pushErrorText" class="pre" style="margin-top:4px"></div>
-      <button id="pushLogBtn" type="button" style="margin-top:8px">기록 폴더 열기</button>
+      <div class="row" style="margin-top:8px">
+        <button id="pushReloginBtn" class="primary hidden" type="button">다시 로그인</button>
+        <button id="pushLogBtn" type="button">기록 폴더 열기</button>
+      </div>
     </div>
     <div id="pushResult" class="box ok hidden"></div>
   </div>
@@ -405,6 +408,9 @@
   let draggedSincePress = false;
   let emailMode = false;
   let pushedFor = null;
+  let loginNeeded = false;
+  /** 로그인이 만료돼 멈춘 등록. 로그인에 성공하면 이 내용 그대로 다시 보낸다 */
+  let pendingPush = null;
 
   function show(id, on) { $(id).classList.toggle('hidden', !on); }
 
@@ -414,9 +420,10 @@
     badge.textContent = st.user ? `관리자 ${st.user.name}` : '로그인 필요';
     badge.className = st.user ? 'badge ok' : 'badge';
     show('ohgoLogoutBtn', !!st.user);
+    show('ohgoReloginBtn', loginNeeded);
     show('ohgoConfigErr', !!st.configError);
     $('ohgoConfigErr').textContent = st.configError || '';
-    show('ohgoLoginForm', !st.user && !st.configError);
+    show('ohgoLoginForm', loginNeeded || (!st.user && !st.configError));
     updatePushButton();
   }
 
@@ -425,6 +432,9 @@
     show('ohgoBody', false);
     show('pushResult', false);
     show('pushError', false);
+    show('pushReloginBtn', false);
+    pendingPush = null;
+    loginNeeded = false;
     pushedFor = null;
     try {
       renderOhgoState(await api('/api/ohgo/state'));
@@ -750,10 +760,19 @@
     if (job.status === 'error') {
       $('pushErrorText').textContent = job.error || '알 수 없는 오류';
       show('pushError', true);
+      const relogin = job.errorCode === 'LOGIN_REQUIRED';
+      show('pushReloginBtn', relogin);
+      if (relogin) {
+        loginNeeded = true;
+        if (!pendingPush && prep) pendingPush = pushPayload();
+        show('ohgoReloginBtn', true);
+        show('ohgoLoginForm', true);
+      }
       $('pushError').scrollIntoView({ block: 'nearest' });
       return;
     }
     show('pushError', false);
+    show('pushReloginBtn', false);
     const r = job.result;
     pushedFor = prep ? prep.postId : null;
     const box = $('pushResult');
@@ -1014,9 +1033,21 @@
       const body = emailMode
         ? { email: $('ohgoEmail').value, password: $('ohgoPassword').value }
         : { name: $('ohgoName').value, dob: $('ohgoDob').value };
+      const retry = pendingPush;
       renderOhgoState(await api('/api/ohgo/login', body));
+      pendingPush = null;
+      loginNeeded = false;
+      show('ohgoReloginBtn', false);
+      show('ohgoLoginForm', false);
       $('ohgoPassword').value = '';
       $('ohgoDob').value = '';
+      if (retry) {
+        show('pushError', false);
+        show('pushReloginBtn', false);
+        $('pushBtn').disabled = true;
+        await api('/api/ohgo/push', retry);
+        startPolling();
+      }
     } catch (err) {
       $('ohgoConfigErr').textContent = err.message;
       show('ohgoConfigErr', true);
@@ -1044,6 +1075,16 @@
       updatePushButton();
     }
   });
+
+  function focusLogin() {
+    loginNeeded = true;
+    show('ohgoReloginBtn', true);
+    show('ohgoLoginForm', true);
+    $('ohgoLoginForm').scrollIntoView({ block: 'nearest' });
+    (emailMode ? $('ohgoEmail') : $('ohgoName')).focus();
+  }
+  $('pushReloginBtn').addEventListener('click', focusLogin);
+  $('ohgoReloginBtn').addEventListener('click', focusLogin);
 
   $('pushLogBtn').addEventListener('click', async () => {
     if (!prep) return;

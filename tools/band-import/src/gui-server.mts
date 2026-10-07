@@ -51,6 +51,7 @@ type Job = {
   status: 'running' | 'done' | 'error';
   logs: string[];
   error: string | null;
+  errorCode: string | null;
   result: JobResult | PushResult | null;
 };
 
@@ -86,7 +87,7 @@ export function createGuiServer(deps: GuiDeps): { server: Server; token: string;
   const isBusy = () => job?.status === 'running';
 
   const startJob = (kind: Job['kind'], work: (log: Log) => Promise<Job['result']>) => {
-    const current: Job = { id: ++seq, kind, status: 'running', logs: [], error: null, result: null };
+    const current: Job = { id: ++seq, kind, status: 'running', logs: [], error: null, errorCode: null, result: null };
     job = current;
     const log: Log = (msg) => {
       current.logs.push(...msg.split('\n'));
@@ -97,8 +98,9 @@ export function createGuiServer(deps: GuiDeps): { server: Server; token: string;
         current.result = result;
         current.status = 'done';
       },
-      (err: Error) => {
+      (err: Error & { code?: unknown }) => {
         current.error = err.message;
+        current.errorCode = typeof err.code === 'string' ? err.code : null;
         current.status = 'error';
       },
     );
@@ -250,7 +252,7 @@ export function createGuiServer(deps: GuiDeps): { server: Server; token: string;
       return sendJson(res, 404, { error: '없는 경로입니다' });
     } catch (err) {
       if (err instanceof OhgoRequestRejected) return sendJson(res, err.status, { error: err.message, code: err.code });
-      if (err instanceof OhgoAuthError) return sendJson(res, err.status, { error: err.message });
+      if (err instanceof OhgoAuthError) return sendJson(res, err.status, { error: err.message, code: err.code });
       return sendJson(res, 500, { error: (err as Error).message });
     }
   };

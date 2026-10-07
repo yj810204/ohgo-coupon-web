@@ -1,5 +1,6 @@
+import { closeSync, openSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { readJsonFile, removeFile, writeJsonPrivate } from './local-store.mts';
+import { ensurePrivateDir, readJsonFile, removeFile, writeJsonPrivate } from './local-store.mts';
 import type { Fetch, OhgoConfig } from './ohgo-config.mts';
 import { decodeJwtPayload } from './ohgo-config.mts';
 
@@ -23,10 +24,27 @@ export type OhgoCredentials = { name: string; dob: string } | { email: string; p
 
 export class OhgoAuthError extends Error {
   status: number;
-  constructor(message: string, status = 401) {
+  code: string | null;
+  constructor(message: string, status = 401, code: string | null = null) {
     super(message);
     this.status = status;
+    this.code = code;
   }
+}
+
+const LOGIN_REQUIRED = 'LOGIN_REQUIRED';
+/** 갱신 중에 앱이 죽으면 남는 잠금. 이 시간이 지나면 죽은 잠금으로 보고 치운다 */
+const LOCK_STALE_MS = 60_000;
+
+/** 같은 프로세스에서 갱신이 겹치지 않게 한 줄로 세운다 */
+let refreshQueue: Promise<unknown> = Promise.resolve();
+function oneAtATime<T>(fn: () => Promise<T>): Promise<T> {
+  const run = refreshQueue.then(fn, fn);
+  refreshQueue = run.then(
+    () => {},
+    () => {},
+  );
+  return run;
 }
 
 export function readOhgoSession(dir: string): OhgoSession | null {
@@ -129,6 +147,16 @@ export async function loginOhgo(cfg: OhgoConfig, creds: OhgoCredentials, fetchIm
   };
 }
 
+/**
+ * Supabase는 갱신할 때마다 쓰던 refresh 토큰을 지우고 새 것을 준다.
+ * 새 토큰을 저장하기 전에 같은 토큰으로 한 번 더 갱신하면(앱을 두 개 띄움, 저장 전에 종료)
+ * 서버가 그 토큰 묶음 전체를 폐기해서 "Refresh Token Not Found"가 된다.
+ * 그래서 갱신은 잠금 안에서 한 번만 하고, 받은 토큰은 잠금을 풀기 전에 원자적으로 저장한다.
+ */
+function refreshTokenDead(detail: string): boolean {
+  return /refresh token|invalid_grant|already used|not found|revoked/i.test(detail);
+}
+
 export async function refreshOhgoSession(cfg: OhgoConfig, session: OhgoSession, fetchImpl: Fetch = fetch): Promise<OhgoSession> {
   const res = await fetchImpl(`${cfg.supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
     method: 'POST',
@@ -137,25 +165,100 @@ export async function refreshOhgoSession(cfg: OhgoConfig, session: OhgoSession, 
   });
   const body = await readJson(res);
   if (!res.ok) {
-    throw new OhgoAuthError(`오고피씽 로그인이 만료되었습니다. 다시 로그인하세요. (${errorText(body, `HTTP ${res.status}`)})`);
+    const detail = errorText(body, `HTTP ${res.status}`);
+    if (refreshTokenDead(detail)) {
+      throw new OhgoAuthError(
+        `오고피씽 로그인이 만료되었습니다. 아래 다시 로그인을 누르세요. 로그인하면 방금 등록을 그대로 다시 시도합니다. (${detail})`,
+        401,
+        LOGIN_REQUIRED,
+      );
+    }
+    throw new OhgoAuthError(`오고피씽 로그인을 갱신하지 못했습니다. (${detail})`);
   }
   return { ...session, ...tokensFrom(body), savedAt: new Date().toISOString() };
 }
 
-/** 저장된 세션을 읽고, 곧 만료되면 갱신해서 다시 저장한다 */
+function stillValid(session: OhgoSession | null, cfg: OhgoConfig, nowSec: number): session is OhgoSession {
+  return !!session && session.supabaseUrl === cfg.supabaseUrl && session.expiresAt - 120 > nowSec;
+}
+
+const LOCK_FILE = 'session.lock';
+
+function acquireLock(dir: string): boolean {
+  try {
+    closeSync(openSync(join(dir, LOCK_FILE), 'wx'));
+    return true;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'EEXIST') return false;
+    throw err;
+  }
+}
+
+function releaseLock(dir: string): void {
+  try {
+    unlinkSync(join(dir, LOCK_FILE));
+  } catch {
+    // 이미 풀려 있으면 그대로 둔다
+  }
+}
+
+/** 저장된 세션을 읽고, 곧 만료되면 갱신해서 다시 저장한다. 사진 올리기 전에 부른다 */
 export async function ensureFreshSession(
   cfg: OhgoConfig,
   dir: string,
   fetchImpl: Fetch = fetch,
   nowSec = Math.floor(Date.now() / 1000),
 ): Promise<OhgoSession> {
-  const session = readOhgoSession(dir);
-  if (!session) throw new OhgoAuthError('오고피씽 관리자 로그인이 필요합니다.');
-  if (session.supabaseUrl !== cfg.supabaseUrl) {
-    throw new OhgoAuthError('저장된 로그인이 다른 Supabase 프로젝트용입니다. 다시 로그인하세요.');
+  return oneAtATime(() => ensureFreshLocked(cfg, dir, fetchImpl, nowSec));
+}
+
+async function ensureFreshLocked(cfg: OhgoConfig, dir: string, fetchImpl: Fetch, nowSec: number): Promise<OhgoSession> {
+  ensurePrivateDir(dir);
+  const deadline = Date.now() + LOCK_STALE_MS;
+  for (;;) {
+    const current = readOhgoSession(dir);
+    if (stillValid(current, cfg, nowSec)) return current;
+    if (acquireLock(dir)) break;
+    let age = 0;
+    try {
+      age = Date.now() - statSync(join(dir, LOCK_FILE)).mtimeMs;
+    } catch {
+      age = LOCK_STALE_MS;
+    }
+    if (age >= LOCK_STALE_MS) releaseLock(dir);
+    if (Date.now() > deadline) {
+      throw new OhgoAuthError('로그인 갱신이 다른 작업과 겹쳐 끝내지 못했습니다. 잠시 뒤 다시 시도하세요.');
+    }
+    await new Promise((r) => setTimeout(r, 50));
   }
-  if (session.expiresAt - 120 > nowSec) return session;
-  const fresh = await refreshOhgoSession(cfg, session, fetchImpl);
-  saveOhgoSession(dir, fresh);
-  return fresh;
+  try {
+    const session = readOhgoSession(dir);
+    if (!session) throw new OhgoAuthError('오고피씽 관리자 로그인이 필요합니다.', 401, LOGIN_REQUIRED);
+    if (session.supabaseUrl !== cfg.supabaseUrl) {
+      throw new OhgoAuthError('저장된 로그인이 다른 Supabase 프로젝트용입니다. 다시 로그인하세요.', 401, LOGIN_REQUIRED);
+    }
+    if (stillValid(session, cfg, nowSec)) return session;
+    return await rotate(cfg, dir, session, fetchImpl, nowSec);
+  } finally {
+    releaseLock(dir);
+  }
+}
+
+/** 갱신 결과를 잠금 안에서 바로 저장한다. 다른 쪽이 먼저 저장했으면 그 토큰을 쓴다 */
+async function rotate(cfg: OhgoConfig, dir: string, session: OhgoSession, fetchImpl: Fetch, nowSec: number): Promise<OhgoSession> {
+  try {
+    const fresh = await refreshOhgoSession(cfg, session, fetchImpl);
+    saveOhgoSession(dir, fresh);
+    return fresh;
+  } catch (err) {
+    if (!(err instanceof OhgoAuthError) || err.code !== LOGIN_REQUIRED) throw err;
+    const newer = readOhgoSession(dir);
+    if (newer && newer.refreshToken !== session.refreshToken) {
+      if (stillValid(newer, cfg, nowSec)) return newer;
+      const fresh = await refreshOhgoSession(cfg, newer, fetchImpl);
+      saveOhgoSession(dir, fresh);
+      return fresh;
+    }
+    throw err;
+  }
 }
