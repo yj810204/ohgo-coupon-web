@@ -8,6 +8,7 @@ import { resolveAppUser } from '@/lib/auth-session';
 import { getBoardingForm, saveBoardingForm } from '@/utils/boarding-service';
 import { normalizePersonName } from '@/lib/person-name';
 import { IoSearchOutline } from 'react-icons/io5';
+import PostcodeSearchModal, { usePostcodeScript } from '@/components/PostcodeSearchModal';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal, { OhgoModalButton, OhgoModalCancelLink, OhgoModalText } from '@/components/OhgoModal';
 import {
@@ -85,28 +86,6 @@ function SegmentButton({
   );
 }
 
-// 다음 우편번호 API 타입 선언
-declare global {
-  interface Window {
-    daum?: {
-      Postcode: new (options: {
-        oncomplete: (data: {
-          address: string;
-          addressType: string;
-          bname: string;
-          buildingName: string;
-        }) => void;
-        onclose?: (state: string) => void;
-        width?: string | number;
-        height?: string | number;
-      }) => {
-        open: () => void;
-        /** WebView에서는 팝업(open)이 흰 화면만 뜨므로 embed 사용 */
-        embed: (element: HTMLElement) => void;
-      };
-    };
-  }
-}
 
 const PRIVACY_POLICY_HTML = `
 <!DOCTYPE html>
@@ -199,63 +178,15 @@ function BoardingFormContent() {
   const [showPostcodeModal, setShowPostcodeModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const addressDetailRef = useRef<HTMLTextAreaElement>(null);
-  const postcodeEmbedRef = useRef<HTMLDivElement>(null);
 
-  // 다음 우편번호 스크립트 로드
-  useEffect(() => {
-    if (document.getElementById('daum-postcode-script')) return;
-    const script = document.createElement('script');
-    script.id = 'daum-postcode-script';
-    script.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
-    script.async = true;
-    document.head.appendChild(script);
+  usePostcodeScript();
+
+  const applySelectedAddress = useCallback((fullAddress: string) => {
+    setAddress(fullAddress);
+    setAddressDetail('');
+    setShowPostcodeModal(false);
+    window.setTimeout(() => addressDetailRef.current?.focus(), 150);
   }, []);
-
-  const applySelectedAddress = useCallback(
-    (data: { address: string; addressType: string; bname: string; buildingName: string }) => {
-      let fullAddress = data.address;
-      if (data.addressType === 'R') {
-        if (data.bname) fullAddress += ` (${data.bname}`;
-        if (data.buildingName) {
-          fullAddress += data.bname ? `, ${data.buildingName})` : ` (${data.buildingName})`;
-        } else if (data.bname) {
-          fullAddress += ')';
-        }
-      }
-      setAddress(fullAddress);
-      setAddressDetail('');
-      setShowPostcodeModal(false);
-      window.setTimeout(() => addressDetailRef.current?.focus(), 150);
-    },
-    []
-  );
-
-  // WebView는 window.open 팝업이 막히거나 흰 화면만 뜸 → 모달 안에 embed
-  useEffect(() => {
-    if (!showPostcodeModal) return;
-    const el = postcodeEmbedRef.current;
-    if (!el) return;
-
-    let cancelled = false;
-    const tryEmbed = () => {
-      if (cancelled || !postcodeEmbedRef.current) return;
-      if (!window.daum?.Postcode) {
-        window.setTimeout(tryEmbed, 120);
-        return;
-      }
-      postcodeEmbedRef.current.innerHTML = '';
-      new window.daum.Postcode({
-        oncomplete: applySelectedAddress,
-        onclose: () => setShowPostcodeModal(false),
-        width: '100%',
-        height: '100%',
-      }).embed(postcodeEmbedRef.current);
-    };
-    tryEmbed();
-    return () => {
-      cancelled = true;
-    };
-  }, [showPostcodeModal, applySelectedAddress]);
 
   const openAddressSearch = useCallback(() => {
     if (!window.daum?.Postcode && !document.getElementById('daum-postcode-script')) {
@@ -662,25 +593,11 @@ function BoardingFormContent() {
         />
       </OhgoModal>
 
-      <OhgoModal
+      <PostcodeSearchModal
         open={showPostcodeModal}
         onClose={() => setShowPostcodeModal(false)}
-        title="주소 검색"
-        size="lg"
-        scrollable={false}
-        closeOnBackdrop
-        bodyPadding={false}
-      >
-        <div
-          ref={postcodeEmbedRef}
-          style={{
-            width: '100%',
-            height: 'min(70vh, 520px)',
-            minHeight: 360,
-            overflow: 'hidden',
-          }}
-        />
-      </OhgoModal>
+        onSelect={applySelectedAddress}
+      />
     </SubPageFrame>
   );
 }

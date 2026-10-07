@@ -638,6 +638,7 @@ export async function createGuestMember(input: {
   gender: string;
   emergency: string;
   address: string;
+  addressDetail?: string;
 }): Promise<void> {
   const db = getFirebaseDb();
   const userRef = doc(db, 'users', input.uuid);
@@ -662,6 +663,7 @@ export async function createGuestMember(input: {
       phone: input.phone,
       emergency: input.emergency,
       address: input.address,
+      ...(input.addressDetail?.trim() ? { addressDetail: input.addressDetail.trim() } : {}),
       agreed: true,
       agreedThirdParty: true,
     },

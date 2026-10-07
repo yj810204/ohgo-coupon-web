@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/hooks/useAppRouter';
 import {
@@ -15,6 +15,7 @@ import { computeLegacyUuid } from '@/lib/legacy-uuid';
 import { normalizePersonName } from '@/lib/person-name';
 import { IoSearchOutline, IoAddOutline, IoPersonOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
+import PostcodeSearchModal, { usePostcodeScript } from '@/components/PostcodeSearchModal';
 import {
   OHGO_CARD,
   OHGO_CONFIRM_BTN,
@@ -84,6 +85,10 @@ function RosterMemberSearchContent() {
   const [newMemberGender, setNewMemberGender] = useState('');
   const [newMemberEmergency, setNewMemberEmergency] = useState('');
   const [newMemberAddress, setNewMemberAddress] = useState('');
+  const [newMemberAddressDetail, setNewMemberAddressDetail] = useState('');
+  const [showPostcode, setShowPostcode] = useState(false);
+  const addressDetailRef = useRef<HTMLInputElement>(null);
+  usePostcodeScript();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const searchMembers = useCallback(async () => {
@@ -185,7 +190,7 @@ function RosterMemberSearchContent() {
     }
     
     if (!newMemberAddress.trim()) {
-      alert('주소를 입력해주세요.');
+      alert('주소 검색으로 주소를 입력해주세요.');
       return;
     }
 
@@ -224,6 +229,7 @@ function RosterMemberSearchContent() {
         gender: newMemberGender,
         emergency,
         address,
+        addressDetail: newMemberAddressDetail.trim() || undefined,
       });
 
       await addMemberToDailyRoster(String(date), memberUuid, parseInt(tripNumber || '1'));
@@ -403,10 +409,33 @@ function RosterMemberSearchContent() {
           </div>
           <div className="mb-3">
             <label style={LABEL}>주소 *</label>
+            <div className="d-flex gap-2 mb-2">
+              <input
+                type="text"
+                value={newMemberAddress}
+                readOnly
+                placeholder="주소 검색 버튼을 눌러주세요"
+                onClick={() => setShowPostcode(true)}
+                className="flex-grow-1 min-w-0"
+                style={{ ...FIELD, backgroundColor: newMemberAddress ? '#FFFFFF' : '#F7F8FA', cursor: 'pointer' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPostcode(true)}
+                className="d-flex align-items-center justify-content-center gap-1 flex-shrink-0"
+                style={{ ...pillBtn(true), borderRadius: 10, padding: '10px 16px', whiteSpace: 'nowrap' }}
+              >
+                <IoSearchOutline size={16} />
+                검색
+              </button>
+            </div>
             <input
+              ref={addressDetailRef}
               type="text"
-              value={newMemberAddress}
-              onChange={(e) => setNewMemberAddress(e.target.value)}
+              value={newMemberAddressDetail}
+              onChange={(e) => setNewMemberAddressDetail(e.target.value)}
+              placeholder={newMemberAddress ? '상세 주소 (동/호수 등)' : '주소 검색 후 상세 주소를 입력하세요'}
+              autoComplete="address-line2"
               style={FIELD}
             />
           </div>
@@ -540,6 +569,16 @@ function RosterMemberSearchContent() {
       ) : searchText.trim() && !isLoading ? (
         <EmptyState icon={IoSearchOutline} message="검색 결과가 없습니다." />
       ) : null}
+      <PostcodeSearchModal
+        open={showPostcode}
+        onClose={() => setShowPostcode(false)}
+        onSelect={(address) => {
+          setNewMemberAddress(address);
+          setNewMemberAddressDetail('');
+          setShowPostcode(false);
+          window.setTimeout(() => addressDetailRef.current?.focus(), 150);
+        }}
+      />
     </SubPageFrame>
   );
 }

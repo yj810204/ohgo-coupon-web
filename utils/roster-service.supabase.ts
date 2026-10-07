@@ -483,6 +483,7 @@ export async function createGuestMember(input: {
   gender: string;
   emergency: string;
   address: string;
+  addressDetail?: string;
 }): Promise<void> {
   const supabase = getSupabaseBrowserClient();
   const { error: profileError } = await supabase.from('guest_profiles').insert({
@@ -500,7 +501,7 @@ export async function createGuestMember(input: {
     gender: input.gender,
     phone: input.phone,
     emergency: input.emergency,
-    address: input.address,
+    address: input.addressDetail?.trim() ? `${input.address} ${input.addressDetail.trim()}` : input.address,
   });
   if (boardingError) throw boardingError;
 }
