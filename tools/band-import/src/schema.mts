@@ -1,3 +1,5 @@
+import type { RawContent } from './rich-text.mts';
+
 export const EXTRACTED_SCHEMA_VERSION = 1;
 
 export type ExtractedImage = {
@@ -39,6 +41,8 @@ export type ExtractedPost = {
   /** 본문에서 날짜/시간 패턴이 보이는 줄 */
   scheduleLikeLines: string[];
   warnings: string[];
+  /** 글자색, 굵게가 남아 있는 원래 본문. 예전에 가져온 결과에는 없다 */
+  rawContent?: RawContent | null;
 };
 
 type Check = (value: unknown) => boolean;
@@ -95,6 +99,10 @@ export function validateExtracted(value: unknown): string[] {
     warnings: isStringArray,
   });
 
+  if ('rawContent' in value && value.rawContent !== null) {
+    const rc = value.rawContent;
+    if (!isRecord(rc) || (rc.format !== 'band' && rc.format !== 'dom') || typeof rc.html !== 'string') errors.push('rawContent: 타입 불일치');
+  }
   if (Array.isArray(value.images)) {
     value.images.forEach((img, i) =>
       checkFields(errors, `images[${i}]`, img, {

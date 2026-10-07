@@ -34,5 +34,6 @@ export function buildExtracted(args: {
     schedules: post.schedules,
     scheduleLikeLines: findScheduleLikeLines(post.body),
     warnings,
+    rawContent: post.rawContent ?? null,
   };
 }

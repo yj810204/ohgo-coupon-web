@@ -197,6 +197,15 @@ const fakeOhgo: OhgoService = {
       releasePush = () => resolve({ kind: req.kind, target: 'community_photos', rowIds: ['r1'], links: ['https://ohgo.test/community/r1'], title: 't', resizedImages: 0 });
     });
   },
+  editImage: async (postId, file, edit) => {
+    ohgoCalls.push(`edit ${postId} ${file} ${JSON.stringify(edit)}`);
+    if (file === 'nope.jpg') throw new OhgoRequestRejected(`편집할 수 없는 사진입니다: ${file}`);
+    return { [file]: { edit, output: `edited_${file}`, width: 1, height: 1, updatedAt: 'now' } };
+  },
+  revertImage: async (postId, file) => {
+    ohgoCalls.push(`revert ${postId} ${file}`);
+    return {};
+  },
   isAppLink: (url) => url.startsWith('https://ohgo.test/'),
 };
 const opened2: string[] = [];
@@ -239,6 +248,20 @@ try {
   assert.equal((await call2('/api/ohgo/prepare', { postId: '2925' })).status, 200);
   assert.equal((await call2('/api/ohgo/prepare', { postId: '1' })).status, 404);
 
+  // 사진 편집: 값은 정해진 모양으로만 넘긴다
+  const edited = await call2('/api/ohgo/edit', { postId: '2925', file: '01.jpg', edit: { rotate: 270, flipH: true, crop: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 }, extra: '<script>' } });
+  assert.equal(edited.status, 200);
+  assert.equal(edited.json.edits['01.jpg'].output, 'edited_01.jpg');
+  assert.equal(ohgoCalls.at(-1), 'edit 2925 01.jpg {"rotate":270,"flipH":true,"crop":{"x":0.1,"y":0.1,"w":0.5,"h":0.5}}');
+  assert.equal((await call2('/api/ohgo/edit', { postId: '2925', file: '01.jpg', edit: { rotate: 45 } })).status, 400);
+  assert.equal((await call2('/api/ohgo/edit', { postId: '2925', file: '01.jpg', edit: { crop: { x: 0.9, y: 0, w: 0.5, h: 1 } } })).status, 400);
+  const badFile = await call2('/api/ohgo/edit', { postId: '2925', file: 'nope.jpg', edit: {} });
+  assert.equal(badFile.status, 400);
+  assert.match(badFile.json.error, /편집할 수 없는 사진/);
+  assert.deepEqual((await call2('/api/ohgo/revert', { postId: '2925', file: '01.jpg' })).json, { edits: {} });
+  assert.equal(ohgoCalls.at(-1), 'revert 2925 01.jpg');
+  assert.equal((await call2('/api/ohgo/edit', { postId: '2925', file: '01.jpg', edit: {} }, false)).status, 403);
+
   assert.equal((await call2('/api/ohgo/push', { postId: '2925', kind: 'nope' })).status, 400);
   const dup = await call2('/api/ohgo/push', { postId: 'dup', kind: 'catch', photo: {} });
   assert.equal(dup.status, 409);
@@ -249,6 +272,7 @@ try {
   assert.equal(started.json.job.kind, 'push');
   assert.equal((await call2('/api/ohgo/push', { postId: '2925', kind: 'catch', photo: {} })).status, 409, '등록 중에는 다시 받지 않는다');
   assert.equal((await call2('/api/fetch', { url: 'https://band.us/band/88348442/post/2925' })).status, 409);
+  assert.equal((await call2('/api/ohgo/edit', { postId: '2925', file: '01.jpg', edit: {} })).status, 409, '등록 중에는 편집하지 않는다');
   releasePush();
   let st2 = (await call2('/api/state')).json;
   for (let i = 0; i < 50 && st2.busy; i++) {
@@ -258,7 +282,7 @@ try {
   assert.equal(st2.job.status, 'done');
   assert.deepEqual(st2.job.result.links, ['https://ohgo.test/community/r1']);
   assert.deepEqual(st2.job.logs, ['사진 올리는 중 1/1']);
-  assert.deepEqual(pushes[0], { postId: '2925', kind: 'catch', force: false, photo: { title: 't', description: 'd', photoDate: null, images: ['01.jpg'] } });
+  assert.deepEqual(pushes[0], { postId: '2925', kind: 'catch', force: false, photo: { title: 't', description: 'd', photoDate: null, images: ['01.jpg'], useFormatting: false } });
 
   assert.equal((await call2('/api/ohgo/open-link', { url: 'https://ohgo.test/community/r1' })).status, 200);
   assert.equal((await call2('/api/ohgo/open-link', { url: 'file:///etc/passwd' })).status, 400, '오고피씽 주소만 연다');
@@ -304,5 +328,11 @@ assert.equal(toPushRequest({ postId: '1', kind: 'schedule', trip: { rows: Array.
 assert.deepEqual(toPushRequest({ postId: '1', kind: 'schedule', trip: { rows: 'x' } }).trip!.rows, []);
 assert.ok(Number.isNaN(toPushRequest({ postId: '1', kind: 'schedule', trip: { capacity: '열명' } }).trip!.capacity), '숫자가 아니면 검사에서 걸린다');
 assert.throws(() => toPushRequest({ postId: '1' }), /등록 종류/);
+assert.deepEqual(
+  toPushRequest({ postId: '1', kind: 'catch', photo: { title: 't', images: ['01.jpg'], useFormatting: true, content: '<img src=x onerror=alert(1)>' } }).photo,
+  { title: 't', description: '', photoDate: null, images: ['01.jpg'], useFormatting: true },
+  '화면에서 온 HTML은 받지 않는다',
+);
+assert.equal(toPushRequest({ postId: '1', kind: 'catch', photo: { useFormatting: 'yes' } }).photo!.useFormatting, false);
 
 console.log('band-import gui-server tests passed');

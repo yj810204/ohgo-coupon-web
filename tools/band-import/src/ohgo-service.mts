@@ -1,8 +1,10 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Classification, OhgoKind, PhotoDraft } from './classify.mts';
 import { buildPhotoDraft, classifyPost, validatePhotoDraft } from './classify.mts';
-import { createBrowserReencoder, prepareImage } from './image-prep.mts';
+import type { EditMap, ImageEdit, ImageEditor } from './image-edit.mts';
+import { createBrowserImageEditor, editedFileName, ImageEditError, isNoopEdit, readEdits, uploadFileFor, writeEdits } from './image-edit.mts';
+import { createBrowserReencoder, extOf, prepareImage } from './image-prep.mts';
 import type { Reencode } from './image-prep.mts';
 import type { LedgerEntry } from './ledger.mts';
 import { findLedgerEntry, recordLedgerEntry } from './ledger.mts';
@@ -10,6 +12,8 @@ import type { OhgoCredentials } from './ohgo-auth.mts';
 import { clearOhgoSession, ensureFreshSession, loginOhgo, OhgoAuthError, readOhgoSession, saveOhgoSession } from './ohgo-auth.mts';
 import { newPhotoObjectPath, OhgoClient } from './ohgo-client.mts';
 import { resolvePostImages } from './post-images.mts';
+import { formattedBody } from './rich-text.mts';
+import type { FormattedBody } from './rich-text.mts';
 import type { Fetch, OhgoConfig } from './ohgo-config.mts';
 import { projectRefFromUrl, resolveOhgoConfig } from './ohgo-config.mts';
 import type { ExtractedPost } from './schema.mts';
@@ -37,6 +41,10 @@ export type PrepareResult = {
   photo: PhotoDraft;
   /** extracted.json과 폴더의 사진이 어긋날 때 알림 */
   photoWarnings: string[];
+  /** 원본 파일 이름 → 편집본. 등록하면 편집본을 올린다 */
+  photoEdits: EditMap;
+  /** Band 본문 서식을 살린 내용. html이 null이면 살릴 서식이 없다 */
+  photoFormatted: FormattedBody;
   trip: TripDraft;
   tripSource: 'weekly' | 'single';
   tripMissing: string[];
@@ -83,6 +91,10 @@ export type OhgoService = {
   /** 동기 검사. 문제가 있으면 OhgoRequestRejected를 던진다 */
   checkPush(req: PushRequest): void;
   push(req: PushRequest, log: Log): Promise<PushResult>;
+  /** 사진 한 장을 편집해 edited_NN 파일로 저장한다. 원본은 그대로 둔다 */
+  editImage(postId: string, file: string, edit: ImageEdit): Promise<EditMap>;
+  /** 편집본을 지우고 원본으로 되돌린다 */
+  revertImage(postId: string, file: string): Promise<EditMap>;
   isAppLink(url: string): boolean;
 };
 
@@ -93,6 +105,7 @@ export type OhgoServiceOptions = {
   env?: Record<string, string | undefined>;
   fetchImpl?: Fetch;
   createReencoder?: () => Promise<{ reencode: Reencode; close: () => Promise<void> }>;
+  createImageEditor?: () => Promise<ImageEditor>;
   /** 사진 사이 간격(ms) */
   uploadGapMs?: number;
 };
@@ -105,6 +118,11 @@ function loadExtracted(outRoot: string, postId: string): ExtractedPost {
   const errors = validateExtracted(post);
   if (errors.length) throw new OhgoRequestRejected(`extracted.json 형식 오류: ${errors.slice(0, 3).join(', ')}`);
   return post as ExtractedPost;
+}
+
+/** 제목으로 뺀 첫 줄을 description과 같은 기준으로 뺀 서식 본문 */
+function postFormatted(post: ExtractedPost, title: string): FormattedBody {
+  return formattedBody(post.rawContent, [post.title, title]);
 }
 
 function tripTitle(draft: TripDraft): string {
@@ -177,9 +195,12 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
     const uploaded: string[] = [];
     const urls: string[] = [];
     let resized = 0;
+    const edits = readEdits(outDir);
     const encoder = await (opts.createReencoder ?? createBrowserReencoder)();
     try {
-      for (const [i, file] of draft.images.entries()) {
+      for (const [i, original] of draft.images.entries()) {
+        const file = uploadFileFor(outDir, original, edits);
+        if (file !== original) log(`사진 ${original}: 편집한 사진(${file})을 올립니다`);
         const prepared = await prepareImage(readFileSync(join(outDir, file)), file, encoder.reencode);
         if (prepared.resized) {
           resized++;
@@ -201,6 +222,14 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
         board_type: 'photo',
       };
       if (draft.photoDate) row.photo_date = draft.photoDate;
+      if (draft.useFormatting) {
+        // 화면에서 온 HTML은 받지 않고 extracted.json에서 다시 만든다
+        const html = postFormatted(post, buildPhotoDraft(post).title).html;
+        if (html) {
+          row.content = html;
+          log('Band 본문의 글자색과 굵게를 살려 올립니다');
+        }
+      }
       log('조황 게시판에 글을 저장하는 중');
       const id = await client.insert('community_photos', row, ['uploaded_by_name', 'photo_date', 'board_type']);
       return { rowIds: [id], links: [`${cfg.baseUrl}/community/${id}`], resized };
@@ -243,6 +272,24 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
     return { rowIds: ids, links: [`${cfg.baseUrl}/admin-trip-guide`], resized: 0 };
   };
 
+  const editablePhoto = (postId: string, file: string) => {
+    const post = loadExtracted(opts.outRoot, postId);
+    const outDir = join(opts.outRoot, post.source.postId);
+    if (!resolvePostImages(outDir, post).files.includes(file)) throw new OhgoRequestRejected(`편집할 수 없는 사진입니다: ${file}`);
+    return outDir;
+  };
+
+  const revertImage = async (postId: string, file: string) => {
+    const outDir = editablePhoto(postId, file);
+    const edits = readEdits(outDir);
+    rmSync(join(outDir, editedFileName(file)), { force: true });
+    if (file in edits) {
+      delete edits[file];
+      writeEdits(outDir, edits);
+    }
+    return edits;
+  };
+
   return {
     state,
 
@@ -282,9 +329,14 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
           remoteWarnings.push(`앱의 기존 목적지를 읽지 못했습니다: ${(err as Error).message}`);
         }
       }
-      const images = resolvePostImages(join(opts.outRoot, post.source.postId), post);
+      const outDir = join(opts.outRoot, post.source.postId);
+      const images = resolvePostImages(outDir, post);
+      const allEdits = readEdits(outDir);
+      const photoEdits = Object.fromEntries(Object.entries(allEdits).filter(([f]) => images.files.includes(f) && uploadFileFor(outDir, f, allEdits) !== f));
       const classification = classifyPost(post, images.files.length);
       const photo = buildPhotoDraft(post, images.files);
+      const photoFormatted = postFormatted(post, photo.title);
+      photo.useFormatting = photoFormatted.html !== null;
       const trip = parseTripGuide(post, known);
 
       const tripDuplicates: Record<string, string[]> = {};
@@ -324,6 +376,8 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
         classification,
         photo,
         photoWarnings: images.warnings,
+        photoEdits,
+        photoFormatted,
         trip: trip.draft,
         tripSource: trip.source,
         tripMissing: trip.missing,
@@ -368,6 +422,31 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
       log(`오고피씽에 등록했습니다 (${req.kind === 'catch' ? '조황 게시판' : `출조 일정 ${done.rowIds.length}건`})`);
       return { kind: req.kind, target, rowIds: done.rowIds, links: done.links, title, resizedImages: done.resized };
     },
+
+    async editImage(postId, file, edit) {
+      const outDir = editablePhoto(postId, file);
+      if (isNoopEdit(edit)) return revertImage(postId, file);
+      const ext = extOf(file);
+      const type = ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      const editor = await (opts.createImageEditor ?? createBrowserImageEditor)();
+      let out;
+      try {
+        out = await editor.apply(readFileSync(join(outDir, file)), type, edit);
+      } catch (err) {
+        if (err instanceof ImageEditError) throw new OhgoRequestRejected(`${file} 편집 실패: ${err.message}`);
+        throw err;
+      } finally {
+        await editor.close();
+      }
+      const output = editedFileName(file);
+      writeFileSync(join(outDir, output), out.bytes);
+      const edits = readEdits(outDir);
+      edits[file] = { edit, output, width: out.width, height: out.height, updatedAt: new Date().toISOString() };
+      writeEdits(outDir, edits);
+      return edits;
+    },
+
+    revertImage,
 
     isAppLink(url) {
       const s = readOhgoSession(opts.dir);

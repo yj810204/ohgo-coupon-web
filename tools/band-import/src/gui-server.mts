@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { hasProfile } from './browser.mts';
 import type { FetchOptions, Log } from './commands.mts';
 import type { PhotoDraft } from './classify.mts';
+import { ImageEditError, parseImageEdit } from './image-edit.mts';
 import type { OhgoService, PushRequest, PushResult } from './ohgo-service.mts';
 import { OhgoRequestRejected } from './ohgo-service.mts';
 import { OhgoAuthError } from './ohgo-auth.mts';
@@ -226,6 +227,20 @@ export function createGuiServer(deps: GuiDeps): { server: Server; token: string;
         startJob('push', (log) => ohgo.push(request, log));
         return sendJson(res, 202, state());
       }
+      if (path === '/api/ohgo/edit' || path === '/api/ohgo/revert') {
+        if (isBusy()) return sendJson(res, 409, { error: '다른 작업이 진행 중입니다' });
+        const postId = str(body.postId);
+        const file = str(body.file);
+        if (path === '/api/ohgo/revert') return sendJson(res, 200, { edits: await ohgo.revertImage(postId, file) });
+        let edit;
+        try {
+          edit = parseImageEdit(body.edit);
+        } catch (err) {
+          if (err instanceof ImageEditError) return sendJson(res, 400, { error: err.message });
+          throw err;
+        }
+        return sendJson(res, 200, { edits: await ohgo.editImage(postId, file, edit) });
+      }
       if (path === '/api/ohgo/open-link') {
         const link = str(body.url);
         if (!ohgo.isAppLink(link)) return sendJson(res, 400, { error: '오고피씽 주소만 열 수 있습니다' });
@@ -266,6 +281,7 @@ export function toPushRequest(body: Record<string, unknown>): PushRequest {
       description: str(photo.description),
       photoDate: str(photo.photoDate) || null,
       images: Array.isArray(photo.images) ? photo.images.map(str) : [],
+      useFormatting: photo.useFormatting === true,
     };
     req.photo = draft;
   } else {
