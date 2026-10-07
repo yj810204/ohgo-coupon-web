@@ -17,10 +17,13 @@ interface StampCouponSummaryProps {
 const FONT = "var(--font-urbanist), system-ui, sans-serif";
 
 const BOX_STYLE: React.CSSProperties = {
+  // inline 링크는 배경이 줄마다 잘려 왼쪽 조각으로 보인다.
+  display: 'block',
   background: 'rgba(255,255,255,0.18)',
   borderRadius: 12,
   padding: '12px 14px',
   width: '100%',
+  boxSizing: 'border-box',
   border: 'none',
   textAlign: 'left',
   color: '#fff',

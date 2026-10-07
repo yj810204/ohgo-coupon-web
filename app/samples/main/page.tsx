@@ -48,8 +48,8 @@ export default function SampleMainPage() {
           <StampCouponSummary
             stampCount={stampCount}
             couponCount={couponCount}
-            onStampClick={() => router.push('/samples/stamp')}
-            onCouponClick={() => router.push('/samples/coupons')}
+            stampHref="/samples/stamp"
+            couponHref="/samples/coupons"
             onQrScan={() => router.push('/samples/qr-scan')}
           />
         </div>
