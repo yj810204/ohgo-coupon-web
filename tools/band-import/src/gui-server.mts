@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
-import { extname, join, resolve } from 'node:path';
+import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { hasProfile } from './browser.mts';
 import type { FetchOptions, Log } from './commands.mts';
@@ -114,6 +114,13 @@ export function createGuiServer(deps: GuiDeps): { server: Server; token: string;
         const html = readFileSync(deps.htmlPath, 'utf8').replace('__GUI_TOKEN__', token);
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
         return res.end(html);
+      }
+
+      if (req.method === 'GET' && url.pathname === '/favicon.png') {
+        const icon = join(dirname(deps.htmlPath), 'favicon.png');
+        if (!existsSync(icon)) return sendJson(res, 404, { error: '아이콘이 없습니다' });
+        res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'max-age=3600' });
+        return createReadStream(icon).pipe(res);
       }
 
       // 다른 웹페이지가 이 로컬 서버를 호출하지 못하도록 모든 API/파일 요청에 토큰을 요구한다

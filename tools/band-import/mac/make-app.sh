@@ -23,6 +23,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleShortVersionString</key><string>0.1</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleExecutable</key><string>band-import</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSUIElement</key><true/>
 </dict>
 </plist>
@@ -40,6 +41,26 @@ cd "$REPO_DIR" || exit 1
 exec /bin/zsh -lc 'npm run -s band:gui' >>"\$LOG" 2>&1
 LAUNCHER
 chmod +x "$APP/Contents/MacOS/band-import"
+
+# 아이콘: Mac 기본 도구(sips, iconutil)로 AppIcon.png에서 모든 크기를 만들고, 없으면 미리 만든 .icns를 쓴다
+ICON_SRC="$TOOL_DIR/mac/AppIcon.png"
+ICON_OUT="$APP/Contents/Resources/AppIcon.icns"
+if command -v sips >/dev/null && command -v iconutil >/dev/null; then
+  ICONSET="$(mktemp -d)/AppIcon.iconset"
+  mkdir -p "$ICONSET"
+  for size in 16 32 128 256 512; do
+    sips -z "$size" "$size" "$ICON_SRC" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
+    double=$((size * 2))
+    sips -z "$double" "$double" "$ICON_SRC" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
+  done
+  iconutil -c icns "$ICONSET" -o "$ICON_OUT"
+  rm -rf "$(dirname "$ICONSET")"
+else
+  cp "$TOOL_DIR/mac/AppIcon.icns" "$ICON_OUT"
+fi
+
+# Finder가 예전 아이콘을 계속 보여 주지 않도록 번들 수정 시각을 갱신한다
+touch "$APP"
 
 echo "만들었습니다: $APP"
 echo "Finder에서 Applications 폴더로 옮겨 쓰면 됩니다. (저장소 위치: $REPO_DIR)"

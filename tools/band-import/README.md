@@ -51,6 +51,15 @@ npm run band:app
 - 서명되지 않은 앱이라 처음에는 "확인되지 않은 개발자" 경고가 뜹니다. Finder에서 앱을 Control+클릭하고 **열기**를 고르세요.
 - 실행 로그는 `~/Library/Logs/band-import-gui.log`에 쌓입니다.
 
+#### 앱 아이콘
+
+- 아이콘은 오고피씽 앱 로고(`mobile/assets/icon.png`)로 만든 `tools/band-import/mac/AppIcon.png`입니다. `npm run band:app`이 Mac 기본 도구 `sips`, `iconutil`로 모든 크기의 `.icns`를 만들어 앱에 넣습니다. 두 도구를 못 찾으면 미리 만들어 둔 `mac/AppIcon.icns`를 씁니다.
+- 로고를 바꿨으면 `npm run band:icon`으로 `AppIcon.png`, `AppIcon.icns`, GUI 창 아이콘(`gui/favicon.png`)을 다시 만든 뒤 `npm run band:app`을 실행하세요.
+- Finder나 Dock이 예전 아이콘(빈 아이콘)을 계속 보여 줄 수 있습니다. 아이콘 캐시 때문이며, 아래 순서대로 해 보세요.
+  1. `npm run band:app`으로 다시 만든 뒤 응용 프로그램 폴더의 예전 앱을 지우고 새로 옮깁니다.
+  2. 그래도 그대로면 `touch "/Applications/Band 가져오기.app"`을 실행하고 Finder 창을 닫았다 엽니다.
+  3. 마지막으로 `killall Finder; killall Dock`을 실행합니다(Finder와 Dock만 다시 뜹니다).
+
 ## 터미널로 쓰기
 
 ### 1. 로그인 (처음 한 번)

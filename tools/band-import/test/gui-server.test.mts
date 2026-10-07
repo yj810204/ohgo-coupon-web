@@ -87,6 +87,12 @@ try {
   assert.ok(page.text.includes('가져오기'));
   assert.ok(!page.text.includes('\u00b7'), 'UI 문구에 가운뎃점을 쓰지 않는다');
 
+  assert.ok(page.text.includes('<link rel="icon" type="image/png" href="/favicon.png">'));
+  const favicon = await fetch(`${base}/favicon.png`);
+  assert.equal(favicon.status, 200);
+  assert.equal(favicon.headers.get('content-type'), 'image/png');
+  assert.equal(Buffer.from(await favicon.arrayBuffer()).subarray(1, 4).toString('ascii'), 'PNG');
+
   let state = (await call('/api/state')).json;
   assert.equal(state.busy, false);
   assert.equal(state.hasProfile, false);
