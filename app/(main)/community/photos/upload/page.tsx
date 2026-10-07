@@ -12,7 +12,7 @@ import { getPhoto, updatePhoto, uploadPhoto } from '@/utils/community-service';
 import { useImageEditQueue } from '@/hooks/useImageEditQueue';
 import NoticeCheckRow from '@/components/community/NoticeCheckRow';
 import CKEditorComponent from '@/components/CKEditor';
-import { storedRichText, toEditorHtml } from '@/lib/rich-text';
+import { postBodyHtml, storedRichText, toEditorHtml } from '@/lib/rich-text';
 import {
   OHGO_CARD,
   OHGO_CONFIRM_BTN,
@@ -88,7 +88,7 @@ function CommunityPhotoUploadContent() {
             return;
           }
           setTitle(photo.title || '');
-          setDescription(toEditorHtml(photo.description || ''));
+          setDescription(toEditorHtml(postBodyHtml(photo.content, photo.description)));
           setIsNotice(Boolean(photo.isNotice));
           const urls =
             photo.imageUrls && photo.imageUrls.length > 0
@@ -157,6 +157,7 @@ function CommunityPhotoUploadContent() {
         await updatePhoto(editPhotoId, {
           title: title.trim() || '',
           description: storedRichText(description),
+          content: storedRichText(description),
           ...(user.isAdmin ? { isNotice } : {}),
           imageUrls: existingUrls,
           imageFile: files.length > 0 ? files : undefined,

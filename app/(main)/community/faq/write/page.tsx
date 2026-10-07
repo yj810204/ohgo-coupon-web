@@ -17,7 +17,7 @@ import {
 import CategoryChipRow from '@/components/community/CategoryChipRow';
 import NoticeCheckRow from '@/components/community/NoticeCheckRow';
 import CKEditorComponent from '@/components/CKEditor';
-import { isEmptyRichText, storedRichText, toEditorHtml } from '@/lib/rich-text';
+import { isEmptyRichText, postBodyHtml, storedRichText, toEditorHtml } from '@/lib/rich-text';
 import { useImageEditQueue } from '@/hooks/useImageEditQueue';
 import {
   OHGO_CARD,
@@ -86,7 +86,7 @@ function FaqWriteContent() {
             return;
           }
           setTitle(photo.title || '');
-          setDescription(toEditorHtml(photo.description || ''));
+          setDescription(toEditorHtml(postBodyHtml(photo.content, photo.description)));
           setIsNotice(Boolean(photo.isNotice));
           setCategory(activeOrFallback(cats, photo.category));
           const urls =
@@ -163,6 +163,7 @@ function FaqWriteContent() {
         await updatePhoto(editPhotoId, {
           title: title.trim(),
           description: storedRichText(description),
+          content: storedRichText(description),
           category,
           isNotice,
           imageUrls: existingUrls,

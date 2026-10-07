@@ -35,6 +35,16 @@ export function storedRichText(value: string): string {
   return isEmptyRichText(cleaned) ? '' : cleaned.trim();
 }
 
+/**
+ * 상세 화면은 content가 있으면 그 HTML을 보여주고, 없을 때만 description을 보여 준다.
+ * 수정 화면도 같은 글을 열어야 글자색이 빠지지 않는다.
+ */
+export function postBodyHtml(content?: string | null, description?: string | null): string {
+  const rich = content?.trim();
+  if (rich) return rich;
+  return description ?? '';
+}
+
 /** 예전 줄바꿈 글을 에디터에 넣을 때 줄바꿈을 유지한다. */
 export function toEditorHtml(value: string): string {
   const text = value.trim();

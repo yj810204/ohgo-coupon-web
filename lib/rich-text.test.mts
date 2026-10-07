@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { sanitizeRichHtml, storedRichText, toEditorHtml } from './rich-text.ts';
+import { postBodyHtml, sanitizeRichHtml, storedRichText, toEditorHtml } from './rich-text.ts';
 
 const IMPORTED = [
   '<p><span style="background-color:#ff9900;color:#ff3445;font-size:18px;"><i><s><strong><u>모두</u></strong></s></i></span></p>',
@@ -24,5 +24,12 @@ assert.equal(sanitizeRichHtml('<iframe src="https://evil.test"></iframe><p>글</
 assert.equal(storedRichText('<script>alert(1)</script>'), '');
 assert.equal(toEditorHtml('첫째\n\n둘째'), '<p>첫째</p><p>둘째</p>');
 assert.equal(toEditorHtml(IMPORTED), IMPORTED);
+assert.equal(
+  postBodyHtml('<span style="color:#4f77fd"><b>감성돔</b></span>', '감성돔'),
+  '<span style="color:#4f77fd"><b>감성돔</b></span>',
+  '상세에 보이는 서식 본문을 편집기에 연다',
+);
+assert.equal(postBodyHtml('  ', '예전 글'), '예전 글');
+assert.equal(postBodyHtml(null, '예전 글'), '예전 글');
 
 console.log('rich text sanitizer tests passed');
