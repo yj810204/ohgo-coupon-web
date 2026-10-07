@@ -20,6 +20,7 @@ import {
   type BoardingRange,
   type LedgerEntry,
 } from '@/lib/boarding-ledger.shared';
+import KoreanDateField from '@/components/pickers/KoreanDateField';
 import { IoBoatOutline } from 'react-icons/io5';
 import {
   OHGO_CARD,
@@ -157,13 +158,12 @@ function BoardingHistoryPageContent() {
             승선기록 추가
           </div>
           <div className="d-flex gap-2 mb-2">
-            <input
-              type="date"
+            <KoreanDateField
               value={addDate}
               max={getTodayDate()}
-              onChange={(e) => setAddDate(e.target.value)}
+              onChange={setAddDate}
               style={{ ...OHGO_INPUT, flex: 1, minWidth: 0 }}
-              aria-label="승선일"
+              ariaLabel="승선일"
             />
             <select
               value={addTrip}

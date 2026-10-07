@@ -11,6 +11,7 @@ import {
 } from '@/utils/captain-photo-service';
 import PassengerTagModal from '@/components/PassengerTagModal';
 import EmptyState from '@/components/EmptyState';
+import KoreanDateField from '@/components/pickers/KoreanDateField';
 import { OHGO_CARD, OHGO_FONT, OHGO_PRIMARY_BTN } from '@/lib/page-styles';
 import { IoImageOutline, IoPeopleOutline, IoTrashOutline } from 'react-icons/io5';
 import type { RosterItem } from '@/utils/roster-service';
@@ -161,10 +162,10 @@ export default function CaptainPhotoPanel({ captainId }: Props) {
             <label style={{ fontSize: 12, fontWeight: 700, color: '#6F767E', fontFamily: FONT }}>
               출조일
             </label>
-            <input
-              type="date"
+            <KoreanDateField
               value={tripDate}
-              onChange={(e) => setTripDate(e.target.value)}
+              onChange={setTripDate}
+              ariaLabel="출조일"
               className="form-control mt-1"
               style={{ fontFamily: FONT, borderRadius: 10 }}
             />

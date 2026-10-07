@@ -31,6 +31,7 @@ import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
+import KoreanDateField from '@/components/pickers/KoreanDateField';
 import { OHGO_CONFIRM_BTN_CLASS, OHGO_INPUT, OHGO_PRIMARY_BTN, OHGO_SECONDARY_BTN } from '@/lib/page-styles';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
 import { useHolidays } from '@/hooks/useHolidays';
@@ -577,18 +578,18 @@ export default function AdminTripGuidePage() {
                                     >
                                       시작일
                                     </label>
-                                    <input
-                                      type="date"
+                                    <KoreanDateField
                                       value={copyStartDate}
-                                      onChange={e => {
-                                        setCopyStartDate(e.target.value);
-                                        if (copyEndDate && e.target.value > copyEndDate) {
-                                          setCopyEndDate(e.target.value);
+                                      onChange={(next) => {
+                                        setCopyStartDate(next);
+                                        if (copyEndDate && next > copyEndDate) {
+                                          setCopyEndDate(next);
                                         }
                                       }}
                                       className="form-control"
                                       style={{ ...OHGO_INPUT, backgroundColor: '#FFFFFF' }}
                                       disabled={copying}
+                                      ariaLabel="시작일"
                                     />
                                   </div>
                                   <div className="flex-grow-1" style={{ minWidth: 0 }}>
@@ -598,14 +599,14 @@ export default function AdminTripGuidePage() {
                                     >
                                       종료일
                                     </label>
-                                    <input
-                                      type="date"
+                                    <KoreanDateField
                                       value={copyEndDate}
                                       min={copyStartDate || undefined}
-                                      onChange={e => setCopyEndDate(e.target.value)}
+                                      onChange={setCopyEndDate}
                                       className="form-control"
                                       style={{ ...OHGO_INPUT, backgroundColor: '#FFFFFF' }}
                                       disabled={copying}
+                                      ariaLabel="종료일"
                                     />
                                   </div>
                                 </div>

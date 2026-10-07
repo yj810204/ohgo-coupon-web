@@ -14,6 +14,7 @@
     "test:holidays": "node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/kasi-holidays.test.mts",
     "test:boarding-ledger": "node --experimental-strip-types lib/boarding-ledger.test.mts",
     "test:resume-nav": "node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/navigation-guard.test.mts",
+    "test:korean-picker": "node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/korean-picker.test.mts",
     "test:member-purge": "node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/member-purge.shared.test.mts",
     "screenshots": "node scripts/capture-all-screenshots.mjs",
     "screenshots:store": "node scripts/capture-store-screenshots.mjs",

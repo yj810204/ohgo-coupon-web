@@ -14,6 +14,7 @@ import { IoCalendarOutline, IoCheckmarkOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
 import DateRangeCalendar from '@/components/DateRangeCalendar';
+import KoreanDateField from '@/components/pickers/KoreanDateField';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { findCaptains } from '@/utils/find-captains';
 import { getBoardingForm } from '@/utils/boarding-service';
@@ -346,15 +347,16 @@ function TripGuideFormContent() {
           {isEdit ? '날짜' : '날짜 범위'} *
         </label>
         {isEdit ? (
-          <input
-            type="date"
+          <KoreanDateField
             value={form.date}
-            onChange={(e) => {
-              setField('date', e.target.value);
-              setDateEnd(e.target.value);
+            onChange={(next) => {
+              setField('date', next);
+              setDateEnd(next);
             }}
             className="form-control"
             style={OHGO_INPUT}
+            ariaLabel="날짜"
+            required
           />
         ) : (
           <>
