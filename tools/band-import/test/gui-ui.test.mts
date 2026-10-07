@@ -22,9 +22,10 @@ const prep: PrepareResult = {
   title: '감성돔 조황',
   refDate: '2026-10-06',
   classification: { kind: 'catch', scores: { catch: 9, schedule: 0 }, reasons: ['제목에 조황'] },
-  photo: { title: '감성돔 조황', description: '손맛 보셨습니다', photoDate: '2026-10-06', images: FILES },
+  photo: { title: '감성돔 조황', description: '4짜 대박\n#낫개', photoDate: '2026-10-06', images: FILES, useFormatting: true },
   photoWarnings: [],
   photoEdits: {},
+  photoFormatted: { html: '<span style="color:#ff3445">4짜</span> <b>대박</b><br>#낫개', text: '4짜 대박\n#낫개' },
   trip: { rows: [], destination: '', capacity: null, contact: '' },
   tripSource: 'single',
   tripMissing: [],
@@ -167,9 +168,30 @@ try {
   assert.ok(Math.abs(dragged.x + dragged.w - 1) < 1e-6 && dragged.y < 1e-6, `오른쪽 끝까지 옮김 ${JSON.stringify(dragged)}`);
   assert.deepEqual(await shown(), ['04.jpg:1', '02.jpg:2', '03.png:뺌', '01.jpg:3'], '편집해도 순서와 뺀 사진은 그대로');
 
+  // 본문 서식: 미리보기를 그리고 기본으로 켠다. 내용을 고치면 꺼진다
+  type Payload = { photo: { useFormatting: boolean; description: string } };
+  const payload = () => page.evaluate(() => (window as unknown as { pushPayload: () => Payload }).pushPayload());
+  assert.equal(await page.locator('#fmtBox').isVisible(), true);
+  assert.equal(await page.locator('#fmtPreview span').getAttribute('style'), 'color:#ff3445');
+  assert.equal(await page.locator('#fmtPreview b').textContent(), '대박');
+  assert.equal(await page.locator('#pFormat').isChecked(), true);
+  assert.equal((await payload()).photo.useFormatting, true);
+  await page.locator('#pDesc').fill('4짜 대박\n#낫개\n고침');
+  assert.equal(await page.locator('#pFormat').isChecked(), false, '내용을 고치면 서식을 끈다');
+  assert.match(await page.locator('#fmtNote').textContent() ?? '', /서식 없이 고친 내용으로 올립니다/);
+  assert.equal(await page.locator('#fmtPreview').isVisible(), false);
+  assert.deepEqual((await payload()).photo, { ...(await payload()).photo, useFormatting: false, description: '4짜 대박\n#낫개\n고침' });
+  await page.locator('#pFormat').check();
+  assert.match(await page.locator('#fmtNote').textContent() ?? '', /고친 내용이 아니라 아래 미리보기가 보입니다/);
+  await page.locator('#pDesc').fill('4짜 대박\n#낫개');
+  await page.locator('#pFormat').uncheck();
+  await page.locator('#pFormat').check();
+  assert.equal(await page.locator('#fmtNote').textContent(), '');
+
   await page.locator('#pushBtn').click();
   await page.locator('#pushResult:not(.hidden)').waitFor();
   assert.deepEqual(pushes[0].photo!.images, ['04.jpg', '02.jpg', '01.jpg'], '보이는 순서대로, 뺀 사진 없이 보낸다');
+  assert.equal(pushes[0].photo!.useFormatting, true);
   assert.deepEqual(errors, []);
 } finally {
   await browser.close();

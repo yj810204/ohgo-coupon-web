@@ -282,7 +282,7 @@ try {
   assert.equal(st2.job.status, 'done');
   assert.deepEqual(st2.job.result.links, ['https://ohgo.test/community/r1']);
   assert.deepEqual(st2.job.logs, ['사진 올리는 중 1/1']);
-  assert.deepEqual(pushes[0], { postId: '2925', kind: 'catch', force: false, photo: { title: 't', description: 'd', photoDate: null, images: ['01.jpg'] } });
+  assert.deepEqual(pushes[0], { postId: '2925', kind: 'catch', force: false, photo: { title: 't', description: 'd', photoDate: null, images: ['01.jpg'], useFormatting: false } });
 
   assert.equal((await call2('/api/ohgo/open-link', { url: 'https://ohgo.test/community/r1' })).status, 200);
   assert.equal((await call2('/api/ohgo/open-link', { url: 'file:///etc/passwd' })).status, 400, '오고피씽 주소만 연다');
@@ -328,5 +328,11 @@ assert.equal(toPushRequest({ postId: '1', kind: 'schedule', trip: { rows: Array.
 assert.deepEqual(toPushRequest({ postId: '1', kind: 'schedule', trip: { rows: 'x' } }).trip!.rows, []);
 assert.ok(Number.isNaN(toPushRequest({ postId: '1', kind: 'schedule', trip: { capacity: '열명' } }).trip!.capacity), '숫자가 아니면 검사에서 걸린다');
 assert.throws(() => toPushRequest({ postId: '1' }), /등록 종류/);
+assert.deepEqual(
+  toPushRequest({ postId: '1', kind: 'catch', photo: { title: 't', images: ['01.jpg'], useFormatting: true, content: '<img src=x onerror=alert(1)>' } }).photo,
+  { title: 't', description: '', photoDate: null, images: ['01.jpg'], useFormatting: true },
+  '화면에서 온 HTML은 받지 않는다',
+);
+assert.equal(toPushRequest({ postId: '1', kind: 'catch', photo: { useFormatting: 'yes' } }).photo!.useFormatting, false);
 
 console.log('band-import gui-server tests passed');

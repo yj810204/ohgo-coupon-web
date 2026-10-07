@@ -281,6 +281,7 @@ export function toPushRequest(body: Record<string, unknown>): PushRequest {
       description: str(photo.description),
       photoDate: str(photo.photoDate) || null,
       images: Array.isArray(photo.images) ? photo.images.map(str) : [],
+      useFormatting: photo.useFormatting === true,
     };
     req.photo = draft;
   } else {

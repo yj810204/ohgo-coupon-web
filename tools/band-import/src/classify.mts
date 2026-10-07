@@ -79,6 +79,8 @@ export type PhotoDraft = {
   photoDate: string | null;
   /** out/{postId}/ 안의 파일 이름 */
   images: string[];
+  /** Band 본문의 글자색, 굵게를 살려 content(HTML)에도 넣는다 */
+  useFormatting?: boolean;
 };
 
 /**

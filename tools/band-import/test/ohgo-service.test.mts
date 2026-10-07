@@ -6,7 +6,7 @@ import { buildExtracted } from '../src/extracted.mts';
 import { createBrowserReencoder, MAX_UPLOAD_BYTES, prepareImage } from '../src/image-prep.mts';
 import { LEDGER_FILE, readLedger } from '../src/ledger.mts';
 import { OHGO_SESSION_FILE, readOhgoSession, saveOhgoSession } from '../src/ohgo-auth.mts';
-import { imageFileName, normalizeDomSnapshot } from '../src/normalize.mts';
+import { imageFileName, normalizeApiPost, normalizeDomSnapshot } from '../src/normalize.mts';
 import { newPhotoObjectPath, publicPhotoUrl } from '../src/ohgo-client.mts';
 import { findSupabaseConfigInText, resolveOhgoConfig } from '../src/ohgo-config.mts';
 import { createOhgoService, OhgoRequestRejected } from '../src/ohgo-service.mts';
@@ -364,7 +364,7 @@ assert.equal(photoRow.title, '오늘 참돔 조황입니다');
 assert.equal(photoRow.description, '손님들 손맛 보셨습니다');
 assert.equal(photoRow.comment_count, 0);
 assert.ok(!('photo_date' in photoRow), '없는 칸(photo_date)은 빼고 다시 저장');
-assert.ok(!('content' in photoRow), 'content는 HTML로 그려지므로 쓰지 않는다');
+assert.ok(!('content' in photoRow), '서식을 살리지 않으면 content를 쓰지 않는다');
 const urls = photoRow.image_urls as string[];
 assert.equal(urls.length, 2);
 const keys = [...storage.keys()];
@@ -454,6 +454,40 @@ assert.equal(rows.community_photos.length, 1);
   await service.editImage('2925', '03.jpg', { rotate: 180, flipH: false, crop: null });
   assert.deepEqual(await service.editImage('2925', '03.jpg', { rotate: 0, flipH: false, crop: null }), {});
   assert.equal(existsSync(join(outRoot, '2925', 'edited_03.jpg')), false);
+}
+
+// Band 본문 서식(글자색, 굵게): 켜면 content에 안전한 HTML, description은 평문 그대로
+{
+  const ref = parseBandPostUrl('https://band.us/band/88348442/post/2940');
+  const content = '오늘 감성돔 조황입니다\n<band:color value="color02">4짜</band:color> <b>대박</b> <i>났어요</i>\n<band:attachment type="photo" id="P1" />\n<band:hashtag id="1">#낫개</band:hashtag>';
+  const post = normalizeApiPost({ post_no: 2940, content, attachment: {} });
+  const extracted = buildExtracted({ ref, via: 'api', post, images: [{ index: 0, sourceUrl: 'https://x/01.jpg', file: '01.jpg', width: 1, height: 1 }], fetchedAt: new Date('2026-10-07T00:00:00.000Z') });
+  mkdirSync(join(outRoot, '2940'), { recursive: true });
+  writeFileSync(join(outRoot, '2940', 'extracted.json'), JSON.stringify(extracted));
+  writeFileSync(join(outRoot, '2940', '01.jpg'), 'img-01.jpg');
+  const p = await service.prepare('2940');
+  const HTML = '<span style="color:#ff3445">4짜</span> <b>대박</b> 났어요<br>#낫개';
+  assert.equal(p.photo.useFormatting, true, '서식이 있으면 기본으로 켠다');
+  assert.equal(p.photoFormatted.html, HTML);
+  assert.equal(p.photo.description, '4짜 대박 났어요\n\n#낫개');
+
+  // 화면이 HTML을 보내도 쓰지 않고 extracted.json에서 다시 만든다
+  const formattedLogs: string[] = [];
+  const withHtml = { ...p.photo, content: '<img src=x onerror=alert(1)>' } as typeof p.photo;
+  await service.push({ postId: '2940', kind: 'catch', photo: withHtml }, (m) => formattedLogs.push(m));
+  const row = rows.community_photos.at(-1)!;
+  assert.equal(row.content, HTML);
+  assert.equal(row.description, '4짜 대박 났어요\n\n#낫개', 'description은 평문');
+  assert.ok(formattedLogs.some((l) => l.includes('글자색과 굵게를 살려')));
+  rows.community_photos.pop();
+
+  await service.push({ postId: '2940', kind: 'catch', force: true, photo: { ...p.photo, useFormatting: false } }, () => {});
+  assert.ok(!('content' in rows.community_photos.at(-1)!), '끄면 서식 없이');
+  rows.community_photos.pop();
+
+  // 예전에 가져온 결과(rawContent 없음)는 서식 없이
+  assert.equal(prepDom.photo.useFormatting, false);
+  assert.equal(prepDom.photoFormatted.html, null);
 }
 
 // ---------- 일정 등록 ----------

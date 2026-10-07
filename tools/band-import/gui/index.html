@@ -108,6 +108,12 @@
   .tools button { padding: 6px 10px; font-size: 13px; }
   .tools button.on { border-color: var(--accent); background: var(--accent-weak); color: var(--accent); font-weight: 600; }
   .grow { flex: 1; }
+  .fmtpreview {
+    margin-top: 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff;
+    font-size: 14px; line-height: 1.6; color: #1a1d1f; max-height: 220px; overflow: auto; word-break: keep-all; overflow-wrap: break-word;
+  }
+  #fmtNote:empty { display: none; }
+  #fmtWrap > span { font-size: 12px; color: var(--muted); }
   .actions { margin-top: 12px; }
   .fields.three { grid-template-columns: 1.2fr .8fr 1fr; }
   .tripwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
@@ -208,6 +214,14 @@
         <div class="fields">
           <label class="field wide"><span>제목</span><input id="pTitle" maxlength="100"></label>
           <label class="field wide"><span>내용</span><textarea id="pDesc" rows="6"></textarea></label>
+          <div id="fmtBox" class="field wide hidden">
+            <label class="opt" style="margin:0"><input id="pFormat" type="checkbox"> Band 본문의 글자색과 굵게 살리기</label>
+            <div id="fmtNote" class="warn"></div>
+            <div id="fmtWrap">
+              <span>앱에 보일 내용 미리보기</span>
+              <div id="fmtPreview" class="fmtpreview"></div>
+            </div>
+          </div>
           <label class="field"><span>사진 날짜</span><input id="pDate" type="date"></label>
           <div class="field"><span>사진</span><div id="pCount" style="padding-top:8px"></div></div>
         </div>
@@ -435,6 +449,12 @@
     $('pDate').value = p.photo.photoDate || '';
     picked = new Set(p.photo.images);
     photoOrder = [...p.photo.images];
+    const fmt = p.photoFormatted && p.photoFormatted.html;
+    show('fmtBox', !!fmt);
+    $('fmtPreview').innerHTML = fmt || '';
+    $('pFormat').checked = !!fmt && p.photo.useFormatting !== false;
+    $('fmtNote').textContent = '';
+    updateFormatting();
     renderThumbs();
     const n = p.photo.images.length;
     $('kindCatchCount').textContent = ` (사진 ${n}장)`;
@@ -713,6 +733,7 @@
       return { ...base, photo: {
         title: $('pTitle').value, description: $('pDesc').value, photoDate: $('pDate').value || null,
         images: uploadOrder(),
+        useFormatting: formattingOn(),
       } };
     }
     return { ...base, trip: {
@@ -938,6 +959,35 @@
   }
   $('edSave').addEventListener('click', () => saveEdit('/api/ohgo/edit', { edit: currentEdit() }));
   $('edRevert').addEventListener('click', () => saveEdit('/api/ohgo/revert', {}));
+
+  // ---------- 본문 서식 ----------
+  // 서식을 살리면 앱은 content(미리보기)를 보여 주고 내용 칸(description)은 보이지 않는다
+  function formattingOn() {
+    return !!(prep && prep.photoFormatted && prep.photoFormatted.html) && $('pFormat').checked;
+  }
+
+  function descChanged() {
+    return !!prep && $('pDesc').value !== prep.photo.description;
+  }
+
+  function updateFormatting() {
+    show('fmtWrap', formattingOn());
+    if (formattingOn() && descChanged()) {
+      $('fmtNote').textContent = '내용 칸을 고쳤습니다. 서식을 살리면 앱에는 고친 내용이 아니라 아래 미리보기가 보입니다.';
+    }
+  }
+
+  $('pDesc').addEventListener('input', () => {
+    if (formattingOn() && descChanged()) {
+      $('pFormat').checked = false;
+      $('fmtNote').textContent = '내용을 고쳐서 서식 없이 고친 내용으로 올립니다. 서식을 살리려면 다시 체크하세요.';
+    }
+    updateFormatting();
+  });
+  $('pFormat').addEventListener('change', () => {
+    $('fmtNote').textContent = '';
+    updateFormatting();
+  });
 
   document.querySelectorAll('input[name=kind]').forEach((el) => el.addEventListener('change', () => setKind(el.value)));
   ['tDest', 'pTitle'].forEach((id) => $(id).addEventListener('input', () => { markMissing(); updatePushButton(); }));

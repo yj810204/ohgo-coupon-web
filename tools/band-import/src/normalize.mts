@@ -1,3 +1,4 @@
+import type { RawContent } from './rich-text.mts';
 import type { ExtractedSchedule } from './schema.mts';
 
 type Json = unknown;
@@ -157,6 +158,8 @@ export type NormalizedPost = {
   body: string;
   images: RawImage[];
   schedules: ExtractedSchedule[];
+  /** 글자색, 굵게가 남아 있는 원래 본문 */
+  rawContent?: RawContent | null;
 };
 
 function listOf(v: unknown): unknown[] {
@@ -252,6 +255,7 @@ export function normalizeApiPost(post: Rec): NormalizedPost {
     body: bandContentToText(content),
     images,
     schedules,
+    rawContent: content ? { format: 'band', html: content } : null,
   };
 }
 
@@ -270,6 +274,8 @@ export type DomSnapshot = {
   author: string | null;
   createdText: string | null;
   bodyText: string;
+  /** 본문 요소의 innerHTML (글자색, 굵게) */
+  bodyHtml?: string | null;
   imageUrls: string[];
 };
 
@@ -281,6 +287,7 @@ export function normalizeDomSnapshot(snap: DomSnapshot): NormalizedPost {
     body: snap.bodyText.replace(/\n{3,}/g, '\n\n').trim(),
     images: urls.map((url) => ({ url, width: null, height: null })),
     schedules: [],
+    rawContent: snap.bodyHtml ? { format: 'dom', html: snap.bodyHtml } : null,
   };
 }
 

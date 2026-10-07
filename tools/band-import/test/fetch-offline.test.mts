@@ -36,7 +36,7 @@ function pageHtml({ api, dom }: Scenario): string {
   const domMarkup = dom
     ? `<div class="postWrap -postDetailPage"><div class="postMain">
          <div class="postWriterInfoWrap"><strong class="text">DOM 작성자</strong><time class="time">10월 6일</time></div>
-         <div class="postBody"><div class="dPostTextView"><div class="postText"><p class="txtBody">DOM 제목<br>11/3 05:00 출항</p></div></div>
+         <div class="postBody"><div class="dPostTextView"><div class="postText"><p class="txtBody">DOM 제목<br><span style="color:#ff3692">11/3</span> <b>05:00</b> 출항</p></div></div>
            <button class="collageImage"><img class="_image" src="https://coresos-phinf.pstatic.net/a/dom/1.jpg?type=w720"></button>
          </div></div></div>`
     : '';
@@ -145,6 +145,7 @@ await withScenario({ loggedIn: true, restore: true, api: true, dom: true }, asyn
   const onDisk = JSON.parse(readFileSync(join(outDir, 'extracted.json'), 'utf8'));
   assert.deepEqual(validateExtracted(onDisk), []);
   assert.deepEqual(onDisk, extracted);
+  assert.equal(extracted.rawContent?.format, 'band', 'API 본문은 Band 마크업 그대로');
 });
 
 await withScenario({ loggedIn: true, restore: true, api: false, dom: true }, async (context, outRoot) => {
@@ -157,6 +158,7 @@ await withScenario({ loggedIn: true, restore: true, api: false, dom: true }, asy
     { index: 0, sourceUrl: 'https://coresos-phinf.pstatic.net/a/dom/1.jpg', file: '01.png', width: null, height: null },
   ]);
   assert.ok(!existsSync(join(outDir, 'api-post.json')));
+  assert.deepEqual(extracted.rawContent, { format: 'dom', html: 'DOM 제목<br><span style="color:#ff3692">11/3</span> <b>05:00</b> 출항' }, '화면 본문의 서식도 남긴다');
   assert.equal(extracted.warnings.length, 1);
 });
 

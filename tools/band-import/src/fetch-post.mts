@@ -94,6 +94,7 @@ function readPostDom(): DomSnapshot | null {
     author,
     createdText,
     bodyText: (bodyEl as HTMLElement).innerText ?? bodyEl.textContent ?? '',
+    bodyHtml: bodyEl.innerHTML.length <= 512 * 1024 ? bodyEl.innerHTML : null,
     imageUrls,
   };
 }

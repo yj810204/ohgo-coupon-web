@@ -12,6 +12,8 @@ import type { OhgoCredentials } from './ohgo-auth.mts';
 import { clearOhgoSession, ensureFreshSession, loginOhgo, OhgoAuthError, readOhgoSession, saveOhgoSession } from './ohgo-auth.mts';
 import { newPhotoObjectPath, OhgoClient } from './ohgo-client.mts';
 import { resolvePostImages } from './post-images.mts';
+import { formattedBody } from './rich-text.mts';
+import type { FormattedBody } from './rich-text.mts';
 import type { Fetch, OhgoConfig } from './ohgo-config.mts';
 import { projectRefFromUrl, resolveOhgoConfig } from './ohgo-config.mts';
 import type { ExtractedPost } from './schema.mts';
@@ -41,6 +43,8 @@ export type PrepareResult = {
   photoWarnings: string[];
   /** 원본 파일 이름 → 편집본. 등록하면 편집본을 올린다 */
   photoEdits: EditMap;
+  /** Band 본문 서식을 살린 내용. html이 null이면 살릴 서식이 없다 */
+  photoFormatted: FormattedBody;
   trip: TripDraft;
   tripSource: 'weekly' | 'single';
   tripMissing: string[];
@@ -114,6 +118,11 @@ function loadExtracted(outRoot: string, postId: string): ExtractedPost {
   const errors = validateExtracted(post);
   if (errors.length) throw new OhgoRequestRejected(`extracted.json 형식 오류: ${errors.slice(0, 3).join(', ')}`);
   return post as ExtractedPost;
+}
+
+/** 제목으로 뺀 첫 줄을 description과 같은 기준으로 뺀 서식 본문 */
+function postFormatted(post: ExtractedPost, title: string): FormattedBody {
+  return formattedBody(post.rawContent, [post.title, title]);
 }
 
 function tripTitle(draft: TripDraft): string {
@@ -213,6 +222,14 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
         board_type: 'photo',
       };
       if (draft.photoDate) row.photo_date = draft.photoDate;
+      if (draft.useFormatting) {
+        // 화면에서 온 HTML은 받지 않고 extracted.json에서 다시 만든다
+        const html = postFormatted(post, buildPhotoDraft(post).title).html;
+        if (html) {
+          row.content = html;
+          log('Band 본문의 글자색과 굵게를 살려 올립니다');
+        }
+      }
       log('조황 게시판에 글을 저장하는 중');
       const id = await client.insert('community_photos', row, ['uploaded_by_name', 'photo_date', 'board_type']);
       return { rowIds: [id], links: [`${cfg.baseUrl}/community/${id}`], resized };
@@ -318,6 +335,8 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
       const photoEdits = Object.fromEntries(Object.entries(allEdits).filter(([f]) => images.files.includes(f) && uploadFileFor(outDir, f, allEdits) !== f));
       const classification = classifyPost(post, images.files.length);
       const photo = buildPhotoDraft(post, images.files);
+      const photoFormatted = postFormatted(post, photo.title);
+      photo.useFormatting = photoFormatted.html !== null;
       const trip = parseTripGuide(post, known);
 
       const tripDuplicates: Record<string, string[]> = {};
@@ -358,6 +377,7 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
         photo,
         photoWarnings: images.warnings,
         photoEdits,
+        photoFormatted,
         trip: trip.draft,
         tripSource: trip.source,
         tripMissing: trip.missing,
