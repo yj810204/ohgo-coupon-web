@@ -5,7 +5,7 @@ import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
 import { IoImageOutline, IoBoatOutline, IoHelpCircleOutline, IoBookOutline, IoChevronForwardOutline, IoWaterOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
-import { useNavigation } from '@/hooks/useNavigation';
+import AppLink from '@/components/AppLink';
 import { countPhotos } from '@/utils/community-service';
 import { OHGO_CARD, OHGO_LIST, OHGO_LIST_DIVIDER } from '@/lib/page-styles';
 
@@ -61,7 +61,6 @@ const subMenuItems = [
 
 export default function CommunityPage() {
   const router = useRouter();
-  const { navigate } = useNavigation();
   const [counts, setCounts] = useState<Partial<Record<string, number>>>({});
 
   useEffect(() => {
@@ -98,7 +97,7 @@ export default function CommunityPage() {
         {subMenuItems.map(({ id, label, desc, path, icon: Icon, color, bg }, idx) => (
           <div key={id}>
             {idx > 0 && <div style={OHGO_LIST_DIVIDER} />}
-            <button type="button" onClick={() => navigate(path)} className="btn ohgo-menu-list-row">
+            <AppLink href={path} className="btn ohgo-menu-list-row" style={{ textDecoration: 'none', color: 'inherit' }}>
               <div className="ohgo-menu-list-row__icon" style={{ backgroundColor: bg }}>
                 <Icon size={OHGO_LIST.iconGlyph} color={color} />
               </div>
@@ -112,7 +111,7 @@ export default function CommunityPage() {
                 size={OHGO_LIST.chevronSize}
                 color={OHGO_LIST.chevronColor}
               />
-            </button>
+            </AppLink>
           </div>
         ))}
       </div>

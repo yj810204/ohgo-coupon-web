@@ -14,6 +14,7 @@ import { estimateDayTideFlow, tideFlowFeel } from '@/lib/tide-fish-recommend';
 import { getSiteSettings } from '@/utils/site-settings-service';
 import { tripDateToStr } from '@/utils/trip-guide-service';
 import DayAxisScroller from '@/components/trip/DayAxisScroller';
+import AppLink from '@/components/AppLink';
 
 const FONT = 'var(--font-ohgo), sans-serif';
 
@@ -60,6 +61,7 @@ type Props = {
   date: string;
   tideRegionId?: string;
   onViewAll?: () => void;
+  viewAllHref?: string;
   showViewAll?: boolean;
   /** 그래프를 좌우로 밀면 가운데 날짜를 올린다. */
   onActiveDate?: (date: string) => void;
@@ -388,6 +390,7 @@ export default function TripTidePanel({
   date,
   tideRegionId,
   onViewAll,
+  viewAllHref,
   showViewAll,
   onActiveDate,
   variant = 'section',
@@ -575,22 +578,39 @@ export default function TripTidePanel({
         <span style={{ fontSize: 17, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
           {title}
         </span>
-        {onViewAll || showViewAll ? (
-          <button
-            type="button"
-            onClick={onViewAll}
-            className="btn p-0 d-flex align-items-center gap-1 flex-shrink-0"
-            style={{
-              border: 'none',
-              background: 'none',
-              color: '#1B6FF5',
-              fontSize: 13,
-              fontFamily: FONT,
-              fontWeight: 600,
-            }}
-          >
-            더보기 <IoChevronForwardOutline size={14} />
-          </button>
+        {onViewAll || viewAllHref || showViewAll ? (
+          viewAllHref ? (
+            <AppLink
+              href={viewAllHref}
+              className="btn p-0 d-flex align-items-center gap-1 flex-shrink-0"
+              style={{
+                border: 'none',
+                background: 'none',
+                color: '#1B6FF5',
+                fontSize: 13,
+                fontFamily: FONT,
+                fontWeight: 600,
+              }}
+            >
+              더보기 <IoChevronForwardOutline size={14} />
+            </AppLink>
+          ) : (
+            <button
+              type="button"
+              onClick={onViewAll}
+              className="btn p-0 d-flex align-items-center gap-1 flex-shrink-0"
+              style={{
+                border: 'none',
+                background: 'none',
+                color: '#1B6FF5',
+                fontSize: 13,
+                fontFamily: FONT,
+                fontWeight: 600,
+              }}
+            >
+              더보기 <IoChevronForwardOutline size={14} />
+            </button>
+          )
         ) : null}
       </div>
       {card}

@@ -1,16 +1,19 @@
 'use client';
 
+import { NavSurface } from '@/components/AppLink';
+
 interface FeaturedCardProps {
   title: string;
   imageUrl?: string;
   badge?: string;
+  href?: string;
   onClick?: () => void;
 }
 
-export default function FeaturedCard({ title, imageUrl, badge, onClick }: FeaturedCardProps) {
+export default function FeaturedCard({ title, imageUrl, badge, href, onClick }: FeaturedCardProps) {
   return (
-    <button
-      type="button"
+    <NavSurface
+      href={href}
       onClick={onClick}
       className="btn p-0 border-0 bg-white flex-shrink-0 text-start overflow-hidden"
       style={{
@@ -58,6 +61,6 @@ export default function FeaturedCard({ title, imageUrl, badge, onClick }: Featur
           {title}
         </div>
       </div>
-    </button>
+    </NavSurface>
   );
 }

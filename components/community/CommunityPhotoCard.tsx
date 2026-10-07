@@ -5,6 +5,7 @@ import { IoChatbubblesOutline } from 'react-icons/io5';
 import { COMMUNITY_POST_DELETED_MESSAGE } from '@/utils/community-service';
 import { supabaseListImageUrl } from '@/lib/supabase-image';
 import BlurFillImage from '@/components/BlurFillImage';
+import { NavSurface } from '@/components/AppLink';
 
 const FONT = "var(--font-ohgo), sans-serif";
 
@@ -16,6 +17,7 @@ type CommunityPhotoCardProps = {
   commentCount?: number;
   isDeleted?: boolean;
   isNotice?: boolean;
+  href?: string;
   onClick?: () => void;
 };
 
@@ -27,6 +29,7 @@ export default function CommunityPhotoCard({
   commentCount = 0,
   isDeleted = false,
   isNotice = false,
+  href,
   onClick,
 }: CommunityPhotoCardProps) {
   const meta = [author, date].filter(Boolean).join(' · ');
@@ -34,8 +37,8 @@ export default function CommunityPhotoCard({
   const [imgSrc, setImgSrc] = useState(thumbUrl || imageUrl);
 
   return (
-    <button
-      type="button"
+    <NavSurface
+      href={href}
       onClick={onClick}
       className="btn w-100 p-0 text-start border-0 bg-white overflow-hidden"
       style={{
@@ -129,6 +132,6 @@ export default function CommunityPhotoCard({
           ) : null}
         </div>
       </div>
-    </button>
+    </NavSurface>
   );
 }

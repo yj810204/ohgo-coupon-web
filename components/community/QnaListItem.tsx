@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { IoChatbubbleEllipsesOutline, IoCheckmarkCircle } from 'react-icons/io5';
 import { supabaseListImageUrl } from '@/lib/supabase-image';
 import { OHGO_CARD, OHGO_FONT } from '@/lib/page-styles';
+import { NavSurface } from '@/components/AppLink';
 
 type QnaListItemProps = {
   title: string;
@@ -19,6 +20,7 @@ type QnaListItemProps = {
   categoryLabel?: string;
   notice?: boolean;
   compact?: boolean;
+  href?: string;
   onClick?: () => void;
 };
 
@@ -36,6 +38,7 @@ export default function QnaListItem({
   categoryLabel,
   notice = false,
   compact = false,
+  href,
   onClick,
 }: QnaListItemProps) {
   const showExcerpt = !compact && Boolean(excerpt && excerpt.trim().length >= 8 && !isDeleted);
@@ -54,8 +57,8 @@ export default function QnaListItem({
 
   if (compact) {
     return (
-      <button
-        type="button"
+      <NavSurface
+        href={href}
         onClick={onClick}
         className="w-100 text-start border-0"
         style={{
@@ -125,13 +128,13 @@ export default function QnaListItem({
         >
           {[date, author].filter(Boolean).join(' ')}
         </span>
-      </button>
+      </NavSurface>
     );
   }
 
   return (
-    <button
-      type="button"
+    <NavSurface
+      href={href}
       onClick={onClick}
       className="btn w-100 p-0 text-start border-0 overflow-hidden"
       style={{
@@ -273,6 +276,6 @@ export default function QnaListItem({
           </span>
         </div>
       </div>
-    </button>
+    </NavSurface>
   );
 }

@@ -248,7 +248,7 @@ export default function MainPage() {
           <AvatarHeader
             userName={user.name || '회원'}
             avatarUrl={avatarUrl}
-            onMyPage={() => navigate('/my-page')}
+            myPageHref="/my-page"
           />
         </div>
       </div>
@@ -269,8 +269,8 @@ export default function MainPage() {
                 <StampCouponSummary
                   stampCount={stampCount}
                   couponCount={couponCount}
-                  onStampClick={() => navigate(`/stamp?${query}`)}
-                  onCouponClick={() => navigate(`/coupons?${query}`)}
+                  stampHref={`/stamp?${query}`}
+                  couponHref={`/coupons?${query}`}
                   onQrScan={async () => {
                     if (!user?.uuid) return false;
                     const gate = await confirmBoardingForStampScan(user.uuid);
@@ -288,7 +288,7 @@ export default function MainPage() {
             return (
               <WeeklyTripSummary
                 key={sectionId}
-                onViewAll={() => navigate('/community/trip-guide')}
+                viewAllHref="/community/trip-guide"
                 trips={weekTrips}
                 isLoading={weekTripsLoading}
               />
@@ -301,7 +301,7 @@ export default function MainPage() {
                 key={sectionId}
                 date={chartDate}
                 onActiveDate={setChartDate}
-                onViewAll={() => navigate('/tide')}
+                viewAllHref="/tide"
               />
             );
           }
@@ -309,7 +309,7 @@ export default function MainPage() {
           if (sectionId === 'wind' && homeSections.wind) {
             return (
               <section key={sectionId} style={{ marginBottom: 30 }}>
-                <SectionHeader title="바람" onViewAll={() => navigate('/tide')} />
+                <SectionHeader title="바람" viewAllHref="/tide" />
                 <WindWeatherCard date={chartDate} onActiveDate={setChartDate} spaced={false} />
               </section>
             );
@@ -320,7 +320,7 @@ export default function MainPage() {
               <section key={sectionId} style={{ marginBottom: 30 }}>
                 <SectionHeader
                   title="내 조황 사진"
-                  onViewAll={() => navigate('/my-photos')}
+                  viewAllHref="/my-photos"
                 />
                 <div className="row g-3">
                   {myCaptainPhotos.slice(0, 4).map((photo) => (
@@ -329,7 +329,7 @@ export default function MainPage() {
                         title={photo.tripDate}
                         subtitle={photo.species || '조황 사진'}
                         imageUrl={photo.imageUrls[0]}
-                        onClick={() => navigate('/my-photos')}
+                        href="/my-photos"
                       />
                     </div>
                   ))}
@@ -344,7 +344,7 @@ export default function MainPage() {
                 <section style={{ marginBottom: 30 }}>
                   <SectionHeader
                     title="조황 사진"
-                    onViewAll={() => navigate('/community/photos')}
+                    viewAllHref="/community/photos"
                   />
                   <div className="row g-3">
                     {isPhotoDummy
@@ -362,7 +362,7 @@ export default function MainPage() {
                               date={formatPhotoCardDate(photo.uploadedAt)}
                               commentCount={photo.commentCount}
                               isDeleted={photo.isDeleted}
-                              onClick={() => navigate(`/community/${photo.photoId}`)}
+                              href={`/community/${photo.photoId}`}
                             />
                           </div>
                         ))}
@@ -372,7 +372,7 @@ export default function MainPage() {
                 <section style={{ marginBottom: 30 }}>
                   <SectionHeader
                     title="낚시 팁 · FAQ"
-                    onViewAll={() => navigate('/community/faq')}
+                    viewAllHref="/community/faq"
                   />
                   {faqPosts.length === 0 ? (
                     <EmptyState
@@ -401,7 +401,7 @@ export default function MainPage() {
                             commentCount={post.commentCount}
                             isDeleted={post.isDeleted}
                             notice={Boolean(post.isNotice)}
-                            onClick={() => navigate(`/community/${post.photoId}`)}
+                            href={`/community/${post.photoId}`}
                           />
                         </div>
                       ))}
@@ -412,7 +412,7 @@ export default function MainPage() {
                 <section style={{ marginBottom: 30 }}>
                   <SectionHeader
                     title="낚시 Q&A"
-                    onViewAll={() => navigate('/community/qna')}
+                    viewAllHref="/community/qna"
                   />
                   {qnaPosts.length === 0 ? (
                     <EmptyState
@@ -442,7 +442,7 @@ export default function MainPage() {
                             commentCount={post.commentCount}
                             isDeleted={post.isDeleted}
                             notice={Boolean(post.isNotice)}
-                            onClick={() => navigate(`/community/${post.photoId}`)}
+                            href={`/community/${post.photoId}`}
                           />
                         </div>
                       ))}
@@ -456,7 +456,7 @@ export default function MainPage() {
           if (sectionId === 'miniGames' && homeSections.miniGames) {
             return (
               <section key={sectionId} style={{ marginBottom: 30 }}>
-                <SectionHeader title="미니게임" onViewAll={() => navigate('/mini-games')} />
+                <SectionHeader title="미니게임" viewAllHref="/mini-games" />
                 {games.length === 0 ? (
                   <EmptyState
                     icon={IoGameControllerOutline}
@@ -475,7 +475,7 @@ export default function MainPage() {
                         title={game.game_name}
                         imageUrl={gameImage(game)}
                         badge={i === 0 ? '인기' : undefined}
-                        onClick={() => navigate('/mini-games')}
+                        href="/mini-games"
                       />
                     ))}
                   </HorizontalScroll>
@@ -489,7 +489,7 @@ export default function MainPage() {
               <section key={sectionId} style={{ marginBottom: 30 }}>
                 <SectionHeader
                   title="중고장터"
-                  onViewAll={() => navigate('/market')}
+                  viewAllHref="/market"
                 />
                 {marketListings.length === 0 ? (
                   <EmptyState
@@ -504,7 +504,7 @@ export default function MainPage() {
                       <MarketListingCard
                         key={listing.id}
                         listing={listing}
-                        onClick={() => navigate(`/market/${listing.id}`)}
+                        href={`/market/${listing.id}`}
                       />
                     ))}
                   </div>

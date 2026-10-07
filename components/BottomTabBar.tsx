@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { usePathname } from 'next/navigation';
-import { useNavigation } from '@/hooks/useNavigation';
+import { usePathname, useRouter } from 'next/navigation';
+import AppLink from '@/components/AppLink';
 import {
   getBottomTabMenuItems,
   peekBottomTabMenuItems,
@@ -35,9 +35,11 @@ function syncBottomTabInset(visible: boolean) {
   }
 }
 
+const DEFAULT_TAB_PATHS = ['/main', '/community', '/stamp', '/market', '/my-page'];
+
 export default function BottomTabBar() {
   const pathname = usePathname();
-  const { navigate } = useNavigation();
+  const router = useRouter();
   const cached = peekBottomTabMenuItems();
   const [menuItems, setMenuItems] = useState<MenuItem[]>(cached ?? []);
   const [loading, setLoading] = useState(!cached);
@@ -47,7 +49,10 @@ export default function BottomTabBar() {
   useEffect(() => {
     setMounted(true);
     document.documentElement.style.setProperty('--ohgo-tab-bar-height', `${TAB_BAR_HEIGHT}px`);
-  }, []);
+    for (const path of DEFAULT_TAB_PATHS) {
+      router.prefetch(path);
+    }
+  }, [router]);
 
   // 샘플 경로는 SampleTabBar가 inset을 담당한다. 여기서 지우면 본문이 탭에 붙는다.
   const sampleRoute = pathname?.startsWith('/samples') ?? false;
@@ -81,13 +86,15 @@ export default function BottomTabBar() {
     return () => { cancelled = true; };
   }, [tabVisible]);
 
+  useEffect(() => {
+    for (const item of menuItems) {
+      if (item.path?.startsWith('/')) router.prefetch(item.path);
+    }
+  }, [menuItems, router]);
+
   if (!mounted || !tabVisible) {
     return null;
   }
-
-  const handleTabClick = (path: string) => {
-    if (pathname !== path) navigate(path);
-  };
 
   const bar = (
     <nav id="ohgo-bottom-tab-bar" aria-label="하단 메뉴">
@@ -106,12 +113,12 @@ export default function BottomTabBar() {
                   (item.path !== '/' && pathname.startsWith(item.path + '/'));
 
             return (
-              <button
+              <AppLink
                 key={item.id}
-                type="button"
+                href={item.path}
                 className={`ohgo-tab-bar__item${isActive ? ' ohgo-tab-bar__item--active' : ''}`}
-                onClick={() => handleTabClick(item.path)}
-                aria-current={isActive ? 'page' : undefined}
+                ariaCurrent={isActive ? 'page' : undefined}
+                style={{ textDecoration: 'none' }}
               >
                 {/* 아이콘을 pill 배경으로 감쌈 */}
                 <span style={{
@@ -137,7 +144,7 @@ export default function BottomTabBar() {
                 >
                   {item.label}
                 </span>
-              </button>
+              </AppLink>
             );
           })
         )}

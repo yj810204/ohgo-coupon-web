@@ -15,7 +15,6 @@ import EmptyState from '@/components/EmptyState';
 import QnaListItem from '@/components/community/QnaListItem';
 import { formatPhotoCardDate } from '@/lib/mask-member-name';
 import { htmlToPlainText } from '@/lib/rich-text';
-import { useNavigation } from '@/hooks/useNavigation';
 import { OhgoPageLoading } from '@/lib/page-styles';
 
 const FILTERS: { id: 'all' | CommunityBoardType; label: string }[] = [
@@ -33,7 +32,6 @@ function boardLabel(board?: CommunityBoardType): string {
 
 export default function MyCommunityPostsPage() {
   const router = useRouter();
-  const { navigate } = useNavigation();
   const [posts, setPosts] = useState<CommunityPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | CommunityBoardType>('all');
@@ -124,7 +122,7 @@ export default function MyCommunityPostsPage() {
                 commentCount={post.commentCount}
                 isDeleted={post.isDeleted}
                 notice={Boolean(post.isNotice)}
-                onClick={() => navigate(`/community/${post.photoId}`)}
+                href={`/community/${post.photoId}`}
               />
             );
           })}

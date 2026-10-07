@@ -16,6 +16,7 @@ import {
   tripWeekdayNumberColor,
 } from '@/utils/trip-guide-service';
 import { IoTimeOutline, IoChevronForwardOutline, IoBoatOutline } from 'react-icons/io5';
+import { NavSurface } from '@/components/AppLink';
 import { useHolidays } from '@/hooks/useHolidays';
 import { HOLIDAY_RED, shortHolidayName } from '@/lib/kr-holidays';
 
@@ -59,7 +60,8 @@ function dayDividerColor(dayIdx: number, isPast: boolean, isToday: boolean): str
 }
 
 interface Props {
-  onViewAll: () => void;
+  onViewAll?: () => void;
+  viewAllHref?: string;
   headerNavigates?: boolean;
   /** 제공 시 API fetch 없이 바로 렌더 (포트폴리오 샘플·홈 배치 로딩) */
   trips?: TripGuide[];
@@ -69,6 +71,7 @@ interface Props {
 
 export default function WeeklyTripSummary({
   onViewAll,
+  viewAllHref,
   headerNavigates = true,
   trips: tripsProp,
   isLoading,
@@ -136,14 +139,14 @@ export default function WeeklyTripSummary({
             ({weekLabel})
           </span>
         </div>
-        <button
-          type="button"
+        <NavSurface
+          href={headerNavigates ? viewAllHref : undefined}
           onClick={headerNavigates ? onViewAll : undefined}
           className="btn p-0 d-flex align-items-center gap-1 flex-shrink-0"
           style={{ border: 'none', background: 'none', color: '#1B6FF5', fontSize: 13, fontFamily: FONT, fontWeight: 600 }}
         >
           더보기 <IoChevronForwardOutline size={14} />
-        </button>
+        </NavSurface>
       </div>
 
       <div
@@ -269,8 +272,8 @@ export default function WeeklyTripSummary({
                         {tripIndex > 0 && (
                           <div style={{ height: 1, backgroundColor: '#F7F8FA', marginInline: 16 }} />
                         )}
-                        <button
-                          type="button"
+                        <NavSurface
+                          href={isDummy ? undefined : viewAllHref}
                           onClick={isDummy ? undefined : onViewAll}
                           className="btn w-100 text-start d-flex align-items-center gap-2 pe-3"
                           style={{
@@ -344,7 +347,7 @@ export default function WeeklyTripSummary({
                               className="flex-shrink-0"
                             />
                           )}
-                        </button>
+                        </NavSurface>
                       </div>
                     );
                   })}
@@ -355,8 +358,8 @@ export default function WeeklyTripSummary({
         })}
 
         {hiddenCount > 0 && (
-          <button
-            type="button"
+          <NavSurface
+            href={viewAllHref}
             onClick={onViewAll}
             className="btn w-100 d-flex align-items-center justify-content-center gap-1"
             style={{
@@ -373,7 +376,7 @@ export default function WeeklyTripSummary({
           >
             외 {hiddenCount}건 더보기
             <IoChevronForwardOutline size={14} />
-          </button>
+          </NavSurface>
         )}
 
         {isDummy && (

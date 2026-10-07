@@ -1,5 +1,7 @@
 'use client';
 
+import { NavSurface } from '@/components/AppLink';
+
 export interface ProductGridCardProduct {
   id: string;
   name: string;
@@ -10,13 +12,14 @@ export interface ProductGridCardProduct {
 
 interface ProductGridCardProps {
   product: ProductGridCardProduct;
+  href?: string;
   onClick?: () => void;
 }
 
-export default function ProductGridCard({ product, onClick }: ProductGridCardProps) {
+export default function ProductGridCard({ product, href, onClick }: ProductGridCardProps) {
   return (
-    <button
-      type="button"
+    <NavSurface
+      href={href}
       onClick={onClick}
       className="btn w-100 p-0 border-0 bg-white text-start overflow-hidden"
       style={{ borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
@@ -59,6 +62,6 @@ export default function ProductGridCard({ product, onClick }: ProductGridCardPro
         </div>
         <div style={{ fontSize: '13px', color: '#1B6FF5', fontWeight: 600 }}>{product.price}</div>
       </div>
-    </button>
+    </NavSurface>
   );
 }
