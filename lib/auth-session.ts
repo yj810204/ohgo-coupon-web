@@ -39,6 +39,11 @@ export function primeAppUserCache(user: AppUser) {
   appUserCache = { user, expiresAt: Date.now() + APP_USER_TTL_MS };
 }
 
+/** 만료됐어도 마지막 사용자를 즉시 돌려준다. 네트워크 확인은 resolveAppUser가 뒤에서 한다. */
+export function peekAppUser(): AppUser | null {
+  return appUserCache?.user ?? null;
+}
+
 async function resolveAppUserUncached(): Promise<AppUser | null> {
   if (isDevAuthBypass()) {
     return { ...DEV_MOCK_USER };
@@ -68,14 +73,29 @@ async function resolveAppUserUncached(): Promise<AppUser | null> {
 
 /** localStorage + Supabase 세션 검증. 로그인된 사용자만 45초 캐시. null은 캐시하지 않음. */
 export async function resolveAppUser(options?: { force?: boolean }): Promise<AppUser | null> {
-  if (
-    !options?.force &&
-    appUserCache?.user &&
-    appUserCache.expiresAt > Date.now()
-  ) {
-    return appUserCache.user;
+  const cached = appUserCache?.user ? appUserCache : null;
+  const fresh = Boolean(cached && cached.expiresAt > Date.now());
+  if (!options?.force && fresh && cached) {
+    return cached.user;
   }
-  if (!options?.force && appUserInflight) return appUserInflight;
+  if (!options?.force && cached?.user) {
+    if (!appUserInflight) {
+      const request = resolveAppUserUncached()
+        .then((user) => {
+          if (appUserInflight === request) appUserInflight = null;
+          if (user) appUserCache = { user, expiresAt: Date.now() + APP_USER_TTL_MS };
+          return user;
+        })
+        .catch((error) => {
+          if (appUserInflight === request) appUserInflight = null;
+          throw error;
+        });
+      appUserInflight = request;
+      void request.catch(() => undefined);
+    }
+    return cached.user;
+  }
+  if (appUserInflight) return appUserInflight;
 
   const request = resolveAppUserUncached()
     .then((user) => {

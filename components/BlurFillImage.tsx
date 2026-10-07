@@ -46,7 +46,8 @@ export default function BlurFillImage({
         alt=""
         aria-hidden
         draggable={false}
-        loading={loading}
+        loading={loading ?? 'lazy'}
+        decoding="async"
         style={{
           position: 'absolute',
           inset: -16,
@@ -71,7 +72,8 @@ export default function BlurFillImage({
         src={src}
         alt={alt}
         draggable={draggable}
-        loading={loading}
+        loading={loading ?? 'lazy'}
+        decoding="async"
         onError={onError}
         style={{
           position: 'relative',

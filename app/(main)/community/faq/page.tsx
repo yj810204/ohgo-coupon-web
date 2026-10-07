@@ -12,12 +12,11 @@ import QnaListItem from '@/components/community/QnaListItem';
 import CategoryChipRow from '@/components/community/CategoryChipRow';
 import { displayMemberName, formatPhotoCardDate } from '@/lib/mask-member-name';
 import { htmlToPlainText } from '@/lib/rich-text';
-import { useNavigation } from '@/hooks/useNavigation';
+import AppLink from '@/components/AppLink';
 import { OHGO_CONFIRM_BTN, OHGO_CONFIRM_BTN_CLASS, OHGO_FONT } from '@/lib/page-styles';
 
 function FaqPageContent() {
   const router = useRouter();
-  const { navigate } = useNavigation();
   const [posts, setPosts] = useState<CommunityPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -115,22 +114,21 @@ function FaqPageContent() {
               commentCount={post.commentCount}
               isDeleted={post.isDeleted}
               notice={Boolean(post.isNotice)}
-              onClick={() => navigate(`/community/${post.photoId}`)}
+              href={`/community/${post.photoId}`}
             />
           ))}
         </div>
       )}
 
       {isAdmin ? (
-        <button
-          type="button"
-          onClick={() => router.push('/community/faq/write')}
+        <AppLink
+          href="/community/faq/write"
           className={`btn w-100 fw-semibold d-flex align-items-center justify-content-center gap-2 ${OHGO_CONFIRM_BTN_CLASS}`}
-          style={{ ...OHGO_CONFIRM_BTN, marginTop: 16 }}
+          style={{ ...OHGO_CONFIRM_BTN, marginTop: 16, textDecoration: 'none' }}
         >
           <IoCreateOutline size={18} />
           팁 등록
-        </button>
+        </AppLink>
       ) : null}
     </SubPageFrame>
   );

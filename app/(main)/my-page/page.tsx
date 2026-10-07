@@ -12,6 +12,7 @@ import {
   setPushOptedOut,
 } from '@/lib/native-bridge';
 import { useNavigation } from '@/hooks/useNavigation';
+import AppLink from '@/components/AppLink';
 import { getMemberProfile, saveExpoPushToken, uploadAvatar } from '@/utils/member-profile-service';
 import { getUserPointBalance } from '@/utils/point-mall-service';
 import SubPageFrame from '@/components/SubPageFrame';
@@ -52,7 +53,7 @@ const CARD: CSSProperties = {
 };
 
 export default function MyPage() {
-  const { navigate, navigateReplace } = useNavigation();
+  const { navigateReplace } = useNavigation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isPushEnabled, setIsPushEnabled] = useState(false);
   const [userInfo, setUserInfo] = useState<{ name: string; dob: string; uuid: string } | null>(null);
@@ -313,11 +314,10 @@ export default function MyPage() {
         </div>
         <div className="row g-3 mb-4">
           <div className="col-6">
-            <button
-              type="button"
-              onClick={() => navigate('/game-point-history')}
+            <AppLink
+              href="/game-point-history"
               className="p-3 h-100 w-100 text-start border-0"
-              style={{ ...CARD, cursor: 'pointer' }}
+              style={{ ...CARD, cursor: 'pointer', textDecoration: 'none', color: 'inherit' }}
             >
               <div className="d-flex align-items-center justify-content-between gap-1 mb-1">
                 <span className="d-inline-flex align-items-center gap-2 min-w-0">
@@ -329,14 +329,13 @@ export default function MyPage() {
               <div style={{ fontSize: 20, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>
                 {gamePoints.toLocaleString()}P
               </div>
-            </button>
+            </AppLink>
           </div>
           <div className="col-6">
-            <button
-              type="button"
-              onClick={() => navigate('/community-point-history')}
+            <AppLink
+              href="/community-point-history"
               className="p-3 h-100 w-100 text-start border-0"
-              style={{ ...CARD, cursor: 'pointer' }}
+              style={{ ...CARD, cursor: 'pointer', textDecoration: 'none', color: 'inherit' }}
             >
               <div className="d-flex align-items-center justify-content-between gap-1 mb-1">
                 <span className="d-inline-flex align-items-center gap-2 min-w-0">
@@ -348,7 +347,7 @@ export default function MyPage() {
               <div style={{ fontSize: 20, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT }}>
                 {communityPoints.toLocaleString()}P
               </div>
-            </button>
+            </AppLink>
           </div>
         </div>
 
@@ -408,17 +407,17 @@ export default function MyPage() {
               {idx > 0 && (
                 <div style={OHGO_LIST_DIVIDER} />
               )}
-              <button
-                type="button"
-                onClick={() => navigate(path)}
+              <AppLink
+                href={path}
                 className="btn ohgo-menu-list-row"
+                style={{ textDecoration: 'none', color: 'inherit' }}
               >
                 <div className="ohgo-menu-list-row__icon" style={{ backgroundColor: `${color}18` }}>
                   <Icon size={OHGO_LIST.iconGlyph} color={color} />
                 </div>
                 <span className="ohgo-menu-list-row__title flex-grow-1">{label}</span>
                 <IoChevronForwardOutline size={OHGO_LIST.chevronSize} color={OHGO_LIST.chevronColor} />
-              </button>
+              </AppLink>
             </div>
           ))}
         </div>

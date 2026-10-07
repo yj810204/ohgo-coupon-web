@@ -14,14 +14,13 @@ import {
 import { getBoardCategories, type BoardCategory } from '@/utils/board-category-service';
 import CategoryChipRow from '@/components/community/CategoryChipRow';
 import { IoAddOutline, IoListOutline, IoStorefrontOutline } from 'react-icons/io5';
-import { useNavigation } from '@/hooks/useNavigation';
+import AppLink from '@/components/AppLink';
 import { OHGO_FONT } from '@/lib/page-styles';
 
 const FONT = OHGO_FONT;
 
 export default function MarketPage() {
   const router = useRouter();
-  const { navigate } = useNavigation();
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [listings, setListings] = useState<MarketListing[]>([]);
@@ -73,9 +72,8 @@ export default function MarketPage() {
         <p className="mb-0 flex-grow-1 min-w-0" style={{ fontSize: 13, color: '#6F767E', fontFamily: FONT }}>
           관리자 승인 후 게시됩니다.
         </p>
-        <button
-          type="button"
-          onClick={() => navigate('/market/my')}
+        <AppLink
+          href="/market/my"
           className="btn d-flex align-items-center gap-1 flex-shrink-0"
           style={{
             backgroundColor: '#F2F3F5',
@@ -91,7 +89,7 @@ export default function MarketPage() {
         >
           <IoListOutline size={14} />
           내 판매글
-        </button>
+        </AppLink>
       </div>
 
       <div className="mb-3">
@@ -122,15 +120,14 @@ export default function MarketPage() {
             <MarketListingCard
               key={listing.id}
               listing={listing}
-              onClick={() => navigate(`/market/${listing.id}`)}
+              href={`/market/${listing.id}`}
             />
           ))}
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => navigate('/market/sell')}
+      <AppLink
+        href="/market/sell"
         className="btn d-flex align-items-center justify-content-center"
         aria-label="판매 등록"
         style={{
@@ -148,7 +145,7 @@ export default function MarketPage() {
         }}
       >
         <IoAddOutline size={28} />
-      </button>
+      </AppLink>
     </SubPageFrame>
   );
 }

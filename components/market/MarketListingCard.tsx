@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { supabaseListImageUrl } from '@/lib/supabase-image';
+import { NavSurface } from '@/components/AppLink';
 import {
   formatMarketPrice,
   marketCategoryLabel,
@@ -13,18 +14,19 @@ const FONT = 'var(--font-ohgo), sans-serif';
 
 type MarketListingCardProps = {
   listing: MarketListing;
+  href?: string;
   onClick?: () => void;
 };
 
-export default function MarketListingCard({ listing, onClick }: MarketListingCardProps) {
+export default function MarketListingCard({ listing, href, onClick }: MarketListingCardProps) {
   const sold = listing.status === 'sold';
   const imageUrl = listing.imageUrls[0];
   const thumbUrl = supabaseListImageUrl(imageUrl, 240);
   const [imgSrc, setImgSrc] = useState(thumbUrl || imageUrl);
 
   return (
-    <button
-      type="button"
+    <NavSurface
+      href={href}
       onClick={onClick}
       className="btn w-100 p-0 border-0 bg-white text-start overflow-hidden d-flex"
       style={{
@@ -44,6 +46,7 @@ export default function MarketListingCard({ listing, onClick }: MarketListingCar
             width={108}
             height={108}
             loading="lazy"
+            decoding="async"
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             onError={() => {
               if (imageUrl && imgSrc !== imageUrl) setImgSrc(imageUrl);
@@ -118,6 +121,6 @@ export default function MarketListingCard({ listing, onClick }: MarketListingCar
           {formatMarketPrice(listing.price)}
         </div>
       </div>
-    </button>
+    </NavSurface>
   );
 }

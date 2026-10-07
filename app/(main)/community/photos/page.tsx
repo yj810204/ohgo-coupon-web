@@ -9,13 +9,12 @@ import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import CommunityPhotoCard from '@/components/community/CommunityPhotoCard';
 import { displayMemberName, formatPhotoCardDate } from '@/lib/mask-member-name';
-import { useNavigation } from '@/hooks/useNavigation';
+import AppLink from '@/components/AppLink';
 
 const FONT = "var(--font-ohgo), sans-serif";
 
 function PhotosPageContent() {
   const router = useRouter();
-  const { navigate } = useNavigation();
   const [photos, setPhotos] = useState<CommunityPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [canSeeFullNames, setCanSeeFullNames] = useState(false);
@@ -59,15 +58,14 @@ function PhotosPageContent() {
           <span style={{ fontSize: 14, color: '#6F767E', fontFamily: FONT }}>
             총 {photos.length}개
           </span>
-          <button
-            type="button"
-            onClick={() => router.push('/community/photos/upload')}
+          <AppLink
+            href="/community/photos/upload"
             className="btn d-flex align-items-center gap-1"
-            style={{ backgroundColor: '#1B6FF5', borderRadius: 10, border: 'none', padding: '7px 14px', fontSize: 13, color: '#fff', fontFamily: FONT, fontWeight: 600 }}
+            style={{ backgroundColor: '#1B6FF5', borderRadius: 10, border: 'none', padding: '7px 14px', fontSize: 13, color: '#fff', fontFamily: FONT, fontWeight: 600, textDecoration: 'none' }}
           >
             <IoAddOutline size={15} />
             등록
-          </button>
+          </AppLink>
         </div>
 
         {/* 사진 그리드 */}
@@ -93,7 +91,7 @@ function PhotosPageContent() {
                   commentCount={photo.commentCount}
                   isDeleted={photo.isDeleted}
                   isNotice={Boolean(photo.isNotice)}
-                  onClick={() => navigate(`/community/${photo.photoId}`)}
+                  href={`/community/${photo.photoId}`}
                 />
               </div>
             ))}

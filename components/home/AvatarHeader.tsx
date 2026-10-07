@@ -1,10 +1,12 @@
 'use client';
 
 import { IoPersonOutline } from 'react-icons/io5';
+import AppLink from '@/components/AppLink';
 
 interface AvatarHeaderProps {
   userName: string;
   avatarUrl?: string | null;
+  myPageHref?: string;
   onMyPage?: () => void;
 }
 
@@ -14,7 +16,7 @@ function getInitials(name: string): string {
   return trimmed.slice(0, 1);
 }
 
-export default function AvatarHeader({ userName, avatarUrl, onMyPage }: AvatarHeaderProps) {
+export default function AvatarHeader({ userName, avatarUrl, myPageHref, onMyPage }: AvatarHeaderProps) {
   return (
     <div className="d-flex align-items-center justify-content-between py-2">
       <div className="d-flex align-items-center gap-3">
@@ -36,6 +38,9 @@ export default function AvatarHeader({ userName, avatarUrl, onMyPage }: AvatarHe
             <img
               src={avatarUrl}
               alt=""
+              width={96}
+              height={96}
+              decoding="async"
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
           ) : (
@@ -62,20 +67,36 @@ export default function AvatarHeader({ userName, avatarUrl, onMyPage }: AvatarHe
           </h1>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={onMyPage}
-        className="btn btn-light rounded-circle d-flex align-items-center justify-content-center border-0"
-        style={{
-          width: 44,
-          height: 44,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-          flexShrink: 0,
-        }}
-        aria-label="마이페이지"
-      >
-        <IoPersonOutline size={22} color="#1A1D1F" />
-      </button>
+      {myPageHref ? (
+        <AppLink
+          href={myPageHref}
+          className="btn btn-light rounded-circle d-flex align-items-center justify-content-center border-0"
+          style={{
+            width: 44,
+            height: 44,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+            flexShrink: 0,
+          }}
+          ariaLabel="마이페이지"
+        >
+          <IoPersonOutline size={22} color="#1A1D1F" />
+        </AppLink>
+      ) : (
+        <button
+          type="button"
+          onClick={onMyPage}
+          className="btn btn-light rounded-circle d-flex align-items-center justify-content-center border-0"
+          style={{
+            width: 44,
+            height: 44,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+            flexShrink: 0,
+          }}
+          aria-label="마이페이지"
+        >
+          <IoPersonOutline size={22} color="#1A1D1F" />
+        </button>
+      )}
     </div>
   );
 }

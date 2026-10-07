@@ -1,17 +1,20 @@
 'use client';
 
+import { NavSurface } from '@/components/AppLink';
+
 interface GridCardProps {
   title: string;
   subtitle?: string;
   badge?: string;
   imageUrl?: string;
+  href?: string;
   onClick?: () => void;
 }
 
-export default function GridCard({ title, subtitle, badge, imageUrl, onClick }: GridCardProps) {
+export default function GridCard({ title, subtitle, badge, imageUrl, href, onClick }: GridCardProps) {
   return (
-    <button
-      type="button"
+    <NavSurface
+      href={href}
       onClick={onClick}
       className="btn w-100 p-0 text-start border-0 bg-white overflow-hidden"
       style={{
@@ -27,10 +30,13 @@ export default function GridCard({ title, subtitle, badge, imageUrl, onClick }: 
         }}
       >
         {imageUrl ? (
-          <img
+            <img
             src={imageUrl}
             alt=""
+            width={480}
+            height={360}
             loading="lazy"
+            decoding="async"
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
         ) : (
@@ -70,6 +76,6 @@ export default function GridCard({ title, subtitle, badge, imageUrl, onClick }: 
           </div>
         )}
       </div>
-    </button>
+    </NavSurface>
   );
 }

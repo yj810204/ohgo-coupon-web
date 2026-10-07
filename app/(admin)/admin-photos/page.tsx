@@ -15,7 +15,7 @@ import {
 } from '@/utils/community-template-service';
 import { IoImageOutline, IoTrashOutline, IoAddOutline } from 'react-icons/io5';
 import { ADMIN_EDIT_ICON } from '@/lib/admin-icons';
-import CKEditorComponent from '@/components/CKEditor';
+const CKEditorComponent = dynamic(() => import('@/components/CKEditor'), { ssr: false });
 import TemplateFieldInput from '@/components/TemplateFieldInput';
 import SubPageFrame from '@/components/SubPageFrame';
 import {

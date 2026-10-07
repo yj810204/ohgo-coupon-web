@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { LoadingProvider } from "@/contexts/LoadingContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 import PageLoader from "@/components/PageLoader";
 import SiteTitle from "@/components/SiteTitle";
 import BottomTabBar from "@/components/BottomTabBar";
@@ -32,16 +33,10 @@ export default function RootLayout({
       <head>
         {/* 동일 출처 — Google/jsDelivr @import 체인 제거 (모바일 FCP) */}
         <link rel="stylesheet" href="/vendor/bootstrap.min.css" />
+        {/* 본문 Regular만 선로딩. Bold는 CSS가 요청하고 Title은 제목 전용이라 빼 둔다. */}
         <link
           rel="preload"
           href="/fonts/onemobile/ONEMobile-Regular.woff2"
-          as="font"
-          type="font/woff2"
-          crossOrigin="anonymous"
-        />
-        <link
-          rel="preload"
-          href="/fonts/onemobile/ONEMobile-Bold.woff2"
           as="font"
           type="font/woff2"
           crossOrigin="anonymous"
@@ -50,17 +45,19 @@ export default function RootLayout({
       <body className="antialiased" suppressHydrationWarning>
         <NativeBridgeInit />
         <SiteTitle />
-        <LoadingProvider>
-          <div className="container-fluid px-0 bg-gray-50">
-            {children}
-          </div>
-          <BottomTabBar />
-          <PageLoader />
-          <OhgoDialogHost />
-          <ClientErrorBoundary>
-            <AppPopupHost />
-          </ClientErrorBoundary>
-        </LoadingProvider>
+        <AuthProvider>
+          <LoadingProvider>
+            <div className="container-fluid px-0 bg-gray-50">
+              {children}
+            </div>
+            <BottomTabBar />
+            <PageLoader />
+            <OhgoDialogHost />
+            <ClientErrorBoundary>
+              <AppPopupHost />
+            </ClientErrorBoundary>
+          </LoadingProvider>
+        </AuthProvider>
       </body>
     </html>
   );

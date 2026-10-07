@@ -31,6 +31,7 @@ export default function StorageThumb({ url, alt = '', size = 64, radius = 12 }: 
           width={size}
           height={size}
           loading="lazy"
+          decoding="async"
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           onError={() => {
             if (original && src !== original) setSrc(original);

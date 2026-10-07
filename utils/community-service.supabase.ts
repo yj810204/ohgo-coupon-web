@@ -4,6 +4,7 @@ import { getSettingsValue, setSettingsValue } from '@/lib/settings-store';
 import { awardQnaAcceptedPoints, deductCommentPoints } from './community-point-service';
 import { sendPushToUser } from './send-push';
 import { resolveAppUser } from '@/lib/auth-session';
+import { cachedFetch, invalidateCache } from '@/lib/query-cache';
 import {
   COMMUNITY_POST_DELETED_MESSAGE,
   parseBoardType,
@@ -16,6 +17,12 @@ export { COMMUNITY_POST_DELETED_MESSAGE };
 
 const STORAGE_BUCKET = 'photos';
 const NOTICE_IDS_KEY = 'community_notice_ids';
+const COMMUNITY_CACHE = 'community:';
+const COMMUNITY_LIST_TTL_MS = 60_000;
+
+function bustCommunityCache() {
+  invalidateCache(COMMUNITY_CACHE);
+}
 
 async function getNoticeIdSet(): Promise<Set<string>> {
   const ids = await getSettingsValue<string[]>(NOTICE_IDS_KEY, []);
@@ -141,7 +148,7 @@ function mapPhoto(row: Record<string, unknown>): CommunityPhoto {
 const PHOTO_LIST_COLUMNS =
   'id, image_urls, uploaded_by, uploaded_by_name, created_at, title, description, content, photo_date, template_id, comment_count, board_type, accepted_comment_id, category, is_notice';
 
-export async function getPhotos(
+async function fetchPhotosUncached(
   limitCount?: number,
   boardType: CommunityBoardType = 'photo'
 ): Promise<CommunityPhoto[]> {
@@ -203,6 +210,17 @@ export async function getPhotos(
   return applyNoticeFlags((data ?? []).map((row: Record<string, unknown>) => mapPhoto(row)));
 }
 
+export function getPhotos(
+  limitCount?: number,
+  boardType: CommunityBoardType = 'photo'
+): Promise<CommunityPhoto[]> {
+  return cachedFetch(
+    `${COMMUNITY_CACHE}list:${boardType}:${limitCount ?? 'all'}`,
+    COMMUNITY_LIST_TTL_MS,
+    () => fetchPhotosUncached(limitCount, boardType),
+  );
+}
+
 export async function getPhotosByUser(userId: string): Promise<CommunityPhoto[]> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase
@@ -226,7 +244,7 @@ export async function getPhotosByUser(userId: string): Promise<CommunityPhoto[]>
   return applyNoticeFlags((data ?? []).map((row: Record<string, unknown>) => mapPhoto(row)));
 }
 
-export async function countPhotos(boardType: CommunityBoardType = 'photo'): Promise<number> {
+async function countPhotosUncached(boardType: CommunityBoardType = 'photo'): Promise<number> {
   const supabase = getSupabaseBrowserClient();
   const { count, error } = await supabase
     .from('community_photos')
@@ -240,6 +258,14 @@ export async function countPhotos(boardType: CommunityBoardType = 'photo'): Prom
   }
   if (error) throw error;
   return count ?? 0;
+}
+
+export function countPhotos(boardType: CommunityBoardType = 'photo'): Promise<number> {
+  return cachedFetch(
+    `${COMMUNITY_CACHE}count:${boardType}`,
+    COMMUNITY_LIST_TTL_MS,
+    () => countPhotosUncached(boardType),
+  );
 }
 
 export async function getPhoto(photoId: string): Promise<CommunityPhoto | null> {
@@ -270,6 +296,7 @@ export async function uploadPhoto(
   category?: string,
   isNotice?: boolean
 ): Promise<string> {
+  bustCommunityCache();
   const imageFiles = Array.isArray(imageFile) ? imageFile : imageFile ? [imageFile] : [];
   if (boardType === 'photo' && imageFiles.length === 0) {
     throw new Error('이미지 파일이 필요합니다.');
@@ -336,6 +363,7 @@ export async function updatePhoto(
     isNotice?: boolean;
   }
 ): Promise<void> {
+  bustCommunityCache();
   const supabase = getSupabaseBrowserClient();
   const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
@@ -391,6 +419,7 @@ export async function addComment(
   pointAwarded: number,
   parentId?: string
 ): Promise<string> {
+  bustCommunityCache();
   const supabase = getSupabaseBrowserClient();
   const storedContent = encodeCommentContent(content, parentId);
   const baseRow = {
@@ -431,6 +460,7 @@ export async function updateCommentPoints(
   commentId: string,
   pointAwarded: number
 ): Promise<void> {
+  bustCommunityCache();
   const supabase = getSupabaseBrowserClient();
   const { error } = await supabase
     .from('comments')
@@ -470,6 +500,7 @@ export async function updateComment(
   commentId: string,
   content: string
 ): Promise<void> {
+  bustCommunityCache();
   const supabase = getSupabaseBrowserClient();
   const { data: existing, error: fetchError } = await supabase
     .from('comments')
@@ -494,6 +525,7 @@ export async function deleteComment(
   photoId: string,
   commentId: string
 ): Promise<{ userId: string; pointAwarded: number } | null> {
+  bustCommunityCache();
   const supabase = getSupabaseBrowserClient();
   const { data: comment, error: fetchError } = await supabase
     .from('comments')
@@ -557,6 +589,7 @@ export async function acceptQnaAnswer(
   photoId: string,
   commentId: string
 ): Promise<{ awarded: number; alreadyAccepted: boolean }> {
+  bustCommunityCache();
   const actor = await resolveAppUser();
   if (!actor?.isAdmin) {
     throw new Error('관리자만 답변을 선정할 수 있습니다.');
@@ -626,6 +659,7 @@ export async function deletePhoto(
   photoId: string,
   options?: { mode?: 'hard' | 'soft' }
 ): Promise<DeletePhotoResult> {
+  bustCommunityCache();
   const mode = options?.mode === 'soft' ? 'soft' : 'hard';
   const res = await fetch('/api/community/delete-photo', {
     method: 'POST',

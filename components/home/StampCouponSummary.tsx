@@ -2,12 +2,15 @@
 
 import { useState } from 'react';
 import { IoQrCodeOutline, IoPricetagOutline, IoGiftOutline } from 'react-icons/io5';
+import { NavSurface } from '@/components/AppLink';
 
 interface StampCouponSummaryProps {
   stampCount: number;
   couponCount: number;
-  onStampClick: () => void;
-  onCouponClick: () => void;
+  onStampClick?: () => void;
+  onCouponClick?: () => void;
+  stampHref?: string;
+  couponHref?: string;
   onQrScan: () => void | boolean | Promise<void | boolean>;
 }
 
@@ -29,15 +32,17 @@ function StatBox({
   count,
   unit,
   onClick,
+  href,
 }: {
   icon: React.ReactNode;
   label: string;
   count: number;
   unit: string;
-  onClick: () => void;
+  onClick?: () => void;
+  href?: string;
 }) {
   return (
-    <button type="button" onClick={onClick} style={BOX_STYLE}>
+    <NavSurface href={href} onClick={onClick} style={BOX_STYLE}>
       <div
         className="d-flex align-items-center gap-1"
         style={{ fontSize: 12, opacity: 0.9, marginBottom: 8, fontFamily: FONT }}
@@ -49,7 +54,7 @@ function StatBox({
         <span style={{ fontSize: 26, fontWeight: 700 }}>{count}</span>
         <span style={{ fontSize: 14, fontWeight: 500, opacity: 0.95 }}>{unit}</span>
       </div>
-    </button>
+    </NavSurface>
   );
 }
 
@@ -58,6 +63,8 @@ export default function StampCouponSummary({
   couponCount,
   onStampClick,
   onCouponClick,
+  stampHref,
+  couponHref,
   onQrScan,
 }: StampCouponSummaryProps) {
   const [qrOpening, setQrOpening] = useState(false);
@@ -90,6 +97,7 @@ export default function StampCouponSummary({
             label="스탬프"
             count={stampCount}
             unit="개"
+            href={stampHref}
             onClick={onStampClick}
           />
         </div>
@@ -99,6 +107,7 @@ export default function StampCouponSummary({
             label="쿠폰"
             count={couponCount}
             unit="장"
+            href={couponHref}
             onClick={onCouponClick}
           />
         </div>

@@ -6,6 +6,7 @@ import { useRouter } from '@/hooks/useAppRouter';
 import { getUser } from '@/lib/storage';
 import SubPageFrame from '@/components/SubPageFrame';
 import ProductGridCard from '@/components/home/ProductGridCard';
+import AppLink from '@/components/AppLink';
 import EmptyState from '@/components/EmptyState';
 import { getPointMallProducts, getUserPointBalance } from '@/utils/point-mall-service';
 import type { PointMallProduct } from '@/constants/point-mall';
@@ -98,16 +99,15 @@ function PointMallPageContent() {
               </span>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => router.push('/point-mall/orders')}
+          <AppLink
+            href="/point-mall/orders"
             className="point-mall-balance__orders-btn"
-            style={{ fontFamily: FONT }}
+            style={{ fontFamily: FONT, textDecoration: 'none' }}
           >
             <IoReceiptOutline size={18} aria-hidden className="point-mall-balance__orders-btn-icon" />
             <span className="point-mall-balance__orders-btn-label">구매 내역</span>
             <IoChevronForwardOutline size={14} aria-hidden className="point-mall-balance__orders-btn-chevron" />
-          </button>
+          </AppLink>
         </div>
       </div>
 
@@ -145,9 +145,7 @@ function PointMallPageContent() {
                     imageUrl: getProductPrimaryImageUrl(product),
                     memberOnly: false,
                   }}
-                  onClick={() =>
-                    router.push(`/point-mall/product?id=${encodeURIComponent(product.id)}`)
-                  }
+                  href={`/point-mall/product?id=${encodeURIComponent(product.id)}`}
                 />
               </div>
             );
