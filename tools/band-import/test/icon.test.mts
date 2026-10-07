@@ -4,6 +4,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { BAND_GREEN, iconLayout } from '../mac/render-icon.mts';
 
 class SkipFallback extends Error {}
 
@@ -32,6 +33,21 @@ assert.deepEqual([...entries.keys()].sort(), Object.keys(expected).sort());
 for (const [type, size] of Object.entries(expected)) assert.deepEqual(entries.get(type), [size, size], type);
 
 assert.deepEqual(pngSize(readFileSync(join(MAC_DIR, 'AppIcon.png'))), [1024, 1024]);
+
+// 배치: 64px 이상은 동기화 표시가 있고, 32px 이하는 빼는 대신 Band 배지를 바탕(824)의 절반 넘게 키운다
+assert.equal(BAND_GREEN, '#00C73C');
+for (const size of [64, 128, 256, 512, 1024]) assert.ok(iconLayout(size).sync, `${size}px 동기화 표시`);
+for (const size of [16, 32]) {
+  const layout = iconLayout(size);
+  assert.equal(layout.sync, null);
+  assert.ok(layout.badge.size / 824 > 0.5, `${size}px 배지 크기`);
+}
+for (const size of [16, 32, 64, 1024]) {
+  const { badge } = iconLayout(size);
+  assert.ok(badge.x + badge.size <= 924 && badge.y + badge.size <= 924, '배지는 바탕 안에 들어간다');
+}
+assert.ok(iconLayout(16).badge.size > iconLayout(64).badge.size, '작은 크기일수록 배지가 크다');
+assert.ok(iconLayout(64).badge.size > iconLayout(1024).badge.size, '작은 크기일수록 배지가 크다');
 assert.deepEqual(pngSize(readFileSync(new URL('../gui/favicon.png', import.meta.url))), [128, 128]);
 
 // make-app.sh: sips/iconutil이 있으면(macOS) iconset을 만들어 iconutil로 .icns를 만든다

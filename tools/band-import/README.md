@@ -53,7 +53,7 @@ npm run band:app
 
 #### 앱 아이콘
 
-- 아이콘은 오고피씽 앱 로고(`mobile/assets/icon.png`)로 만든 `tools/band-import/mac/AppIcon.png`입니다. `npm run band:app`이 Mac 기본 도구 `sips`, `iconutil`로 모든 크기의 `.icns`를 만들어 앱에 넣습니다. 두 도구를 못 찾으면 미리 만들어 둔 `mac/AppIcon.icns`를 씁니다.
+- 아이콘은 오고피씽 앱 로고(`mobile/assets/icon.png`)를 중심에 두고, 오른쪽 아래에 Band 느낌의 초록 배지(흰 b)와 두 화살표 동기화 표시를 더한 `tools/band-import/mac/AppIcon.png`입니다. Band 배지는 Band 로고 파일이 아니라 단순 도형으로 직접 그린 것입니다. 32px 이하에서는 동기화 표시가 뭉개져서 빼고 배지를 키웠습니다. `npm run band:app`이 Mac 기본 도구 `sips`, `iconutil`로 모든 크기의 `.icns`를 만들어 앱에 넣습니다. 두 도구를 못 찾으면 미리 만들어 둔 `mac/AppIcon.icns`를 씁니다.
 - 로고를 바꿨으면 `npm run band:icon`으로 `AppIcon.png`, `AppIcon.icns`, GUI 창 아이콘(`gui/favicon.png`)을 다시 만든 뒤 `npm run band:app`을 실행하세요.
 - Finder나 Dock이 예전 아이콘(빈 아이콘)을 계속 보여 줄 수 있습니다. 아이콘 캐시 때문이며, 아래 순서대로 해 보세요.
   1. `npm run band:app`으로 다시 만든 뒤 응용 프로그램 폴더의 예전 앱을 지우고 새로 옮깁니다.
