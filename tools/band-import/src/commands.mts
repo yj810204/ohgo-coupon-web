@@ -22,6 +22,8 @@ import { parseBandPostUrl } from './url.mts';
 export const TOOL_ROOT = fileURLToPath(new URL('..', import.meta.url));
 export const USER_DATA_DIR = resolveUserDataDir(process.env.BAND_USER_DATA_DIR, join(TOOL_ROOT, 'user-data'));
 export const DEFAULT_OUT_DIR = join(TOOL_ROOT, 'out');
+/** 오고피씽 로그인 세션과 등록 장부(gitignore) */
+export const OHGO_DIR = resolveUserDataDir(process.env.BAND_OHGO_DIR, join(TOOL_ROOT, 'ohgo-local'));
 const LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
 
 export type Log = (msg: string) => void;

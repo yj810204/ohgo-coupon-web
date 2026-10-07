@@ -58,4 +58,5 @@ mobile/.expo/
 /tools/band-import/user-data/
 /tools/band-import/out/
 /tools/band-import/dist/
+/tools/band-import/ohgo-local/
 /tools/band-import/.env*

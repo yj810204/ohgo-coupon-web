@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { FetchOptions } from '../src/commands.mts';
 import { buildExtracted } from '../src/extracted.mts';
-import { createGuiServer } from '../src/gui-server.mts';
+import { createGuiServer, toPushRequest } from '../src/gui-server.mts';
+import { OhgoRequestRejected } from '../src/ohgo-service.mts';
+import type { OhgoService, PushRequest } from '../src/ohgo-service.mts';
 import { parseBandPostUrl } from '../src/url.mts';
 
 const dir = mkdtempSync(join(tmpdir(), 'band-gui-test-'));
@@ -154,11 +156,144 @@ try {
   assert.equal(state.job.kind, 'login');
   assert.equal(state.job.status, 'done');
 
+  // 오고피씽 서비스가 없으면 등록 API는 503
+  assert.equal((await call('/api/ohgo/state')).status, 503);
+
   assert.equal((await call('/api/quit', {})).status, 200);
   assert.equal(quitCalled, 1);
 } finally {
   server.close();
+}
+
+// ---------- 오고피씽 등록 API ----------
+const pushes: PushRequest[] = [];
+const ohgoCalls: string[] = [];
+let releasePush: () => void = () => {};
+let loggedIn = false;
+const fakeOhgo: OhgoService = {
+  state: async () => ({ baseUrl: 'https://ohgo.test', supabaseUrl: 'https://x.supabase.co', configError: null, user: loggedIn ? { name: '선장', userId: 'u', savedAt: 'now' } : null }),
+  login: async (creds) => {
+    ohgoCalls.push(`login ${JSON.stringify(creds)}`);
+    if ('name' in creds && creds.name !== '선장') throw new OhgoRequestRejected('관리자 계정이 아닙니다', 403);
+    loggedIn = true;
+    return fakeOhgo.state();
+  },
+  logout: async () => {
+    loggedIn = false;
+    return fakeOhgo.state();
+  },
+  prepare: async (postId) => {
+    ohgoCalls.push(`prepare ${postId}`);
+    if (postId !== '2925') throw new OhgoRequestRejected('가져온 결과가 없습니다', 404);
+    return { postId } as Awaited<ReturnType<OhgoService['prepare']>>;
+  },
+  checkPush: (req) => {
+    if (req.postId === 'dup') throw new OhgoRequestRejected('이미 등록한 게시글입니다', 409, 'DUPLICATE');
+  },
+  push: (req, log) => {
+    pushes.push(req);
+    log('사진 올리는 중 1/1');
+    return new Promise((resolve) => {
+      releasePush = () => resolve({ kind: req.kind, target: 'community_photos', rowIds: ['r1'], links: ['https://ohgo.test/community/r1'], title: 't', resizedImages: 0 });
+    });
+  },
+  isAppLink: (url) => url.startsWith('https://ohgo.test/'),
+};
+const opened2: string[] = [];
+const gui2 = createGuiServer({
+  outRoot,
+  userDataDir,
+  htmlPath: new URL('../gui/index.html', import.meta.url).pathname,
+  openPath: (p) => opened2.push(p),
+  ohgo: fakeOhgo,
+  runLogin: async () => {},
+  runFetch: async () => {
+    throw new Error('unused');
+  },
+});
+await new Promise<void>((r) => gui2.server.listen(0, '127.0.0.1', r));
+const base2 = `http://127.0.0.1:${(gui2.server.address() as AddressInfo).port}`;
+const call2 = async (path: string, body?: unknown, auth = true) => {
+  const res = await fetch(base2 + path, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: auth ? { 'x-gui-token': gui2.token } : {},
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 응답 JSON을 테스트에서 자유롭게 읽는다
+  return { status: res.status, json: (await res.json()) as Record<string, any> };
+};
+try {
+  assert.equal((await call2('/api/ohgo/state', undefined, false)).status, 403, '등록 API도 토큰이 필요하다');
+  assert.equal((await call2('/api/ohgo/push', { postId: '2925', kind: 'catch' }, false)).status, 403);
+  assert.equal((await call2('/api/ohgo/state')).json.user, null);
+
+  const denied = await call2('/api/ohgo/login', { name: '손님', dob: '900101' });
+  assert.equal(denied.status, 403);
+  assert.match(denied.json.error, /관리자 계정이 아닙니다/);
+  const ok = await call2('/api/ohgo/login', { name: '선장', dob: '800101' });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.json.user.name, '선장');
+  await call2('/api/ohgo/login', { email: 'a@b.c', password: 'pw' });
+  assert.equal(ohgoCalls[2], 'login {"email":"a@b.c","password":"pw"}');
+
+  assert.equal((await call2('/api/ohgo/prepare', { postId: '2925' })).status, 200);
+  assert.equal((await call2('/api/ohgo/prepare', { postId: '1' })).status, 404);
+
+  assert.equal((await call2('/api/ohgo/push', { postId: '2925', kind: 'nope' })).status, 400);
+  const dup = await call2('/api/ohgo/push', { postId: 'dup', kind: 'catch', photo: {} });
+  assert.equal(dup.status, 409);
+  assert.equal(dup.json.code, 'DUPLICATE');
+
+  const started = await call2('/api/ohgo/push', { postId: '2925', kind: 'catch', photo: { title: 't', description: 'd', images: ['01.jpg'] } });
+  assert.equal(started.status, 202);
+  assert.equal(started.json.job.kind, 'push');
+  assert.equal((await call2('/api/ohgo/push', { postId: '2925', kind: 'catch', photo: {} })).status, 409, '등록 중에는 다시 받지 않는다');
+  assert.equal((await call2('/api/fetch', { url: 'https://band.us/band/88348442/post/2925' })).status, 409);
+  releasePush();
+  let st2 = (await call2('/api/state')).json;
+  for (let i = 0; i < 50 && st2.busy; i++) {
+    await new Promise((r) => setTimeout(r, 20));
+    st2 = (await call2('/api/state')).json;
+  }
+  assert.equal(st2.job.status, 'done');
+  assert.deepEqual(st2.job.result.links, ['https://ohgo.test/community/r1']);
+  assert.deepEqual(st2.job.logs, ['사진 올리는 중 1/1']);
+  assert.deepEqual(pushes[0], { postId: '2925', kind: 'catch', force: false, photo: { title: 't', description: 'd', photoDate: null, images: ['01.jpg'] } });
+
+  assert.equal((await call2('/api/ohgo/open-link', { url: 'https://ohgo.test/community/r1' })).status, 200);
+  assert.equal((await call2('/api/ohgo/open-link', { url: 'file:///etc/passwd' })).status, 400, '오고피씽 주소만 연다');
+  assert.deepEqual(opened2, ['https://ohgo.test/community/r1']);
+
+  assert.equal((await call2('/api/ohgo/logout', {})).json.user, null);
+} finally {
+  gui2.server.close();
   rmSync(dir, { recursive: true, force: true });
 }
+
+// 화면에서 온 일정 입력값 해석
+const tripReq = toPushRequest({
+  postId: '2925',
+  kind: 'schedule',
+  force: true,
+  trip: { refDate: '2026-10-06', dates: '2026-10-12, 10/13', destination: '형제섬', departureTime: '05:00', capacity: '10', price: '120,000', notes: 'n' },
+});
+assert.deepEqual(tripReq, {
+  postId: '2925',
+  kind: 'schedule',
+  force: true,
+  trip: {
+    dates: ['2026-10-12', '2026-10-13'],
+    destination: '형제섬',
+    departureTime: '05:00',
+    returnTime: '',
+    species: '',
+    capacity: 10,
+    price: 120000,
+    contact: '',
+    notes: 'n',
+  },
+});
+assert.ok(Number.isNaN(toPushRequest({ postId: '1', kind: 'schedule', trip: { capacity: '열명' } }).trip!.capacity), '숫자가 아니면 검사에서 걸린다');
+assert.throws(() => toPushRequest({ postId: '1' }), /등록 종류/);
 
 console.log('band-import gui-server tests passed');

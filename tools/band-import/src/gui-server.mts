@@ -10,6 +10,12 @@ import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { hasProfile } from './browser.mts';
 import type { FetchOptions, Log } from './commands.mts';
+import type { PhotoDraft } from './classify.mts';
+import type { OhgoService, PushRequest, PushResult } from './ohgo-service.mts';
+import { OhgoRequestRejected } from './ohgo-service.mts';
+import { OhgoAuthError } from './ohgo-auth.mts';
+import type { TripDraft } from './trip-parse.mts';
+import { parseDateList } from './trip-parse.mts';
 import type { ExtractedPost } from './schema.mts';
 import { readSession } from './session-store.mts';
 import { parseBandPostUrl } from './url.mts';
@@ -21,6 +27,8 @@ export type GuiDeps = {
   outRoot: string;
   userDataDir: string;
   htmlPath: string;
+  /** 오고피씽 등록. 없으면 등록 API는 503을 돌려준다 */
+  ohgo?: OhgoService;
   onQuit?: () => void;
 };
 
@@ -38,11 +46,11 @@ type JobResult = {
 
 type Job = {
   id: number;
-  kind: 'login' | 'fetch';
+  kind: 'login' | 'fetch' | 'push';
   status: 'running' | 'done' | 'error';
   logs: string[];
   error: string | null;
-  result: JobResult | null;
+  result: JobResult | PushResult | null;
 };
 
 const MIME: Record<string, string> = {
@@ -63,7 +71,7 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
   let raw = '';
   for await (const chunk of req) {
     raw += chunk;
-    if (raw.length > 64 * 1024) throw new Error('요청이 너무 큽니다');
+    if (raw.length > 512 * 1024) throw new Error('요청이 너무 큽니다');
   }
   if (!raw) return {};
   const parsed = JSON.parse(raw);
@@ -76,7 +84,7 @@ export function createGuiServer(deps: GuiDeps): { server: Server; token: string;
   let job: Job | null = null;
   const isBusy = () => job?.status === 'running';
 
-  const startJob = (kind: Job['kind'], work: (log: Log) => Promise<JobResult | null>) => {
+  const startJob = (kind: Job['kind'], work: (log: Log) => Promise<Job['result']>) => {
     const current: Job = { id: ++seq, kind, status: 'running', logs: [], error: null, result: null };
     job = current;
     const log: Log = (msg) => {
@@ -164,6 +172,8 @@ export function createGuiServer(deps: GuiDeps): { server: Server; token: string;
         return sendJson(res, 202, state());
       }
 
+      if (url.pathname.startsWith('/api/ohgo/')) return await handleOhgo(req, res, url.pathname);
+
       if (req.method === 'POST' && url.pathname === '/api/quit') {
         sendJson(res, 200, { ok: true, busy: isBusy() });
         deps.onQuit?.();
@@ -192,7 +202,87 @@ export function createGuiServer(deps: GuiDeps): { server: Server; token: string;
       return sendJson(res, 500, { error: (err as Error).message });
     }
   });
+  const handleOhgo = async (req: IncomingMessage, res: ServerResponse, path: string) => {
+    const ohgo = deps.ohgo;
+    if (!ohgo) return sendJson(res, 503, { error: '오고피씽 등록을 쓸 수 없습니다' });
+    try {
+      if (req.method === 'GET' && path === '/api/ohgo/state') return sendJson(res, 200, await ohgo.state());
+      if (req.method !== 'POST') return sendJson(res, 404, { error: '없는 경로입니다' });
+      const body = await readBody(req);
+      if (path === '/api/ohgo/login') {
+        const creds =
+          typeof body.email === 'string'
+            ? { email: body.email, password: str(body.password) }
+            : { name: str(body.name), dob: str(body.dob) };
+        return sendJson(res, 200, await ohgo.login(creds));
+      }
+      if (path === '/api/ohgo/logout') return sendJson(res, 200, await ohgo.logout());
+      if (path === '/api/ohgo/prepare') return sendJson(res, 200, await ohgo.prepare(str(body.postId)));
+      if (path === '/api/ohgo/push') {
+        if (isBusy()) return sendJson(res, 409, { error: '다른 작업이 진행 중입니다' });
+        const request = toPushRequest(body);
+        ohgo.checkPush(request);
+        startJob('push', (log) => ohgo.push(request, log));
+        return sendJson(res, 202, state());
+      }
+      if (path === '/api/ohgo/open-link') {
+        const link = str(body.url);
+        if (!ohgo.isAppLink(link)) return sendJson(res, 400, { error: '오고피씽 주소만 열 수 있습니다' });
+        deps.openPath(link);
+        return sendJson(res, 200, { ok: true });
+      }
+      return sendJson(res, 404, { error: '없는 경로입니다' });
+    } catch (err) {
+      if (err instanceof OhgoRequestRejected) return sendJson(res, err.status, { error: err.message, code: err.code });
+      if (err instanceof OhgoAuthError) return sendJson(res, err.status, { error: err.message });
+      return sendJson(res, 500, { error: (err as Error).message });
+    }
+  };
+
   return { server, token, isBusy };
+}
+
+function str(v: unknown): string {
+  return typeof v === 'string' ? v : '';
+}
+
+function intOrNull(v: unknown): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(String(v).replace(/,/g, ''));
+  return Number.isFinite(n) ? n : NaN;
+}
+
+/** 화면에서 온 값을 정해진 모양으로만 받는다 */
+export function toPushRequest(body: Record<string, unknown>): PushRequest {
+  const kind = body.kind === 'schedule' ? 'schedule' : body.kind === 'catch' ? 'catch' : null;
+  if (!kind) throw new OhgoRequestRejected('등록 종류를 고르세요');
+  const req: PushRequest = { postId: str(body.postId), kind, force: body.force === true };
+  const photo = (body.photo ?? {}) as Record<string, unknown>;
+  const trip = (body.trip ?? {}) as Record<string, unknown>;
+  if (kind === 'catch') {
+    const draft: PhotoDraft = {
+      title: str(photo.title),
+      description: str(photo.description),
+      photoDate: str(photo.photoDate) || null,
+      images: Array.isArray(photo.images) ? photo.images.map(str) : [],
+    };
+    req.photo = draft;
+  } else {
+    const ref = str(trip.refDate) || new Date().toISOString().slice(0, 10);
+    const draft: TripDraft = {
+      dates: Array.isArray(trip.dates) ? trip.dates.map(str).filter(Boolean) : parseDateList(str(trip.dates), ref),
+      destination: str(trip.destination),
+      departureTime: str(trip.departureTime),
+      returnTime: str(trip.returnTime),
+      species: str(trip.species),
+      capacity: intOrNull(trip.capacity),
+      price: intOrNull(trip.price),
+      contact: str(trip.contact),
+      notes: str(trip.notes),
+    };
+    req.trip = draft;
+  }
+  return req;
 }
 
 function openWithSystem(target: string): void {
@@ -224,7 +314,8 @@ async function openAppWindow(url: string, onClose: () => void): Promise<ChildPro
 }
 
 async function main(): Promise<void> {
-  const { DEFAULT_OUT_DIR, TOOL_ROOT, USER_DATA_DIR, runFetch, runLogin } = await import('./commands.mts');
+  const { DEFAULT_OUT_DIR, OHGO_DIR, TOOL_ROOT, USER_DATA_DIR, runFetch, runLogin } = await import('./commands.mts');
+  const { createOhgoService } = await import('./ohgo-service.mts');
   let windowProcess: ChildProcess | null = null;
   let closing = false;
   // 진행 중인 login/fetch가 끝난 뒤 종료한다
@@ -246,6 +337,7 @@ async function main(): Promise<void> {
     outRoot: DEFAULT_OUT_DIR,
     userDataDir: USER_DATA_DIR,
     htmlPath: join(TOOL_ROOT, 'gui', 'index.html'),
+    ohgo: createOhgoService({ dir: OHGO_DIR, outRoot: DEFAULT_OUT_DIR, uploadGapMs: 300 }),
     onQuit: shutdown,
   });
   const port = Number(process.env.BAND_GUI_PORT) || 0;

@@ -45,12 +45,38 @@
   .warn { color: var(--warn); font-size: 12px; }
   .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; margin: 10px 0; }
   .thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; background: #eee; }
-  .hidden { display: none; }
+  .hidden { display: none !important; }
   .spinner {
     display: inline-block; width: 12px; height: 12px; border: 2px solid var(--accent-weak); border-top-color: var(--accent);
     border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -1px; margin-right: 6px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  h2.sec { font-size: 16px; margin: 0; }
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-top: 10px; }
+  .field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .field.wide { grid-column: 1 / -1; }
+  .field > span { font-size: 12px; color: var(--muted); }
+  .field input, .field textarea, .login input {
+    width: 100%; padding: 8px 10px; font: inherit; border: 1px solid var(--line); border-radius: 8px; outline: none; background: #fff;
+  }
+  .field textarea { resize: vertical; min-height: 84px; }
+  .field input:focus, .field textarea:focus, .login input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+  .field.need input { border-color: var(--err); background: #fff6f6; }
+  .login { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .login .row input { flex: 1; min-width: 0; }
+  button.link { border: 0; background: none; color: var(--accent); padding: 4px 6px; font-size: 12px; }
+  .seg { display: flex; gap: 6px; margin-top: 12px; }
+  .seg label { flex: 1; text-align: center; padding: 8px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-weight: 600; }
+  .seg input { display: none; }
+  .seg label.on { border-color: var(--accent); background: var(--accent-weak); color: var(--accent); }
+  .box { border-radius: 8px; padding: 8px 10px; font-size: 13px; margin-top: 10px; }
+  .pre { white-space: pre-wrap; }
+  .box.warn { background: #fff4e0; color: var(--warn); }
+  .box.err { background: #fdecec; color: var(--err); }
+  .box.ok { background: #e6f4ec; color: var(--ok); }
+  .thumbs img.off { opacity: .25; outline: 2px dashed var(--line); }
+  .thumbs img.pick { cursor: pointer; }
+  .actions { margin-top: 12px; }
   footer { display: flex; justify-content: flex-end; }
   footer button { font-size: 12px; padding: 6px 10px; color: var(--muted); }
 </style>
@@ -92,6 +118,77 @@
     </div>
   </div>
 
+  <div id="ohgoCard" class="card hidden">
+    <div class="session">
+      <h2 class="sec">오고피씽에 등록</h2>
+      <div><span id="ohgoBadge" class="badge">확인 중</span><button id="ohgoLogoutBtn" class="link hidden" type="button">로그아웃</button></div>
+    </div>
+    <div id="ohgoConfigErr" class="box err hidden"></div>
+
+    <form id="ohgoLoginForm" class="login hidden">
+      <div class="sub" style="margin:0">오고피씽 관리자 계정으로 한 번 로그인하면 이 Mac에 저장됩니다. 앱에 로그인할 때 쓰는 이름과 생년월일을 넣으세요.</div>
+      <div id="nameDobRow" class="row">
+        <input id="ohgoName" placeholder="이름" autocomplete="off">
+        <input id="ohgoDob" placeholder="생년월일 (예: 800101)" inputmode="numeric" autocomplete="off">
+      </div>
+      <div id="emailRow" class="row hidden">
+        <input id="ohgoEmail" type="email" placeholder="이메일" autocomplete="off">
+        <input id="ohgoPassword" type="password" placeholder="비밀번호" autocomplete="off">
+      </div>
+      <div class="row">
+        <button id="ohgoLoginBtn" class="primary" type="submit">관리자 로그인</button>
+        <button id="ohgoModeBtn" class="link" type="button">이메일 계정으로 로그인</button>
+      </div>
+    </form>
+
+    <div id="ohgoBody" class="hidden">
+      <div class="seg">
+        <label id="kindCatch"><input type="radio" name="kind" value="catch">조황 사진 게시판</label>
+        <label id="kindSchedule"><input type="radio" name="kind" value="schedule">출조 일정</label>
+      </div>
+      <div id="classifyInfo" class="sub" style="margin:6px 0 0"></div>
+      <div id="dupBox" class="box warn hidden">
+        <div id="dupText"></div>
+        <label class="opt" style="margin-top:6px"><input id="force" type="checkbox"> 그래도 다시 등록</label>
+      </div>
+      <div id="remoteWarn" class="box warn pre hidden"></div>
+
+      <div id="catchPane">
+        <div class="fields">
+          <label class="field wide"><span>제목</span><input id="pTitle" maxlength="100"></label>
+          <label class="field wide"><span>내용</span><textarea id="pDesc" rows="6"></textarea></label>
+          <label class="field"><span>사진 날짜</span><input id="pDate" type="date"></label>
+          <div class="field"><span>사진</span><div id="pCount" style="padding-top:8px"></div></div>
+        </div>
+        <div class="sub" style="margin:8px 0 0">사진을 누르면 빼거나 다시 넣습니다. 5MB가 넘는 사진은 줄여서 올립니다.</div>
+        <div id="pThumbs" class="thumbs"></div>
+      </div>
+
+      <div id="schedulePane" class="hidden">
+        <div id="tMissing" class="box err hidden"></div>
+        <div id="tHints" class="sub pre" style="margin:8px 0 0"></div>
+        <div class="fields">
+          <label class="field wide" id="fDates"><span>날짜 * (여러 날이면 쉼표로 구분, 날마다 한 건씩 등록)</span><input id="tDates" placeholder="2026-10-12, 2026-10-13"></label>
+          <label class="field wide" id="fDest"><span>목적지 *</span><input id="tDest" placeholder="예: 나무섬, 형제섬"></label>
+          <label class="field" id="fDep"><span>출항 시간 *</span><input id="tDep" type="time"></label>
+          <label class="field"><span>입항 예정</span><input id="tRet" type="time"></label>
+          <label class="field"><span>목표 어종</span><input id="tSpecies" placeholder="예: 참돔, 광어"></label>
+          <label class="field"><span>정원 (명)</span><input id="tCap" type="number" min="0" placeholder="미입력 시 제한 없음"></label>
+          <label class="field"><span>1인 요금 (원)</span><input id="tPrice" type="number" min="0" step="1000"></label>
+          <label class="field"><span>예약 문의 (연락처)</span><input id="tContact" placeholder="010-0000-0000"></label>
+          <label class="field wide"><span>비고 / 상세내용</span><textarea id="tNotes" rows="5"></textarea></label>
+        </div>
+      </div>
+
+      <div class="row actions">
+        <button id="pushBtn" class="primary" type="button">오고피씽에 등록</button>
+        <span id="pushHint" class="sub" style="margin:0"></span>
+      </div>
+    </div>
+
+    <div id="pushResult" class="box ok hidden"></div>
+  </div>
+
   <footer><button id="quitBtn">종료</button></footer>
 
 <script>
@@ -108,7 +205,12 @@
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `요청 실패 (${res.status})`);
+    if (!res.ok) {
+      const err = new Error(data.error || `요청 실패 (${res.status})`);
+      err.code = data.code || null;
+      err.status = res.status;
+      throw err;
+    }
     return data;
   }
 
@@ -131,11 +233,13 @@
     }
     $('loginBtn').disabled = state.busy;
     $('fetchBtn').disabled = state.busy;
+    busy = state.busy;
+    updatePushButton();
 
     const job = state.job;
     if (!job) return;
     $('jobCard').classList.remove('hidden');
-    const name = job.kind === 'login' ? '로그인' : '가져오기';
+    const name = { login: '로그인', fetch: '가져오기', push: '오고피씽 등록' }[job.kind];
     const status = $('status');
     status.className = `status ${job.status}`;
     if (job.status === 'running') {
@@ -150,7 +254,10 @@
     log.textContent = job.logs.join('\n');
     if (atBottom) log.scrollTop = log.scrollHeight;
 
-    if (job.status === 'done' && job.result && job.id !== lastJobId) showResult(job.result);
+    if (job.status !== 'running' && job.id !== lastJobId) {
+      if (job.kind === 'fetch' && job.status === 'done' && job.result) showResult(job.result);
+      if (job.kind === 'push') showPushDone(job);
+    }
     if (job.status !== 'running') lastJobId = job.id;
   }
 
@@ -173,7 +280,224 @@
       img.alt = f;
       return img;
     }));
+    loadOhgo(r.postId);
   }
+
+  // ---------- 오고피씽 등록 ----------
+  let busy = false;
+  let ohgoUser = null;
+  let prep = null;
+  let kind = 'catch';
+  let picked = new Set();
+  let emailMode = false;
+  let pushedFor = null;
+
+  function show(id, on) { $(id).classList.toggle('hidden', !on); }
+
+  function renderOhgoState(st) {
+    ohgoUser = st.user;
+    const badge = $('ohgoBadge');
+    badge.textContent = st.user ? `관리자 ${st.user.name}` : '로그인 필요';
+    badge.className = st.user ? 'badge ok' : 'badge';
+    show('ohgoLogoutBtn', !!st.user);
+    show('ohgoConfigErr', !!st.configError);
+    $('ohgoConfigErr').textContent = st.configError || '';
+    show('ohgoLoginForm', !st.user && !st.configError);
+    updatePushButton();
+  }
+
+  async function loadOhgo(postId) {
+    show('ohgoCard', true);
+    show('ohgoBody', false);
+    show('pushResult', false);
+    pushedFor = null;
+    try {
+      renderOhgoState(await api('/api/ohgo/state'));
+      prep = await api('/api/ohgo/prepare', { postId });
+      fillOhgo(prep);
+    } catch (err) {
+      $('ohgoConfigErr').textContent = err.message;
+      show('ohgoConfigErr', true);
+    }
+  }
+
+  function setKind(k) {
+    kind = k;
+    document.querySelectorAll('input[name=kind]').forEach((el) => { el.checked = el.value === k; });
+    $('kindCatch').classList.toggle('on', k === 'catch');
+    $('kindSchedule').classList.toggle('on', k === 'schedule');
+    show('catchPane', k === 'catch');
+    show('schedulePane', k === 'schedule');
+    if (prep) {
+      const c = prep.classification;
+      const label = c.kind === 'catch' ? '조황 사진 게시판' : '출조 일정';
+      const head = c.kind === k ? `자동 분류: ${label}` : `직접 바꿈 (자동 분류는 ${label})`;
+      $('classifyInfo').textContent = `${head} (조황 ${c.scores.catch}점, 일정 ${c.scores.schedule}점). 근거: ${c.reasons.join(', ') || '단서 없음'}`;
+    }
+    markMissing();
+    updatePushButton();
+  }
+
+  function fillOhgo(p) {
+    show('ohgoBody', true);
+    $('pTitle').value = p.photo.title;
+    $('pDesc').value = p.photo.description;
+    $('pDate').value = p.photo.photoDate || '';
+    picked = new Set(p.photo.images);
+    $('pThumbs').replaceChildren(...p.photo.images.map((f) => {
+      const img = document.createElement('img');
+      img.className = 'pick';
+      img.src = `/out/${p.postId}/${encodeURIComponent(f)}?t=${TOKEN}`;
+      img.title = f;
+      img.addEventListener('click', () => {
+        if (picked.has(f)) picked.delete(f); else picked.add(f);
+        img.classList.toggle('off', !picked.has(f));
+        updatePhotoCount();
+      });
+      return img;
+    }));
+    updatePhotoCount();
+
+    const t = p.trip;
+    $('tDates').value = t.dates.join(', ');
+    $('tDest').value = t.destination;
+    $('tDep').value = t.departureTime;
+    $('tRet').value = t.returnTime;
+    $('tSpecies').value = t.species;
+    $('tCap').value = t.capacity ?? '';
+    $('tPrice').value = t.price ?? '';
+    $('tContact').value = t.contact;
+    $('tNotes').value = t.notes;
+    $('tHints').textContent = p.tripHints.join('\n');
+    show('tHints', p.tripHints.length > 0);
+
+    $('force').checked = false;
+    show('dupBox', !!p.ledger);
+    if (p.ledger) {
+      const where = p.ledger.target === 'community_photos' ? '조황 사진 게시판' : '출조 일정';
+      $('dupText').textContent = `이미 등록한 게시글입니다. ${formatTime(p.ledger.registeredAt)}에 ${where}에 올렸습니다 (${p.ledger.by || '관리자'}).`;
+    }
+    $('remoteWarn').textContent = p.remoteWarnings.join('\n');
+    show('remoteWarn', p.remoteWarnings.length > 0);
+    setKind(p.classification.kind);
+  }
+
+  function updatePhotoCount() {
+    if (!prep) return;
+    $('pCount').textContent = `${picked.size}장 올림 (전체 ${prep.photo.images.length}장)`;
+    updatePushButton();
+  }
+
+  function tripMissing() {
+    const miss = [];
+    if (!$('tDates').value.trim()) miss.push(['fDates', '날짜']);
+    if (!$('tDest').value.trim()) miss.push(['fDest', '목적지']);
+    if (!$('tDep').value.trim()) miss.push(['fDep', '출항 시간']);
+    return miss;
+  }
+
+  function markMissing() {
+    const miss = kind === 'schedule' ? tripMissing() : [];
+    for (const id of ['fDates', 'fDest', 'fDep']) $(id).classList.toggle('need', miss.some(([m]) => m === id));
+    $('tMissing').textContent = miss.length ? `Band 글에서 ${miss.map(([, n]) => n).join(', ')}을(를) 찾지 못했습니다. 직접 입력하세요.` : '';
+    show('tMissing', miss.length > 0);
+  }
+
+  function pushBlocker() {
+    if (!prep) return '가져온 게시글이 없습니다';
+    if (!ohgoUser) return '먼저 관리자 로그인을 하세요';
+    if (busy) return '다른 작업이 진행 중입니다';
+    if (pushedFor === prep.postId) return '등록을 마쳤습니다';
+    if (prep.ledger && !$('force').checked) return '이미 등록한 글입니다';
+    if (kind === 'catch' && picked.size === 0) return '사진을 1장 이상 고르세요';
+    if (kind === 'catch' && !$('pTitle').value.trim()) return '제목을 입력하세요';
+    if (kind === 'schedule' && tripMissing().length) return '필수 칸을 채우세요';
+    return '';
+  }
+
+  function updatePushButton() {
+    const why = pushBlocker();
+    $('pushBtn').disabled = !!why;
+    $('pushHint').textContent = why || (kind === 'catch' ? '조황 사진 게시판에 바로 올라갑니다' : '출조 일정에 바로 저장됩니다');
+  }
+
+  function pushPayload() {
+    const base = { postId: prep.postId, kind, force: $('force').checked };
+    if (kind === 'catch') {
+      return { ...base, photo: {
+        title: $('pTitle').value, description: $('pDesc').value, photoDate: $('pDate').value || null,
+        images: prep.photo.images.filter((f) => picked.has(f)),
+      } };
+    }
+    return { ...base, trip: {
+      refDate: prep.refDate, dates: $('tDates').value, destination: $('tDest').value, departureTime: $('tDep').value,
+      returnTime: $('tRet').value, species: $('tSpecies').value, capacity: $('tCap').value, price: $('tPrice').value,
+      contact: $('tContact').value, notes: $('tNotes').value,
+    } };
+  }
+
+  function showPushDone(job) {
+    if (job.status === 'error') return;
+    const r = job.result;
+    pushedFor = prep ? prep.postId : null;
+    const box = $('pushResult');
+    const where = r.kind === 'catch' ? '조황 사진 게시판' : `출조 일정 ${r.rowIds.length}건`;
+    box.replaceChildren(document.createTextNode(`${where}에 등록했습니다.${r.resizedImages ? ` (줄인 사진 ${r.resizedImages}장)` : ''} `));
+    for (const link of r.links) {
+      const b = document.createElement('button');
+      b.textContent = r.kind === 'catch' ? '앱에서 보기' : '출조 관리 열기';
+      b.addEventListener('click', () => api('/api/ohgo/open-link', { url: link }).catch((e) => showError(e.message)));
+      box.appendChild(b);
+    }
+    show('pushResult', true);
+    updatePushButton();
+  }
+
+  document.querySelectorAll('input[name=kind]').forEach((el) => el.addEventListener('change', () => setKind(el.value)));
+  ['tDates', 'tDest', 'tDep', 'pTitle'].forEach((id) => $(id).addEventListener('input', () => { markMissing(); updatePushButton(); }));
+  $('force').addEventListener('change', updatePushButton);
+
+  $('ohgoModeBtn').addEventListener('click', () => {
+    emailMode = !emailMode;
+    show('nameDobRow', !emailMode);
+    show('emailRow', emailMode);
+    $('ohgoModeBtn').textContent = emailMode ? '이름과 생년월일로 로그인' : '이메일 계정으로 로그인';
+  });
+
+  $('ohgoLoginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('ohgoLoginBtn').disabled = true;
+    try {
+      const body = emailMode
+        ? { email: $('ohgoEmail').value, password: $('ohgoPassword').value }
+        : { name: $('ohgoName').value, dob: $('ohgoDob').value };
+      renderOhgoState(await api('/api/ohgo/login', body));
+      $('ohgoPassword').value = '';
+      $('ohgoDob').value = '';
+    } catch (err) {
+      $('ohgoConfigErr').textContent = err.message;
+      show('ohgoConfigErr', true);
+    } finally {
+      $('ohgoLoginBtn').disabled = false;
+    }
+  });
+
+  $('ohgoLogoutBtn').addEventListener('click', async () => {
+    try { renderOhgoState(await api('/api/ohgo/logout', {})); } catch (err) { showError(err.message); }
+  });
+
+  $('pushBtn').addEventListener('click', async () => {
+    if (pushBlocker()) return;
+    $('pushBtn').disabled = true;
+    try {
+      await api('/api/ohgo/push', pushPayload());
+      startPolling();
+    } catch (err) {
+      if (err.code === 'DUPLICATE') show('dupBox', true);
+      showError(err.message);
+      updatePushButton();
+    }
+  });
 
   async function refresh() {
     try {
