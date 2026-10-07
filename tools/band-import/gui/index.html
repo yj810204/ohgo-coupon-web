@@ -143,7 +143,7 @@
 
     <div id="ohgoBody" class="hidden">
       <div class="seg">
-        <label id="kindCatch"><input type="radio" name="kind" value="catch">조황 사진 게시판</label>
+        <label id="kindCatch"><input type="radio" name="kind" value="catch">조황 사진 게시판<span id="kindCatchCount"></span></label>
         <label id="kindSchedule"><input type="radio" name="kind" value="schedule">출조 일정</label>
       </div>
       <div id="classifyInfo" class="sub" style="margin:6px 0 0"></div>
@@ -154,6 +154,7 @@
       <div id="remoteWarn" class="box warn pre hidden"></div>
 
       <div id="catchPane">
+        <div id="photoWarn" class="box warn pre hidden"></div>
         <div class="fields">
           <label class="field wide"><span>제목</span><input id="pTitle" maxlength="100"></label>
           <label class="field wide"><span>내용</span><textarea id="pDesc" rows="6"></textarea></label>
@@ -165,6 +166,7 @@
       </div>
 
       <div id="schedulePane" class="hidden">
+        <div id="schedulePhotoNote" class="box warn hidden"></div>
         <div id="tMissing" class="box err hidden"></div>
         <div id="tHints" class="sub pre" style="margin:8px 0 0"></div>
         <div class="fields">
@@ -357,6 +359,12 @@
       return img;
     }));
     updatePhotoCount();
+    const n = p.photo.images.length;
+    $('kindCatchCount').textContent = ` (사진 ${n}장)`;
+    $('photoWarn').textContent = (p.photoWarnings || []).join('\n');
+    show('photoWarn', (p.photoWarnings || []).length > 0);
+    $('schedulePhotoNote').textContent = `출조 일정에는 사진이 올라가지 않습니다. 사진 ${n}장을 올리려면 위에서 조황 사진 게시판을 고르세요.`;
+    show('schedulePhotoNote', n > 0);
 
     const t = p.trip;
     $('tDates').value = t.dates.join(', ');

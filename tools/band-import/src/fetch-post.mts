@@ -82,11 +82,14 @@ function readPostDom(): DomSnapshot | null {
   if (!bodyEl) return null;
   const author = root.querySelector('.postWriterInfoWrap .text')?.textContent?.trim() || null;
   const createdText = root.querySelector('.postWriterInfoWrap time')?.textContent?.trim() || null;
-  const imageUrls = Array.from(
-    root.querySelectorAll<HTMLImageElement>('.postBody img, ._uploadedPhotoList img'),
-  )
-    .map((img) => img.currentSrc || img.src)
-    .filter((src) => /^https?:\/\/[^/]*pstatic\.net\//.test(src));
+  // 아직 화면에 안 나온 사진은 src가 비어 있고 data-src 같은 곳에 주소가 있다
+  const isPstatic = (src: string | null | undefined): src is string => !!src && /^https?:\/\/[^/]*pstatic\.net\//.test(src);
+  const imageUrls: string[] = [];
+  for (const img of Array.from(root.querySelectorAll<HTMLImageElement>('.postBody img, ._uploadedPhotoList img'))) {
+    const srcset = (img.getAttribute('data-srcset') || img.getAttribute('srcset') || '').split(',')[0]?.trim().split(/\s+/)[0];
+    const src = [img.currentSrc, img.src, img.getAttribute('data-src'), img.getAttribute('data-original'), img.getAttribute('data-lazy-src'), srcset].find(isPstatic);
+    if (src && !imageUrls.includes(src)) imageUrls.push(src);
+  }
   return {
     author,
     createdText,

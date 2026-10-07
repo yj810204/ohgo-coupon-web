@@ -1,4 +1,5 @@
 import type { ExtractedPost } from './schema.mts';
+import { normalizeTitle } from './title.mts';
 import { findDates, findTripTimes, kstDate, postRefDate } from './trip-parse.mts';
 
 /** catch: 조황 사진 게시판(community_photos), schedule: 출조 안내(trip_guides) */
@@ -24,17 +25,23 @@ function hits(text: string, words: string[]): string[] {
   return words.filter((w) => lower.includes(w.toLowerCase()));
 }
 
-export function classifyPost(post: ExtractedPost): Classification {
+const CATCH_TITLE = /조황|조과/;
+const SCHEDULE_TITLE = /출조\s*안내|출항\s*안내|모집|일정|예약/;
+
+/** photoCount: 실제로 올릴 수 있는 사진 수. 없으면 extracted.json 기준 */
+export function classifyPost(post: ExtractedPost, photoCount?: number): Classification {
   const scores: Record<OhgoKind, number> = { catch: 0, schedule: 0 };
   const reasons: string[] = [];
   const text = `${post.title}\n${post.body}`;
   const ref = postRefDate(post);
 
+  if (CATCH_TITLE.test(post.title)) catchBoost(4, '제목에 조황이라고 적혀 있음');
+  if (SCHEDULE_TITLE.test(post.title)) scheduleBoost(4, '제목에 출조 안내나 모집이 적혀 있음');
   if (post.schedules.length > 0) {
     scheduleBoost(3, `Band 일정 첨부 ${post.schedules.length}개`);
   }
   const scheduleHits = hits(text, SCHEDULE_WORDS);
-  if (scheduleHits.length) scheduleBoost(Math.min(scheduleHits.length, 3), `일정 단어 ${scheduleHits.slice(0, 4).join(' ')}`);
+  if (scheduleHits.length) scheduleBoost(Math.min(scheduleHits.length, 2), `일정 단어 ${scheduleHits.slice(0, 4).join(' ')}`);
   const future = findDates(post.body, ref).filter((d) => d.date > ref);
   if (future.length || post.schedules.some((s) => (kstDate(s.startAt) ?? '') > ref)) {
     scheduleBoost(2, '게시일 이후 날짜가 있음');
@@ -43,8 +50,9 @@ export function classifyPost(post: ExtractedPost): Classification {
 
   const catchHits = hits(text, CATCH_WORDS);
   if (catchHits.length) catchBoost(Math.min(catchHits.length, 4), `조황 단어 ${catchHits.slice(0, 4).join(' ')}`);
-  const photos = post.images.filter((i) => i.file).length;
-  if (photos >= 3) catchBoost(2, `사진 ${photos}장`);
+  const photos = photoCount ?? post.images.filter((i) => i.file).length;
+  if (photos >= 5) catchBoost(3, `사진 ${photos}장`);
+  else if (photos >= 3) catchBoost(2, `사진 ${photos}장`);
   else if (photos > 0) catchBoost(1, `사진 ${photos}장`);
 
   let kind: OhgoKind;
@@ -71,20 +79,25 @@ export type PhotoDraft = {
   images: string[];
 };
 
-/** 조황 글을 조황 사진 게시판 입력값으로 바꾼다 */
-export function buildPhotoDraft(post: ExtractedPost): PhotoDraft {
+/**
+ * 조황 글을 조황 사진 게시판 입력값으로 바꾼다.
+ * images: 실제로 있는 사진 파일 목록. 없으면 extracted.json 기준
+ */
+export function buildPhotoDraft(post: ExtractedPost, images?: string[]): PhotoDraft {
   const lines = post.body.split('\n');
   const firstIdx = lines.findIndex((l) => l.trim().length > 0);
-  const title = post.title.trim();
+  const raw = post.title.trim();
+  const title = normalizeTitle(raw);
   let description = post.body;
-  if (firstIdx >= 0 && lines[firstIdx].trim() === title) {
+  const first = firstIdx >= 0 ? lines[firstIdx].trim() : null;
+  if (first && (first === raw || first === title)) {
     description = lines.slice(firstIdx + 1).join('\n').replace(/^\n+/, '').trimEnd();
   }
   return {
     title: title.slice(0, 100),
     description,
     photoDate: kstDate(post.createdAt),
-    images: post.images.map((i) => i.file).filter((f): f is string => !!f),
+    images: images ?? post.images.map((i) => i.file).filter((f): f is string => !!f),
   };
 }
 

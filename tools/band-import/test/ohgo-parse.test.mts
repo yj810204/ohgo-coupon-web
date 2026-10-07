@@ -18,6 +18,7 @@ import {
   parseTripGuide,
   validateTripDraft,
 } from '../src/trip-parse.mts';
+import { normalizeTitle } from '../src/title.mts';
 import { parseBandPostUrl } from '../src/url.mts';
 
 const ref = parseBandPostUrl('https://band.us/band/88348442/post/2925');
@@ -181,7 +182,7 @@ assert.equal(catchClass.kind, 'catch');
 assert.ok(catchClass.scores.catch > catchClass.scores.schedule);
 const photo = buildPhotoDraft(catchPost);
 assert.deepEqual(photo, {
-  title: '오늘 갑오징어 조황입니다',
+  title: '오늘 갑오징어 조황 입니다',
   description: '손님들 쿨러 가득 채우셨습니다\n수고하셨습니다',
   photoDate: '2026-10-06',
   images: ['01.jpg', '02.jpg', '03.jpg', '04.jpg', '05.jpg'],
@@ -196,6 +197,36 @@ assert.equal(classifyPost(makePost('감사합니다')).kind, 'schedule');
 
 // 사진 많은 조황 글에 날짜가 섞여 있어도 조황
 assert.equal(classifyPost(makePost('10월 5일 조황\n참돔 마릿수 좋았습니다\n씨알 굿', { photos: 8 })).kind, 'catch');
+
+// 이벤트 조황 글: 예약 단어와 다음 출조 날짜가 있어도 제목이 조황이고 사진이 많으면 조황
+const eventCatch = makePost(
+  '오늘6일(화)이벤트4주차감성돔조황입니다.\n손님들 고생하셨습니다\n다음 출조 10월 8일 06:00 출항\n예약 문의 010-1234-5678\n자리 선착순 마감',
+  { photos: 11 },
+);
+assert.equal(classifyPost(eventCatch).kind, 'catch');
+assert.equal(classifyPost(makePost('감사합니다', { photos: 5 }), 0).kind, 'schedule', '사진 수를 따로 넘기면 그 수로 판단');
+assert.equal(classifyPost(makePost('[출조 안내] 10월 12일 참돔\n출항 05:00', { photos: 2 })).kind, 'schedule');
+
+// 제목 정리
+assert.equal(normalizeTitle('오늘6일(화)이벤트4주차감성돔조황입니다.'), '6일(화) 이벤트4주차 감성돔조황 입니다.');
+const titleCases: [string, string][] = [
+  ['내일10월12일(일)쭈꾸미조황', '10월12일(일) 쭈꾸미조황'],
+  ['10/6(월)갑오징어조과입니다!', '10/6(월) 갑오징어조과 입니다!'],
+  ['오늘 참가자미조황입니다', '오늘 참가자미조황 입니다'],
+  ['이벤트 3 주차 문어조황', '이벤트3주차 문어조황'],
+  ['금일7일(수)주꾸미조황입니다', '7일(수) 주꾸미조황 입니다'],
+  ['대물감성돔조황 입니다', '대물 감성돔조황 입니다'],
+  ['  감성돔조황입니다.  ', '감성돔조황 입니다.'],
+  ['오늘 조황', '오늘 조황'],
+  ['3일간 출조 안내', '3일간 출조 안내'],
+  ['1.5kg 참돔 조황', '1.5kg 참돔 조황'],
+  ['6일(화) 이벤트4주차 감성돔조황 입니다.', '6일(화) 이벤트4주차 감성돔조황 입니다.'],
+];
+for (const [raw, want] of titleCases) assert.equal(normalizeTitle(raw), want, raw);
+const eventDraft = buildPhotoDraft(eventCatch);
+assert.equal(eventDraft.title, '6일(화) 이벤트4주차 감성돔조황 입니다.');
+assert.ok(eventDraft.description.startsWith('손님들'), '원래 제목 줄은 내용에서 뺀다');
+assert.deepEqual(buildPhotoDraft(eventCatch, ['02.png']).images, ['02.png']);
 
 // 사용자 문구에 가운뎃점이 없어야 한다
 for (const text of [...scheduleClass.reasons, ...catchClass.reasons, ...multi.hints, ...validateTripDraft(vague.draft)]) {

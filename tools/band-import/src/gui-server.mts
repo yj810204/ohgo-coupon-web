@@ -189,11 +189,12 @@ export function createGuiServer(deps: GuiDeps): { server: Server; token: string;
         return sendJson(res, 200, { ok: true });
       }
 
-      const file = /^\/out\/(\d+)\/([\w-]+\.[a-z]+)$/.exec(url.pathname);
-      if (req.method === 'GET' && file && MIME[extname(file[2])]) {
+      const file = /^\/out\/(\d+)\/([\w-]+\.[a-z]+)$/i.exec(url.pathname);
+      const mime = file ? MIME[extname(file[2]).toLowerCase()] : undefined;
+      if (req.method === 'GET' && file && mime) {
         const path = join(deps.outRoot, file[1], file[2]);
         if (!existsSync(path) || !statSync(path).isFile()) return sendJson(res, 404, { error: '파일이 없습니다' });
-        res.writeHead(200, { 'content-type': MIME[extname(file[2])], 'cache-control': 'no-store' });
+        res.writeHead(200, { 'content-type': mime, 'cache-control': 'no-store' });
         return createReadStream(path).pipe(res);
       }
 

@@ -6,6 +6,7 @@ import { buildExtracted } from '../src/extracted.mts';
 import { createBrowserReencoder, MAX_UPLOAD_BYTES, prepareImage } from '../src/image-prep.mts';
 import { LEDGER_FILE, readLedger } from '../src/ledger.mts';
 import { OHGO_SESSION_FILE, readOhgoSession, saveOhgoSession } from '../src/ohgo-auth.mts';
+import { imageFileName, normalizeDomSnapshot } from '../src/normalize.mts';
 import { newPhotoObjectPath, publicPhotoUrl } from '../src/ohgo-client.mts';
 import { findSupabaseConfigInText, resolveOhgoConfig } from '../src/ohgo-config.mts';
 import { createOhgoService, OhgoRequestRejected } from '../src/ohgo-service.mts';
@@ -232,6 +233,67 @@ assert.equal(prepTrip.trip.departureTime, '05:00');
 assert.equal(prepTrip.trip.returnTime, '14:00');
 assert.deepEqual(prepTrip.tripMissing, []);
 assert.ok(prepTrip.remoteWarnings.some((w) => w.includes('2026-10-12에 이미 등록된 출조 일정 1개: 05:00 나무섬')));
+// 실제 2925 글처럼 화면(DOM)에서 읽은 글: createdAt 없음, 이벤트 글이라 예약 단어와 다음 출조 날짜가 있음
+const DOM_BODY = [
+  '오늘6일(화)이벤트4주차감성돔조황입니다.',
+  '이벤트 기간 중 감성돔 최대어 시상합니다',
+  '오늘도 손님들 고생 많으셨습니다',
+  '다음 출조는 10월 8일(목) 06:00 출항',
+  '예약 문의 010-1234-5678',
+  '자리 얼마 남지 않았습니다 선착순 마감',
+].join('\n');
+function writeDomPost(postId: string, listed: string[], onDisk: string[]) {
+  const ref = parseBandPostUrl(`https://band.us/band/88348442/post/${postId}`);
+  const dom = normalizeDomSnapshot({
+    author: '오고피씽',
+    createdText: '10월 6일 오후 3:12',
+    bodyText: DOM_BODY,
+    imageUrls: listed.map((f) => `https://coresos-phinf.pstatic.net/a/${postId}/${f}?type=w720`),
+  });
+  const extracted = buildExtracted({
+    ref,
+    via: 'dom',
+    post: dom,
+    images: dom.images.map((img, index) => ({
+      index,
+      sourceUrl: img.url,
+      file: imageFileName(index, img.url, listed[index].endsWith('.png') ? 'image/png' : 'image/jpeg'),
+      width: null,
+      height: null,
+    })),
+    fetchedAt: new Date('2026-10-07T00:00:00.000Z'),
+  });
+  mkdirSync(join(outRoot, postId), { recursive: true });
+  writeFileSync(join(outRoot, postId, 'extracted.json'), JSON.stringify(extracted));
+  for (const f of onDisk) writeFileSync(join(outRoot, postId, f), Buffer.from(`img-${f}`));
+  writeFileSync(join(outRoot, postId, 'network-log.json'), '[]');
+}
+const ELEVEN = Array.from({ length: 11 }, (_, i) => `${String(i + 1).padStart(2, '0')}.${i < 8 ? 'jpg' : 'png'}`);
+writeDomPost('2925', ELEVEN, ELEVEN);
+const prepDom = await service.prepare('2925');
+assert.equal(prepDom.classification.kind, 'catch', `사진 11장 조황 글은 조황으로 분류: ${prepDom.classification.reasons.join(', ')}`);
+assert.deepEqual(prepDom.photo.images, ELEVEN);
+assert.deepEqual(prepDom.photoWarnings, []);
+assert.equal(prepDom.photo.title, '6일(화) 이벤트4주차 감성돔조황 입니다.');
+assert.ok(prepDom.photo.description.startsWith('이벤트 기간 중'), '제목 줄은 내용에서 뺀다');
+assert.equal(prepDom.photo.photoDate, null);
+assert.doesNotThrow(() => service.checkPush({ postId: '2925', kind: 'catch', photo: prepDom.photo }));
+
+// 다시 가져오기가 사진을 못 읽어 extracted.json 목록이 비어도 폴더에 받아 둔 사진을 쓴다
+writeDomPost('2926', [], [...ELEVEN.slice().reverse(), '12.heic']);
+const prepStale = await service.prepare('2926');
+assert.deepEqual(prepStale.photo.images, ELEVEN, '번호 순으로 정렬');
+assert.ok(prepStale.photoWarnings.some((w) => w.includes('폴더에 있는 사진 11장도 넣었습니다')));
+assert.ok(prepStale.photoWarnings.some((w) => w.includes('12.heic')), '올릴 수 없는 형식은 알리고 뺀다');
+
+// 목록에는 있는데 지워진 사진은 빼고 알린다
+writeDomPost('2927', ['01.jpg', '02.jpg'], ['01.jpg']);
+const prepGone = await service.prepare('2927');
+assert.deepEqual(prepGone.photo.images, ['01.jpg']);
+assert.ok(prepGone.photoWarnings.some((w) => w.includes('폴더에 없는 사진: 02.jpg')));
+writeDomPost('2928', [], []);
+assert.ok((await service.prepare('2928')).photoWarnings.some((w) => w.includes('올릴 사진이 없습니다')));
+
 await assert.rejects(service.prepare('999'), /먼저 가져오기/);
 await assert.rejects(service.prepare('../x'), /잘못된 게시글 번호/);
 

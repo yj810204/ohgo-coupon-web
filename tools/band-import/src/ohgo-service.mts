@@ -9,6 +9,7 @@ import { findLedgerEntry, recordLedgerEntry } from './ledger.mts';
 import type { OhgoCredentials } from './ohgo-auth.mts';
 import { clearOhgoSession, ensureFreshSession, loginOhgo, OhgoAuthError, readOhgoSession, saveOhgoSession } from './ohgo-auth.mts';
 import { newPhotoObjectPath, OhgoClient } from './ohgo-client.mts';
+import { resolvePostImages } from './post-images.mts';
 import type { Fetch, OhgoConfig } from './ohgo-config.mts';
 import { projectRefFromUrl, resolveOhgoConfig } from './ohgo-config.mts';
 import type { ExtractedPost } from './schema.mts';
@@ -34,6 +35,8 @@ export type PrepareResult = {
   refDate: string;
   classification: Classification;
   photo: PhotoDraft;
+  /** extracted.json과 폴더의 사진이 어긋날 때 알림 */
+  photoWarnings: string[];
   trip: TripDraft;
   tripMissing: string[];
   tripHints: string[];
@@ -265,15 +268,19 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
           remoteWarnings.push(`앱의 기존 목적지를 읽지 못했습니다: ${(err as Error).message}`);
         }
       }
-      const classification = classifyPost(post);
-      const photo = buildPhotoDraft(post);
+      const images = resolvePostImages(join(opts.outRoot, post.source.postId), post);
+      const classification = classifyPost(post, images.files.length);
+      const photo = buildPhotoDraft(post, images.files);
       const trip = parseTripGuide(post, known);
 
       if (reader) {
         try {
-          if (photo.title) {
-            const same = await reader.select('community_photos', `select=id,created_at&board_type=eq.photo&title=${eqParam(photo.title)}&order=created_at.desc&limit=3`);
-            if (same.length) remoteWarnings.push(`조황 게시판에 같은 제목의 글이 ${same.length}개 있습니다 (최근 ${String(same[0].created_at).slice(0, 10)})`);
+          for (const title of new Set([photo.title, post.title.trim()].filter(Boolean))) {
+            const same = await reader.select('community_photos', `select=id,created_at&board_type=eq.photo&title=${eqParam(title)}&order=created_at.desc&limit=3`);
+            if (same.length) {
+              remoteWarnings.push(`조황 게시판에 같은 제목의 글이 ${same.length}개 있습니다 (최근 ${String(same[0].created_at).slice(0, 10)})`);
+              break;
+            }
           }
           for (const date of trip.draft.dates.slice(0, 5)) {
             const same = await reader.select('trip_guides', `select=id,destination,departure_time&date=${eqParam(date)}`);
@@ -296,6 +303,7 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
         refDate: postRefDate(post),
         classification,
         photo,
+        photoWarnings: images.warnings,
         trip: trip.draft,
         tripMissing: trip.missing,
         tripHints: trip.hints,
