@@ -35,6 +35,7 @@ const prep: PrepareResult = {
   remoteWarnings: [],
 };
 const pushes: PushRequest[] = [];
+let failNextPush = false;
 const edits: string[] = [];
 let editMap: PrepareResult['photoEdits'] = {};
 const ohgo: OhgoService = {
@@ -44,6 +45,10 @@ const ohgo: OhgoService = {
   prepare: async () => ({ ...structuredClone(prep), photoEdits: editMap }),
   checkPush: () => {},
   push: async (req) => {
+    if (failNextPush) {
+      failNextPush = false;
+      throw new Error('사진 2/3 (02.jpg) 올리기 실패: 사진 업로드 실패: too big (HTTP 413)\n조황 게시판에 글은 만들지 않았습니다.\n자세한 기록: out/2925/push-log.json');
+    }
     pushes.push(req);
     return { kind: req.kind, target: 'community_photos', rowIds: ['r1'], links: ['https://ohgo.test/community/r1'], title: 't', resizedImages: 0 };
   },
@@ -210,8 +215,18 @@ try {
   await page.locator('#pFormat').check();
   assert.equal(await page.locator('#fmtNote').textContent(), '');
 
+  // 등록이 실패하면 등록 버튼 바로 아래에 이유를 보여 주고, 다시 누를 수 있다
+  failNextPush = true;
+  await page.locator('#pushBtn').click();
+  await page.locator('#pushError:not(.hidden)').waitFor();
+  const errText = await page.locator('#pushErrorText').textContent();
+  assert.match(errText ?? '', /사진 2\/3 \(02\.jpg\) 올리기 실패[\s\S]*글은 만들지 않았습니다[\s\S]*push-log\.json/);
+  assert.equal(await page.locator('#pushResult').isVisible(), false);
+  await page.locator('#pushBtn:not([disabled])').waitFor();
+
   await page.locator('#pushBtn').click();
   await page.locator('#pushResult:not(.hidden)').waitFor();
+  assert.equal(await page.locator('#pushError').isVisible(), false, '다시 성공하면 실패 안내를 지운다');
   assert.deepEqual(pushes[0].photo!.images, ['04.jpg', '02.jpg', '01.jpg'], '보이는 순서대로, 뺀 사진 없이 보낸다');
   assert.equal(pushes[0].photo!.useFormatting, true);
   assert.deepEqual(errors, []);

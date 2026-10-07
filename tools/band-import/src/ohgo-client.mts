@@ -30,8 +30,20 @@ async function errorFrom(res: Response, what: string): Promise<OhgoRequestError>
   } catch {
     // 본문이 JSON이 아니면 앞부분만 보여 준다
   }
-  const hint = res.status === 401 || res.status === 403 ? ' (관리자 권한 또는 로그인을 확인하세요)' : '';
-  return new OhgoRequestError(`${what} 실패: ${detail || `HTTP ${res.status}`}${hint}`, res.status);
+  return new OhgoRequestError(`${what} 실패: ${detail || `HTTP ${res.status}`} (HTTP ${res.status})${errorHint(res.status, detail)}`, res.status);
+}
+
+/** 서버가 영어로 답하는 흔한 거절 이유를 우리말로 덧붙인다 */
+export function errorHint(status: number, detail: string): string {
+  if (/row-level security|violates.*policy|unauthorized/i.test(detail)) {
+    return '. 서버가 이 계정의 저장을 막았습니다 (Supabase 권한 설정 확인 필요)';
+  }
+  if (status === 413 || /maximum allowed size|too large|payload/i.test(detail)) return '. 사진이 서버가 받는 크기보다 큽니다';
+  if (/mime|content type|invalid_mime/i.test(detail)) return '. 서버가 이 사진 형식을 받지 않습니다';
+  if (/jwt|token|expired/i.test(detail) || status === 401) return '. 로그인이 만료되었을 수 있습니다. 로그아웃 후 다시 로그인하세요';
+  if (status === 403) return '. 관리자 권한을 확인하세요';
+  if (status >= 500) return '. 서버 오류입니다. 잠시 뒤 다시 해 보세요';
+  return '';
 }
 
 /** Supabase REST/Storage를 관리자 토큰으로 직접 부른다. RLS(is_admin)를 그대로 통과해야 한다 */
@@ -105,13 +117,20 @@ export class OhgoClient {
     return publicPhotoUrl(this.cfg.supabaseUrl, path);
   }
 
-  async removePhotos(paths: string[]): Promise<void> {
-    if (paths.length === 0) return;
+  /**
+   * 지운 경로를 돌려준다. Storage는 권한이 없어 못 지운 파일을 오류 없이 빼고 답하므로
+   * 돌려받은 목록이 짧으면 그만큼 남아 있는 것이다.
+   */
+  async removePhotos(paths: string[]): Promise<string[]> {
+    if (paths.length === 0) return [];
     const res = await this.fetchImpl(`${this.cfg.supabaseUrl}/storage/v1/object/${PHOTO_BUCKET}`, {
       method: 'DELETE',
       headers: this.headers({ 'content-type': 'application/json' }),
       body: JSON.stringify({ prefixes: paths }),
     });
     if (!res.ok) throw await errorFrom(res, '올린 사진 정리');
+    const removed = (await res.json().catch(() => [])) as { name?: unknown }[];
+    const names = new Set(Array.isArray(removed) ? removed.map((o) => String(o?.name ?? '')) : []);
+    return paths.filter((p) => names.has(p));
   }
 }

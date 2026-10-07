@@ -261,6 +261,11 @@
       </div>
     </div>
 
+    <div id="pushError" class="box err hidden">
+      <b>등록하지 못했습니다.</b>
+      <div id="pushErrorText" class="pre" style="margin-top:4px"></div>
+      <button id="pushLogBtn" type="button" style="margin-top:8px">기록 폴더 열기</button>
+    </div>
     <div id="pushResult" class="box ok hidden"></div>
   </div>
 
@@ -419,6 +424,7 @@
     show('ohgoCard', true);
     show('ohgoBody', false);
     show('pushResult', false);
+    show('pushError', false);
     pushedFor = null;
     try {
       renderOhgoState(await api('/api/ohgo/state'));
@@ -741,7 +747,13 @@
   }
 
   function showPushDone(job) {
-    if (job.status === 'error') return;
+    if (job.status === 'error') {
+      $('pushErrorText').textContent = job.error || '알 수 없는 오류';
+      show('pushError', true);
+      $('pushError').scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    show('pushError', false);
     const r = job.result;
     pushedFor = prep ? prep.postId : null;
     const box = $('pushResult');
@@ -1020,14 +1032,22 @@
   $('pushBtn').addEventListener('click', async () => {
     if (pushBlocker()) return;
     $('pushBtn').disabled = true;
+    show('pushError', false);
     try {
       await api('/api/ohgo/push', pushPayload());
       startPolling();
     } catch (err) {
       if (err.code === 'DUPLICATE') show('dupBox', true);
       showError(err.message);
+      $('pushErrorText').textContent = err.message;
+      show('pushError', true);
       updatePushButton();
     }
+  });
+
+  $('pushLogBtn').addEventListener('click', async () => {
+    if (!prep) return;
+    try { await api('/api/open', { postId: prep.postId }); } catch (err) { showError(err.message); }
   });
 
   async function refresh() {
