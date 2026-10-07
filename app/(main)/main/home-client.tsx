@@ -98,10 +98,12 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
     let visibility = sections;
     let sectionOrder = order;
     if (!visibility || !sectionOrder) {
+      const { getSiteSettings } = await import('@/utils/site-settings-service');
       const settings = await getSiteSettings();
       visibility = visibility ?? settings.homeSections;
       sectionOrder = sectionOrder ?? settings.homeSectionOrder;
     }
+    if (!visibility || !sectionOrder) return;
     applyHomeLayout({ homeSections: visibility, homeSectionOrder: sectionOrder });
 
     const weekRange = getWeekRange(new Date());

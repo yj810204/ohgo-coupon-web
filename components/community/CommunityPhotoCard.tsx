@@ -85,7 +85,7 @@ export default function CommunityPhotoCard({
           </div>
         ) : (
           <BlurFillImage
-            src={imgSrc}
+            src={imgSrc || imageUrl || ''}
             alt={title}
             loading="lazy"
             onError={() => {

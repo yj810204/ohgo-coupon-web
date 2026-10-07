@@ -8,6 +8,7 @@ import {
   type AppUser,
 } from '@/lib/auth-session';
 import { getSupabaseBrowserClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import type { AuthChangeEvent } from '@supabase/supabase-js';
 
 type AuthContextValue = {
   user: AppUser | null;
@@ -47,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const supabase = getSupabaseBrowserClient();
-    const { data } = supabase.auth.onAuthStateChange((event) => {
+    const { data } = supabase.auth.onAuthStateChange((event: AuthChangeEvent) => {
       if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') return;
       if (event === 'SIGNED_OUT') {
         invalidateAppUserCache();
