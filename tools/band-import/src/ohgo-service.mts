@@ -21,7 +21,7 @@ import { projectRefFromUrl, resolveOhgoConfig } from './ohgo-config.mts';
 import type { ExtractedPost } from './schema.mts';
 import { validateExtracted } from './schema.mts';
 import type { TripDraft } from './trip-parse.mts';
-import { parseTripGuide, postRefDate, validateTripDraft } from './trip-parse.mts';
+import { catchBoardTime, kstTime, parseTripGuide, postRefDate, validateTripDraft } from './trip-parse.mts';
 
 export type Log = (msg: string) => void;
 
@@ -39,6 +39,8 @@ export type PrepareResult = {
   title: string;
   /** 게시일(KST). 날짜 칸의 "10/12" 같은 입력을 해석하는 기준 */
   refDate: string;
+  /** Band 글이 올라간 시각. 없으면 화면으로 가져온 글 */
+  sourceCreatedAt: string | null;
   classification: Classification;
   photo: PhotoDraft;
   /** extracted.json과 폴더의 사진이 어긋날 때 알림 */
@@ -295,7 +297,15 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
         comment_count: 0,
         board_type: 'photo',
       };
-      if (draft.photoDate) row.photo_date = draft.photoDate;
+      if (draft.photoDate) {
+        row.photo_date = draft.photoDate;
+        // 게시판 목록과 상세는 photo_date가 아니라 created_at으로 정렬하고 보여 준다
+        row.created_at = catchBoardTime(draft.photoDate, post.createdAt);
+        const hm = kstTime(String(row.created_at));
+        log(`게시판에는 ${draft.photoDate} ${hm} (한국 시간)로 올리고, 그 시각 순서로 둡니다`);
+      } else {
+        log('사진 날짜가 없어 게시판에는 지금 시각으로 올립니다');
+      }
       if (draft.useFormatting) {
         // 화면에서 온 HTML은 받지 않고 extracted.json에서 다시 만든다
         const html = postFormatted(post, buildPhotoDraft(post).title).html;
@@ -481,6 +491,7 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
         sourceUrl: post.source.url,
         title: post.title,
         refDate: postRefDate(post),
+        sourceCreatedAt: post.createdAt,
         classification,
         photo,
         photoWarnings: images.warnings,

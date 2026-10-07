@@ -13,6 +13,7 @@ import { newPhotoObjectPath, publicPhotoUrl } from '../src/ohgo-client.mts';
 import { findSupabaseConfigInText, resolveOhgoConfig } from '../src/ohgo-config.mts';
 import { createOhgoService, OhgoRequestRejected } from '../src/ohgo-service.mts';
 import type { PushRequest } from '../src/ohgo-service.mts';
+import { catchBoardTime } from '../src/trip-parse.mts';
 import { parseBandPostUrl } from '../src/url.mts';
 
 const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
@@ -272,6 +273,7 @@ const prepCatch = await service.prepare('100');
 assert.equal(prepCatch.classification.kind, 'catch');
 assert.deepEqual(prepCatch.photo.images, ['01.jpg', '02.png', '03.jpg']);
 assert.equal(prepCatch.refDate, '2026-10-06');
+assert.equal(prepCatch.sourceCreatedAt, '2026-10-06T01:00:00.000Z');
 assert.equal(prepCatch.ledger, null);
 assert.deepEqual(prepCatch.remoteWarnings.filter((w) => w.includes('조황 게시판')), []);
 
@@ -396,6 +398,11 @@ assert.equal(photoRow.board_type, 'photo');
 assert.equal(photoRow.title, '오늘 참돔 조황입니다');
 assert.equal(photoRow.description, '손님들 손맛 보셨습니다');
 assert.equal(photoRow.comment_count, 0);
+assert.equal(photoRow.created_at, '2026-10-06T01:00:00.000Z', '사진 날짜가 Band 글과 같은 날이면 그 시각으로 올린다');
+assert.ok(logs.some((l) => l.includes('게시판에는 2026-10-06 10:00')));
+assert.equal(catchBoardTime('2026-10-05', '2026-10-06T01:00:00.000Z'), '2026-10-05T03:00:00.000Z', '다른 날이면 12:00 KST');
+assert.equal(catchBoardTime('2026-10-06', null), '2026-10-06T03:00:00.000Z', '시각을 모르면 12:00 KST');
+assert.throws(() => catchBoardTime('10/6', null), /사진 날짜/);
 assert.ok(!('photo_date' in photoRow), '없는 칸(photo_date)은 빼고 다시 저장');
 assert.ok(!('content' in photoRow), '서식을 살리지 않으면 content를 쓰지 않는다');
 const urls = photoRow.image_urls as string[];
@@ -437,6 +444,15 @@ await assert.rejects(service.push({ ...catchReq, force: true }, () => {}), /comm
 fake.missingColumns.clear();
 assert.equal(storage.size, before, '실패하면 올린 사진을 정리한다');
 assert.equal(rows.community_photos.length, 1);
+
+// 사진 날짜를 Band 글과 다른 날로 고치면 그날 12:00 KST로 올린다
+{
+  await service.push({ ...catchReq, force: true, photo: { ...catchReq.photo!, photoDate: '2026-10-04' } }, () => {});
+  const shifted = rows.community_photos.at(-1)!;
+  assert.equal(shifted.photo_date, '2026-10-04');
+  assert.equal(shifted.created_at, '2026-10-04T03:00:00.000Z');
+  rows.community_photos.pop();
+}
 
 // 화면에서 바꾼 순서대로 올리고, 뺀 사진은 올리지 않는다
 {

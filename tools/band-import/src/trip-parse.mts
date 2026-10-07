@@ -51,6 +51,19 @@ export function kstDate(iso: string | null | undefined): string | null {
   return new Date(t + KST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
+/**
+ * 조황 게시판이 정렬하고 화면에 보여주는 시각(community_photos.created_at).
+ * 사진 날짜가 Band 글의 한국 날짜와 같으면 그 시각을 쓰고, 아니면 그날 12:00 KST.
+ */
+export function catchBoardTime(photoDate: string, bandCreatedAt: string | null | undefined): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(photoDate)) throw new Error('사진 날짜 형식이 잘못되었습니다');
+  if (bandCreatedAt && kstDate(bandCreatedAt) === photoDate) {
+    const t = Date.parse(bandCreatedAt);
+    if (!Number.isNaN(t)) return new Date(t).toISOString();
+  }
+  return new Date(`${photoDate}T12:00:00+09:00`).toISOString();
+}
+
 export function kstTime(iso: string | null | undefined): string | null {
   if (!iso) return null;
   const t = Date.parse(iso);
