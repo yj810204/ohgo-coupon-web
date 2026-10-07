@@ -32,16 +32,10 @@ export default function RootLayout({
       <head>
         {/* 동일 출처 — Google/jsDelivr @import 체인 제거 (모바일 FCP) */}
         <link rel="stylesheet" href="/vendor/bootstrap.min.css" />
+        {/* 본문 Regular만 선로딩. Bold는 CSS가 요청하고 Title은 제목 전용이라 빼 둔다. */}
         <link
           rel="preload"
           href="/fonts/onemobile/ONEMobile-Regular.woff2"
-          as="font"
-          type="font/woff2"
-          crossOrigin="anonymous"
-        />
-        <link
-          rel="preload"
-          href="/fonts/onemobile/ONEMobile-Bold.woff2"
           as="font"
           type="font/woff2"
           crossOrigin="anonymous"
