@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase/client';
 import { requireFirestoreUserId, resolveFirestoreUserId } from '@/lib/firebase/resolve-user-id';
+import { MEMBER_ID_LOOKUP_WAIT_MS } from '@/lib/member-id-resolution';
 import { sendPushToUser } from './send-push';
 import { firebaseQrStampWriteFields } from '@/lib/stamps/firebase-qr-stamp';
 import { getTodayDate, getTodayRange, parseKstDate } from '@/lib/kst-date';
@@ -275,7 +276,7 @@ export async function removeStampBatch(uuid: string, count: number): Promise<voi
 }
 
 export async function getStamps(uuid: string): Promise<string[]> {
-  const mapped = await resolveFirestoreUserId(uuid, { waitMs: 30_000 });
+  const mapped = await resolveFirestoreUserId(uuid, { waitMs: MEMBER_ID_LOOKUP_WAIT_MS });
   if (!mapped) throw new Error('회원 정보를 확인하지 못했습니다.');
   uuid = mapped;
   const db = getFirebaseDb();
@@ -365,7 +366,7 @@ export async function revokeCoupon(uuid: string, couponId: string): Promise<void
 }
 
 export async function getCouponCount(uuid: string): Promise<number> {
-  const mapped = await resolveFirestoreUserId(uuid, { waitMs: 30_000 });
+  const mapped = await resolveFirestoreUserId(uuid, { waitMs: MEMBER_ID_LOOKUP_WAIT_MS });
   if (!mapped) throw new Error('회원 정보를 확인하지 못했습니다.');
   uuid = mapped;
   const db = getFirebaseDb();

@@ -1,11 +1,15 @@
-import { invalidateCache } from '@/lib/query-cache';
+import { failCache, invalidateCache, seedCache } from '@/lib/query-cache';
 import { healProfileLegacyUuid, resolveCanonicalUserId } from '@/lib/firebase/canonical-user';
 import {
+  consumeUnverifiedMemberSeed,
+  MEMBER_ID_TTL_MS,
   readCachedMemberId,
   resolveMemberId,
+  seedCachedMemberId,
   type MemberIdentityHint,
   type ProfileLookup,
 } from '@/lib/member-id-resolution';
+import { couponCountCacheKey, memberUnconfirmedError, stampListCacheKey } from '@/lib/stamp-count-state';
 import { persistFirestoreUserId } from '@/lib/storage';
 import { isSupabaseConfigured, getSupabaseBrowserClient } from '@/lib/supabase/client';
 
@@ -21,7 +25,38 @@ export async function resolveFirestoreUserId(
   options?: { waitMs?: number },
 ): Promise<string | null> {
   if (!userId) return null;
-  return readCachedMemberId(userId, () => resolveFirestoreUserIdUncached(userId), options?.waitMs);
+  const hint = deviceIdentityHint(userId);
+  if (hint?.fbUid) seedCachedMemberId(userId, hint.fbUid);
+  const id = await readCachedMemberId(userId, () => resolveFirestoreUserIdUncached(userId), options?.waitMs);
+  if (id && consumeUnverifiedMemberSeed(userId)) {
+    void confirmSeededMember(userId, id);
+  }
+  return id;
+}
+
+/** 심어 둔 회원 번호가 틀리면 개수를 확정하지 않고 다음 조회가 다시 찾게 한다. */
+async function confirmSeededMember(userId: string, seededId: string) {
+  try {
+    const resolved = await resolveCanonicalUserId(seededId);
+    if (!resolved.missing && resolved.id) {
+      if (resolved.id !== seededId) {
+        persistFirestoreUserId(userId, resolved.id);
+        seedCache(`fb-uid:${userId}`, resolved.id, MEMBER_ID_TTL_MS);
+        rejectStampReads(userId);
+      }
+      return;
+    }
+  } catch {
+    return;
+  }
+  invalidateCache(`fb-uid:${userId}`);
+  rejectStampReads(userId);
+}
+
+function rejectStampReads(userId: string) {
+  const error = memberUnconfirmedError();
+  failCache(stampListCacheKey(userId), error);
+  failCache(couponCountCacheKey(userId), error);
 }
 
 async function resolveFirestoreUserIdUncached(userId: string): Promise<string | null> {
@@ -82,8 +117,8 @@ function deviceIdentityHint(userId: string): MemberIdentityHint | undefined {
     if (!raw) return undefined;
     const local = JSON.parse(raw) as { uuid?: string; name?: string; dob?: string; fbUid?: string };
     if (local.uuid && local.uuid !== userId) return undefined;
-    if (!local.name && !local.dob && !local.fbUid) return undefined;
-    return { name: local.name, dob: local.dob, fbUid: local.fbUid };
+    if (!local.uuid && !local.name && !local.dob && !local.fbUid) return undefined;
+    return { name: local.name, dob: local.dob, fbUid: local.fbUid, storedUuid: local.uuid };
   } catch {
     return undefined;
   }

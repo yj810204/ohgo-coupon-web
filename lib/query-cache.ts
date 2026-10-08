@@ -15,6 +15,7 @@ type CacheEntry = {
 
 const store = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<unknown>>();
+const generation = new Map<string, number>();
 const listeners = new Set<(key: string, value: unknown, error?: unknown) => void>();
 
 /** 캐시에 값이 들어가거나 요청이 실패하면 호출된다. */
@@ -23,6 +24,19 @@ export function subscribeCache(listener: (key: string, value: unknown, error?: u
   return () => {
     listeners.delete(listener);
   };
+}
+
+/** 확인된 값을 네트워크 없이 넣는다. 진행 중인 요청을 끊지는 않는다. */
+export function seedCache(key: string, value: unknown, ttlMs: number): void {
+  store.set(key, { value, expiresAt: Date.now() + ttlMs });
+}
+
+/** 잘못된 값을 지우고 구독자에게 실패를 알린다. 늦게 끝나는 이전 요청은 캐시에 넣지 않는다. */
+export function failCache(key: string, error: unknown): void {
+  generation.set(key, (generation.get(key) ?? 0) + 1);
+  store.delete(key);
+  inflight.delete(key);
+  publish(key, undefined, error);
 }
 
 function publish(key: string, value: unknown, error?: unknown) {
@@ -58,8 +72,13 @@ export function cachedFetch<T>(
   return waitFor(start());
 
   function start(): Promise<T> {
+    const gen = generation.get(key) ?? 0;
     const promise = fn()
       .then((value) => {
+        if ((generation.get(key) ?? 0) !== gen) {
+          if (inflight.get(key) === promise) inflight.delete(key);
+          throw new Error('stale-cache-write');
+        }
         store.set(key, { value, expiresAt: Date.now() + ttlMs });
         publish(key, value);
         if (inflight.get(key) === promise) inflight.delete(key);
@@ -67,6 +86,7 @@ export function cachedFetch<T>(
       })
       .catch((err) => {
         if (inflight.get(key) === promise) inflight.delete(key);
+        if ((generation.get(key) ?? 0) !== gen) throw err;
         publish(key, undefined, err);
         if (hit) return hit.value as T;
         throw err;

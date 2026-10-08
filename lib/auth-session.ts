@@ -1,3 +1,5 @@
+import { clearServerStampCounts } from '@/lib/stamp-counts-client';
+import { clearAllLastKnownStampCounts } from '@/lib/stamp-count-state';
 import { getUser, saveUser } from '@/lib/storage';
 import { storedUserFromProfile } from '@/lib/stored-user';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
@@ -153,6 +155,11 @@ export function getHomePathForUser(user: AppUser): string {
 export async function signOutApp(options?: { uuid?: string }) {
   invalidateAppUserCache();
   const uuid = options?.uuid;
+
+  if (typeof window !== 'undefined') {
+    clearAllLastKnownStampCounts(localStorage);
+    clearServerStampCounts();
+  }
 
   if (uuid) {
     try {
