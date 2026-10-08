@@ -2306,3 +2306,184 @@ html body .btn:not(.ohgo-modal__btn):not([class*="btn-outline-"]):not(.btn-prima
     flex: 1 1 auto;
   }
 }
+/* 스탬프 10칸 요약 카드 */
+.ohgo-stamp-sum {
+  margin-bottom: 24px;
+  padding: 16px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #3a72ee 0%, #5b8def 100%);
+  box-shadow: 0 8px 20px rgba(27, 111, 245, 0.18);
+  color: #ffffff;
+  font-family: var(--font-ohgo);
+}
+
+.ohgo-stamp-sum__label {
+  display: block;
+  font-size: 14px;
+  line-height: 1.3;
+  opacity: 0.95;
+}
+
+.ohgo-stamp-sum > strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.ohgo-stamp-sum > strong small {
+  margin-left: 4px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.ohgo-stamp-board {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr));
+  gap: 10px;
+  justify-items: center;
+  align-items: center;
+  margin-top: 14px;
+  padding: 14px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.ohgo-stamp-board__cell {
+  container-type: size;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 56px;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 2px dashed rgba(255, 255, 255, 0.55);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.ohgo-stamp-board__cell svg {
+  width: 55%;
+  height: 55%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ohgo-stamp-board__cell.is-goal {
+  border-style: solid;
+  border-color: #ffd84d;
+  color: #ffd84d;
+}
+
+.ohgo-stamp-board__cell.is-goal svg {
+  width: 60%;
+  height: 60%;
+  stroke-width: 1.8;
+}
+
+.ohgo-stamp-board__half {
+  font-size: 34cqmin;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1;
+}
+
+.ohgo-stamp-board__cell.is-on {
+  border: 2px solid #ffffff;
+  background: #ffffff;
+  color: #d7263d;
+  transform: rotate(-12deg);
+}
+
+.ohgo-stamp-board__seal.is-mark {
+  font-family: var(--font-ohgo);
+  font-size: 34cqmin;
+  letter-spacing: -0.03em;
+}
+
+.ohgo-stamp-board__seal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  flex: none;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  font-family: 'Nanum Myeongjo', Batang, serif;
+  font-size: 25cqmin;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+.ohgo-stamp-board__seal.is-two {
+  font-size: 28cqmin;
+  letter-spacing: 0.06em;
+  text-indent: 0.06em;
+}
+
+.ohgo-stamp-board__cell.is-on:nth-child(3n + 2) {
+  transform: rotate(8deg);
+}
+
+.ohgo-stamp-board__cell.is-on:nth-child(3n) {
+  transform: rotate(-4deg);
+}
+
+.ohgo-stamp-sum__rule {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  opacity: 0.95;
+}
+
+.ohgo-stamp-sum__qr {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 12px;
+  border: none;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #1b6ff5;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.ohgo-stamp-sum__qr:disabled {
+  opacity: 0.85;
+}
+
+.ohgo-stamp-sum__link {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+}

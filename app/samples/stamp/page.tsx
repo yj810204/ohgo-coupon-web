@@ -1,9 +1,12 @@
 'use client';
 
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/hooks/useAppRouter';
-import { IoQrCodeOutline, IoPricetagOutline, IoGiftOutline, IoStarOutline } from 'react-icons/io5';
+import { IoPricetagOutline, IoStarOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
-import { SAMPLE_COUPONS, SAMPLE_STAMPS } from '@/lib/samples/mock-data';
+import StampProgressCard from '@/components/stamp/StampProgressCard';
+import { SAMPLE_STAMPS } from '@/lib/samples/mock-data';
 
 const CARD_STYLE: React.CSSProperties = {
   backgroundColor: '#FFFFFF',
@@ -96,10 +99,10 @@ function StampCard({
   );
 }
 
-export default function SampleStampPage() {
+function SampleStampPageContent() {
   const router = useRouter();
-  const stamps = SAMPLE_STAMPS;
-  const couponCount = SAMPLE_COUPONS.filter((c) => !c.used).length;
+  const searchParams = useSearchParams();
+  const stamps = searchParams.get('empty') === '1' ? [] : SAMPLE_STAMPS;
   const fifthStampRaw = stamps.length >= 5 ? stamps[stamps.length - 5] : null;
 
   return (
@@ -108,63 +111,11 @@ export default function SampleStampPage() {
       showMyPage={false}
       onBack={() => router.push('/samples/main')}
     >
-      <div className="p-4 mb-4" style={{ ...CARD_STYLE }}>
-        <div className="d-flex align-items-center gap-3 mb-3">
-          <div
-            className="rounded-circle d-flex align-items-center justify-content-center"
-            style={{
-              width: 48,
-              height: 48,
-              background: 'linear-gradient(135deg,#1B6FF5,#5B8DEF)',
-              flexShrink: 0,
-            }}
-          >
-            <span style={{ fontSize: 22, fontWeight: 700, color: '#fff' }}>{stamps.length}</span>
-          </div>
-          <div>
-            <div style={{ fontSize: 13, color: '#6F767E' }}>현재 스탬프</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: '#1A1D1F' }}>
-              {stamps.length}개 보유
-            </div>
-          </div>
-          <div className="ms-auto text-end">
-            <div style={{ fontSize: 13, color: '#6F767E' }}>보유 쿠폰</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: '#1B6FF5' }}>{couponCount}장</div>
-          </div>
-        </div>
-        <div className="d-flex gap-2">
-          <button
-            type="button"
-            onClick={() => router.push('/samples/qr-scan')}
-            className="btn flex-grow-1 d-flex align-items-center justify-content-center gap-2 fw-semibold"
-            style={{
-              backgroundColor: '#1B6FF5',
-              color: '#fff',
-              borderRadius: 12,
-              padding: '11px',
-              border: 'none',
-            }}
-          >
-            <IoQrCodeOutline size={20} />
-            QR 스캔
-          </button>
-          <button
-            type="button"
-            onClick={() => router.push('/samples/coupons')}
-            className="btn flex-grow-1 d-flex align-items-center justify-content-center gap-2 fw-semibold"
-            style={{
-              backgroundColor: '#EBF1FE',
-              color: '#1B6FF5',
-              borderRadius: 12,
-              padding: '11px',
-              border: 'none',
-            }}
-          >
-            <IoGiftOutline size={20} />
-            쿠폰 보기
-          </button>
-        </div>
-      </div>
+      <StampProgressCard
+        count={stamps.length}
+        onQrScan={() => router.push('/samples/qr-scan')}
+        onCoupons={() => router.push('/samples/coupons')}
+      />
 
       <div className="d-flex align-items-center justify-content-between mb-2 px-1">
         <span style={{ fontSize: 17, fontWeight: 700, color: '#1A1D1F' }}>적립 내역</span>
@@ -176,5 +127,19 @@ export default function SampleStampPage() {
         ))}
       </div>
     </SubPageFrame>
+  );
+}
+
+export default function SampleStampPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-vh-100 d-flex align-items-center justify-content-center" style={{ backgroundColor: '#F7F8FA' }}>
+          <div className="spinner-border text-primary" role="status" />
+        </div>
+      }
+    >
+      <SampleStampPageContent />
+    </Suspense>
   );
 }

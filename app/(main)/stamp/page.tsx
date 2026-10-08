@@ -5,8 +5,9 @@ import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/hooks/useAppRouter';
 import { getStamps, issue50PercentCoupon, deleteStamp } from '@/utils/stamp-service';
 import { getUser } from '@/lib/storage';
-import { IoQrCodeOutline, IoPricetagOutline, IoGiftOutline, IoStarOutline } from 'react-icons/io5';
+import { IoPricetagOutline, IoGiftOutline, IoStarOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
+import StampProgressCard from '@/components/stamp/StampProgressCard';
 import OhgoModal, { OhgoModalButton, OhgoModalField } from '@/components/OhgoModal';
 import EmptyState from '@/components/EmptyState';
 import { OHGO_FONT } from '@/lib/page-styles';
@@ -202,6 +203,28 @@ function StampPageContent() {
 
   return (
     <SubPageFrame title="스탬프" onRefresh={fetchStamps}>
+        {!fromAdmin && (
+          <StampProgressCard
+            count={stamps.length}
+            qrOpening={qrOpening}
+            onQrScan={() => {
+              if (qrOpening) return;
+              setQrOpening(true);
+              void (async () => {
+                const gate = await confirmBoardingForStampScan(user.uuid!);
+                if (gate !== 'ok') {
+                  setQrOpening(false);
+                  if (gate === 'go_form') navigate('/boarding-form');
+                  return;
+                }
+                navigate(`/qr-scan?${query}`);
+              })();
+            }}
+            onCoupons={() => navigate(`/coupons?${query}`)}
+          />
+        )}
+
+        {fromAdmin && (
         <div className="ohgo-status-card mb-4" style={{ ...CARD_STYLE }}>
           <div className="d-flex align-items-center gap-3 w-100">
             <div
@@ -226,11 +249,9 @@ function StampPageContent() {
                     ? `${user.dob.slice(0, 4)}.${user.dob.slice(4, 6)}.${user.dob.slice(6)}`
                     : user.dob}
                 </span>
-                {fromAdmin && (
-                  <span className="ms-2 badge rounded-pill flex-shrink-0" style={{ backgroundColor: '#FF9500', fontSize: 10 }}>
-                    관리자 모드
-                  </span>
-                )}
+                <span className="ms-2 badge rounded-pill flex-shrink-0" style={{ backgroundColor: '#FF9500', fontSize: 10 }}>
+                  관리자 모드
+                </span>
               </div>
             </div>
             <div className="flex-shrink-0 text-end">
@@ -241,6 +262,7 @@ function StampPageContent() {
             </div>
           </div>
         </div>
+        )}
 
         {fromAdmin && stamps.length >= 5 && (
           <div className="d-flex gap-2 mb-4">
@@ -278,68 +300,6 @@ function StampPageContent() {
             <button
               type="button"
               onClick={() => navigate(`/coupons?${query}&fromAdmin=true`)}
-              className="btn flex-grow-1 d-flex align-items-center justify-content-center gap-2 fw-semibold"
-              style={{
-                backgroundColor: '#EBF1FE',
-                color: '#1B6FF5',
-                borderRadius: 12,
-                padding: '11px',
-                border: 'none',
-                fontFamily: OHGO_FONT,
-              }}
-            >
-              <IoGiftOutline size={20} />
-              쿠폰 보기
-            </button>
-          </div>
-        )}
-
-        {!fromAdmin && (
-          <div className="d-flex gap-2 mb-4">
-            <button
-              type="button"
-              disabled={qrOpening}
-              onClick={async () => {
-                if (qrOpening) return;
-                setQrOpening(true);
-                const gate = await confirmBoardingForStampScan(user.uuid!);
-                if (gate !== 'ok') {
-                  setQrOpening(false);
-                  if (gate === 'go_form') navigate('/boarding-form');
-                  return;
-                }
-                navigate(`/qr-scan?${query}`);
-              }}
-              className="btn flex-grow-1 d-flex align-items-center justify-content-center gap-2 fw-semibold"
-              style={{
-                backgroundColor: '#1B6FF5',
-                color: '#fff',
-                borderRadius: 12,
-                padding: '11px',
-                border: 'none',
-                fontFamily: OHGO_FONT,
-                opacity: qrOpening ? 0.85 : 1,
-              }}
-            >
-              {qrOpening ? (
-                <>
-                  <span
-                    className="spinner-border spinner-border-sm"
-                    role="status"
-                    style={{ width: 18, height: 18, borderWidth: 2 }}
-                  />
-                  준비 중…
-                </>
-              ) : (
-                <>
-                  <IoQrCodeOutline size={20} />
-                  QR 스캔
-                </>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate(`/coupons?${query}`)}
               className="btn flex-grow-1 d-flex align-items-center justify-content-center gap-2 fw-semibold"
               style={{
                 backgroundColor: '#EBF1FE',
