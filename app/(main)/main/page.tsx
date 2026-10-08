@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useState, Fragment } from 'react';
+import { useEffect, useCallback, useState, useRef, Fragment } from 'react';
 import { getUser } from '@/lib/storage';
 import { resolveAppUser } from '@/lib/auth-session';
 import { isDevAuthBypass } from '@/lib/dev-auth';
@@ -64,8 +64,9 @@ export default function MainPage() {
     isCaptain?: boolean;
   } | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [stampCount, setStampCount] = useState(0);
-  const [couponCount, setCouponCount] = useState(0);
+  const [stampCount, setStampCount] = useState<number | null>(null);
+  const [couponCount, setCouponCount] = useState<number | null>(null);
+  const loadSeq = useRef(0);
   const [photos, setPhotos] = useState<CommunityPhoto[]>([]);
   const [faqPosts, setFaqPosts] = useState<CommunityPhoto[]>([]);
   const [qnaPosts, setQnaPosts] = useState<CommunityPhoto[]>([]);
@@ -109,6 +110,7 @@ export default function MainPage() {
     }
     applyHomeLayout({ homeSections: visibility, homeSectionOrder: sectionOrder });
 
+    const seq = ++loadSeq.current;
     const weekRange = getWeekRange(new Date());
     const [stamps, coupons, photoList, faqList, qnaList, faqCats, qnaCats, activeGames, marketItems, taggedPhotos, avatar, trips] =
       await Promise.allSettled([
@@ -128,8 +130,10 @@ export default function MainPage() {
           : Promise.resolve([]),
       ]);
 
-    setStampCount(settledValue(stamps, []).length);
-    setCouponCount(settledValue(coupons, 0));
+    if (seq !== loadSeq.current) return;
+
+    if (stamps.status === 'fulfilled') setStampCount(stamps.value.length);
+    if (coupons.status === 'fulfilled') setCouponCount(coupons.value);
     setPhotos(settledValue(photoList, []));
     setFaqPosts(settledValue(faqList, []));
     setQnaPosts(settledValue(qnaList, []));
@@ -157,7 +161,6 @@ export default function MainPage() {
           isAdmin: cached.isAdmin,
         });
         setLoading(false);
-        void loadRemoteData(cached.uuid, settings.homeSections, settings.homeSectionOrder);
       } else {
         setLoading(true);
       }
@@ -177,10 +180,7 @@ export default function MainPage() {
         isCaptain: appUser.isCaptain,
       });
       setLoading(false);
-
-      if (!cached?.uuid || cached.uuid !== appUser.uuid) {
-        void loadRemoteData(appUser.uuid, settings.homeSections, settings.homeSectionOrder);
-      }
+      await loadRemoteData(appUser.uuid, settings.homeSections, settings.homeSectionOrder);
     } catch (error) {
       console.error('handleRefresh error:', error);
       setLoading(false);
@@ -192,18 +192,19 @@ export default function MainPage() {
   }, [handleRefresh]);
 
   const onPullRefresh = useCallback(async () => {
-    const localUser = await getUser();
-    if (!localUser?.uuid) {
+    const appUser = await resolveAppUser();
+    if (!appUser?.uuid) {
       await handleRefresh();
       return;
     }
-    const appUser = await resolveAppUser();
     setUser({
-      ...localUser,
-      isAdmin: appUser?.isAdmin,
-      isCaptain: appUser?.isCaptain,
+      uuid: appUser.uuid,
+      name: appUser.name,
+      dob: appUser.dob,
+      isAdmin: appUser.isAdmin,
+      isCaptain: appUser.isCaptain,
     });
-    await loadRemoteData(localUser.uuid);
+    await loadRemoteData(appUser.uuid);
   }, [handleRefresh, loadRemoteData]);
 
   useNativePullToRefresh(onPullRefresh);

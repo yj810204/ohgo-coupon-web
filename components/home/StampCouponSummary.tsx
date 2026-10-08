@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { IoQrCodeOutline, IoPricetagOutline, IoGiftOutline } from 'react-icons/io5';
 
 interface StampCouponSummaryProps {
-  stampCount: number;
-  couponCount: number;
+  stampCount: number | null;
+  couponCount: number | null;
   onStampClick: () => void;
   onCouponClick: () => void;
   onQrScan: () => void | boolean | Promise<void | boolean>;
@@ -32,7 +32,7 @@ function StatBox({
 }: {
   icon: React.ReactNode;
   label: string;
-  count: number;
+  count: number | null;
   unit: string;
   onClick: () => void;
 }) {
@@ -46,7 +46,7 @@ function StatBox({
         <span>{label}</span>
       </div>
       <div className="d-flex align-items-baseline gap-1" style={{ fontFamily: FONT, lineHeight: 1 }}>
-        <span style={{ fontSize: 26, fontWeight: 700 }}>{count}</span>
+        <span style={{ fontSize: 26, fontWeight: 700 }}>{count == null ? '—' : count}</span>
         <span style={{ fontSize: 14, fontWeight: 500, opacity: 0.95 }}>{unit}</span>
       </div>
     </button>

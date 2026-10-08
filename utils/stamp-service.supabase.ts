@@ -3,6 +3,15 @@ import { getTodayDate, getTodayRange, parseKstDate } from '@/lib/kst-date';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { sendPushToUser } from './send-push';
 
+/** 세션 갱신이 끝나기 전에 조회하면 RLS가 빈 목록을 돌려준다. 그 결과는 캐시하지 않게 오류로 둔다. */
+async function requireSignedInSession() {
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) {
+    throw new Error('세션이 없어 스탬프를 불러오지 못했습니다.');
+  }
+}
+
 async function logAction(userId: string, action: string, detail: string) {
   const supabase = getSupabaseBrowserClient();
   await supabase.from('user_action_logs').insert({ user_id: userId, action, detail });
@@ -474,6 +483,7 @@ export async function removeStampBatchWithReason(
 }
 
 export async function getStamps(uuid: string): Promise<string[]> {
+  await requireSignedInSession();
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase
     .from('stamps')
@@ -577,6 +587,7 @@ export async function revokeCoupon(uuid: string, couponId: string): Promise<void
 }
 
 export async function getCouponCount(uuid: string): Promise<number> {
+  await requireSignedInSession();
   const supabase = getSupabaseBrowserClient();
   const { count, error } = await supabase
     .from('coupons')

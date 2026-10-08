@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/hooks/useAppRouter';
 import { getStamps, issue50PercentCoupon, deleteStamp } from '@/utils/stamp-service';
-import { getUser } from '@/lib/storage';
+import { resolveAppUser } from '@/lib/auth-session';
 import { IoPricetagOutline, IoGiftOutline, IoStarOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import StampProgressCard from '@/components/stamp/StampProgressCard';
@@ -115,7 +115,8 @@ function StampPageContent() {
   const router = useRouter();
   const { navigate } = useNavigation();
   const searchParams = useSearchParams();
-  const [stamps, setStamps] = useState<string[]>([]);
+  const [stamps, setStamps] = useState<string[] | null>(null);
+  const [stampError, setStampError] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedStampInfo, setSelectedStampInfo] = useState<{ date: string; method?: string; value?: string } | null>(null);
   const [user, setUser] = useState<{ uuid?: string; name?: string; dob?: string } | null>(null);
@@ -132,9 +133,9 @@ function StampPageContent() {
       if (fromAdmin && targetUuid && targetName && targetDob) {
         setUser({ uuid: targetUuid, name: targetName, dob: targetDob });
       } else {
-        const u = await getUser();
-        if (!u?.uuid) { router.replace('/login'); return; }
-        setUser(u);
+        const appUser = await resolveAppUser();
+        if (!appUser?.uuid) { router.replace('/login'); return; }
+        setUser(appUser);
       }
     };
     loadUser();
@@ -152,7 +153,11 @@ function StampPageContent() {
         } catch { return 0; }
       });
       setStamps(sorted);
-    } catch (err) { console.error(err); }
+      setStampError(false);
+    } catch (err) {
+      console.error(err);
+      setStampError(true);
+    }
   }, [user?.uuid]);
 
   useEffect(() => { if (user?.uuid) fetchStamps(); }, [user?.uuid, fetchStamps]);
@@ -198,12 +203,12 @@ function StampPageContent() {
     );
   }
 
-  const fifthStampRaw = stamps.length >= 5 ? stamps[stamps.length - 5] : null;
+  const fifthStampRaw = stamps && stamps.length >= 5 ? stamps[stamps.length - 5] : null;
   const query = `uuid=${user.uuid}&name=${encodeURIComponent(user.name||'')}&dob=${user.dob||''}`;
 
   return (
     <SubPageFrame title="스탬프" onRefresh={fetchStamps}>
-        {!fromAdmin && (
+        {!fromAdmin && stamps != null && (
           <StampProgressCard
             count={stamps.length}
             qrOpening={qrOpening}
@@ -222,6 +227,16 @@ function StampPageContent() {
             }}
             onCoupons={() => navigate(`/coupons?${query}`)}
           />
+        )}
+
+        {!fromAdmin && stamps == null && (
+          <div className="mb-4 p-4 text-center" style={{ ...CARD_STYLE, color: '#6F767E', fontSize: 15 }}>
+            {stampError ? (
+              '스탬프를 불러오지 못했습니다. 아래로 당겨 다시 시도해 주세요.'
+            ) : (
+              <div className="spinner-border spinner-border-sm text-primary" role="status" />
+            )}
+          </div>
         )}
 
         {fromAdmin && (
@@ -257,14 +272,14 @@ function StampPageContent() {
             <div className="flex-shrink-0 text-end">
               <div style={{ fontSize: 12, color: '#6F767E', fontFamily: OHGO_FONT, lineHeight: 1.2 }}>보유</div>
               <div style={{ fontSize: 20, fontWeight: 700, color: '#1B6FF5', fontFamily: OHGO_FONT, lineHeight: 1.2 }}>
-                {stamps.length}개
+                {stamps == null ? '—' : `${stamps.length}개`}
               </div>
             </div>
           </div>
         </div>
         )}
 
-        {fromAdmin && stamps.length >= 5 && (
+        {fromAdmin && stamps != null && stamps.length >= 5 && (
           <div className="d-flex gap-2 mb-4">
             <button
               type="button"
@@ -321,12 +336,18 @@ function StampPageContent() {
             적립 내역
           </span>
           <span className="badge rounded-pill" style={{ backgroundColor: '#1B6FF5', fontSize: 12 }}>
-            {stamps.length}개
+            {stamps == null ? '—' : `${stamps.length}개`}
           </span>
         </div>
 
         {/* 스탬프 목록 */}
-        {stamps.length === 0 ? (
+        {stamps == null ? (
+          <div className="p-4 text-center" style={{ ...CARD_STYLE, color: '#6F767E', fontSize: 15 }}>
+            {stampError
+              ? '스탬프를 불러오지 못했습니다. 아래로 당겨 다시 시도해 주세요.'
+              : <div className="spinner-border spinner-border-sm text-primary" role="status" />}
+          </div>
+        ) : stamps.length === 0 ? (
           <EmptyState icon={IoPricetagOutline} message="스탬프가 아직 없어요!" style={CARD_STYLE} />
         ) : (
           <div className="d-flex flex-column gap-2">
