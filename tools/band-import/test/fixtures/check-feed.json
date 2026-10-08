@@ -1,0 +1,44 @@
+{
+  "_comment": "합성 픽스처. 목록 API가 items[].post 로 여러 글을 주는 모양만 본뜬 것",
+  "result_code": 1,
+  "result_data": {
+    "items": [
+      {
+        "post": {
+          "band_no": 88348442,
+          "post_no": 3100,
+          "author": { "name": "오고피싱 선장", "user_no": 1 },
+          "created_at": 1791417600000,
+          "content": "오늘 감성돔 조황입니다<br>손님 대박 씨알",
+          "attachment": {
+            "photo": [
+              { "photo_url": "https://coresos-phinf.pstatic.net/a/test/one.jpg", "width": 100, "height": 100 },
+              { "photo_url": "https://coresos-phinf.pstatic.net/a/test/two.jpg", "width": 100, "height": 100 }
+            ]
+          }
+        }
+      },
+      {
+        "post": {
+          "band_no": 88348442,
+          "post_no": 3099,
+          "author": { "name": "오고피싱 선장", "user_no": 1 },
+          "created_at": 1791331200000,
+          "content": "10월 12일 갈치 출조 안내<br>예약 모집 정원 12명",
+          "photo_count": 0,
+          "attachment": {}
+        }
+      },
+      {
+        "post": {
+          "band_no": 1,
+          "post_no": 1,
+          "author": { "name": "다른밴드" },
+          "created_at": 1791417600000,
+          "content": "다른 밴드 글",
+          "attachment": {}
+        }
+      }
+    ]
+  }
+}

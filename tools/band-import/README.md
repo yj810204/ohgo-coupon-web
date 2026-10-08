@@ -7,7 +7,7 @@
 
 - 로그인된 브라우저를 자동화하는 방식이라 Band 약관에 어긋날 수 있습니다. 본인 밴드만, 필요한 게시글만, 한 번에 하나씩 가져오세요. 반복 수집이나 대량 수집에 쓰지 마세요.
 - Band 웹 내부 API와 화면 구조는 공개 규격이 아니어서 예고 없이 바뀔 수 있습니다.
-- `user-data/`에는 Band 로그인 쿠키가, `out/`에는 회원이 올린 글과 사진이, `ohgo-local/`에는 오고피씽 관리자 로그인 토큰과 등록 장부가 들어 있습니다. 모두 gitignore 되어 있으니 커밋하거나 공유하지 마세요. Mac 디스크 암호화(FileVault)를 켜 두세요.
+- `user-data/`에는 Band 로그인 쿠키가, `out/`에는 회원이 올린 글과 사진이, `ohgo-local/`에는 오고피씽 관리자 로그인 토큰, 등록 장부, 새 글 확인 상태(`band-check-state.json`)가 들어 있습니다. 모두 gitignore 되어 있으니 커밋하거나 공유하지 마세요. Mac 디스크 암호화(FileVault)를 켜 두세요.
 
 ## 설치
 
@@ -181,6 +181,46 @@ tools/band-import/out/2925/
 ```bash
 npm run band:validate -- tools/band-import/out/2925/extracted.json
 ```
+
+### 3. 새 글만 확인 (등록하지 않음)
+
+한 시간에 한 번, 사람 없이 밴드에 새 글이 있는지만 볼 때 씁니다. 글을 가져오거나 오고피씽에 등록하지 않고, Band에도 글을 쓰지 않습니다. 확인은 창 없는 브라우저로만 하고 로그인을 묻지 않습니다. 로그인이 만료되면 알려 주기만 합니다. 등록은 지금까지처럼 Mac 앱에서 합니다.
+
+저장소 루트에서, 로그인 셸로, 표준 출력에는 JSON 한 줄만 나오게 실행합니다.
+
+```bash
+cd /Users/ynjeong/Documents/CodejakaProjects/ohgo-coupon-web && zsh -lc 'npm run -s band:check'
+```
+
+`npm run -s`의 `-s`를 빼면 npm이 명령 이름을 표준 출력에 찍어서 JSON이 깨집니다. 같은 명령은 `node --experimental-strip-types --no-warnings=ExperimentalWarning tools/band-import/src/check-cli.mts check`로도 실행됩니다. 기존 `cli.mts`의 login/fetch와는 별도 파일입니다. `band:login`이 저장한 `user-data/` 세션을 그대로 씁니다. `BAND_USER_DATA_DIR`, `BAND_OHGO_DIR`를 바꿨다면 login과 같은 값이어야 합니다.
+
+성공하면 종료 코드 0, 표준 출력은 아래 한 줄입니다. 진행 문구는 표준 오류로만 나갑니다.
+
+```json
+{"status":"ok","checkedAt":"2026-10-08T19:00:00.000+09:00","baseline":false,"newPosts":[{"postNo":3101,"url":"https://band.us/band/88348442/post/3101","createdAt":"2026-10-08T18:40:00.000+09:00","author":"오고피싱 선장","snippet":"오늘 감성돔 조황입니다","photoCount":6,"kind":"조황"}]}
+```
+
+- 대상은 밴드 `88348442` (`https://band.us/band/88348442`) 입니다. 최근 글 20개 안팎을 읽습니다. Band 웹 JSON에서 `post_no`가 있는 글을 찾고, 그게 없으면 화면의 게시글 링크를 씁니다.
+- `createdAt`과 `checkedAt`은 한국 시간(UTC+9) ISO 8601입니다. `kind`는 기존 분류로 `조황`, `일정`, `기타` 중 하나입니다. 목록만으로 분류할 내용이 없으면 `kind`를 뺍니다.
+- 상태 파일은 `tools/band-import/ohgo-local/band-check-state.json`(본인만 읽기, 0600)입니다. 파일이 없으면 첫 실행으로 보고, 읽은 글을 모두 본 것으로 기록한 뒤 새 글 0건과 `"baseline":true`를 출력합니다.
+- 다음부터는 아직 안 본 글만 `newPosts`에 넣고, 출력한 뒤에 본 목록에 더합니다. 같은 글은 한 번만 새 글입니다. 이미 본 글 중 가장 최근 시각보다 2일 더 오래된 글은 알리지 않습니다.
+- 로그인이 없거나, 로그인 페이지로 갔거나, 멤버만 볼 수 있으면 종료 코드 2입니다. 본 목록은 바꾸지 않습니다.
+
+```json
+{"status":"login_required","checkedAt":"2026-10-08T19:00:00.000+09:00","message":"Band 로그인이 만료되었습니다 (상태: NONE). npm run band:login 을 다시 실행하세요."}
+```
+
+- 네트워크 오류, 시간 초과(약 60초), 화면을 읽지 못함, 이미 실행 중이면 종료 코드 1입니다. 본 목록은 바꾸지 않습니다.
+
+```json
+{"status":"error","checkedAt":"2026-10-08T19:00:00.000+09:00","message":"already running"}
+```
+
+```json
+{"status":"error","checkedAt":"2026-10-08T19:00:00.000+09:00","message":"밴드 목록을 60초 안에 열지 못했습니다."}
+```
+
+두 번이 겹치지 않게 `ohgo-local/band-check.lock`으로 잠급니다. 프로세스가 이미 죽었거나 잠근 지 3분이 지난 잠금은 치웁니다.
 
 ## extracted.json
 
