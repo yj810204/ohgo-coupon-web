@@ -71,19 +71,21 @@ export default function StampProgressCard({
               key={i}
               className={`ohgo-stamp-board__cell${on ? ' is-on' : ''}${isGoal ? ' is-goal' : ''}${isHalf ? ' is-half' : ''}`}
             >
-              {on ? (
-                <span className={`ohgo-stamp-board__seal${isHalf ? ' is-mark' : seal.length > 1 ? ' is-two' : ''}`}>
-                  {(isHalf ? ['50%'] : seal).map((line) => (
-                    <span key={line}>{line}</span>
-                  ))}
-                </span>
-              ) : isGoal ? (
-                <GoalIcon />
-              ) : isHalf ? (
-                <span className="ohgo-stamp-board__half">50%</span>
-              ) : (
-                i
-              )}
+              <span className="ohgo-stamp-board__face">
+                {on ? (
+                  <span className={`ohgo-stamp-board__seal${isHalf ? ' is-mark' : seal.length > 1 ? ' is-two' : ''}`}>
+                    {(isHalf ? ['50%'] : seal).map((line) => (
+                      <span key={line}>{line}</span>
+                    ))}
+                  </span>
+                ) : isGoal ? (
+                  <GoalIcon />
+                ) : isHalf ? (
+                  <span className="ohgo-stamp-board__half">50%</span>
+                ) : (
+                  i
+                )}
+              </span>
             </span>
           );
         })}
