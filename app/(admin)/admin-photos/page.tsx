@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from '@/hooks/useAppRouter';
 import { resolveAppUser } from '@/lib/auth-session';
-import { getPhotos, uploadPhoto, deletePhoto, updatePhoto, CommunityPhoto } from '@/utils/community-service';
+import { formatHashtags, getPhotos, parseHashtagInput, uploadPhoto, deletePhoto, updatePhoto, CommunityPhoto } from '@/utils/community-service';
 import { 
   getTemplates, 
   getTemplate,
@@ -252,6 +252,7 @@ function AdminPhotosContent() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [content, setContent] = useState('');
+  const [hashtagText, setHashtagText] = useState('');
   const [templateFieldValues, setTemplateFieldValues] = useState<Record<string, string | string[]>>({});
   const [showTemplateFields, setShowTemplateFields] = useState(false);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
@@ -261,6 +262,7 @@ function AdminPhotosContent() {
   const [editingPhoto, setEditingPhoto] = useState<CommunityPhoto | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
+  const [editHashtagText, setEditHashtagText] = useState('');
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
   const [editSelectedFiles, setEditSelectedFiles] = useState<File[]>([]);
   const [editPreviewUrls, setEditPreviewUrls] = useState<string[]>([]);
@@ -487,7 +489,11 @@ function AdminPhotosContent() {
         content || undefined,
         photoDate,
         activeTemplateId || undefined,
-        templateFieldValues
+        templateFieldValues,
+        'photo',
+        undefined,
+        undefined,
+        parseHashtagInput(hashtagText)
       );
       
       alert(`${filesToUpload.length}개의 사진이 업로드되었습니다.`);
@@ -499,6 +505,7 @@ function AdminPhotosContent() {
       setTitle('');
       setDescription('');
       setContent('');
+      setHashtagText('');
       setTemplateFieldValues({});
       await loadPhotos();
     } catch (error: any) {
@@ -556,6 +563,7 @@ function AdminPhotosContent() {
     setEditingPhoto(latestPhoto);
     setEditTitle(latestPhoto.title || '');
     setEditContent(latestPhoto.content || '');
+    setEditHashtagText(formatHashtags(latestPhoto.hashtags));
     setEditImageFile(null);
     
     setEditSelectedFiles([]);
@@ -768,6 +776,7 @@ function AdminPhotosContent() {
       await updatePhoto(editingPhoto.photoId, {
         title: editTitle,
         content: editContent,
+        hashtags: parseHashtagInput(editHashtagText),
         photoDate,
         templateId: editingPhoto.templateId || undefined,
         templateFieldValues: editTemplateFieldValues,
@@ -862,6 +871,18 @@ function AdminPhotosContent() {
           placeholder="내용을 입력하세요..."
         />
       </FormSection>
+      <FormSection title="태그">
+        <input
+          type="text"
+          className="form-control"
+          style={OHGO_INPUT}
+          value={hashtagText}
+          onChange={(e) => setHashtagText(e.target.value)}
+          placeholder="#조황 #이벤트"
+          disabled={uploading}
+        />
+        <p style={HINT}>띄어쓰기로 구분합니다. 본문과 따로 저장됩니다.</p>
+      </FormSection>
       <FormActions
         onCancel={() => router.replace('/admin-photos')}
         onSubmit={() => void handleUpload()}
@@ -930,6 +951,18 @@ function AdminPhotosContent() {
         )}
         <FormSection title="내용">
           <CKEditorComponent value={editContent} onChange={setEditContent} disabled={updatingPhoto} />
+        </FormSection>
+        <FormSection title="태그">
+          <input
+            type="text"
+            className="form-control"
+            style={OHGO_INPUT}
+            value={editHashtagText}
+            onChange={(e) => setEditHashtagText(e.target.value)}
+            placeholder="#조황 #이벤트"
+            disabled={updatingPhoto}
+          />
+          <p style={HINT}>띄어쓰기로 구분합니다. 본문과 따로 저장됩니다.</p>
         </FormSection>
         <FormActions
           onCancel={() => router.replace('/admin-photos')}

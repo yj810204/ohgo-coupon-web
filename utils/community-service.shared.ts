@@ -46,6 +46,29 @@ export interface CommunityPhoto {
   acceptedCommentId?: string;
   category?: string;
   isNotice?: boolean;
+  /** # 없이 저장한 조황 태그 */
+  hashtags?: string[];
+}
+
+/** `#조황 #이벤트` 또는 쉼표로 나뉜 입력을 태그 이름으로 만든다 */
+export function parseHashtagInput(raw: string): string[] {
+  const tags: string[] = [];
+  const seen = new Set<string>();
+  for (const part of raw.split(/[\s,，]+/)) {
+    const tag = part.replace(/^\[+/, '').replace(/\]+$/, '').replace(/^#+/, '').trim();
+    if (!tag || seen.has(tag)) continue;
+    seen.add(tag);
+    tags.push(tag);
+  }
+  return tags;
+}
+
+export function formatHashtags(tags: string[] | undefined): string {
+  return (tags ?? [])
+    .map((tag) => tag.replace(/^#+/, '').trim())
+    .filter(Boolean)
+    .map((tag) => `#${tag}`)
+    .join(' ');
 }
 
 export function sortBoardList<T extends { isNotice?: boolean; uploadedAt: Date | string }>(items: T[]): T[] {

@@ -1101,6 +1101,26 @@ function PhotoDetailContent() {
                   </p>
                 )
               ) : null}
+              {photo.hashtags && photo.hashtags.length > 0 ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
+                  {photo.hashtags.map((tag) => (
+                    <span
+                      key={tag}
+                      style={{
+                        fontSize: 13,
+                        lineHeight: 1.4,
+                        color: '#1B6FF5',
+                        background: '#F3F7FF',
+                        borderRadius: 999,
+                        padding: '4px 10px',
+                        fontFamily: OHGO_FONT,
+                      }}
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </>
           ) : null}
         </div>

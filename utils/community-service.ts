@@ -5,5 +5,7 @@ export {
   communityWritePath,
   communityBoardTitle,
   sortBoardList,
+  parseHashtagInput,
+  formatHashtags,
 } from './community-service.shared';
 export * from './community-service.supabase';

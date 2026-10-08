@@ -8,7 +8,7 @@ import { IoImageOutline, IoTrashOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import { resolveAppUser } from '@/lib/auth-session';
 import { ohgoAlert } from '@/lib/ohgo-dialog';
-import { getPhoto, updatePhoto, uploadPhoto } from '@/utils/community-service';
+import { formatHashtags, getPhoto, parseHashtagInput, updatePhoto, uploadPhoto } from '@/utils/community-service';
 import { useImageEditQueue } from '@/hooks/useImageEditQueue';
 import NoticeCheckRow from '@/components/community/NoticeCheckRow';
 const CKEditorComponent = dynamic(() => import('@/components/CKEditor'), { ssr: false });
@@ -40,6 +40,7 @@ function CommunityPhotoUploadContent() {
   const [uploading, setUploading] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [hashtagText, setHashtagText] = useState('');
   const [existingUrls, setExistingUrls] = useState<string[]>([]);
   const [isNotice, setIsNotice] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
@@ -89,6 +90,7 @@ function CommunityPhotoUploadContent() {
           }
           setTitle(photo.title || '');
           setDescription(toEditorHtml(postBodyHtml(photo.content, photo.description)));
+          setHashtagText(formatHashtags(photo.hashtags));
           setIsNotice(Boolean(photo.isNotice));
           const urls =
             photo.imageUrls && photo.imageUrls.length > 0
@@ -158,6 +160,7 @@ function CommunityPhotoUploadContent() {
           title: title.trim() || '',
           description: storedRichText(description),
           content: storedRichText(description),
+          hashtags: parseHashtagInput(hashtagText),
           ...(user.isAdmin ? { isNotice } : {}),
           imageUrls: existingUrls,
           imageFile: files.length > 0 ? files : undefined,
@@ -177,7 +180,8 @@ function CommunityPhotoUploadContent() {
           undefined,
           'photo',
           undefined,
-          user.isAdmin && isNotice
+          user.isAdmin && isNotice,
+          parseHashtagInput(hashtagText)
         );
         await ohgoAlert('사진이 등록되었습니다.');
         router.replace('/community/photos');
@@ -341,6 +345,25 @@ function CommunityPhotoUploadContent() {
           disabled={uploading}
           minHeight={120}
           showSourceToggle={false}
+        />
+      </div>
+
+      <div style={{ ...OHGO_CARD, padding: '14px 16px', marginBottom: 16 }}>
+        <label
+          htmlFor="photo-tags"
+          style={{ fontSize: 13, fontWeight: 700, color: '#1A1D1F', fontFamily: FONT, display: 'block', marginBottom: 8 }}
+        >
+          태그
+        </label>
+        <input
+          id="photo-tags"
+          type="text"
+          className="form-control"
+          style={OHGO_INPUT}
+          value={hashtagText}
+          onChange={(e) => setHashtagText(e.target.value)}
+          placeholder="#조황 #이벤트"
+          disabled={uploading}
         />
       </div>
 
