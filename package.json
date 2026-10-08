@@ -13,6 +13,7 @@
     "test:signup-stamp": "node --experimental-strip-types lib/legacy-identity.test.mts && node --experimental-strip-types lib/stamps/firebase-qr-stamp.test.mts && node --experimental-strip-types lib/kst-date.test.mts && node --experimental-strip-types lib/firebase/merged-to.test.mts && node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/stamps/credit-trip-bait.test.mts && node --experimental-strip-types lib/reconcile-boarding.test.mts && node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/boarding/confirm-trip-count.test.mts",
     "test:holidays": "node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/kasi-holidays.test.mts",
     "test:holiday-date": "node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/holiday-date-label.test.mts",
+    "test:stamp-count": "node --experimental-strip-types --import ./lib/register-ts-alias.mjs --test lib/stamp-count-fix.test.mts",
     "test:boarding-ledger": "node --experimental-strip-types lib/boarding-ledger.test.mts",
     "test:resume-nav": "node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/navigation-guard.test.mts",
     "test:korean-picker": "node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/korean-picker.test.mts",

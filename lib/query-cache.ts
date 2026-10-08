@@ -15,20 +15,20 @@ type CacheEntry = {
 
 const store = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<unknown>>();
-const listeners = new Set<(key: string, value: unknown) => void>();
+const listeners = new Set<(key: string, value: unknown, error?: unknown) => void>();
 
-/** 캐시에 값이 들어간 뒤 호출된다. 느린 요청이 끝난 화면을 다시 그릴 때 쓴다. */
-export function subscribeCache(listener: (key: string, value: unknown) => void): () => void {
+/** 캐시에 값이 들어가거나 요청이 실패하면 호출된다. */
+export function subscribeCache(listener: (key: string, value: unknown, error?: unknown) => void): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
 }
 
-function publish(key: string, value: unknown) {
+function publish(key: string, value: unknown, error?: unknown) {
   for (const listener of listeners) {
     try {
-      listener(key, value);
+      listener(key, value, error);
     } catch {
       /* 구독자가 실패해도 캐시 기록은 유지한다 */
     }
@@ -67,6 +67,7 @@ export function cachedFetch<T>(
       })
       .catch((err) => {
         if (inflight.get(key) === promise) inflight.delete(key);
+        publish(key, undefined, err);
         if (hit) return hit.value as T;
         throw err;
       });

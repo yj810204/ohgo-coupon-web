@@ -6,6 +6,7 @@ import {
   type MemberIdentityHint,
   type ProfileLookup,
 } from '@/lib/member-id-resolution';
+import { persistFirestoreUserId } from '@/lib/storage';
 import { isSupabaseConfigured, getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 /**
@@ -36,6 +37,7 @@ async function resolveFirestoreUserIdUncached(userId: string): Promise<string | 
             const supabase = getSupabaseBrowserClient();
             await supabase.auth.refreshSession();
           },
+    lookupServerMemberId: typeof window === 'undefined' ? undefined : fetchServerMemberId,
     findDoc: async (candidate) => {
       const resolved = await resolveCanonicalUserId(candidate);
       if (!resolved.missing && resolved.id) return { id: resolved.id, missing: false };
@@ -51,6 +53,7 @@ async function resolveFirestoreUserIdUncached(userId: string): Promise<string | 
   ) {
     void healProfileLegacyUuid(userId, id);
   }
+  if (id) persistFirestoreUserId(userId, id);
   return id;
 }
 
@@ -65,15 +68,22 @@ export function invalidateFirestoreUserIdCache(userId?: string) {
   else invalidateCache('fb-uid:');
 }
 
+async function fetchServerMemberId(): Promise<string | null> {
+  const response = await fetch('/api/me/member-id', { credentials: 'include', cache: 'no-store' });
+  if (!response.ok) return null;
+  const body = (await response.json()) as { fbUid?: unknown };
+  return typeof body.fbUid === 'string' && body.fbUid ? body.fbUid : null;
+}
+
 function deviceIdentityHint(userId: string): MemberIdentityHint | undefined {
   if (typeof window === 'undefined') return undefined;
   try {
     const raw = localStorage.getItem('userInfo');
     if (!raw) return undefined;
-    const local = JSON.parse(raw) as { uuid?: string; name?: string; dob?: string };
+    const local = JSON.parse(raw) as { uuid?: string; name?: string; dob?: string; fbUid?: string };
     if (local.uuid && local.uuid !== userId) return undefined;
-    if (!local.name && !local.dob) return undefined;
-    return { name: local.name, dob: local.dob };
+    if (!local.name && !local.dob && !local.fbUid) return undefined;
+    return { name: local.name, dob: local.dob, fbUid: local.fbUid };
   } catch {
     return undefined;
   }

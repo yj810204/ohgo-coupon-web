@@ -1,6 +1,7 @@
 import type { User } from '@supabase/supabase-js';
 import { getSupabaseBrowserClient, resetSupabaseBrowserClient } from '@/lib/supabase/client';
 import { saveUser, clearUser } from '@/lib/storage';
+import { storedUserFromProfile } from '@/lib/stored-user';
 
 export type AppProfile = {
   id: string;
@@ -11,6 +12,7 @@ export type AppProfile = {
   community_point: number;
   bait_coupons: number;
   expo_push_token: string | null;
+  legacy_uuid?: string | null;
 };
 
 function displayNameFromUser(user: User): string {
@@ -110,12 +112,7 @@ export async function syncLocalUserFromSupabaseSession() {
     profile = minimalProfileFromUser(user);
   }
 
-  await saveUser({
-    uuid: profile.id,
-    name: profile.name,
-    dob: profile.dob ?? '',
-    isAdmin: profile.role === 'admin',
-  });
+  await saveUser(storedUserFromProfile(profile));
 
   return profile;
 }
