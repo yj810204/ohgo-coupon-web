@@ -134,7 +134,7 @@ export function OhgoModalActions({
 type OhgoModalButtonProps = {
   children: ReactNode;
   onClick: () => void;
-  variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'warning';
+  variant?: 'primary' | 'secondary' | 'success' | 'danger' | 'danger-soft' | 'warning';
   disabled?: boolean;
   className?: string;
 };
@@ -149,6 +149,11 @@ const VARIANT_STYLES: Record<NonNullable<OhgoModalButtonProps['variant']>, React
   danger: {
     ...OHGO_CONFIRM_BTN,
     backgroundColor: '#FF3B30',
+  },
+  'danger-soft': {
+    ...OHGO_DISMISS_BTN,
+    backgroundColor: '#FFF1F0',
+    color: '#FF3B30',
   },
   warning: {
     ...OHGO_CONFIRM_BTN,

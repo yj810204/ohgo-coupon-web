@@ -1407,6 +1407,7 @@ body[data-native-app='true'] .ohgo-modal .modal-footer.ohgo-modal__footer {
 .ohgo-modal__btn.ohgo-btn-confirm,
 .ohgo-modal__btn.ohgo-modal__btn--primary,
 .ohgo-modal__btn.ohgo-modal__btn--danger,
+.ohgo-modal__btn.ohgo-modal__btn--danger-soft,
 .ohgo-modal__btn.ohgo-modal__btn--success,
 .ohgo-modal__btn.ohgo-modal__btn--warning {
   border-radius: 1000px !important;
@@ -1512,6 +1513,18 @@ body[data-native-app='true'] .ohgo-modal .modal-footer.ohgo-modal__footer {
 
 .ohgo-modal__btn.ohgo-modal__btn--danger:active {
   background-color: #e6352b !important;
+}
+
+.ohgo-modal__btn.ohgo-modal__btn--danger-soft {
+  background-color: #fff1f0 !important;
+  color: #ff3b30 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.ohgo-modal__btn.ohgo-modal__btn--danger-soft:active {
+  background-color: #ffe0de !important;
+  color: #e0352c !important;
 }
 
 .ohgo-modal__btn.ohgo-modal__btn--warning {

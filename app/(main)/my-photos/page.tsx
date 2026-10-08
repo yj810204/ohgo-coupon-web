@@ -186,7 +186,7 @@ function MyPhotosContent() {
               {saving ? '저장 중...' : '갤러리로 저장'}
             </OhgoModalButton>
             <OhgoModalButton
-              variant="danger"
+              variant="danger-soft"
               onClick={() => detail && void removePhoto(detail.photo)}
               disabled={!detail || deletingId === detail.photo.id}
             >
