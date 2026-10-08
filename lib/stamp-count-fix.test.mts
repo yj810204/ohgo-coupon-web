@@ -23,20 +23,20 @@ const authId = '0f03d93d-0000-4000-8000-000000000001';
 const legacyId = 'a69705b7-0000-4000-8000-000000000002';
 const normalId = '11111111-1111-4111-8111-111111111111';
 
-test('unresolved member ends the placeholder at 0', () => {
+test('a failed first load stays empty instead of showing 0', () => {
   const ended = applyStampCouponLoad(
     { stamps: null, coupons: null },
     {
-      stamps: { status: 'rejected', reason: new Error('회원 정보를 확인하지 못했습니다.') },
-      coupons: { status: 'rejected', reason: new Error('회원 정보를 확인하지 못했습니다.') },
+      stamps: { status: 'rejected', reason: new Error('세션이 없어 스탬프를 불러오지 못했습니다.') },
+      coupons: { status: 'rejected', reason: new Error('세션이 없어 스탬프를 불러오지 못했습니다.') },
     },
   );
-  assert.deepEqual(ended, { stamps: 0, coupons: 0 });
+  assert.deepEqual(ended, { stamps: null, coupons: null });
   assert.equal(shouldRetryStampLoad({ attempts: 0, failed: true }), true);
   assert.equal(shouldRetryStampLoad({ attempts: 2, failed: true }), false);
 });
 
-test('rejected fetch notifies subscribers and ends the placeholder', async () => {
+test('rejected fetch notifies subscribers without turning an empty load into 0', async () => {
   invalidateCache();
   const uuid = 'rejected-user';
   let counts = { stamps: null as number | null, coupons: null as number | null };
@@ -53,8 +53,8 @@ test('rejected fetch notifies subscribers and ends the placeholder', async () =>
       throw new Error('member-unresolved');
     }, 500),
   );
-  assert.equal(counts.stamps, 0);
-  assert.equal(counts.coupons, 0);
+  assert.equal(counts.stamps, null);
+  assert.equal(counts.coupons, null);
   unsub();
   invalidateCache();
 });

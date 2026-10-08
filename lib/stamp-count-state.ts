@@ -18,14 +18,13 @@ function isInFlightTimeout(reason: unknown): boolean {
 
 function settleCount(prev: number | null, result: PromiseSettledResult<unknown>, next: number): number | null {
   if (result.status === 'fulfilled') return next;
-  // 아직 요청이 진행 중이면 자리표시나 마지막 값을 유지한다.
-  if (isInFlightTimeout(result.reason)) return prev;
-  return prev ?? 0;
+  // 시간 초과·실패 모두 마지막 성공 값을 유지한다. 한 번도 못 받았으면 0으로 보이지 않는다.
+  return prev;
 }
 
 /**
- * 시간 초과(아직 진행 중)만 이전 값을 유지한다.
- * 그 밖 실패는 자리표시를 끝낸다. 이전 값이 있으면 그대로, 없으면 0.
+ * 성공한 개수만 반영한다.
+ * 실패하거나 아직 진행 중이면 이전 값을 유지하고, 받은 적이 없으면 빈 자리로 둔다.
  */
 export function applyStampCouponLoad(
   prev: StampCouponCounts,
@@ -58,12 +57,7 @@ export function applyStampCacheEvent(
   value: unknown,
   error?: unknown,
 ): StampCouponCounts {
-  if (error) {
-    if (isInFlightTimeout(error)) return prev;
-    if (key === stampListCacheKey(uuid)) return { ...prev, stamps: prev.stamps ?? 0 };
-    if (key === couponCountCacheKey(uuid)) return { ...prev, coupons: prev.coupons ?? 0 };
-    return prev;
-  }
+  if (error) return prev;
   const next = countsFromCacheValue(uuid, key, value);
   if (!next) return prev;
   return { ...prev, ...next };

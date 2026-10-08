@@ -77,6 +77,7 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [stampCounts, setStampCounts] = useState<StampCouponCounts>({ stamps: null, coupons: null });
   const stampLoad = useRef({ attempts: 0, failed: false });
+  const loadSeq = useRef(0);
   const [photos, setPhotos] = useState<CommunityPhoto[]>(initialFeed?.photos ?? []);
   const [faqPosts, setFaqPosts] = useState<CommunityPhoto[]>(initialFeed?.faq ?? []);
   const [qnaPosts, setQnaPosts] = useState<CommunityPhoto[]>(initialFeed?.qna ?? []);
@@ -122,6 +123,7 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
     if (!visibility || !sectionOrder) return;
     applyHomeLayout({ homeSections: visibility, homeSectionOrder: sectionOrder });
 
+    const seq = ++loadSeq.current;
     const weekRange = getWeekRange(new Date());
     const [
       stampsApi,
@@ -160,6 +162,8 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
           : Promise.resolve([]),
       ]);
 
+    if (seq !== loadSeq.current) return;
+
     const stampResult = {
       stamps: stamps as PromiseSettledResult<string[]>,
       coupons: coupons as PromiseSettledResult<number>,
@@ -171,8 +175,8 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
     else if (shouldRetryStampLoad(stampLoad.current)) {
       stampLoad.current.attempts += 1;
       window.setTimeout(() => {
-        void loadRemoteData(uuid).catch(() => {
-          setStampCounts((prev) => ({ stamps: prev.stamps ?? 0, coupons: prev.coupons ?? 0 }));
+        void loadRemoteData(uuid).catch((error) => {
+          console.error('stamp retry failed:', error);
         });
       }, 1200);
     }
@@ -207,9 +211,6 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
           isAdmin: cached.isAdmin,
         });
         setLoading(false);
-        void loadRemoteData(cached.uuid, settings.homeSections, settings.homeSectionOrder).catch(() => {
-          setStampCounts((prev) => ({ stamps: prev.stamps ?? 0, coupons: prev.coupons ?? 0 }));
-        });
       } else {
         setLoading(true);
       }
@@ -229,12 +230,7 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
         isCaptain: appUser.isCaptain,
       });
       setLoading(false);
-
-      if (!cached?.uuid || cached.uuid !== appUser.uuid) {
-        void loadRemoteData(appUser.uuid, settings.homeSections, settings.homeSectionOrder).catch(() => {
-          setStampCounts((prev) => ({ stamps: prev.stamps ?? 0, coupons: prev.coupons ?? 0 }));
-        });
-      }
+      await loadRemoteData(appUser.uuid, settings.homeSections, settings.homeSectionOrder);
     } catch (error) {
       console.error('handleRefresh error:', error);
       setLoading(false);
@@ -274,8 +270,8 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
       if (document.visibilityState !== 'visible') return;
       if (!shouldRetryStampLoad(stampLoad.current)) return;
       stampLoad.current.attempts += 1;
-      void loadRemoteData(uuid).catch(() => {
-        setStampCounts((prev) => ({ stamps: prev.stamps ?? 0, coupons: prev.coupons ?? 0 }));
+      void loadRemoteData(uuid).catch((error) => {
+        console.error('stamp retry failed:', error);
       });
     };
     document.addEventListener('visibilitychange', onVisible);
@@ -283,18 +279,19 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
   }, [user?.uuid, loadRemoteData]);
 
   const onPullRefresh = useCallback(async () => {
-    const localUser = await getUser();
-    if (!localUser?.uuid) {
+    const appUser = await resolveAppUser();
+    if (!appUser?.uuid) {
       await handleRefresh();
       return;
     }
-    const appUser = await resolveAppUser();
     setUser({
-      ...localUser,
-      isAdmin: appUser?.isAdmin,
-      isCaptain: appUser?.isCaptain,
+      uuid: appUser.uuid,
+      name: appUser.name,
+      dob: appUser.dob,
+      isAdmin: appUser.isAdmin,
+      isCaptain: appUser.isCaptain,
     });
-    await loadRemoteData(localUser.uuid);
+    await loadRemoteData(appUser.uuid);
   }, [handleRefresh, loadRemoteData]);
 
   useNativePullToRefresh(onPullRefresh);
