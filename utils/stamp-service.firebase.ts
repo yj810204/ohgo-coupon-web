@@ -275,8 +275,8 @@ export async function removeStampBatch(uuid: string, count: number): Promise<voi
 }
 
 export async function getStamps(uuid: string): Promise<string[]> {
-  const mapped = await resolveFirestoreUserId(uuid);
-  if (!mapped) return [];
+  const mapped = await resolveFirestoreUserId(uuid, { waitMs: 30_000 });
+  if (!mapped) throw new Error('회원 정보를 확인하지 못했습니다.');
   uuid = mapped;
   const db = getFirebaseDb();
   const snapshot = await getDocs(collection(db, `users/${uuid}/stamps`));
@@ -365,8 +365,8 @@ export async function revokeCoupon(uuid: string, couponId: string): Promise<void
 }
 
 export async function getCouponCount(uuid: string): Promise<number> {
-  const mapped = await resolveFirestoreUserId(uuid);
-  if (!mapped) return 0;
+  const mapped = await resolveFirestoreUserId(uuid, { waitMs: 30_000 });
+  if (!mapped) throw new Error('회원 정보를 확인하지 못했습니다.');
   uuid = mapped;
   const db = getFirebaseDb();
   const snap = await getDocs(

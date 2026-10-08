@@ -48,6 +48,14 @@ import { IoBookOutline, IoGameControllerOutline, IoHelpCircleOutline, IoStorefro
 import EmptyState from '@/components/EmptyState';
 import { OHGO_CARD, OHGO_LIST_DIVIDER, OhgoPageLoading } from '@/lib/page-styles';
 import type { PublicHomeFeed } from '@/lib/public-feed-types';
+import { peekCache, subscribeCache } from '@/lib/query-cache';
+import {
+  applyStampCouponLoad,
+  countsFromCacheValue,
+  couponCountCacheKey,
+  stampListCacheKey,
+  type StampCouponCounts,
+} from '@/lib/stamp-count-state';
 
 function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
   return result.status === 'fulfilled' ? result.value : fallback;
@@ -64,8 +72,7 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
     isCaptain?: boolean;
   } | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [stampCount, setStampCount] = useState(0);
-  const [couponCount, setCouponCount] = useState(0);
+  const [stampCounts, setStampCounts] = useState<StampCouponCounts>({ stamps: null, coupons: null });
   const [photos, setPhotos] = useState<CommunityPhoto[]>(initialFeed?.photos ?? []);
   const [faqPosts, setFaqPosts] = useState<CommunityPhoto[]>(initialFeed?.faq ?? []);
   const [qnaPosts, setQnaPosts] = useState<CommunityPhoto[]>(initialFeed?.qna ?? []);
@@ -149,8 +156,12 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
           : Promise.resolve([]),
       ]);
 
-    setStampCount(settledValue(stamps, []).length);
-    setCouponCount(settledValue(coupons, 0));
+    setStampCounts((prev) =>
+      applyStampCouponLoad(prev, {
+        stamps: stamps as PromiseSettledResult<string[]>,
+        coupons: coupons as PromiseSettledResult<number>,
+      }),
+    );
     setPhotos(settledValue(photoList, []));
     setFaqPosts(settledValue(faqList, []));
     setQnaPosts(settledValue(qnaList, []));
@@ -215,6 +226,22 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
   useEffect(() => {
     void handleRefresh();
   }, [handleRefresh]);
+
+  useEffect(() => {
+    const uuid = user?.uuid;
+    if (!uuid) return;
+    const applyCached = (key: string, value: unknown) => {
+      const next = countsFromCacheValue(uuid, key, value);
+      if (!next) return;
+      setStampCounts((prev) => ({ ...prev, ...next }));
+    };
+    const unsubscribe = subscribeCache(applyCached);
+    const cachedList = peekCache<string[]>(stampListCacheKey(uuid));
+    if (cachedList) applyCached(stampListCacheKey(uuid), cachedList);
+    const cachedCoupons = peekCache<number>(couponCountCacheKey(uuid));
+    if (typeof cachedCoupons === 'number') applyCached(couponCountCacheKey(uuid), cachedCoupons);
+    return unsubscribe;
+  }, [user?.uuid]);
 
   const onPullRefresh = useCallback(async () => {
     const localUser = await getUser();
@@ -292,8 +319,8 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
             return (
               <div key={sectionId} style={{ marginBottom: 30 }}>
                 <StampCouponSummary
-                  stampCount={stampCount}
-                  couponCount={couponCount}
+                  stampCount={stampCounts.stamps}
+                  couponCount={stampCounts.coupons}
                   stampHref={`/stamp?${query}`}
                   couponHref={`/coupons?${query}`}
                   onQrScan={async () => {
