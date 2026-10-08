@@ -20,6 +20,11 @@ import HorizontalScroll from '@/components/home/HorizontalScroll';
 import WeeklyTripSummary from '@/components/home/WeeklyTripSummary';
 import TripTidePanel from '@/components/trip/TripTidePanel';
 import WindWeatherCard from '@/components/trip/WindWeatherCard';
+import {
+  PictogramSectionHeader,
+  SectionPictogram,
+  WindMark,
+} from '@/components/trip/ForecastPictograms';
 import MarketListingCard from '@/components/market/MarketListingCard';
 import {
   getWeekRange,
@@ -330,7 +335,15 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
           if (sectionId === 'wind' && homeSections.wind) {
             return (
               <section key={sectionId} style={{ marginBottom: 30 }}>
-                <SectionHeader title="바람" viewAllHref="/tide" />
+                <PictogramSectionHeader
+                  title="바람"
+                  viewAllHref="/tide"
+                  icon={
+                    <SectionPictogram>
+                      <WindMark />
+                    </SectionPictogram>
+                  }
+                />
                 <WindWeatherCard date={chartDate} onActiveDate={setChartDate} spaced={false} />
               </section>
             );

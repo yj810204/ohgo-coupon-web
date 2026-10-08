@@ -45,6 +45,11 @@ import OhgoModal, {
 import EmptyState from '@/components/EmptyState';
 import TripTidePanel from '@/components/trip/TripTidePanel';
 import WindWeatherCard from '@/components/trip/WindWeatherCard';
+import {
+  PictogramSectionHeader,
+  SectionPictogram,
+  WindMark,
+} from '@/components/trip/ForecastPictograms';
 import { getTideLabel, getTideTextColor } from '@/lib/dadaepo-tide';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
 import { useHolidays } from '@/hooks/useHolidays';
@@ -804,7 +809,17 @@ export default function TripGuidePage({
               ) : null}
             </OhgoModalInfoList>
             <TripTidePanel date={modalTrip.date} variant="embedded" />
-            <WindWeatherCard date={modalTrip.date} spaced={false} bordered />
+            <div>
+              <PictogramSectionHeader
+                title="바람"
+                icon={
+                  <SectionPictogram>
+                    <WindMark />
+                  </SectionPictogram>
+                }
+              />
+              <WindWeatherCard date={modalTrip.date} spaced={false} bordered />
+            </div>
             {modalTrip.price ? (
               <div
                 className="p-3 rounded-3 d-flex align-items-center justify-content-between"
