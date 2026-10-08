@@ -15,6 +15,25 @@ type CacheEntry = {
 
 const store = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<unknown>>();
+const listeners = new Set<(key: string, value: unknown) => void>();
+
+/** 캐시에 값이 들어간 뒤 호출된다. 느린 요청이 끝난 화면을 다시 그릴 때 쓴다. */
+export function subscribeCache(listener: (key: string, value: unknown) => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function publish(key: string, value: unknown) {
+  for (const listener of listeners) {
+    try {
+      listener(key, value);
+    } catch {
+      /* 구독자가 실패해도 캐시 기록은 유지한다 */
+    }
+  }
+}
 
 export function cachedFetch<T>(
   key: string,
@@ -42,6 +61,7 @@ export function cachedFetch<T>(
     const promise = fn()
       .then((value) => {
         store.set(key, { value, expiresAt: Date.now() + ttlMs });
+        publish(key, value);
         if (inflight.get(key) === promise) inflight.delete(key);
         return value;
       })
@@ -59,6 +79,8 @@ export function cachedFetch<T>(
       if (err instanceof TimeoutError) {
         const current = inflight.get(key);
         if (current === promise) inflight.delete(key);
+        // 기다림만 끊는다. 끝나서 캐시에 들어가면 subscribeCache가 알린다.
+        promise.catch(() => undefined);
         if (hit) return hit.value as T;
       }
       throw err;

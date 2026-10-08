@@ -51,6 +51,16 @@ const CARD: CSSProperties = {
   boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
   border: 'none',
 };
+// 인라인 링크는 배경이 줄마다 잘려 왼쪽 조각과 잘린 숫자로 보인다.
+const POINT_CARD: CSSProperties = {
+  ...CARD,
+  display: 'block',
+  width: '100%',
+  boxSizing: 'border-box',
+  cursor: 'pointer',
+  textDecoration: 'none',
+  color: 'inherit',
+};
 
 export default function MyPage() {
   const { navigateReplace } = useNavigation();
@@ -316,8 +326,8 @@ export default function MyPage() {
           <div className="col-6">
             <AppLink
               href="/game-point-history"
-              className="p-3 h-100 w-100 text-start border-0"
-              style={{ ...CARD, cursor: 'pointer', textDecoration: 'none', color: 'inherit' }}
+              className="p-3 h-100 text-start border-0"
+              style={POINT_CARD}
             >
               <div className="d-flex align-items-center justify-content-between gap-1 mb-1">
                 <span className="d-inline-flex align-items-center gap-2 min-w-0">
@@ -334,8 +344,8 @@ export default function MyPage() {
           <div className="col-6">
             <AppLink
               href="/community-point-history"
-              className="p-3 h-100 w-100 text-start border-0"
-              style={{ ...CARD, cursor: 'pointer', textDecoration: 'none', color: 'inherit' }}
+              className="p-3 h-100 text-start border-0"
+              style={POINT_CARD}
             >
               <div className="d-flex align-items-center justify-content-between gap-1 mb-1">
                 <span className="d-inline-flex align-items-center gap-2 min-w-0">

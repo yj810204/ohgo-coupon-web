@@ -5,8 +5,8 @@ import { IoQrCodeOutline, IoPricetagOutline, IoGiftOutline } from 'react-icons/i
 import { NavSurface } from '@/components/AppLink';
 
 interface StampCouponSummaryProps {
-  stampCount: number;
-  couponCount: number;
+  stampCount: number | null;
+  couponCount: number | null;
   onStampClick?: () => void;
   onCouponClick?: () => void;
   stampHref?: string;
@@ -39,7 +39,7 @@ function StatBox({
 }: {
   icon: React.ReactNode;
   label: string;
-  count: number;
+  count: number | null;
   unit: string;
   onClick?: () => void;
   href?: string;
@@ -54,7 +54,20 @@ function StatBox({
         <span>{label}</span>
       </div>
       <div className="d-flex align-items-baseline gap-1" style={{ fontFamily: FONT, lineHeight: 1 }}>
-        <span style={{ fontSize: 26, fontWeight: 700 }}>{count}</span>
+        {count == null ? (
+          <span
+            aria-hidden
+            style={{
+              display: 'inline-block',
+              width: 36,
+              height: 22,
+              borderRadius: 6,
+              background: 'rgba(255,255,255,0.35)',
+            }}
+          />
+        ) : (
+          <span style={{ fontSize: 26, fontWeight: 700 }}>{count}</span>
+        )}
         <span style={{ fontSize: 14, fontWeight: 500, opacity: 0.95 }}>{unit}</span>
       </div>
     </NavSurface>

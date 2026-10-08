@@ -1,5 +1,6 @@
 import { DATA_SOURCE, isFirebaseDataSource } from '@/lib/data-source';
 import { cachedFetch, invalidateCache } from '@/lib/query-cache';
+import { couponCountCacheKey, stampListCacheKey } from '@/lib/stamp-count-state';
 import { getUserActionLogs } from './user-action-log-service';
 import * as supa from './stamp-service.supabase';
 import * as fb from './stamp-service.firebase';
@@ -100,13 +101,13 @@ export const getStampHistory: typeof supa.getStampHistory = async (opts) => {
 };
 
 export const getStamps: typeof supa.getStamps = (uuid) =>
-  cachedFetch(`${STAMPS_PREFIX}list:${uuid}`, STAMPS_TTL_MS, () => impl.getStamps(uuid));
+  cachedFetch(stampListCacheKey(uuid), STAMPS_TTL_MS, () => impl.getStamps(uuid));
 
 export const getCoupons: typeof supa.getCoupons = (uuid) =>
   cachedFetch(`${STAMPS_PREFIX}coupons:${uuid}`, STAMPS_TTL_MS, () => impl.getCoupons(uuid));
 
 export const getCouponCount: typeof supa.getCouponCount = (uuid) =>
-  cachedFetch(`${STAMPS_PREFIX}couponCount:${uuid}`, STAMPS_TTL_MS, () => impl.getCouponCount(uuid));
+  cachedFetch(couponCountCacheKey(uuid), STAMPS_TTL_MS, () => impl.getCouponCount(uuid));
 
 export const clearStampHistory: typeof supa.clearStampHistory = async (...a) => {
   const result = await impl.clearStampHistory(...a);
