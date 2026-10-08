@@ -18,6 +18,7 @@ import {
   planStampSuccess,
   readLastKnownStampCounts,
   resetStampRetryForResume,
+  serverCountsMatchViewer,
   shouldKeepSlowStampRetry,
   STAMP_SLOW_RETRY_MS,
   stampListCacheKey,
@@ -34,16 +35,22 @@ export type StampCountLoader = {
   getCouponCount: (uuid: string) => Promise<number>;
 };
 
-function seedStoredMemberId(uuid: string) {
-  if (typeof window === 'undefined') return;
+function readStoredUser(uuid: string): { fbUid?: string; legacyUuid?: string } | null {
+  if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem('userInfo');
-    if (!raw) return;
-    const local = JSON.parse(raw) as { uuid?: string; fbUid?: string };
-    if (local.uuid === uuid && local.fbUid) seedCachedMemberId(uuid, local.fbUid);
+    if (!raw) return null;
+    const local = JSON.parse(raw) as { uuid?: string; fbUid?: string; legacyUuid?: string };
+    if (local.uuid !== uuid) return null;
+    return local;
   } catch {
-    /* 저장된 회원 번호가 없으면 일반 조회로 간다 */
+    return null;
   }
+}
+
+function seedStoredMemberId(uuid: string) {
+  const local = readStoredUser(uuid);
+  if (local?.fbUid) seedCachedMemberId(uuid, local.fbUid);
 }
 
 function rememberCounts(uuid: string, counts: StampCouponCounts) {
@@ -149,10 +156,18 @@ export function useStampCouponCounts(uuid?: string, loader?: StampCountLoader) {
       seedStoredMemberId(id);
       const custom = loaderRef.current;
       if (!custom) {
-        const server = await loadServerStampCounts(forceServer.current);
+        const server = await loadServerStampCounts(id, forceServer.current);
         forceServer.current = false;
         if (loadSeq !== seq.current || uuidRef.current !== id) return;
-        if (server) {
+        const stored = readStoredUser(id);
+        if (
+          server &&
+          serverCountsMatchViewer(server, {
+            uuid: id,
+            fbUid: stored?.fbUid,
+            legacyUuid: stored?.legacyUuid,
+          })
+        ) {
           const next = { stamps: server.stamps, coupons: server.coupons };
           commit(next);
           rememberCounts(id, next);

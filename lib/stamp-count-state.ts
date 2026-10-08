@@ -160,12 +160,33 @@ export function countsAfterMemberChange(
   return known ?? { stamps: null, coupons: null };
 }
 
-export function parseServerStampCounts(body: unknown): { memberId: string; stamps: number; coupons: number } | null {
+export type ServerStampCountBody = {
+  userId: string;
+  memberId: string;
+  stamps: number;
+  coupons: number;
+};
+
+export function parseServerStampCounts(body: unknown): ServerStampCountBody | null {
   if (!body || typeof body !== 'object') return null;
-  const row = body as { memberId?: unknown; stamps?: unknown; coupons?: unknown };
+  const row = body as { userId?: unknown; memberId?: unknown; stamps?: unknown; coupons?: unknown };
+  if (typeof row.userId !== 'string' || !row.userId) return null;
   if (typeof row.memberId !== 'string' || !row.memberId) return null;
   if (!isCount(row.stamps) || !isCount(row.coupons)) return null;
-  return { memberId: row.memberId, stamps: row.stamps, coupons: row.coupons };
+  return { userId: row.userId, memberId: row.memberId, stamps: row.stamps, coupons: row.coupons };
+}
+
+/** 세션 사용자나 확인된 회원 문서가 화면의 uuid, fbUid, legacy id 중 하나와 같아야 한다. */
+export function serverCountsMatchViewer(
+  counts: { userId: string; memberId: string },
+  viewer: { uuid?: string | null; fbUid?: string | null; legacyUuid?: string | null } | null,
+): boolean {
+  if (!viewer) return false;
+  const known = [viewer.uuid, viewer.fbUid, viewer.legacyUuid].filter(
+    (value): value is string => typeof value === 'string' && value.length > 0,
+  );
+  if (known.length === 0) return false;
+  return known.includes(counts.userId) || known.includes(counts.memberId);
 }
 
 function isCount(value: unknown): value is number {

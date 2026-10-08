@@ -1,3 +1,4 @@
+import { clearServerStampCounts } from '@/lib/stamp-counts-client';
 import { clearAllLastKnownStampCounts } from '@/lib/stamp-count-state';
 import { getUser, saveUser } from '@/lib/storage';
 import { storedUserFromProfile } from '@/lib/stored-user';
@@ -155,6 +156,11 @@ export async function signOutApp(options?: { uuid?: string }) {
   invalidateAppUserCache();
   const uuid = options?.uuid;
 
+  if (typeof window !== 'undefined') {
+    clearAllLastKnownStampCounts(localStorage);
+    clearServerStampCounts();
+  }
+
   if (uuid) {
     try {
       const { isFirebaseDataSource } = await import('@/lib/data-source');
@@ -175,7 +181,6 @@ export async function signOutApp(options?: { uuid?: string }) {
   }
 
   if (typeof window !== 'undefined') {
-    clearAllLastKnownStampCounts(localStorage);
     localStorage.removeItem('expoPushToken');
     localStorage.removeItem('notificationHistory');
     void fetch('/api/admin-gate', { method: 'DELETE', credentials: 'include' });

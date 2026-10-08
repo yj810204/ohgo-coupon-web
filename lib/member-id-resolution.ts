@@ -119,6 +119,24 @@ export async function resolveMemberId(input: {
   return { id: null, profile };
 }
 
+/**
+ * 브라우저와 같은 후보 순서로 문서를 찾는다.
+ * findDoc은 mergedTo를 따라 실제 문서를 돌려준다. 있는 문서가 없으면 null.
+ * null은 개수 0이 아니다.
+ */
+export async function selectExistingMemberId(
+  userId: string,
+  profile: ProfileLookup,
+  findDoc: (id: string) => Promise<{ id: string; missing: boolean }>,
+  hint?: MemberIdentityHint,
+): Promise<string | null> {
+  for (const candidate of memberIdCandidates(userId, profile, hint)) {
+    const found = await findDoc(candidate);
+    if (!found.missing && found.id) return found.id;
+  }
+  return null;
+}
+
 export async function readCachedMemberId(
   userId: string,
   load: () => Promise<string | null>,

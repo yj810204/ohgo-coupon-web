@@ -9,6 +9,7 @@ import {
   readCachedMemberId,
   resolveMemberId,
   seedCachedMemberId,
+  selectExistingMemberId,
   type ProfileLookup,
 } from './member-id-resolution.ts';
 import { CACHE_WAIT_MS, cachedFetch, invalidateCache, subscribeCache } from './query-cache.ts';
@@ -27,6 +28,7 @@ import {
   planStampSuccess,
   readLastKnownStampCounts,
   resetStampRetryForResume,
+  serverCountsMatchViewer,
   shouldKeepSlowStampRetry,
   shouldRetryStampLoad,
   STAMP_SLOW_RETRY_WINDOW_MS,
@@ -471,14 +473,69 @@ test('logout clears every saved stamp count and leaves other keys', () => {
 });
 
 test('server stamp counts ignore a body that is not a real count', () => {
-  assert.deepEqual(parseServerStampCounts({ memberId: legacyId, stamps: 1, coupons: 0 }), {
+  assert.deepEqual(parseServerStampCounts({ userId: authId, memberId: legacyId, stamps: 1, coupons: 0 }), {
+    userId: authId,
     memberId: legacyId,
     stamps: 1,
     coupons: 0,
   });
+  assert.equal(parseServerStampCounts({ memberId: legacyId, stamps: 1, coupons: 0 }), null);
   assert.equal(parseServerStampCounts({ memberId: legacyId, stamps: null, coupons: 0 }), null);
   assert.equal(parseServerStampCounts({ stamps: 0, coupons: 0 }), null);
   assert.equal(shouldKeepSlowStampRetry(STAMP_SLOW_RETRY_WINDOW_MS, true), true);
   assert.equal(shouldKeepSlowStampRetry(STAMP_SLOW_RETRY_WINDOW_MS + 1, true), false);
   assert.equal(shouldKeepSlowStampRetry(1_000, false), false);
+});
+
+test('a missing member doc is not a zero count', async () => {
+  const seen: string[] = [];
+  const id = await selectExistingMemberId(
+    authId,
+    { status: 'found', legacyUuid: legacyId, name: '정영남', dob: '' },
+    async (candidate) => {
+      seen.push(candidate);
+      return { id: candidate, missing: true };
+    },
+  );
+  assert.equal(id, null);
+  assert.deepEqual(seen, [legacyId]);
+  assert.equal(seen.includes(authId), false);
+});
+
+test('a merged member doc resolves to the live document', async () => {
+  const canonicalId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const id = await selectExistingMemberId(
+    authId,
+    { status: 'found', legacyUuid: legacyId, name: '정영남', dob: '' },
+    async (candidate) => {
+      if (candidate === legacyId) return { id: canonicalId, missing: false };
+      return { id: candidate, missing: true };
+    },
+  );
+  assert.equal(id, canonicalId);
+});
+
+test('no legacy uuid and no login-id doc stays unresolved', async () => {
+  const seen: string[] = [];
+  const id = await selectExistingMemberId(
+    normalId,
+    { status: 'found', legacyUuid: null, name: '김회원', dob: '19900101' },
+    async (candidate) => {
+      seen.push(candidate);
+      return { id: candidate, missing: true };
+    },
+  );
+  assert.equal(id, null);
+  assert.equal(seen[0], normalId);
+  assert.equal(seen.includes(normalId), true);
+});
+
+test('server counts are shown only for the member on screen', () => {
+  const own = { userId: authId, memberId: legacyId, stamps: 2, coupons: 1 };
+  assert.equal(serverCountsMatchViewer(own, { uuid: authId, fbUid: legacyId, legacyUuid: legacyId }), true);
+  assert.equal(serverCountsMatchViewer(own, { uuid: authId }), true);
+  assert.equal(serverCountsMatchViewer(own, { uuid: normalId, fbUid: legacyId }), true);
+  assert.equal(serverCountsMatchViewer({ userId: normalId, memberId: normalId }, { uuid: authId, fbUid: legacyId }), false);
+  assert.equal(serverCountsMatchViewer(own, { uuid: '', fbUid: '', legacyUuid: '' }), false);
+  assert.equal(serverCountsMatchViewer(own, null), false);
 });
