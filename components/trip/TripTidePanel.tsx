@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { IoChevronForwardOutline } from 'react-icons/io5';
 import {
   getTideLabel,
   getTideRegion,
@@ -12,13 +11,10 @@ import type { TideCurveAnchor, TideForecastEvent, TideForecastPayload } from '@/
 import { interpolateTideCurve, kstDateTimeMs, slackWindows } from '@/lib/tide-forecast';
 import { estimateDayTideFlow, tideFlowFeel } from '@/lib/tide-fish-recommend';
 import { getSiteSettings } from '@/utils/site-settings-service';
-import { tripDateToStr } from '@/utils/trip-guide-service';
-import { HOLIDAY_RED } from '@/lib/kr-holidays';
-import { tideSectionTitleParts, type TideTitleParts } from '@/lib/holiday-date-label';
 import { useHolidays } from '@/hooks/useHolidays';
 import DayAxisScroller from '@/components/trip/DayAxisScroller';
 import HolidayDateLine from '@/components/trip/HolidayDateLine';
-import AppLink from '@/components/AppLink';
+import SectionHeader from '@/components/home/SectionHeader';
 
 const FONT = 'var(--font-ohgo), sans-serif';
 const DATE_PLAIN = '#9A9FA5';
@@ -72,28 +68,6 @@ type Props = {
   /** section: 홈 위젯(제목+카드). embedded: 모달·예약 안 카드 */
   variant?: 'section' | 'embedded';
 };
-
-function TideSectionTitle({ parts, fontSize }: { parts: TideTitleParts; fontSize: number }) {
-  return (
-    <span
-      style={{
-        minWidth: 0,
-        flex: '1 1 auto',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-        fontSize,
-        fontWeight: 800,
-        color: '#1A1D1F',
-        fontFamily: FONT,
-      }}
-    >
-      <span style={{ color: parts.accentLead ? HOLIDAY_RED : '#1A1D1F' }}>{parts.lead}</span>
-      {parts.suffix ? ` ${parts.suffix}` : ''}
-      {parts.holiday ? <span style={{ color: HOLIDAY_RED }}>{` ${parts.holiday}`}</span> : null}
-    </span>
-  );
-}
 
 function TideFlowBar({ level }: { level: number }) {
   const pct = Math.max(0, Math.min(100, (level / 8) * 100));
@@ -415,7 +389,6 @@ export default function TripTidePanel({
   const holidayYear = Number(date.slice(0, 4));
   const holidays = useHolidays(Number.isInteger(holidayYear) ? [holidayYear] : []);
   const holidayName = holidays[date];
-  const titleParts = tideSectionTitleParts(date, tripDateToStr(), holidayName);
 
   useEffect(() => {
     if (tideRegionId) {
@@ -584,7 +557,7 @@ export default function TripTidePanel({
               />
             </svg>
           </SectionPictogram>
-          <TideSectionTitle parts={titleParts} fontSize={15} />
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>물때</div>
         </div>
         {card}
       </div>
@@ -593,43 +566,12 @@ export default function TripTidePanel({
 
   return (
     <section style={{ marginBottom: 30 }}>
-      <div className="d-flex align-items-center justify-content-between" style={{ marginBottom: 8, gap: 8 }}>
-        <TideSectionTitle parts={titleParts} fontSize={17} />
-        {onViewAll || viewAllHref || showViewAll ? (
-          viewAllHref ? (
-            <AppLink
-              href={viewAllHref}
-              className="btn p-0 d-flex align-items-center gap-1 flex-shrink-0"
-              style={{
-                border: 'none',
-                background: 'none',
-                color: '#1B6FF5',
-                fontSize: 13,
-                fontFamily: FONT,
-                fontWeight: 600,
-              }}
-            >
-              더보기 <IoChevronForwardOutline size={14} />
-            </AppLink>
-          ) : (
-            <button
-              type="button"
-              onClick={onViewAll}
-              className="btn p-0 d-flex align-items-center gap-1 flex-shrink-0"
-              style={{
-                border: 'none',
-                background: 'none',
-                color: '#1B6FF5',
-                fontSize: 13,
-                fontFamily: FONT,
-                fontWeight: 600,
-              }}
-            >
-              더보기 <IoChevronForwardOutline size={14} />
-            </button>
-          )
-        ) : null}
-      </div>
+      <SectionHeader
+        title="물때"
+        onViewAll={onViewAll}
+        viewAllHref={viewAllHref}
+        showViewAll={showViewAll}
+      />
       {card}
     </section>
   );
