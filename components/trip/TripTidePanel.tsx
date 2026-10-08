@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
-import { IoChevronForwardOutline } from 'react-icons/io5';
+import { useEffect, useState } from 'react';
 import {
   getTideLabel,
   getTideRegion,
@@ -15,32 +14,17 @@ import { getSiteSettings } from '@/utils/site-settings-service';
 import { useHolidays } from '@/hooks/useHolidays';
 import DayAxisScroller from '@/components/trip/DayAxisScroller';
 import HolidayDateLine from '@/components/trip/HolidayDateLine';
-import AppLink from '@/components/AppLink';
+import {
+  PictogramSectionHeader,
+  SectionPictogram,
+  TideMark,
+} from '@/components/trip/ForecastPictograms';
 
 const TIDE_SECTION_TITLE = '오늘의 물때';
 
 const FONT = 'var(--font-ohgo), sans-serif';
 const DATE_PLAIN = '#9A9FA5';
 
-function SectionPictogram({ children }: { children: ReactNode }) {
-  return (
-    <div
-      style={{
-        width: 36,
-        height: 36,
-        borderRadius: 12,
-        backgroundColor: '#FFFFFF',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
 const CARD: React.CSSProperties = {
   backgroundColor: '#FFFFFF',
   borderRadius: 14,
@@ -538,27 +522,7 @@ export default function TripTidePanel({
       <div>
         <div className="d-flex align-items-center gap-2" style={{ marginBottom: 8 }}>
           <SectionPictogram>
-            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
-              <path
-                fill="#F5A524"
-                transform="translate(6.4 -0.4) scale(0.5)"
-                d="M9.528 1.718a.75.75 0 0 1 .162.819A8.97 8.97 0 0 0 9 6a9 9 0 0 0 9 9 8.97 8.97 0 0 0 3.463-.69.75.75 0 0 1 .981.98 10.503 10.503 0 0 1-9.694 6.46c-5.799 0-10.5-4.7-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 0 1 .818.162z"
-              />
-              <path
-                d="M2 16.6c1.3-1.6 2.7-1.6 4 0s2.7 1.6 4 0 2.7-1.6 4 0 2.7 1.6 4 0 2.7-1.6 4 0"
-                fill="none"
-                stroke="#1B6FF5"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-              <path
-                d="M2 20.4c1.3-1.6 2.7-1.6 4 0s2.7 1.6 4 0 2.7-1.6 4 0 2.7 1.6 4 0 2.7-1.6 4 0"
-                fill="none"
-                stroke="#8EBAF0"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
+            <TideMark />
           </SectionPictogram>
           <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>{TIDE_SECTION_TITLE}</div>
         </div>
@@ -569,45 +533,17 @@ export default function TripTidePanel({
 
   return (
     <section style={{ marginBottom: 30 }}>
-      <div className="d-flex align-items-center justify-content-between" style={{ marginBottom: 8 }}>
-        <span style={{ fontSize: 17, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
-          {TIDE_SECTION_TITLE}
-        </span>
-        {onViewAll || viewAllHref || showViewAll ? (
-          viewAllHref ? (
-            <AppLink
-              href={viewAllHref}
-              className="btn p-0 d-flex align-items-center gap-1 flex-shrink-0"
-              style={{
-                border: 'none',
-                background: 'none',
-                color: '#1B6FF5',
-                fontSize: 13,
-                fontFamily: FONT,
-                fontWeight: 600,
-              }}
-            >
-              더보기 <IoChevronForwardOutline size={14} />
-            </AppLink>
-          ) : (
-            <button
-              type="button"
-              onClick={onViewAll}
-              className="btn p-0 d-flex align-items-center gap-1 flex-shrink-0"
-              style={{
-                border: 'none',
-                background: 'none',
-                color: '#1B6FF5',
-                fontSize: 13,
-                fontFamily: FONT,
-                fontWeight: 600,
-              }}
-            >
-              더보기 <IoChevronForwardOutline size={14} />
-            </button>
-          )
-        ) : null}
-      </div>
+      <PictogramSectionHeader
+        title={TIDE_SECTION_TITLE}
+        icon={
+          <SectionPictogram>
+            <TideMark />
+          </SectionPictogram>
+        }
+        onViewAll={onViewAll}
+        viewAllHref={viewAllHref}
+        showViewAll={showViewAll}
+      />
       {card}
     </section>
   );

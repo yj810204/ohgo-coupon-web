@@ -11,6 +11,7 @@ import { OHGO_CARD, OHGO_FONT } from '@/lib/page-styles';
 import { useHolidays } from '@/hooks/useHolidays';
 import DayAxisScroller from '@/components/trip/DayAxisScroller';
 import HolidayDateLine from '@/components/trip/HolidayDateLine';
+import { WindMark } from '@/components/trip/ForecastPictograms';
 
 const FONT = OHGO_FONT;
 const DATE_PLAIN = '#9A9FA5';
@@ -316,29 +317,7 @@ function CardHeader({ date }: { date: string }) {
             flexShrink: 0,
           }}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden>
-            <path
-              d="M3 8.5h11.2a2.6 2.6 0 1 0-2.4-3.6"
-              fill="none"
-              stroke="#3D7AB5"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-            />
-            <path
-              d="M3 12.2h15.4a2.8 2.8 0 1 1-2.5 4.1"
-              fill="none"
-              stroke="#1B6FF5"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-            />
-            <path
-              d="M3 16h8.2a2.2 2.2 0 1 1-1.8 3.4"
-              fill="none"
-              stroke="#8AA0B8"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-            />
-          </svg>
+          <WindMark />
         </div>
         <div className="min-w-0">
           <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>바람</div>

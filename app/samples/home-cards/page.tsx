@@ -2,9 +2,13 @@
 
 import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import SectionHeader from '@/components/home/SectionHeader';
 import TripTidePanel from '@/components/trip/TripTidePanel';
 import WindWeatherCard from '@/components/trip/WindWeatherCard';
+import {
+  PictogramSectionHeader,
+  SectionPictogram,
+  WindMark,
+} from '@/components/trip/ForecastPictograms';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -23,7 +27,15 @@ function HomeCards({ date }: { date: string }) {
           />
         </div>
         <section data-shot="wind" style={{ marginBottom: 30 }}>
-          <SectionHeader title="바람" viewAllHref="/samples/tide" />
+          <PictogramSectionHeader
+            title="바람"
+            viewAllHref="/samples/tide"
+            icon={
+              <SectionPictogram>
+                <WindMark />
+              </SectionPictogram>
+            }
+          />
           <WindWeatherCard date={chartDate} onActiveDate={setChartDate} spaced={false} />
         </section>
       </div>
