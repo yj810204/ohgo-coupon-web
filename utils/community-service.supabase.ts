@@ -134,6 +134,12 @@ function mapPhoto(row: Record<string, unknown>): CommunityPhoto {
     acceptedCommentId: (row.accepted_comment_id as string) || undefined,
     category: typeof row.category === 'string' && row.category.trim() ? row.category.trim() : undefined,
     isNotice: row.is_notice === true,
+    hashtags: Array.isArray(row.hashtags)
+      ? row.hashtags
+          .filter((tag): tag is string => typeof tag === 'string')
+          .map((tag) => tag.replace(/^#+/, '').trim())
+          .filter(Boolean)
+      : undefined,
   };
 }
 
@@ -267,7 +273,8 @@ export async function uploadPhoto(
   templateFieldValues?: Record<string, string | string[]>,
   boardType: CommunityBoardType = 'photo',
   category?: string,
-  isNotice?: boolean
+  isNotice?: boolean,
+  hashtags?: string[]
 ): Promise<string> {
   const imageFiles = Array.isArray(imageFile) ? imageFile : imageFile ? [imageFile] : [];
   if (boardType === 'photo' && imageFiles.length === 0) {
@@ -288,6 +295,7 @@ export async function uploadPhoto(
   };
   if (category) row.category = category;
   if (isNotice) row.is_notice = true;
+  if (hashtags) row.hashtags = hashtags;
   if (content !== undefined) row.content = content ?? null;
   if (photoDate) row.photo_date = photoDate.toISOString().split('T')[0];
   if (templateId) row.template_id = templateId;
@@ -296,7 +304,12 @@ export async function uploadPhoto(
   const supabase = getSupabaseBrowserClient();
   let { data, error } = await supabase.from('community_photos').insert(row).select('id').single();
 
-  if (error && /template_field_values|uploaded_by_name|photo_date|content|board_type|category|is_notice/i.test(error.message || '')) {
+  if (error && /hashtags/i.test(error.message || '')) {
+    delete row.hashtags;
+    ({ data, error } = await supabase.from('community_photos').insert(row).select('id').single());
+  }
+
+  if (error && /template_field_values|uploaded_by_name|photo_date|content|board_type|category|is_notice|hashtags/i.test(error.message || '')) {
     const slim = {
       uploaded_by: uploadedBy,
       title: title ?? '',
@@ -333,6 +346,7 @@ export async function updatePhoto(
     imageUrls?: string[];
     category?: string;
     isNotice?: boolean;
+    hashtags?: string[];
   }
 ): Promise<void> {
   const supabase = getSupabaseBrowserClient();
@@ -340,6 +354,7 @@ export async function updatePhoto(
 
   if (updates.category !== undefined) updateData.category = updates.category || null;
   if (updates.isNotice !== undefined) updateData.is_notice = updates.isNotice;
+  if (updates.hashtags !== undefined) updateData.hashtags = updates.hashtags;
   if (updates.title !== undefined) updateData.title = updates.title;
   if (updates.description !== undefined) updateData.description = updates.description;
   if (updates.content !== undefined) updateData.content = updates.content;
@@ -368,6 +383,10 @@ export async function updatePhoto(
   }
 
   let { error } = await supabase.from('community_photos').update(updateData).eq('id', photoId);
+  if (error && /hashtags/i.test(error.message || '')) {
+    delete updateData.hashtags;
+    ({ error } = await supabase.from('community_photos').update(updateData).eq('id', photoId));
+  }
   if (error && /is_notice/i.test(error.message || '')) {
     delete updateData.is_notice;
     ({ error } = await supabase.from('community_photos').update(updateData).eq('id', photoId));
