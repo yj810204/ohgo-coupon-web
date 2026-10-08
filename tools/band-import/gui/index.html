@@ -123,6 +123,7 @@
   .editor-tools { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px; }
   .editor-tools button { padding: 4px 8px; font-size: 12px; }
   .editor-tools .swatch { width: 18px; height: 18px; padding: 0; border-radius: 4px; }
+  #pEditor p { margin: 0; }
   #pEditor:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   #pEditor:empty:before { content: '내용을 입력하세요'; color: var(--muted); }
   .actions { margin-top: 12px; }
@@ -232,6 +233,7 @@
             </div>
             <div id="pEditor" class="fmtpreview" contenteditable="true" role="textbox" aria-multiline="true"></div>
           </div>
+          <label class="field wide"><span>태그</span><input id="pTags" placeholder="#조황 #이벤트"></label>
           <label class="field"><span>사진 날짜</span><input id="pDate" type="date"></label>
           <div class="field"><span>사진</span><div id="pCount" style="padding-top:8px"></div></div>
         </div>
@@ -474,6 +476,7 @@
     show('ohgoBody', true);
     $('pTitle').value = p.photo.title;
     setEditorHtml(p);
+    $('pTags').value = (p.photo.hashtags || []).map((tag) => `#${String(tag).replace(/^#+/, '')}`).join(' ');
     $('pDate').value = p.photo.photoDate || '';
     updateBoardDate();
     picked = new Set(p.photo.images);
@@ -782,6 +785,7 @@
         images: uploadOrder(),
         content: $('pEditor').innerHTML,
         useFormatting: editorHasFormat(),
+        hashtags: parseTagInput($('pTags').value),
       } };
     }
     return { ...base, trip: {
@@ -1163,6 +1167,18 @@
   // ---------- 본문 편집 ----------
   // 글자색은 Band 팔레트와 같다 (src/rich-text.mts BAND_COLORS)
   const EDITOR_COLORS = ['#ff3692', '#ff3445', '#ff540b', '#ff9900', '#00c73c', '#00c4a1', '#18b2fa', '#4f77fd', '#7e5bff', '#909090', '#56616a'];
+
+  function parseTagInput(raw) {
+    const tags = [];
+    const seen = new Set();
+    for (const part of String(raw || '').split(/[\s,]+/)) {
+      const tag = part.replace(/^\[+|\]+$/g, '').replace(/^#+/, '').trim();
+      if (!tag || seen.has(tag)) continue;
+      seen.add(tag);
+      tags.push(tag);
+    }
+    return tags;
+  }
 
   function escapeEditorText(text) {
     return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

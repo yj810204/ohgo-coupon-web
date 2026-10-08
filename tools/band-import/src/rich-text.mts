@@ -123,6 +123,160 @@ function sameStyle(a: Run, b: Run): boolean {
   return a.bold === b.bold && a.italic === b.italic && a.underline === b.underline && a.strike === b.strike && a.color === b.color && a.background === b.background && a.size === b.size;
 }
 
+const HANGUL_SYLLABLE = /^[가-힣]$/;
+
+function hasHangul(token: string | undefined): boolean {
+  return !!token && /[가-힣]/.test(token);
+}
+
+/**
+ * 한 글자 한글이 공백 하나로만 이어진 구간을 붙인다.
+ * 세 글자 이상은 `사 이 즈` → `사이즈`.
+ * 두 글자는 `선 장 010`처럼 앞뒤에 다른 한글 단어가 없을 때만 `선장`으로 붙인다.
+ * `팔레트 밖 색`, `수고 많으셨습니다`는 그대로 둔다.
+ */
+export function collapseHangulTracking(line: string): string {
+  const parts = line.split(/(\s+)/);
+  const out: string[] = [];
+  let i = 0;
+  while (i < parts.length) {
+    if (!HANGUL_SYLLABLE.test(parts[i] ?? '')) {
+      out.push(parts[i] ?? '');
+      i += 1;
+      continue;
+    }
+    let j = i;
+    const syllables = [parts[j]];
+    while (j + 2 < parts.length && parts[j + 1] === ' ' && HANGUL_SYLLABLE.test(parts[j + 2] ?? '')) {
+      syllables.push(parts[j + 2]);
+      j += 2;
+    }
+    const prev = i >= 2 ? parts[i - 2] : '';
+    const next = j + 2 < parts.length ? parts[j + 2] : '';
+    const isolatedPair = syllables.length === 2 && !hasHangul(prev) && !hasHangul(next);
+    if (syllables.length >= 3 || isolatedPair) {
+      out.push(syllables.join(''));
+      i = j + 1;
+    } else {
+      out.push(parts[i] ?? '');
+      i += 1;
+    }
+  }
+  return out.join('');
+}
+
+/** 글자마다 나뉜 조각 사이에 낀 공백 하나도 같은 방식으로 붙인다 */
+function collapseTrackingRuns(runs: Run[]): Run[] {
+  const expanded = runs
+    .map((run) => ({ ...run, text: collapseHangulTracking(run.text.replace(/\u00a0/g, ' ')) }))
+    .filter((run) => run.text);
+  const out: Run[] = [];
+  let i = 0;
+  while (i < expanded.length) {
+    const cur = expanded[i];
+    if (!HANGUL_SYLLABLE.test(cur.text)) {
+      out.push(cur);
+      i += 1;
+      continue;
+    }
+    let j = i;
+    const group = [cur];
+    while (
+      j + 2 < expanded.length &&
+      expanded[j + 1].text === ' ' &&
+      HANGUL_SYLLABLE.test(expanded[j + 2].text) &&
+      sameStyle(cur, expanded[j + 2])
+    ) {
+      group.push(expanded[j + 2]);
+      j += 2;
+    }
+    const prev = i >= 2 ? expanded[i - 2].text : '';
+    const next = j + 2 < expanded.length ? expanded[j + 2].text : '';
+    const isolatedPair = group.length === 2 && !hasHangul(prev) && !hasHangul(next);
+    if (group.length >= 3 || isolatedPair) {
+      out.push({ ...cur, text: group.map((run) => run.text).join('') });
+      i = j + 1;
+    } else {
+      out.push(cur);
+      i += 1;
+    }
+  }
+  return out;
+}
+
+const HASHTAG_TOKEN = /#([^\s#\[\],]+)/g;
+
+/** 글 안의 `#조황`을 태그 이름으로 빼고, 빈 대괄호와 남은 공백을 정리한다 */
+function takeHashtags(text: string): { text: string; hashtags: string[] } {
+  if (!text.includes('#')) return { text, hashtags: [] };
+  const hashtags: string[] = [];
+  const stripped = text.replace(HASHTAG_TOKEN, (_whole, tag: string) => {
+    hashtags.push(tag);
+    return '';
+  });
+  if (!hashtags.length) return { text, hashtags: [] };
+  return { text: stripped.replace(/\[\s*\]/g, '').replace(/[ \t]{2,}/g, ' '), hashtags };
+}
+
+function rememberTags(into: string[], seen: Set<string>, tags: string[]) {
+  for (const tag of tags) {
+    if (!tag || seen.has(tag)) continue;
+    seen.add(tag);
+    into.push(tag);
+  }
+}
+
+/** 본문에 있는 해시태그를 빼고 태그로 모은다. 같은 줄의 다른 글자는 남긴다 */
+export function peelHashtags(text: string): { text: string; hashtags: string[] } {
+  const hashtags: string[] = [];
+  const seen = new Set<string>();
+  const kept: string[] = [];
+  for (const line of text.split('\n')) {
+    const taken = takeHashtags(line);
+    rememberTags(hashtags, seen, taken.hashtags);
+    if (!taken.hashtags.length) {
+      kept.push(line);
+      continue;
+    }
+    const cleaned = taken.text.trim();
+    if (cleaned) kept.push(cleaned);
+  }
+  return { text: kept.join('\n').replace(/\n{3,}/g, '\n\n').trim(), hashtags };
+}
+
+function splitHashtagLines(lines: Run[][]): { lines: Run[][]; hashtags: string[] } {
+  const hashtags: string[] = [];
+  const seen = new Set<string>();
+  const kept: Run[][] = [];
+  for (const line of lines) {
+    if (!line.length) {
+      kept.push(line);
+      continue;
+    }
+    const next: Run[] = [];
+    for (const run of line) {
+      const taken = takeHashtags(run.text);
+      rememberTags(hashtags, seen, taken.hashtags);
+      if (!taken.hashtags.length) {
+        next.push(run);
+        continue;
+      }
+      if (taken.text) next.push({ ...run, text: taken.text });
+    }
+    if (next.length) {
+      next[0] = { ...next[0], text: next[0].text.replace(/^[ \t]+/, '') };
+      const last = next.length - 1;
+      next[last] = { ...next[last], text: next[last].text.replace(/[ \t]+$/, '') };
+      if (!next[0].text) next.shift();
+      if (next.length && !next[next.length - 1].text) next.pop();
+    }
+    if (next.length) kept.push(next);
+  }
+  while (kept.length && kept[kept.length - 1].length === 0) kept.pop();
+  while (kept.length && kept[0].length === 0) kept.shift();
+  return { lines: kept, hashtags };
+}
+
 /** 본문을 줄 단위 글자 조각으로 나눈다 */
 export function parseRichContent(raw: RawContent): Run[][] {
   let src = raw.html.replace(/\r\n?/g, '\n');
@@ -234,7 +388,7 @@ export function parseRichContent(raw: RawContent): Run[][] {
       if (last.text) break;
       merged.pop();
     }
-    return merged;
+    return collapseTrackingRuns(merged);
   });
   const out: Run[][] = [];
   for (const line of cleaned) {
@@ -318,11 +472,11 @@ export type FormattedBody = {
  * titles: 첫 줄이 이것 중 하나와 같으면 뺀다
  */
 /** 편집창 HTML을 앱에 넣을 수 있는 글자색·굵게만 남긴다. 나머지 태그는 글자만 남기고 버린다 */
-export function normalizeEditorHtml(html: string): FormattedBody {
-  const lines = parseRichContent({ format: 'dom', html });
-  const text = lines.map(lineText).join('\n');
-  if (!hasFormatting(lines)) return { html: null, text };
-  return { html: assertSafeHtml(renderRuns(lines)), text };
+export function normalizeEditorHtml(html: string): FormattedBody & { hashtags: string[] } {
+  const split = splitHashtagLines(parseRichContent({ format: 'dom', html }));
+  const text = split.lines.map(lineText).join('\n');
+  if (!hasFormatting(split.lines)) return { html: null, text, hashtags: split.hashtags };
+  return { html: assertSafeHtml(renderRuns(split.lines)), text, hashtags: split.hashtags };
 }
 
 export function formattedBody(raw: RawContent | null | undefined, titles: string[]): FormattedBody {
@@ -333,7 +487,8 @@ export function formattedBody(raw: RawContent | null | undefined, titles: string
     lines.shift();
     while (lines.length && lines[0].length === 0) lines.shift();
   }
-  const text = lines.map(lineText).join('\n');
-  if (!hasFormatting(lines)) return { html: null, text };
-  return { html: assertSafeHtml(renderRuns(lines)), text };
+  const split = splitHashtagLines(lines);
+  const text = split.lines.map(lineText).join('\n');
+  if (!hasFormatting(split.lines)) return { html: null, text };
+  return { html: assertSafeHtml(renderRuns(split.lines)), text };
 }

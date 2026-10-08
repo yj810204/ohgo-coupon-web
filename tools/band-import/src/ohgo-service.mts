@@ -317,9 +317,19 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
       } else {
         log('사진 날짜가 없어 게시판에는 지금 시각으로 올립니다');
       }
+      const hashtags = [...(draft.hashtags ?? [])];
+      const seenTags = new Set(hashtags);
+      const addTags = (tags: string[]) => {
+        for (const tag of tags) {
+          if (seenTags.has(tag)) continue;
+          seenTags.add(tag);
+          hashtags.push(tag);
+        }
+      };
       if (typeof draft.content === 'string') {
         const body = normalizeEditorHtml(draft.content);
         row.description = body.text;
+        addTags(body.hashtags);
         if (body.html) {
           row.content = body.html;
           log('편집한 글자색과 굵게를 살려 올립니다');
@@ -331,9 +341,10 @@ export function createOhgoService(opts: OhgoServiceOptions): OhgoService {
           log('Band 본문의 글자색, 배경색, 굵게, 기울임, 밑줄, 취소선, 글자 크기를 살려 올립니다');
         }
       }
+      if (hashtags.length) row.hashtags = hashtags;
       log('조황 게시판에 글을 저장하는 중');
       try {
-        rowId = await client.insert('community_photos', row, ['uploaded_by_name', 'photo_date', 'board_type']);
+        rowId = await client.insert('community_photos', row, ['uploaded_by_name', 'photo_date', 'board_type', 'hashtags']);
       } catch (err) {
         throw new PushStepError(`조황 게시판 저장 실패: ${(err as Error).message}`);
       }

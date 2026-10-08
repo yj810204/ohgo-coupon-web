@@ -1,4 +1,4 @@
-import type { RawContent } from './rich-text.mts';
+import { collapseHangulTracking, type RawContent } from './rich-text.mts';
 import type { ExtractedSchedule } from './schema.mts';
 
 type Json = unknown;
@@ -93,7 +93,7 @@ export function bandContentToText(content: string): string {
     .replace(/<[^>]+>/g, '');
   return decodeEntities(text)
     .split('\n')
-    .map((line) => line.replace(/[ \t]+$/g, ''))
+    .map((line) => collapseHangulTracking(line.replace(/\u00a0/g, ' ').replace(/[ \t]+$/g, '')))
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -284,7 +284,12 @@ export function normalizeDomSnapshot(snap: DomSnapshot): NormalizedPost {
   return {
     author: snap.author,
     createdAt: null,
-    body: snap.bodyText.replace(/\n{3,}/g, '\n\n').trim(),
+    body: snap.bodyText
+      .split('\n')
+      .map((line) => collapseHangulTracking(line.replace(/\u00a0/g, ' ').replace(/[ \t]+$/g, '')))
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim(),
     images: urls.map((url) => ({ url, width: null, height: null })),
     schedules: [],
     rawContent: snap.bodyHtml ? { format: 'dom', html: snap.bodyHtml } : null,

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { normalizeApiPost, normalizeDomSnapshot } from '../src/normalize.mts';
-import { assertSafeHtml, formattedBody, normalizeEditorHtml, paletteColor, parseRichContent } from '../src/rich-text.mts';
+import { assertSafeHtml, collapseHangulTracking, formattedBody, normalizeEditorHtml, paletteColor, parseRichContent, peelHashtags } from '../src/rich-text.mts';
 import type { RawContent } from '../src/rich-text.mts';
 
 const band = (html: string): RawContent => ({ format: 'band', html });
@@ -28,11 +28,22 @@ assert.equal(
     '<p><span style="color:#18b2fa;"><strong>굵은 파랑</strong></span> 그리고 <span style="font-size:22px;">큰 글씨</span></p>',
     '<p>&nbsp;</p>',
     '<p><i>기울임</i> <u>밑줄</u> @선장</p>',
-    '<p>#낫개 #감성돔</p>',
   ].join(''),
-  '첨부는 줄과 함께 없애고, 빈 줄은 하나로, 해시태그는 글자로, 크기와 기울임과 밑줄은 CKEditor 태그로',
+  '첨부는 줄과 함께 없애고, 빈 줄은 하나로, 해시태그 줄은 빼고, 크기와 기울임과 밑줄은 CKEditor 태그로',
 );
-assert.equal(formattedBody(band(BAND), ['오늘 감성돔 조황입니다']).text, '감성돔 4수 대박 났습니다\n굵은 파랑 그리고 큰 글씨\n\n기울임 밑줄 @선장\n#낫개 #감성돔');
+assert.equal(formattedBody(band(BAND), ['오늘 감성돔 조황입니다']).text, '감성돔 4수 대박 났습니다\n굵은 파랑 그리고 큰 글씨\n\n기울임 밑줄 @선장');
+assert.deepEqual(peelHashtags('#낫개 #감성돔\n본문\n[#조황 #이벤트]'), {
+  text: '본문',
+  hashtags: ['낫개', '감성돔', '조황', '이벤트'],
+});
+assert.deepEqual(peelHashtags('선장부재시 010 8676 8489 #조황 #이벤트 #오고피싱 #부산선상낚시'), {
+  text: '선장부재시 010 8676 8489',
+  hashtags: ['조황', '이벤트', '오고피싱', '부산선상낚시'],
+});
+assert.equal(
+  html(band('가실분 연락주십시오 <b>^^</b>\n선장부재시 010 8676 8489 #조황 #이벤트 #즐거운낚시')),
+  '<p>가실분 연락주십시오 <strong>^^</strong></p><p>선장부재시 010 8676 8489</p>',
+);
 assert.ok(html(band(BAND))!.startsWith('<p>오늘 감성돔 조황입니다</p>'), '제목과 다르면 첫 줄을 남긴다');
 assert.equal(html(band('<band:color value="color12">기본색</band:color> <b>x</b>')), '<p>기본색 <strong>x</strong></p>', 'color12는 기본색');
 assert.equal(html(band('<band:color value="color99">모르는 색</band:color> <b>x</b>')), '<p>모르는 색 <strong>x</strong></p>', '모르는 값은 색 없이');
@@ -67,10 +78,13 @@ assert.equal(
     '<p><strong>굵게</strong> <strong>또 굵게</strong></p>',
     '<p>팔레트 밖 색</p>',
     '<p><span style="font-size:22px;">큰 글씨</span></p>',
-    '<p>&nbsp;</p>',
-    '<p>#낫개</p>',
   ].join(''),
 );
+assert.equal(collapseHangulTracking('사 이 즈 👍 마 릿 수'), '사이즈 👍 마릿수');
+assert.equal(collapseHangulTracking('선 장 010 3597 4100'), '선장 010 3597 4100');
+assert.equal(collapseHangulTracking('다녀가신분들 수고 많으셨습니다 ^^'), '다녀가신분들 수고 많으셨습니다 ^^');
+assert.equal(collapseHangulTracking('팔레트 밖 색'), '팔레트 밖 색');
+assert.equal(html(dom('<span>사</span>\n<span>이</span>\n<span>즈</span><br><b>x</b>')), '<p>사이즈</p><p><strong>x</strong></p>', '글자 사이 줄바꿈은 자간으로 붙인다');
 assert.equal(html(dom('<p>첫 문단 <b>굵게</b></p><p>둘째 문단</p>')), '<p>첫 문단 <strong>굵게</strong></p><p>둘째 문단</p>');
 assert.equal(html(dom('줄바꿈이\n글자로만 <b>있는</b> 화면')), '<p>줄바꿈이</p><p>글자로만 <strong>있는</strong> 화면</p>', '<br>이 없으면 줄바꿈 문자를 쓴다');
 assert.equal(html(dom('태그 사이\n<br>줄바꿈 <b>x</b>')), '<p>태그 사이</p><p>줄바꿈 <strong>x</strong></p>', '<br>이 있으면 태그 사이 줄바꿈 문자는 빈칸');

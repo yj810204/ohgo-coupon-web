@@ -631,10 +631,11 @@ assert.equal(rows.community_photos.length, 1);
   writeFileSync(join(outRoot, '2940', 'extracted.json'), JSON.stringify(extracted));
   writeFileSync(join(outRoot, '2940', '01.jpg'), 'img-01.jpg');
   const p = await service.prepare('2940');
-  const HTML = '<p><span style="color:#ff3445;">4짜</span> <strong>대박</strong> <i>났어요</i></p><p>#낫개</p>';
+  const HTML = '<p><span style="color:#ff3445;">4짜</span> <strong>대박</strong> <i>났어요</i></p>';
   assert.equal(p.photo.useFormatting, true, '서식이 있으면 기본으로 켠다');
   assert.equal(p.photoFormatted.html, HTML);
-  assert.equal(p.photo.description, '4짜 대박 났어요\n\n#낫개');
+  assert.equal(p.photo.description, '4짜 대박 났어요');
+  assert.deepEqual(p.photo.hashtags, ['낫개']);
 
   // 편집창에서 고친 HTML은 걸러서 저장한다. 허용하지 않은 태그는 글자만 남긴다
   const formattedLogs: string[] = [];
@@ -655,7 +656,8 @@ assert.equal(rows.community_photos.length, 1);
   await service.push({ postId: '2940', kind: 'catch', force: true, photo: p.photo }, (m) => formattedLogs2.push(m));
   const row = rows.community_photos.at(-1)!;
   assert.equal(row.content, HTML);
-  assert.equal(row.description, '4짜 대박 났어요\n\n#낫개', 'description은 평문');
+  assert.equal(row.description, '4짜 대박 났어요', 'description은 평문');
+  assert.deepEqual(row.hashtags, ['낫개']);
   assert.ok(formattedLogs2.some((l) => l.includes('글자색, 배경색, 굵게, 기울임, 밑줄, 취소선, 글자 크기를 살려')));
   rows.community_photos.pop();
 

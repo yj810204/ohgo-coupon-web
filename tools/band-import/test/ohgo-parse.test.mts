@@ -266,7 +266,11 @@ assert.deepEqual(photo, {
   description: '손님들 쿨러 가득 채우셨습니다\n수고하셨습니다',
   photoDate: '2026-10-06',
   images: ['01.jpg', '02.jpg', '03.jpg', '04.jpg', '05.jpg'],
+  hashtags: [],
 });
+const tagged = buildPhotoDraft(makePost('오늘 감성돔 조황\n사 이 즈 👍\n선 장 010\n[#조황 #이벤트 #오고피싱]'));
+assert.equal(tagged.description, '사이즈 👍\n선장 010');
+assert.deepEqual(tagged.hashtags, ['조황', '이벤트', '오고피싱']);
 assert.deepEqual(validatePhotoDraft(photo), []);
 assert.deepEqual(validatePhotoDraft({ ...photo, title: ' ', images: [] }), ['제목을 입력하세요', '조황 게시판에는 사진이 1장 이상 필요합니다']);
 assert.ok(validatePhotoDraft({ ...photo, images: ['../secret.jpg'] }).includes('사진 파일 이름이 잘못되었습니다'));

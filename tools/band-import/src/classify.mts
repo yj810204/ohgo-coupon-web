@@ -1,4 +1,5 @@
 import type { ExtractedPost } from './schema.mts';
+import { collapseHangulTracking, peelHashtags } from './rich-text.mts';
 import { normalizeTitle } from './title.mts';
 import { findDates, findTripTimes, kstDate, parseWeeklyRows, postRefDate } from './trip-parse.mts';
 
@@ -83,6 +84,8 @@ export type PhotoDraft = {
   useFormatting?: boolean;
   /** 편집창 HTML. 있으면 이 글을 걸러서 content로 저장한다 */
   content?: string;
+  /** 본문에서 뺀 해시태그. # 없이 저장한다 */
+  hashtags?: string[];
 };
 
 /**
@@ -99,11 +102,14 @@ export function buildPhotoDraft(post: ExtractedPost, images?: string[]): PhotoDr
   if (first && (first === raw || first === title)) {
     description = lines.slice(firstIdx + 1).join('\n').replace(/^\n+/, '').trimEnd();
   }
+  description = description.split('\n').map((line) => collapseHangulTracking(line)).join('\n');
+  const peeled = peelHashtags(description);
   return {
     title: title.slice(0, 100),
-    description,
+    description: peeled.text,
     photoDate: kstDate(post.createdAt),
     images: images ?? post.images.map((i) => i.file).filter((f): f is string => !!f),
+    hashtags: peeled.hashtags,
   };
 }
 
