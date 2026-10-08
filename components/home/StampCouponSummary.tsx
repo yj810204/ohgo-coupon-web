@@ -69,11 +69,12 @@ function StatBox({
         style={{ fontFamily: FONT, lineHeight: 1 }}
       >
         {retry ? (
-          <span>
-            <span style={{ fontSize: 26, fontWeight: 700 }}>–</span>
-            <span style={{ display: 'block', fontSize: 11, fontWeight: 500, marginTop: 6, opacity: 0.95 }}>
-              다시 불러오기
-            </span>
+          <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
+            <span
+              aria-hidden
+              style={{ display: 'block', width: 22, height: 4, borderRadius: 2, background: 'currentColor' }}
+            />
+            <span style={{ fontSize: 11, fontWeight: 500, opacity: 0.95 }}>다시 불러오기</span>
           </span>
         ) : count == null ? (
           <span

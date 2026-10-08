@@ -14,8 +14,11 @@ export type StampCouponCounts = { stamps: number | null; coupons: number | null 
 /** 처음 한 번과 다시 시도를 합쳐 이 횟수까지만 조회한다. */
 export const STAMP_LOAD_ATTEMPT_LIMIT = 4;
 export const STAMP_RETRY_BASE_MS = 1_200;
+/** 재시도를 다 쓴 뒤, 화면이 보이는 동안 천천히 다시 시도한다. */
+export const STAMP_SLOW_RETRY_MS = 12_000;
+export const STAMP_SLOW_RETRY_WINDOW_MS = 120_000;
 
-const LAST_KNOWN_PREFIX = 'ohgo-stamp-counts:';
+export const LAST_KNOWN_STAMP_PREFIX = 'ohgo-stamp-counts:';
 
 export type StampRetryState = {
   attempts: number;
@@ -143,6 +146,32 @@ export function resetStampRetryForResume(state: StampRetryState): StampRetryStat
   return { attempts: 0, failed: state.failed, exhausted: false };
 }
 
+/** 재시도가 끝난 뒤 2분 안에서, 화면이 보일 때만 백그라운드 재시도를 이어 간다. */
+export function shouldKeepSlowStampRetry(elapsedMs: number, visible: boolean): boolean {
+  return visible && elapsedMs >= 0 && elapsedMs <= STAMP_SLOW_RETRY_WINDOW_MS;
+}
+
+/** 회원이 바뀌면 이전 숫자를 지운다. 그 회원의 저장값만 바로 보여 준다. */
+export function countsAfterMemberChange(
+  memberId: string | undefined,
+  known: StampCouponCounts | null,
+): StampCouponCounts {
+  if (!memberId) return { stamps: null, coupons: null };
+  return known ?? { stamps: null, coupons: null };
+}
+
+export function parseServerStampCounts(body: unknown): { memberId: string; stamps: number; coupons: number } | null {
+  if (!body || typeof body !== 'object') return null;
+  const row = body as { memberId?: unknown; stamps?: unknown; coupons?: unknown };
+  if (typeof row.memberId !== 'string' || !row.memberId) return null;
+  if (!isCount(row.stamps) || !isCount(row.coupons)) return null;
+  return { memberId: row.memberId, stamps: row.stamps, coupons: row.coupons };
+}
+
+function isCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
 /** 진행 중 시간 초과가 아닌 실패만, 횟수 안에서 다시 시도한다. */
 export function shouldRetryStampLoad(input: { attempts: number; failed: boolean; limit?: number }): boolean {
   if (!input.failed) return false;
@@ -171,7 +200,7 @@ export function readLastKnownStampCounts(
 ): StampCouponCounts | null {
   if (!memberId) return null;
   try {
-    const raw = storage.getItem(LAST_KNOWN_PREFIX + memberId);
+    const raw = storage.getItem(LAST_KNOWN_STAMP_PREFIX + memberId);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { stamps?: unknown; coupons?: unknown };
     if (typeof parsed.stamps !== 'number' || typeof parsed.coupons !== 'number') return null;
@@ -189,12 +218,28 @@ export function writeLastKnownStampCounts(
 ): void {
   if (!memberId || counts.stamps == null || counts.coupons == null) return;
   storage.setItem(
-    LAST_KNOWN_PREFIX + memberId,
+    LAST_KNOWN_STAMP_PREFIX + memberId,
     JSON.stringify({ stamps: counts.stamps, coupons: counts.coupons }),
   );
 }
 
 export function clearLastKnownStampCounts(storage: Pick<CountStorage, 'removeItem'>, memberId: string): void {
   if (!memberId) return;
-  storage.removeItem(LAST_KNOWN_PREFIX + memberId);
+  storage.removeItem(LAST_KNOWN_STAMP_PREFIX + memberId);
+}
+
+type KeyedStorage = {
+  length: number;
+  key(index: number): string | null;
+  removeItem(key: string): void;
+};
+
+/** 로그아웃할 때 모든 회원의 저장 개수를 지운다. */
+export function clearAllLastKnownStampCounts(storage: KeyedStorage): void {
+  const keys: string[] = [];
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (key?.startsWith(LAST_KNOWN_STAMP_PREFIX)) keys.push(key);
+  }
+  for (const key of keys) storage.removeItem(key);
 }

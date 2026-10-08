@@ -15,16 +15,21 @@ import { CACHE_WAIT_MS, cachedFetch, invalidateCache, subscribeCache } from './q
 import {
   applyStampCacheEvent,
   applyStampCouponLoad,
+  clearAllLastKnownStampCounts,
+  countsAfterMemberChange,
   couponCountCacheKey,
   initialStampRetryState,
   isMemberUnconfirmed,
   memberUnconfirmedError,
+  parseServerStampCounts,
   planStampCacheError,
   planStampFailure,
   planStampSuccess,
   readLastKnownStampCounts,
   resetStampRetryForResume,
+  shouldKeepSlowStampRetry,
   shouldRetryStampLoad,
+  STAMP_SLOW_RETRY_WINDOW_MS,
   stampCountPresentation,
   stampListCacheKey,
   stampLoadFailed,
@@ -341,27 +346,56 @@ test('fbUid fast path skips profile and session refresh', async () => {
   assert.equal(profileCalls, 0);
   assert.equal(refreshCalls, 0);
   assert.equal(serverCalls, 0);
-  assert.deepEqual(fastMemberIdCandidates(authId, { fbUid: legacyId, storedUuid: authId }), [legacyId, authId]);
+  assert.deepEqual(fastMemberIdCandidates(authId, { fbUid: legacyId, storedUuid: authId }), [legacyId]);
+  assert.deepEqual(fastMemberIdCandidates(authId, { storedUuid: authId }), []);
 });
 
-test('stored uuid matching the user id is tried before profile lookup', async () => {
-  let profileCalls = 0;
+test('legacy uuid wins over an existing login-id document', async () => {
+  const seen: string[] = [];
+  const result = await resolveMemberId({
+    userId: authId,
+    hint: { storedUuid: authId, name: '정영남', dob: '' },
+    lookupProfile: async () => ({
+      status: 'found',
+      legacyUuid: legacyId,
+      name: '정영남',
+      dob: '',
+    }),
+    findDoc: async (candidate) => {
+      seen.push(candidate);
+      return { id: candidate, missing: false };
+    },
+  });
+  assert.equal(result.id, legacyId);
+  assert.deepEqual(seen, [legacyId]);
+  assert.equal(
+    memberIdCandidates(authId, { status: 'found', legacyUuid: legacyId, name: '정영남', dob: '' }).includes(authId),
+    false,
+  );
+});
+
+test('login id is used only when the profile has no legacy uuid', async () => {
   const seen: string[] = [];
   const result = await resolveMemberId({
     userId: normalId,
     hint: { storedUuid: normalId, name: '김회원', dob: '19900101' },
-    lookupProfile: async () => {
-      profileCalls += 1;
-      return { status: 'found', legacyUuid: null, name: '김회원', dob: '19900101' };
-    },
+    lookupProfile: async () => ({
+      status: 'found',
+      legacyUuid: null,
+      name: '김회원',
+      dob: '19900101',
+    }),
     findDoc: async (candidate) => {
       seen.push(candidate);
       return { id: candidate, missing: candidate !== normalId };
     },
   });
   assert.equal(result.id, normalId);
-  assert.deepEqual(seen, [normalId]);
-  assert.equal(profileCalls, 0);
+  assert.equal(seen[0], normalId);
+  assert.equal(
+    memberIdCandidates(normalId, { status: 'found', legacyUuid: null, name: '김회원', dob: '19900101' })[0],
+    normalId,
+  );
 });
 
 test('local fbUid seeds the in-memory member id without a profile lookup', async () => {
@@ -405,4 +439,46 @@ test('last known counts are readable immediately and an unconfirmed id clears th
   assert.equal(cleared.coupons, 0);
   assert.equal(isMemberUnconfirmed(memberUnconfirmedError()), true);
   assert.equal(stampCountPresentation(cleared.stamps, true), 'retry');
+});
+
+test('switching member clears the previous counts unless that member has a saved value', () => {
+  assert.deepEqual(countsAfterMemberChange(undefined, { stamps: 4, coupons: 2 }), { stamps: null, coupons: null });
+  assert.deepEqual(countsAfterMemberChange(normalId, null), { stamps: null, coupons: null });
+  assert.deepEqual(countsAfterMemberChange(legacyId, { stamps: 1, coupons: 0 }), { stamps: 1, coupons: 0 });
+});
+
+test('logout clears every saved stamp count and leaves other keys', () => {
+  const mem = new Map<string, string>([
+    ['ohgo-stamp-counts:' + authId, JSON.stringify({ stamps: 1, coupons: 0 })],
+    ['ohgo-stamp-counts:' + legacyId, JSON.stringify({ stamps: 3, coupons: 1 })],
+    ['userInfo', '{}'],
+  ]);
+  const storage = {
+    get length() {
+      return mem.size;
+    },
+    key(index: number) {
+      return [...mem.keys()][index] ?? null;
+    },
+    removeItem(key: string) {
+      mem.delete(key);
+    },
+  };
+  clearAllLastKnownStampCounts(storage);
+  assert.equal(mem.has('ohgo-stamp-counts:' + authId), false);
+  assert.equal(mem.has('ohgo-stamp-counts:' + legacyId), false);
+  assert.equal(mem.get('userInfo'), '{}');
+});
+
+test('server stamp counts ignore a body that is not a real count', () => {
+  assert.deepEqual(parseServerStampCounts({ memberId: legacyId, stamps: 1, coupons: 0 }), {
+    memberId: legacyId,
+    stamps: 1,
+    coupons: 0,
+  });
+  assert.equal(parseServerStampCounts({ memberId: legacyId, stamps: null, coupons: 0 }), null);
+  assert.equal(parseServerStampCounts({ stamps: 0, coupons: 0 }), null);
+  assert.equal(shouldKeepSlowStampRetry(STAMP_SLOW_RETRY_WINDOW_MS, true), true);
+  assert.equal(shouldKeepSlowStampRetry(STAMP_SLOW_RETRY_WINDOW_MS + 1, true), false);
+  assert.equal(shouldKeepSlowStampRetry(1_000, false), false);
 });

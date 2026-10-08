@@ -34,7 +34,9 @@ function createRequestSupabase(request: NextRequest, pendingCookies: CookieEntry
   );
 }
 
-export async function getRequestSession(request: NextRequest): Promise<RequestSession | null> {
+export async function getRequestUser(
+  request: NextRequest,
+): Promise<{ user: { id: string }; pendingCookies: CookieEntry[] } | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) return null;
@@ -45,6 +47,13 @@ export async function getRequestSession(request: NextRequest): Promise<RequestSe
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
+  return { user: { id: user.id }, pendingCookies };
+}
+
+export async function getRequestSession(request: NextRequest): Promise<RequestSession | null> {
+  const base = await getRequestUser(request);
+  if (!base) return null;
+  const { user, pendingCookies } = base;
 
   let role: string | null = null;
   try {
@@ -55,7 +64,7 @@ export async function getRequestSession(request: NextRequest): Promise<RequestSe
     role = null;
   }
 
-  return { user: { id: user.id }, role, pendingCookies };
+  return { user, role, pendingCookies };
 }
 
 export function applyPendingCookies(response: NextResponse, pendingCookies: CookieEntry[]) {

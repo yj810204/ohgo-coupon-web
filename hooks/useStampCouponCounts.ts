@@ -4,10 +4,12 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { isDevAuthBypass } from '@/lib/dev-auth';
 import { cachedFetch, peekCache, subscribeCache } from '@/lib/query-cache';
 import { seedCachedMemberId } from '@/lib/member-id-resolution';
+import { loadServerStampCounts } from '@/lib/stamp-counts-client';
 import {
   applyStampCacheEvent,
   applyStampCouponLoad,
   clearLastKnownStampCounts,
+  countsAfterMemberChange,
   couponCountCacheKey,
   initialStampRetryState,
   isMemberUnconfirmed,
@@ -16,6 +18,8 @@ import {
   planStampSuccess,
   readLastKnownStampCounts,
   resetStampRetryForResume,
+  shouldKeepSlowStampRetry,
+  STAMP_SLOW_RETRY_MS,
   stampListCacheKey,
   stampLoadFailed,
   writeLastKnownStampCounts,
@@ -57,6 +61,8 @@ export function useStampCouponCounts(uuid?: string, loader?: StampCountLoader) {
   const handled = useRef(0);
   const settle = useRef(false);
   const got = useRef({ stamps: false, coupons: false });
+  const exhaustedAt = useRef<number | null>(null);
+  const forceServer = useRef(false);
   const loaderRef = useRef(loader);
   const uuidRef = useRef(uuid);
   loaderRef.current = loader;
@@ -77,10 +83,16 @@ export function useStampCouponCounts(uuid?: string, loader?: StampCountLoader) {
   const runRef = useRef<(memberId: string) => Promise<void>>(async () => undefined);
 
   useLayoutEffect(() => {
-    if (!uuid || typeof window === 'undefined') return;
+    tracker.current = initialStampRetryState();
+    exhaustedAt.current = null;
+    handled.current = 0;
+    if (!uuid || typeof window === 'undefined') {
+      commit({ stamps: null, coupons: null });
+      setExhausted(false);
+      return;
+    }
     const known = readLastKnownStampCounts(window.localStorage, uuid);
-    if (!known) return;
-    commit(known);
+    commit(countsAfterMemberChange(uuid, known));
     setExhausted(false);
   }, [uuid]);
 
@@ -88,16 +100,39 @@ export function useStampCouponCounts(uuid?: string, loader?: StampCountLoader) {
     if (!uuid || isDevAuthBypass()) return;
     const memberId = uuid;
 
+    const armSlowRetry = () => {
+      clearTimer();
+      const started = exhaustedAt.current;
+      if (started == null) return;
+      timer.current = window.setTimeout(() => {
+        timer.current = null;
+        if (uuidRef.current !== memberId || !tracker.current.exhausted) return;
+        const visible = document.visibilityState === 'visible';
+        if (!shouldKeepSlowStampRetry(Date.now() - started, true)) return;
+        if (!visible) {
+          armSlowRetry();
+          return;
+        }
+        void runRef.current(memberId);
+      }, STAMP_SLOW_RETRY_MS);
+    };
+
     const schedule = (plan: ReturnType<typeof planStampFailure>) => {
       tracker.current = plan.state;
       setExhausted(plan.state.exhausted);
-      if (!plan.retry) return;
       clearTimer();
-      timer.current = window.setTimeout(() => {
-        timer.current = null;
-        if (uuidRef.current !== memberId) return;
-        void runRef.current(memberId);
-      }, plan.delayMs);
+      if (plan.retry) {
+        timer.current = window.setTimeout(() => {
+          timer.current = null;
+          if (uuidRef.current !== memberId) return;
+          void runRef.current(memberId);
+        }, plan.delayMs);
+        return;
+      }
+      if (plan.state.exhausted) {
+        if (exhaustedAt.current == null) exhaustedAt.current = Date.now();
+        armSlowRetry();
+      }
     };
 
     const failOnce = (loadSeq: number, plan: ReturnType<typeof planStampFailure>) => {
@@ -113,6 +148,20 @@ export function useStampCouponCounts(uuid?: string, loader?: StampCountLoader) {
       got.current = { stamps: false, coupons: false };
       seedStoredMemberId(id);
       const custom = loaderRef.current;
+      if (!custom) {
+        const server = await loadServerStampCounts(forceServer.current);
+        forceServer.current = false;
+        if (loadSeq !== seq.current || uuidRef.current !== id) return;
+        if (server) {
+          const next = { stamps: server.stamps, coupons: server.coupons };
+          commit(next);
+          rememberCounts(id, next);
+          tracker.current = planStampSuccess().state;
+          exhaustedAt.current = null;
+          setExhausted(false);
+          return;
+        }
+      }
       const [stamps, coupons] = custom
         ? await Promise.allSettled([
             cachedFetch(stampListCacheKey(id), STAMPS_TTL_MS, () => custom.getStamps(id)),
@@ -133,6 +182,7 @@ export function useStampCouponCounts(uuid?: string, loader?: StampCountLoader) {
       if (bothOk) {
         rememberCounts(id, next);
         tracker.current = planStampSuccess().state;
+        exhaustedAt.current = null;
         setExhausted(false);
         return;
       }
@@ -154,6 +204,7 @@ export function useStampCouponCounts(uuid?: string, loader?: StampCountLoader) {
       if (settle.current && got.current.stamps && got.current.coupons) {
         rememberCounts(memberId, next);
         tracker.current = planStampSuccess().state;
+        exhaustedAt.current = null;
         setExhausted(false);
         clearTimer();
       }
@@ -170,6 +221,7 @@ export function useStampCouponCounts(uuid?: string, loader?: StampCountLoader) {
       const prev = tracker.current;
       if (!prev.failed && !prev.exhausted) return;
       tracker.current = resetStampRetryForResume(prev);
+      exhaustedAt.current = null;
       setExhausted(false);
       clearTimer();
       void runRef.current(memberId);
@@ -195,7 +247,9 @@ export function useStampCouponCounts(uuid?: string, loader?: StampCountLoader) {
     const memberId = uuidRef.current;
     if (!memberId || isDevAuthBypass()) return;
     tracker.current = initialStampRetryState();
+    exhaustedAt.current = null;
     handled.current = 0;
+    forceServer.current = true;
     setExhausted(false);
     clearTimer();
     void runRef.current(memberId);

@@ -24,19 +24,12 @@ export type MemberIdentityHint = {
 
 const unverifiedSeeds = new Set<string>();
 
-/** 저장된 Firestore id, 또는 로그인 id와 같은 저장 uuid를 프로필보다 먼저 본다. */
-export function fastMemberIdCandidates(userId: string, hint?: MemberIdentityHint): string[] {
-  const ids: string[] = [];
-  if (hint?.fbUid) ids.push(hint.fbUid);
-  if (userId && hint?.storedUuid && hint.storedUuid === userId) ids.push(userId);
-  const seen = new Set<string>();
-  const unique: string[] = [];
-  for (const id of ids) {
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    unique.push(id);
-  }
-  return unique;
+/**
+ * 이미 확인된 Firestore id만 프로필보다 먼저 본다.
+ * 로그인 id 문서는 여기서 보지 않는다. 빈 문서가 legacy_uuid보다 앞에 서면 0으로 보인다.
+ */
+export function fastMemberIdCandidates(_userId: string, hint?: MemberIdentityHint): string[] {
+  return hint?.fbUid ? [hint.fbUid] : [];
 }
 
 function pushLegacyCandidates(target: string[], name?: string | null, dob?: string | null) {
@@ -51,8 +44,8 @@ function pushLegacyCandidates(target: string[], name?: string | null, dob?: stri
 }
 
 /**
- * 저장된 Firestore id, 서버가 알려 준 id, legacy_uuid, 로그인 id,
- * 프로필 이름+생일, 기기에 저장된 이름+생일 순.
+ * 저장된 Firestore id, 서버가 알려 준 id, legacy_uuid, 그다음 로그인 id.
+ * legacy_uuid가 있으면 로그인 id 문서는 후보에서 뺀다.
  */
 export function memberIdCandidates(
   userId: string,
@@ -61,10 +54,11 @@ export function memberIdCandidates(
   serverFbUid?: string | null,
 ): string[] {
   const candidates: string[] = [];
+  const legacyUuid = profile.status === 'found' ? profile.legacyUuid : null;
   if (hint?.fbUid) candidates.push(hint.fbUid);
-  if (serverFbUid) candidates.push(serverFbUid);
-  if (profile.status === 'found' && profile.legacyUuid) candidates.push(profile.legacyUuid);
-  if (userId) candidates.push(userId);
+  if (serverFbUid && serverFbUid !== userId) candidates.push(serverFbUid);
+  if (legacyUuid) candidates.push(legacyUuid);
+  if (userId && !legacyUuid) candidates.push(userId);
   if (profile.status === 'found') pushLegacyCandidates(candidates, profile.name, profile.dob);
   pushLegacyCandidates(candidates, hint?.name, hint?.dob);
 

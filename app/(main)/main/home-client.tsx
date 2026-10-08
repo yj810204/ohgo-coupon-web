@@ -48,7 +48,10 @@ import EmptyState from '@/components/EmptyState';
 import { OHGO_CARD, OHGO_LIST_DIVIDER, OhgoPageLoading } from '@/lib/page-styles';
 import type { PublicHomeFeed } from '@/lib/public-feed-types';
 import { useStampCouponCounts } from '@/hooks/useStampCouponCounts';
+import { prefetchServerStampCounts } from '@/lib/stamp-counts-client';
 import { stampCountPresentation } from '@/lib/stamp-count-state';
+
+if (typeof window !== 'undefined') prefetchServerStampCounts();
 
 function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
   return result.status === 'fulfilled' ? result.value : fallback;

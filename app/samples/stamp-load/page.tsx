@@ -47,7 +47,7 @@ function makeLoader(mode: string): StampCountLoader {
 function StampLoadDemo({ mode }: { mode: string }) {
   const uuid = `${MEMBER}-${mode}`;
   prepareStoredCounts(mode, uuid);
-  const loader = useMemo(() => makeLoader(mode), [mode]);
+  const loader = useMemo(() => (mode === 'route' ? undefined : makeLoader(mode)), [mode]);
   const { counts, exhausted, reload } = useStampCouponCounts(uuid, loader);
   const known = typeof window === 'undefined' ? null : readLastKnownStampCounts(window.localStorage, uuid);
 
