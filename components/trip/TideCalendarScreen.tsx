@@ -28,6 +28,9 @@ import {
 } from '@/utils/tide-ai-briefing-shared';
 import { getSiteSettings } from '@/utils/site-settings-service';
 import { tripDateToStr } from '@/utils/trip-guide-service';
+import { HOLIDAY_RED, shortHolidayName } from '@/lib/kr-holidays';
+import { dayTextColor } from '@/lib/korean-picker';
+import { useHolidays } from '@/hooks/useHolidays';
 import { OHGO_CARD, OHGO_DISMISS_BTN, OHGO_DISMISS_BTN_CLASS, OHGO_FONT } from '@/lib/page-styles';
 import OhgoModal from '@/components/OhgoModal';
 import TripTidePanel from '@/components/trip/TripTidePanel';
@@ -348,6 +351,22 @@ export default function TideCalendarScreen({
   const [region, setRegion] = useState<TideRegion>(() => getTideRegion(tideRegionId));
   const [briefing, setBriefing] = useState<TideAiBriefing | null>(null);
   const [briefingLoaded, setBriefingLoaded] = useState(false);
+  const holidayYears = useMemo(() => {
+    const years = new Set<number>();
+    if (Number.isInteger(year)) years.add(year);
+    const selectedYear = Number(selectedDate.slice(0, 4));
+    if (Number.isInteger(selectedYear)) years.add(selectedYear);
+    const weekStart = new Date(`${selectedDate}T12:00:00`);
+    if (!Number.isNaN(weekStart.getTime())) {
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      years.add(weekStart.getFullYear());
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      years.add(weekEnd.getFullYear());
+    }
+    return [...years];
+  }, [year, selectedDate]);
+  const holidays = useHolidays(holidayYears);
 
   useEffect(() => {
     if (tideRegionId) {
@@ -417,14 +436,22 @@ export default function TideCalendarScreen({
     );
   };
 
-  const renderDayCell = (dateStr: string, col: number, outsideMonth: boolean) => {
+  const renderDayCell = (dateStr: string, _col: number, outsideMonth: boolean) => {
     const day = Number(dateStr.slice(8, 10));
     const tideLabel = getTideLabel(dateStr);
     const isToday = dateStr === today;
     const isSelected = dateStr === selectedDate;
-    let dayNumberColor = '#1A1D1F';
-    if (outsideMonth) dayNumberColor = '#C5C8CD';
-    else if (col === 0 || col === 6) dayNumberColor = '#FF3B30';
+    const holidayName = holidays[dateStr];
+    const holidayShort = holidayName ? shortHolidayName(holidayName) : '';
+    const weekday = new Date(`${dateStr}T12:00:00`).getDay();
+    const dayNumberColor = outsideMonth
+      ? '#C5C8CD'
+      : dayTextColor({
+          weekday,
+          holiday: Boolean(holidayName),
+          selected: isSelected,
+          disabled: false,
+        });
 
     let cellBg = '#FFFFFF';
     if (isSelected) cellBg = isToday ? TODAY_BG : '#EBF1FE';
@@ -435,6 +462,8 @@ export default function TideCalendarScreen({
         key={dateStr}
         type="button"
         onClick={() => selectDate(dateStr)}
+        title={holidayName || undefined}
+        aria-label={holidayName ? `${dateStr} ${holidayName}` : undefined}
         className="btn"
         style={{
           flex: '1 1 0',
@@ -482,6 +511,24 @@ export default function TideCalendarScreen({
           }}
         >
           {tideLabel || ''}
+        </div>
+        <div
+          style={{
+            height: 11,
+            minHeight: 11,
+            width: '100%',
+            fontSize: 8,
+            lineHeight: '11px',
+            fontWeight: 600,
+            fontFamily: FONT,
+            color: HOLIDAY_RED,
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {holidayShort}
         </div>
       </button>
     );

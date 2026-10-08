@@ -19,7 +19,7 @@ const TABS = [
   { path: '/samples/mini-games', label: '게임', Icon: IoGameControllerOutline },
 ] as const;
 
-const HIDDEN_PREFIXES = ['/samples/login', '/samples/admin', '/samples/game', '/samples/qr-scan'];
+const HIDDEN_PREFIXES = ['/samples/login', '/samples/admin', '/samples/game', '/samples/qr-scan', '/samples/home-cards'];
 
 export default function SampleTabBar() {
   const pathname = usePathname();
