@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from '@/hooks/useAppRouter';
 import { useAuth } from '@/contexts/AuthContext';
+import { shouldLeaveCommunityForLogin } from '@/lib/community-entry';
+import { peekStoredAppUser } from '@/lib/auth-session';
 import { IoImageOutline, IoBoatOutline, IoHelpCircleOutline, IoBookOutline, IoChevronForwardOutline, IoWaterOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import AppLink from '@/components/AppLink';
@@ -74,8 +76,16 @@ export default function CommunityPage({
   );
 
   useEffect(() => {
-    if (!ready) return;
-    if (!user?.uuid) router.replace('/login');
+    if (
+      !shouldLeaveCommunityForLogin({
+        authReady: ready,
+        authUserId: user?.uuid,
+        storedUserId: peekStoredAppUser()?.uuid,
+      })
+    ) {
+      return;
+    }
+    router.replace('/login');
   }, [ready, user, router]);
 
   useEffect(() => {
