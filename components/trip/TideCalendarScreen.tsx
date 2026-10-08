@@ -519,7 +519,7 @@ export default function TideCalendarScreen({
 
   return (
     <>
-      <div className="position-relative mb-2" style={{ ...OHGO_CARD, overflow: 'hidden', width: '100%', minWidth: 0 }}>
+      <div className="position-relative" style={{ ...OHGO_CARD, overflow: 'hidden', width: '100%', minWidth: 0, marginBottom: 30 }}>
         <div className="d-flex align-items-center px-1 pt-1 pb-1">
           <button
             type="button"

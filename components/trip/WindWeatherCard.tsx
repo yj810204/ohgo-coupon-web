@@ -142,7 +142,7 @@ function WindStrip({ date, hours }: { date: string; hours: WindHourPoint[] }) {
       ref={stripRef}
       role="img"
       aria-label={`${date} 바람. 위 숫자는 평균 풍속, 아래 숫자는 돌풍, 화살표는 바람이 불어가는 방향`}
-      style={{ marginTop: 8, position: 'relative', paddingTop: showNow ? 18 : 0 }}
+      style={{ marginTop: 8, position: 'relative', paddingTop: 18 }}
     >
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(${WIND_SLOTS.length}, 1fr)`, position: 'relative' }}>
         {slots.map((slot, index) => {

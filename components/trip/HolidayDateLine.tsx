@@ -3,6 +3,9 @@
 import { holidayDateParts, holidayDateTextColor } from '@/lib/holiday-date-label';
 import { HOLIDAY_RED } from '@/lib/kr-holidays';
 
+const HOLIDAY_FONT_SIZE = 11;
+const HOLIDAY_LINE_HEIGHT = 13;
+
 export default function HolidayDateLine({
   date,
   holidayName,
@@ -33,11 +36,21 @@ export default function HolidayDateLine({
       <div style={{ ...lineStyle, fontSize, color: holidayDateTextColor(date, official, plainColor) }}>
         {dateLine}
       </div>
-      {holidayLine ? (
-        <div style={{ ...lineStyle, fontSize: Math.max(11, fontSize - 1), color: HOLIDAY_RED, marginTop: 1 }}>
-          {holidayLine}
-        </div>
-      ) : null}
+      <div
+        aria-hidden={holidayLine ? undefined : true}
+        style={{
+          ...lineStyle,
+          height: HOLIDAY_LINE_HEIGHT,
+          marginTop: 1,
+          fontSize: HOLIDAY_FONT_SIZE,
+          lineHeight: `${HOLIDAY_LINE_HEIGHT}px`,
+          fontWeight: 600,
+          color: HOLIDAY_RED,
+          visibility: holidayLine ? 'visible' : 'hidden',
+        }}
+      >
+        {holidayLine || '\u00a0'}
+      </div>
     </div>
   );
 }
