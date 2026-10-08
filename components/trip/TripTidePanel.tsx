@@ -520,12 +520,14 @@ export default function TripTidePanel({
   if (variant === 'embedded') {
     return (
       <div>
-        <div className="d-flex align-items-center gap-2" style={{ marginBottom: 8 }}>
-          <SectionPictogram>
-            <TideMark />
-          </SectionPictogram>
-          <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>{TIDE_SECTION_TITLE}</div>
-        </div>
+        <PictogramSectionHeader
+          title={TIDE_SECTION_TITLE}
+          icon={
+            <SectionPictogram>
+              <TideMark />
+            </SectionPictogram>
+          }
+        />
         {card}
       </div>
     );

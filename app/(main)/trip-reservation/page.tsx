@@ -9,6 +9,11 @@ import { OhgoModalInfoList, OhgoModalInfoRow } from '@/components/OhgoModal';
 import TripTidePanel from '@/components/trip/TripTidePanel';
 import WindWeatherCard from '@/components/trip/WindWeatherCard';
 import {
+  PictogramSectionHeader,
+  SectionPictogram,
+  WindMark,
+} from '@/components/trip/ForecastPictograms';
+import {
   createReservation,
   getBoardingInfo,
   getReservationCount,
@@ -350,7 +355,17 @@ function TripReservationContent() {
           </OhgoModalInfoList>
           <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 18 }}>
             <TripTidePanel date={trip.date} variant="embedded" />
-            <WindWeatherCard date={trip.date} spaced={false} bordered />
+            <div>
+              <PictogramSectionHeader
+                title="바람"
+                icon={
+                  <SectionPictogram>
+                    <WindMark />
+                  </SectionPictogram>
+                }
+              />
+              <WindWeatherCard date={trip.date} spaced={false} bordered />
+            </div>
           </div>
         </div>
 

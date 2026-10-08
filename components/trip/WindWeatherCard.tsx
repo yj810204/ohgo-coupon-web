@@ -11,7 +11,6 @@ import { OHGO_CARD, OHGO_FONT } from '@/lib/page-styles';
 import { useHolidays } from '@/hooks/useHolidays';
 import DayAxisScroller from '@/components/trip/DayAxisScroller';
 import HolidayDateLine from '@/components/trip/HolidayDateLine';
-import { WindMark } from '@/components/trip/ForecastPictograms';
 
 const FONT = OHGO_FONT;
 const DATE_PLAIN = '#9A9FA5';
@@ -301,37 +300,14 @@ function CardShell({
 function CardHeader({ date }: { date: string }) {
   const holidayYear = Number(date.slice(0, 4));
   const holidays = useHolidays(Number.isInteger(holidayYear) ? [holidayYear] : []);
-  const holidayName = holidays[date];
   return (
-    <div className="d-flex align-items-center gap-2">
-      <div className="d-flex align-items-center gap-2 min-w-0">
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 12,
-            backgroundColor: '#F4F7FB',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <WindMark />
-        </div>
-        <div className="min-w-0">
-          <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>바람</div>
-          <HolidayDateLine
-            date={date}
-            holidayName={holidayName}
-            fontSize={12}
-            plainColor={DATE_PLAIN}
-            fontFamily={FONT}
-            marginTop={1}
-          />
-        </div>
-      </div>
-    </div>
+    <HolidayDateLine
+      date={date}
+      holidayName={holidays[date]}
+      fontSize={13}
+      plainColor={DATE_PLAIN}
+      fontFamily={FONT}
+    />
   );
 }
 

@@ -35,6 +35,11 @@ import { OHGO_CARD, OHGO_DISMISS_BTN, OHGO_DISMISS_BTN_CLASS, OHGO_FONT } from '
 import OhgoModal from '@/components/OhgoModal';
 import TripTidePanel from '@/components/trip/TripTidePanel';
 import WindWeatherCard from '@/components/trip/WindWeatherCard';
+import {
+  PictogramSectionHeader,
+  SectionPictogram,
+  WindMark,
+} from '@/components/trip/ForecastPictograms';
 
 const FONT = OHGO_FONT;
 const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -257,29 +262,7 @@ function TideBriefingCard({ briefing }: { briefing: TideAiBriefing | null }) {
   }, [published]);
 
   return (
-    <div className="mt-3" style={{ ...OHGO_CARD, padding: 16 }}>
-      <div className="d-flex align-items-center gap-2">
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 12,
-            backgroundColor: '#F4F7FB',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
-            <path fill="#1B6FF5" d="M12 1.6 14.3 8.8 21.8 11.2 14.3 13.6 12 20.8 9.7 13.6 2.2 11.2 9.7 8.8Z" />
-            <path fill="#F5A524" d="M18.5 14.4 19.6 17.6 22.8 18.7 19.6 19.8 18.5 23 17.4 19.8 14.2 18.7 17.4 17.6Z" />
-          </svg>
-        </div>
-        <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
-          {TIDE_BRIEFING_TITLE}
-        </div>
-      </div>
+    <div style={{ ...OHGO_CARD, padding: 16 }}>
       {published ? (
         <div
           ref={previewRef}
@@ -639,13 +622,37 @@ export default function TideCalendarScreen({
       <TripTidePanel
         date={selectedDate}
         tideRegionId={region.id}
-        variant="embedded"
         onActiveDate={selectDate}
       />
 
-      <WindWeatherCard date={selectedDate} onActiveDate={selectDate} />
+      <section style={{ marginBottom: 30 }}>
+        <PictogramSectionHeader
+          title="바람"
+          icon={
+            <SectionPictogram>
+              <WindMark />
+            </SectionPictogram>
+          }
+        />
+        <WindWeatherCard date={selectedDate} onActiveDate={selectDate} spaced={false} />
+      </section>
 
-      {briefingLoaded ? <TideBriefingCard briefing={briefing} /> : null}
+      {briefingLoaded ? (
+        <section style={{ marginBottom: 30 }}>
+          <PictogramSectionHeader
+            title={TIDE_BRIEFING_TITLE}
+            icon={
+              <SectionPictogram>
+                <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
+                  <path fill="#1B6FF5" d="M12 1.6 14.3 8.8 21.8 11.2 14.3 13.6 12 20.8 9.7 13.6 2.2 11.2 9.7 8.8Z" />
+                  <path fill="#F5A524" d="M18.5 14.4 19.6 17.6 22.8 18.7 19.6 19.8 18.5 23 17.4 19.8 14.2 18.7 17.4 17.6Z" />
+                </svg>
+              </SectionPictogram>
+            }
+          />
+          <TideBriefingCard briefing={briefing} />
+        </section>
+      ) : null}
     </>
   );
 }
