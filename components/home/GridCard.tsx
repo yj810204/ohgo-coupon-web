@@ -46,35 +46,49 @@ export default function GridCard({ title, subtitle, badge, imageUrl, href, onCli
           </svg>
         )}
       </div>
-      <div className="p-3">
+      <div
+        style={{
+          padding: '10px 12px 12px',
+          backgroundColor: '#FFFFFF',
+          borderTop: '1px solid #EEF0F3',
+        }}
+      >
         {badge ? (
           <div
-            className="text-truncate mb-1"
+            className="text-truncate"
             style={{
-              fontSize: '11px',
+              fontSize: 11,
               fontWeight: 700,
               color: '#1B6FF5',
               fontFamily: 'var(--font-ohgo), sans-serif',
+              lineHeight: 1.35,
+              marginBottom: 4,
             }}
           >
             {badge}
           </div>
         ) : null}
         <div
-          className="fw-semibold text-truncate mb-1"
+          className="text-truncate"
           style={{
-            fontSize: '14px',
+            fontSize: 14,
+            fontWeight: 700,
             color: '#1A1D1F',
-            fontFamily: 'var(--font-urbanist), sans-serif',
+            fontFamily: 'var(--font-ohgo), sans-serif',
+            lineHeight: 1.35,
+            marginBottom: subtitle ? 4 : 0,
           }}
         >
           {title}
         </div>
-        {subtitle && (
-          <div className="text-muted text-truncate" style={{ fontSize: '12px' }}>
+        {subtitle ? (
+          <div
+            className="text-truncate"
+            style={{ fontSize: 12, color: '#6F767E', fontFamily: 'var(--font-ohgo), sans-serif' }}
+          >
             {subtitle}
           </div>
-        )}
+        ) : null}
       </div>
     </NavSurface>
   );

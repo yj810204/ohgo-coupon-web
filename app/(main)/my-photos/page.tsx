@@ -2,13 +2,15 @@
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter } from '@/hooks/useAppRouter';
-import { IoCameraOutline, IoTrashOutline } from 'react-icons/io5';
+import { IoCameraOutline } from 'react-icons/io5';
 import SubPageFrame from '@/components/SubPageFrame';
 import EmptyState from '@/components/EmptyState';
 import OhgoModal, { OhgoModalButton, OhgoModalCancelLink } from '@/components/OhgoModal';
+import CommunityPhotoCard from '@/components/community/CommunityPhotoCard';
 import { resolveAppUser } from '@/lib/auth-session';
 import { ohgoConfirm } from '@/lib/ohgo-dialog';
 import { isNativeApp, saveImageToDevice } from '@/lib/native-bridge';
+import { formatPhotoCardDate } from '@/lib/mask-member-name';
 import { OhgoPageLoading } from '@/lib/page-styles';
 import { getPhotosForUser, type CaptainPhoto } from '@/utils/captain-photo-service';
 import { useNativePullToRefresh } from '@/hooks/useNativePullToRefresh';
@@ -31,10 +33,10 @@ function tripLabel(iso: string): string {
   return `${parts.month}월 ${parts.day}일 조황`;
 }
 
-function shortDate(iso: string): string {
-  const parts = tripParts(iso);
-  if (!parts) return '';
-  return `${parts.month}.${parts.day}`;
+function cardTitle(photo: CaptainPhoto): string {
+  const species = photo.species?.trim();
+  if (species) return species;
+  return tripLabel(photo.tripDate);
 }
 
 function MyPhotosContent() {
@@ -152,94 +154,25 @@ function MyPhotosContent() {
           subtitle="선장님이 사진에 태깅해 주시면 여기에서 확인할 수 있어요."
         />
       ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 3,
-          }}
-        >
-          {gallery.map((item) => {
-            const date = shortDate(item.photo.tripDate);
-            const busy = deletingId === item.photo.id;
-            return (
-              <div
-                key={`${item.photo.id}-${item.index}`}
-                style={{
-                  position: 'relative',
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                  backgroundColor: '#F2F3F5',
-                }}
-              >
-                <button
-                  type="button"
+        <>
+          <div className="d-flex align-items-center mb-3">
+            <span style={{ fontSize: 14, color: '#6F767E', fontFamily: 'var(--font-ohgo), sans-serif' }}>
+              총 {gallery.length}개
+            </span>
+          </div>
+          <div className="row g-2">
+            {gallery.map((item) => (
+              <div key={`${item.photo.id}-${item.index}`} className="col-6">
+                <CommunityPhotoCard
+                  title={cardTitle(item.photo)}
+                  imageUrl={item.url}
+                  date={formatPhotoCardDate(item.photo.tripDate)}
                   onClick={() => setDetail(item)}
-                  aria-label={date ? `${date} 조황 사진 보기` : '조황 사진 보기'}
-                  style={{
-                    padding: 0,
-                    border: 'none',
-                    width: '100%',
-                    cursor: 'pointer',
-                    background: 'none',
-                    display: 'block',
-                  }}
-                >
-                  <img
-                    src={item.url}
-                    alt=""
-                    loading="lazy"
-                    style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }}
-                  />
-                </button>
-                {date && (
-                  <span
-                    style={{
-                      position: 'absolute',
-                      left: 6,
-                      bottom: 6,
-                      padding: '2px 6px',
-                      borderRadius: 999,
-                      backgroundColor: 'rgba(0, 0, 0, 0.55)',
-                      color: '#fff',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      lineHeight: 1.4,
-                      pointerEvents: 'none',
-                    }}
-                  >
-                    {date}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  aria-label="삭제"
-                  disabled={busy}
-                  onClick={() => void removePhoto(item.photo)}
-                  style={{
-                    position: 'absolute',
-                    top: 6,
-                    right: 6,
-                    width: 28,
-                    height: 28,
-                    padding: 0,
-                    border: 'none',
-                    borderRadius: 999,
-                    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-                    color: '#fff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: busy ? 'default' : 'pointer',
-                    opacity: busy ? 0.5 : 1,
-                  }}
-                >
-                  <IoTrashOutline size={15} />
-                </button>
+                />
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        </>
       )}
 
       <OhgoModal
@@ -251,6 +184,13 @@ function MyPhotosContent() {
           <>
             <OhgoModalButton onClick={() => void saveToGallery()} disabled={saving}>
               {saving ? '저장 중...' : '갤러리로 저장'}
+            </OhgoModalButton>
+            <OhgoModalButton
+              variant="secondary"
+              onClick={() => detail && void removePhoto(detail.photo)}
+              disabled={!detail || deletingId === detail.photo.id}
+            >
+              {detail && deletingId === detail.photo.id ? '삭제 중...' : '삭제'}
             </OhgoModalButton>
             <OhgoModalCancelLink onClick={() => setDetail(null)}>닫기</OhgoModalCancelLink>
           </>
