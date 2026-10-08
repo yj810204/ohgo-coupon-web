@@ -1,9 +1,12 @@
 import { listLegacyUuidCandidates } from '@/lib/legacy-uuid';
-import { cachedFetch, peekCache } from '@/lib/query-cache';
+import { cachedFetch, peekCache, seedCache } from '@/lib/query-cache';
 import { TimeoutError } from '@/lib/with-timeout';
 
 /** 확인된 회원 id만 오래 캐시한다. 없음은 캐시하지 않는다. */
 export const MEMBER_ID_TTL_MS = 300_000;
+
+/** 스탬프 조회가 회원 번호를 기다리는 한계. 바깥 캐시 대기보다 길되, 30초까지 붙잡지 않는다. */
+export const MEMBER_ID_LOOKUP_WAIT_MS = 9_000;
 
 export type ProfileLookup =
   | { status: 'found'; legacyUuid: string | null; name: string | null; dob: string | null }
@@ -15,7 +18,26 @@ export type MemberIdentityHint = {
   dob?: string | null;
   /** 이 로그인 id로 이전에 확인한 Firestore 문서 id */
   fbUid?: string | null;
+  /** userInfo에 저장된 로그인 id. 지금 사용자와 같을 때만 빠른 조회에 쓴다. */
+  storedUuid?: string | null;
 };
+
+const unverifiedSeeds = new Set<string>();
+
+/** 저장된 Firestore id, 또는 로그인 id와 같은 저장 uuid를 프로필보다 먼저 본다. */
+export function fastMemberIdCandidates(userId: string, hint?: MemberIdentityHint): string[] {
+  const ids: string[] = [];
+  if (hint?.fbUid) ids.push(hint.fbUid);
+  if (userId && hint?.storedUuid && hint.storedUuid === userId) ids.push(userId);
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const id of ids) {
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    unique.push(id);
+  }
+  return unique;
+}
 
 function pushLegacyCandidates(target: string[], name?: string | null, dob?: string | null) {
   const trimmedName = name?.trim() ?? '';
@@ -69,6 +91,13 @@ export async function resolveMemberId(input: {
   lookupServerMemberId?: () => Promise<string | null>;
   findDoc: (id: string) => Promise<{ id: string; missing: boolean }>;
 }): Promise<{ id: string | null; profile: ProfileLookup }> {
+  const tried = new Set<string>();
+  for (const candidate of fastMemberIdCandidates(input.userId, input.hint)) {
+    tried.add(candidate);
+    const found = await input.findDoc(candidate);
+    if (!found.missing && found.id) return { id: found.id, profile: { status: 'unknown' } };
+  }
+
   let profile = await input.lookupProfile();
   if (profile.status === 'unknown' && input.refreshSession) {
     try {
@@ -89,6 +118,7 @@ export async function resolveMemberId(input: {
   }
 
   for (const candidate of memberIdCandidates(input.userId, profile, input.hint, serverFbUid)) {
+    if (tried.has(candidate)) continue;
     const found = await input.findDoc(candidate);
     if (!found.missing && found.id) return { id: found.id, profile };
   }
@@ -125,4 +155,18 @@ export async function readCachedMemberId(
 
 export function peekCachedMemberId(userId: string): string | undefined {
   return peekCache<string>(`fb-uid:${userId}`);
+}
+
+/** localStorage의 fbUid로 메모리 조회를 먼저 채운다. 문서는 호출자가 뒤에서 확인한다. */
+export function seedCachedMemberId(userId: string, fbUid: string): void {
+  if (!userId || !fbUid || peekCachedMemberId(userId)) return;
+  seedCache(`fb-uid:${userId}`, fbUid, MEMBER_ID_TTL_MS);
+  unverifiedSeeds.add(userId);
+}
+
+/** 방금 심은 값이면 true를 한 번만 돌려준다. */
+export function consumeUnverifiedMemberSeed(userId: string): boolean {
+  if (!unverifiedSeeds.has(userId)) return false;
+  unverifiedSeeds.delete(userId);
+  return true;
 }

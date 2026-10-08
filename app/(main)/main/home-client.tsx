@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useCallback, useRef, useState, Fragment } from 'react';
-import { getUser } from '@/lib/storage';
-import { resolveAppUser, peekAppUser } from '@/lib/auth-session';
+import { useEffect, useCallback, useRef, useState, useLayoutEffect, Fragment } from 'react';
+import { resolveAppUser, peekStoredAppUser } from '@/lib/auth-session';
 import { isDevAuthBypass } from '@/lib/dev-auth';
 import { COMMUNITY_POST_DELETED_MESSAGE, type CommunityPhoto } from '@/utils/community-service.shared';
 import type { CaptainPhoto } from '@/utils/captain-photo-service.shared';
@@ -48,17 +47,8 @@ import { IoBookOutline, IoGameControllerOutline, IoHelpCircleOutline, IoStorefro
 import EmptyState from '@/components/EmptyState';
 import { OHGO_CARD, OHGO_LIST_DIVIDER, OhgoPageLoading } from '@/lib/page-styles';
 import type { PublicHomeFeed } from '@/lib/public-feed-types';
-import { peekCache, subscribeCache } from '@/lib/query-cache';
-import { TimeoutError } from '@/lib/with-timeout';
-import {
-  applyStampCacheEvent,
-  applyStampCouponLoad,
-  couponCountCacheKey,
-  shouldRetryStampLoad,
-  stampListCacheKey,
-  stampLoadFailed,
-  type StampCouponCounts,
-} from '@/lib/stamp-count-state';
+import { useStampCouponCounts } from '@/hooks/useStampCouponCounts';
+import { stampCountPresentation } from '@/lib/stamp-count-state';
 
 function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
   return result.status === 'fulfilled' ? result.value : fallback;
@@ -75,9 +65,10 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
     isCaptain?: boolean;
   } | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [stampCounts, setStampCounts] = useState<StampCouponCounts>({ stamps: null, coupons: null });
-  const stampLoad = useRef({ attempts: 0, failed: false });
   const loadSeq = useRef(0);
+  const { counts: stampCounts, exhausted: stampExhausted, reload: reloadStampCounts } = useStampCouponCounts(
+    user?.uuid,
+  );
   const [photos, setPhotos] = useState<CommunityPhoto[]>(initialFeed?.photos ?? []);
   const [faqPosts, setFaqPosts] = useState<CommunityPhoto[]>(initialFeed?.faq ?? []);
   const [qnaPosts, setQnaPosts] = useState<CommunityPhoto[]>(initialFeed?.qna ?? []);
@@ -126,7 +117,6 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
     const seq = ++loadSeq.current;
     const weekRange = getWeekRange(new Date());
     const [
-      stampsApi,
       communityApi,
       gamesApi,
       marketApi,
@@ -135,7 +125,6 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
       tripsApi,
       boardApi,
     ] = await Promise.all([
-      import('@/utils/stamp-service'),
       import('@/utils/community-service'),
       import('@/lib/game-service'),
       import('@/utils/market-service'),
@@ -144,10 +133,8 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
       import('@/utils/trip-guide-service'),
       import('@/utils/board-category-service'),
     ]);
-    const [stamps, coupons, photoList, faqList, qnaList, faqCats, qnaCats, activeGames, marketItems, taggedPhotos, avatar, trips] =
+    const [photoList, faqList, qnaList, faqCats, qnaCats, activeGames, marketItems, taggedPhotos, avatar, trips] =
       await Promise.allSettled([
-        visibility.stampCoupon ? stampsApi.getStamps(uuid) : Promise.resolve([]),
-        visibility.stampCoupon ? stampsApi.getCouponCount(uuid) : Promise.resolve(0),
         visibility.community ? communityApi.getPhotos(4) : Promise.resolve([]),
         visibility.community ? communityApi.getPhotos(3, 'faq') : Promise.resolve([]),
         visibility.community ? communityApi.getPhotos(3, 'qna') : Promise.resolve([]),
@@ -164,22 +151,6 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
 
     if (seq !== loadSeq.current) return;
 
-    const stampResult = {
-      stamps: stamps as PromiseSettledResult<string[]>,
-      coupons: coupons as PromiseSettledResult<number>,
-    };
-    setStampCounts((prev) => applyStampCouponLoad(prev, stampResult));
-    const failed = stampLoadFailed(stampResult);
-    stampLoad.current.failed = failed;
-    if (!failed) stampLoad.current.attempts = 0;
-    else if (shouldRetryStampLoad(stampLoad.current)) {
-      stampLoad.current.attempts += 1;
-      window.setTimeout(() => {
-        void loadRemoteData(uuid).catch((error) => {
-          console.error('stamp retry failed:', error);
-        });
-      }, 1200);
-    }
     setPhotos(settledValue(photoList, []));
     setFaqPosts(settledValue(faqList, []));
     setQnaPosts(settledValue(qnaList, []));
@@ -193,35 +164,41 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
     setWeekTripsLoading(false);
   }, []);
 
+  useLayoutEffect(() => {
+    const immediate = peekStoredAppUser();
+    if (!immediate?.uuid) return;
+    setUser({
+      uuid: immediate.uuid,
+      name: immediate.name,
+      dob: immediate.dob,
+      isAdmin: immediate.isAdmin,
+    });
+    setLoading(false);
+  }, []);
+
   const handleRefresh = useCallback(async () => {
     try {
       const { getSiteSettings } = await import('@/utils/site-settings-service');
       const settingsPromise = getSiteSettings();
-      const peeked = peekAppUser();
-      const cached = peeked
-        ? { uuid: peeked.uuid, name: peeked.name, dob: peeked.dob, isAdmin: peeked.isAdmin }
-        : await getUser();
-      if (cached?.uuid) {
-        const settings = await settingsPromise;
-        applyHomeLayout(settings);
+      const immediate = peekStoredAppUser();
+      if (immediate?.uuid) {
         setUser({
-          uuid: cached.uuid,
-          name: cached.name,
-          dob: cached.dob,
-          isAdmin: cached.isAdmin,
+          uuid: immediate.uuid,
+          name: immediate.name,
+          dob: immediate.dob,
+          isAdmin: immediate.isAdmin,
         });
         setLoading(false);
       } else {
         setLoading(true);
       }
 
-      const [appUser, settings] = await Promise.all([resolveAppUser(), settingsPromise]);
+      const appUser = await resolveAppUser();
       if (!appUser) {
         navigateReplace('/login');
         return;
       }
 
-      applyHomeLayout(settings);
       setUser({
         uuid: appUser.uuid,
         name: appUser.name,
@@ -230,6 +207,8 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
         isCaptain: appUser.isCaptain,
       });
       setLoading(false);
+      const settings = await settingsPromise;
+      applyHomeLayout(settings);
       await loadRemoteData(appUser.uuid, settings.homeSections, settings.homeSectionOrder);
     } catch (error) {
       console.error('handleRefresh error:', error);
@@ -240,43 +219,6 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
   useEffect(() => {
     void handleRefresh();
   }, [handleRefresh]);
-
-  useEffect(() => {
-    const uuid = user?.uuid;
-    if (!uuid) return;
-    const applyCached = (key: string, value: unknown, error?: unknown) => {
-      if (error && !(error instanceof TimeoutError)) stampLoad.current.failed = true;
-      setStampCounts((prev) => {
-        const next = applyStampCacheEvent(uuid, prev, key, value, error);
-        if (!error && next.stamps != null && next.coupons != null) {
-          stampLoad.current.failed = false;
-          stampLoad.current.attempts = 0;
-        }
-        return next;
-      });
-    };
-    const unsubscribe = subscribeCache(applyCached);
-    const cachedList = peekCache<string[]>(stampListCacheKey(uuid));
-    if (cachedList) applyCached(stampListCacheKey(uuid), cachedList);
-    const cachedCoupons = peekCache<number>(couponCountCacheKey(uuid));
-    if (typeof cachedCoupons === 'number') applyCached(couponCountCacheKey(uuid), cachedCoupons);
-    return unsubscribe;
-  }, [user?.uuid]);
-
-  useEffect(() => {
-    const uuid = user?.uuid;
-    if (!uuid) return;
-    const onVisible = () => {
-      if (document.visibilityState !== 'visible') return;
-      if (!shouldRetryStampLoad(stampLoad.current)) return;
-      stampLoad.current.attempts += 1;
-      void loadRemoteData(uuid).catch((error) => {
-        console.error('stamp retry failed:', error);
-      });
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [user?.uuid, loadRemoteData]);
 
   const onPullRefresh = useCallback(async () => {
     const appUser = await resolveAppUser();
@@ -291,8 +233,9 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
       isAdmin: appUser.isAdmin,
       isCaptain: appUser.isCaptain,
     });
+    reloadStampCounts();
     await loadRemoteData(appUser.uuid);
-  }, [handleRefresh, loadRemoteData]);
+  }, [handleRefresh, loadRemoteData, reloadStampCounts]);
 
   useNativePullToRefresh(onPullRefresh);
 
@@ -357,6 +300,9 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
                 <StampCouponSummary
                   stampCount={stampCounts.stamps}
                   couponCount={stampCounts.coupons}
+                  stampRetry={stampCountPresentation(stampCounts.stamps, stampExhausted) === 'retry'}
+                  couponRetry={stampCountPresentation(stampCounts.coupons, stampExhausted) === 'retry'}
+                  onRetry={reloadStampCounts}
                   stampHref={`/stamp?${query}`}
                   couponHref={`/coupons?${query}`}
                   onQrScan={async () => {

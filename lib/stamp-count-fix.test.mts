@@ -2,10 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { computeLegacyUuid } from './legacy-uuid.ts';
 import {
+  fastMemberIdCandidates,
   memberIdCandidates,
+  MEMBER_ID_LOOKUP_WAIT_MS,
   peekCachedMemberId,
   readCachedMemberId,
   resolveMemberId,
+  seedCachedMemberId,
   type ProfileLookup,
 } from './member-id-resolution.ts';
 import { CACHE_WAIT_MS, cachedFetch, invalidateCache, subscribeCache } from './query-cache.ts';
@@ -13,8 +16,20 @@ import {
   applyStampCacheEvent,
   applyStampCouponLoad,
   couponCountCacheKey,
+  initialStampRetryState,
+  isMemberUnconfirmed,
+  memberUnconfirmedError,
+  planStampCacheError,
+  planStampFailure,
+  planStampSuccess,
+  readLastKnownStampCounts,
+  resetStampRetryForResume,
   shouldRetryStampLoad,
+  stampCountPresentation,
   stampListCacheKey,
+  stampLoadFailed,
+  writeLastKnownStampCounts,
+  type StampRetryState,
 } from './stamp-count-state.ts';
 import { storedUserFromProfile } from './stored-user.ts';
 import { TimeoutError } from './with-timeout.ts';
@@ -33,7 +48,8 @@ test('a failed first load stays empty instead of showing 0', () => {
   );
   assert.deepEqual(ended, { stamps: null, coupons: null });
   assert.equal(shouldRetryStampLoad({ attempts: 0, failed: true }), true);
-  assert.equal(shouldRetryStampLoad({ attempts: 2, failed: true }), false);
+  assert.equal(shouldRetryStampLoad({ attempts: 2, failed: true }), true);
+  assert.equal(shouldRetryStampLoad({ attempts: 3, failed: true }), false);
 });
 
 test('rejected fetch notifies subscribers without turning an empty load into 0', async () => {
@@ -193,4 +209,200 @@ test('a known count is kept when a later load fails', () => {
     },
   );
   assert.deepEqual(kept, { stamps: 1, coupons: 0 });
+});
+
+test('late error after the outer timeout schedules a retry and then shows the value', async () => {
+  invalidateCache();
+  const uuid = 'late-error-user';
+  const key = stampListCacheKey(uuid);
+  let counts = { stamps: null as number | null, coupons: null as number | null };
+  let tracker = initialStampRetryState();
+  let delayMs = 0;
+  const unsub = subscribeCache((cacheKey, value, error) => {
+    counts = applyStampCacheEvent(uuid, counts, cacheKey, value, error);
+    const plan = planStampCacheError(tracker, error);
+    if (plan?.retry) {
+      tracker = plan.state;
+      delayMs = plan.delayMs;
+    }
+    if (!error && counts.stamps != null) tracker = planStampSuccess().state;
+  });
+  let fail = true;
+  const pending = cachedFetch(
+    key,
+    45_000,
+    () =>
+      new Promise<string[]>((resolve, reject) => {
+        setTimeout(() => {
+          if (fail) reject(new Error('firestore-blocked'));
+          else resolve(['stamp-1']);
+        }, CACHE_WAIT_MS + 80);
+      }),
+    CACHE_WAIT_MS,
+  );
+  await assert.rejects(pending, (error: unknown) => error instanceof TimeoutError);
+  assert.equal(
+    stampLoadFailed({
+      stamps: { status: 'rejected', reason: new TimeoutError(CACHE_WAIT_MS) },
+      coupons: { status: 'fulfilled', value: 0 },
+    }),
+    false,
+  );
+  assert.equal(counts.stamps, null);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(tracker.attempts, 1);
+  assert.equal(delayMs, 1_200);
+  assert.equal(counts.stamps, null);
+  fail = false;
+  const loaded = await cachedFetch(key, 45_000, async () => ['stamp-1'], CACHE_WAIT_MS);
+  assert.deepEqual(loaded, ['stamp-1']);
+  assert.equal(counts.stamps, 1);
+  assert.equal(tracker.attempts, 0);
+  unsub();
+  invalidateCache();
+});
+
+test('an inner member lookup timeout is a failure that retries', () => {
+  const reason = new TimeoutError(MEMBER_ID_LOOKUP_WAIT_MS);
+  assert.equal(MEMBER_ID_LOOKUP_WAIT_MS <= 10_000 && MEMBER_ID_LOOKUP_WAIT_MS >= 8_000, true);
+  assert.equal(
+    stampLoadFailed({
+      stamps: { status: 'rejected', reason },
+      coupons: { status: 'rejected', reason },
+    }),
+    true,
+  );
+  const plan = planStampCacheError(initialStampRetryState(), reason);
+  assert.equal(plan?.retry, true);
+  assert.equal(plan?.delayMs, 1_200);
+  assert.equal(planStampCacheError(initialStampRetryState(), new TimeoutError(CACHE_WAIT_MS)), null);
+});
+
+test('retries exhausted show a retry state instead of 0 or a placeholder', () => {
+  let tracker = initialStampRetryState();
+  const delays: number[] = [];
+  for (let i = 0; i < 4; i += 1) {
+    const plan = planStampFailure(tracker);
+    tracker = plan.state;
+    if (plan.retry) delays.push(plan.delayMs);
+  }
+  assert.deepEqual(delays, [1_200, 2_400, 4_800]);
+  assert.equal(tracker.exhausted, true);
+  assert.equal(planStampFailure(tracker).retry, false);
+  const counts = applyStampCouponLoad(
+    { stamps: null, coupons: null },
+    {
+      stamps: { status: 'rejected', reason: new Error('회원 정보를 확인하지 못했습니다.') },
+      coupons: { status: 'rejected', reason: new Error('회원 정보를 확인하지 못했습니다.') },
+    },
+  );
+  assert.equal(stampCountPresentation(counts.stamps, tracker.exhausted), 'retry');
+  assert.equal(stampCountPresentation(counts.coupons, tracker.exhausted), 'retry');
+  assert.notEqual(counts.stamps, 0);
+  assert.equal(stampCountPresentation(null, false), 'pending');
+  assert.equal(stampCountPresentation(0, true), 'value');
+});
+
+test('resume and online reset attempts so a later load can recover', () => {
+  let tracker: StampRetryState = { attempts: 4, failed: true, exhausted: true };
+  tracker = resetStampRetryForResume(tracker);
+  assert.equal(tracker.attempts, 0);
+  assert.equal(tracker.exhausted, false);
+  assert.equal(tracker.failed, true);
+  const plan = planStampFailure(tracker);
+  assert.equal(plan.retry, true);
+  assert.equal(plan.delayMs, 1_200);
+  const counts = applyStampCacheEvent(authId, { stamps: null, coupons: null }, stampListCacheKey(authId), ['only']);
+  assert.equal(counts.stamps, 1);
+  assert.equal(planStampSuccess().state.attempts, 0);
+});
+
+test('fbUid fast path skips profile and session refresh', async () => {
+  let profileCalls = 0;
+  let refreshCalls = 0;
+  let serverCalls = 0;
+  const result = await resolveMemberId({
+    userId: authId,
+    hint: { name: '정영남', dob: '', fbUid: legacyId, storedUuid: authId },
+    lookupProfile: async () => {
+      profileCalls += 1;
+      return { status: 'unknown' };
+    },
+    refreshSession: async () => {
+      refreshCalls += 1;
+    },
+    lookupServerMemberId: async () => {
+      serverCalls += 1;
+      return null;
+    },
+    findDoc: async (candidate) => ({ id: candidate, missing: candidate !== legacyId }),
+  });
+  assert.equal(result.id, legacyId);
+  assert.equal(profileCalls, 0);
+  assert.equal(refreshCalls, 0);
+  assert.equal(serverCalls, 0);
+  assert.deepEqual(fastMemberIdCandidates(authId, { fbUid: legacyId, storedUuid: authId }), [legacyId, authId]);
+});
+
+test('stored uuid matching the user id is tried before profile lookup', async () => {
+  let profileCalls = 0;
+  const seen: string[] = [];
+  const result = await resolveMemberId({
+    userId: normalId,
+    hint: { storedUuid: normalId, name: '김회원', dob: '19900101' },
+    lookupProfile: async () => {
+      profileCalls += 1;
+      return { status: 'found', legacyUuid: null, name: '김회원', dob: '19900101' };
+    },
+    findDoc: async (candidate) => {
+      seen.push(candidate);
+      return { id: candidate, missing: candidate !== normalId };
+    },
+  });
+  assert.equal(result.id, normalId);
+  assert.deepEqual(seen, [normalId]);
+  assert.equal(profileCalls, 0);
+});
+
+test('local fbUid seeds the in-memory member id without a profile lookup', async () => {
+  invalidateCache();
+  seedCachedMemberId(authId, legacyId);
+  let loads = 0;
+  const id = await readCachedMemberId(authId, async () => {
+    loads += 1;
+    return 'other-id';
+  });
+  assert.equal(id, legacyId);
+  assert.equal(loads, 0);
+  assert.equal(peekCachedMemberId(authId), legacyId);
+  invalidateCache();
+});
+
+test('last known counts are readable immediately and an unconfirmed id clears them', () => {
+  const mem = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => mem.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      mem.set(key, value);
+    },
+    removeItem: (key: string) => {
+      mem.delete(key);
+    },
+  };
+  assert.equal(readLastKnownStampCounts(storage, authId), null);
+  writeLastKnownStampCounts(storage, authId, { stamps: 1, coupons: 0 });
+  writeLastKnownStampCounts(storage, authId, { stamps: null, coupons: 0 });
+  assert.deepEqual(readLastKnownStampCounts(storage, authId), { stamps: 1, coupons: 0 });
+  assert.equal(stampCountPresentation(1, false), 'value');
+  const cleared = applyStampCacheEvent(
+    authId,
+    { stamps: 1, coupons: 0 },
+    stampListCacheKey(authId),
+    undefined,
+    memberUnconfirmedError(),
+  );
+  assert.equal(cleared.stamps, null);
+  assert.equal(cleared.coupons, 0);
+  assert.equal(isMemberUnconfirmed(memberUnconfirmedError()), true);
+  assert.equal(stampCountPresentation(cleared.stamps, true), 'retry');
 });

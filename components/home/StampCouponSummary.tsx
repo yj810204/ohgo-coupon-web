@@ -11,6 +11,10 @@ interface StampCouponSummaryProps {
   onCouponClick?: () => void;
   stampHref?: string;
   couponHref?: string;
+  /** 재시도를 다 쓴 칸. 0으로 보이지 않고 다시 불러오기를 보여 준다. */
+  stampRetry?: boolean;
+  couponRetry?: boolean;
+  onRetry?: () => void;
   onQrScan: () => void | boolean | Promise<void | boolean>;
 }
 
@@ -36,6 +40,8 @@ function StatBox({
   unit,
   onClick,
   href,
+  retry,
+  countName,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -43,9 +49,12 @@ function StatBox({
   unit: string;
   onClick?: () => void;
   href?: string;
+  retry?: boolean;
+  countName: string;
 }) {
+  const state = retry ? 'retry' : count == null ? 'pending' : 'ready';
   return (
-    <NavSurface href={href} onClick={onClick} style={BOX_STYLE}>
+    <NavSurface href={retry ? undefined : href} onClick={onClick} style={BOX_STYLE} ariaLabel={retry ? '다시 불러오기' : label}>
       <div
         className="d-flex align-items-center gap-1"
         style={{ fontSize: 12, opacity: 0.9, marginBottom: 8, fontFamily: FONT }}
@@ -53,8 +62,20 @@ function StatBox({
         {icon}
         <span>{label}</span>
       </div>
-      <div className="d-flex align-items-baseline gap-1" style={{ fontFamily: FONT, lineHeight: 1 }}>
-        {count == null ? (
+      <div
+        className="d-flex align-items-baseline gap-1"
+        data-count={countName}
+        data-count-state={state}
+        style={{ fontFamily: FONT, lineHeight: 1 }}
+      >
+        {retry ? (
+          <span>
+            <span style={{ fontSize: 26, fontWeight: 700 }}>–</span>
+            <span style={{ display: 'block', fontSize: 11, fontWeight: 500, marginTop: 6, opacity: 0.95 }}>
+              다시 불러오기
+            </span>
+          </span>
+        ) : count == null ? (
           <span
             aria-hidden
             style={{
@@ -68,7 +89,7 @@ function StatBox({
         ) : (
           <span style={{ fontSize: 26, fontWeight: 700 }}>{count}</span>
         )}
-        <span style={{ fontSize: 14, fontWeight: 500, opacity: 0.95 }}>{unit}</span>
+        {retry ? null : <span style={{ fontSize: 14, fontWeight: 500, opacity: 0.95 }}>{unit}</span>}
       </div>
     </NavSurface>
   );
@@ -81,6 +102,9 @@ export default function StampCouponSummary({
   onCouponClick,
   stampHref,
   couponHref,
+  stampRetry = false,
+  couponRetry = false,
+  onRetry,
   onQrScan,
 }: StampCouponSummaryProps) {
   const [qrOpening, setQrOpening] = useState(false);
@@ -99,6 +123,7 @@ export default function StampCouponSummary({
   return (
     <div
       className="text-white"
+      data-stamp-card=""
       style={{
         background: 'linear-gradient(135deg, #1B6FF5 0%, #5B8DEF 100%)',
         boxShadow: '0 4px 16px rgba(27, 111, 245, 0.35)',
@@ -114,7 +139,9 @@ export default function StampCouponSummary({
             count={stampCount}
             unit="개"
             href={stampHref}
-            onClick={onStampClick}
+            onClick={stampRetry ? onRetry : onStampClick}
+            retry={stampRetry}
+            countName="stamps"
           />
         </div>
         <div className="col-6">
@@ -124,7 +151,9 @@ export default function StampCouponSummary({
             count={couponCount}
             unit="장"
             href={couponHref}
-            onClick={onCouponClick}
+            onClick={couponRetry ? onRetry : onCouponClick}
+            retry={couponRetry}
+            countName="coupons"
           />
         </div>
       </div>
