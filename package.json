@@ -16,6 +16,7 @@
     "test:stamp-count": "node --experimental-strip-types --import ./lib/register-ts-alias.mjs --test lib/stamp-count-fix.test.mts",
     "test:boarding-ledger": "node --experimental-strip-types lib/boarding-ledger.test.mts",
     "test:resume-nav": "node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/navigation-guard.test.mts",
+    "test:community-tab": "node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/community-entry.test.mts",
     "test:korean-picker": "node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/korean-picker.test.mts",
     "test:member-purge": "node --experimental-strip-types --import ./lib/register-ts-alias.mjs lib/member-purge.shared.test.mts",
     "screenshots": "node scripts/capture-all-screenshots.mjs",

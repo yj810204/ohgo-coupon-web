@@ -10,6 +10,7 @@ import {
   type MenuItem,
 } from '@/utils/site-settings-service';
 import { getIconComponent } from '@/utils/icon-mapper';
+import { bottomTabHref } from '@/lib/community-entry';
 import { isMiniGamePlayRoute } from '@/lib/mini-game-routes';
 
 export const TAB_BAR_HEIGHT = 60;
@@ -88,7 +89,8 @@ export default function BottomTabBar() {
 
   useEffect(() => {
     for (const item of menuItems) {
-      if (item.path?.startsWith('/')) router.prefetch(item.path);
+      const href = bottomTabHref(item);
+      if (href.startsWith('/')) router.prefetch(href);
     }
   }, [menuItems, router]);
 
@@ -106,16 +108,17 @@ export default function BottomTabBar() {
         ) : (
           menuItems.map((item) => {
             const IconComponent = getIconComponent(item.iconName);
+            const href = bottomTabHref(item);
             const isActive =
-              item.path === '/main'
+              href === '/main'
                 ? pathname === '/main'
-                : pathname === item.path ||
-                  (item.path !== '/' && pathname.startsWith(item.path + '/'));
+                : pathname === href ||
+                  (href !== '/' && pathname.startsWith(href + '/'));
 
             return (
               <AppLink
                 key={item.id}
-                href={item.path}
+                href={href}
                 className={`ohgo-tab-bar__item${isActive ? ' ohgo-tab-bar__item--active' : ''}`}
                 ariaCurrent={isActive ? 'page' : undefined}
                 style={{ textDecoration: 'none' }}

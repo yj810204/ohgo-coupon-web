@@ -8,6 +8,7 @@ import {
   AUTH_WAIT_MS,
   type AppUser,
 } from '@/lib/auth-session';
+import { userAfterAuthRefresh } from '@/lib/community-entry';
 import { resumeAuthSession, visibilityIntent } from '@/lib/resume-session';
 import { getSupabaseBrowserClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import { withTimeoutFallback } from '@/lib/with-timeout';
@@ -36,11 +37,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void withTimeoutFallback(resolveAppUser(cached ? { force: true } : undefined), AUTH_WAIT_MS, cached)
       .then((next) => {
         if (cancelled) return;
-        if (next) setUser(next);
+        const kept = userAfterAuthRefresh(next, cached);
+        if (kept) setUser(kept);
         setReady(true);
       })
       .catch(() => {
-        if (!cancelled) setReady(true);
+        if (cancelled) return;
+        const kept = userAfterAuthRefresh(null, cached);
+        if (kept) setUser(kept);
+        setReady(true);
       });
 
     if (!isSupabaseConfigured()) {
