@@ -10,7 +10,12 @@ export type ProfileLookup =
   | { status: 'unknown' }
   | { status: 'absent' };
 
-export type MemberIdentityHint = { name?: string | null; dob?: string | null };
+export type MemberIdentityHint = {
+  name?: string | null;
+  dob?: string | null;
+  /** 이 로그인 id로 이전에 확인한 Firestore 문서 id */
+  fbUid?: string | null;
+};
 
 function pushLegacyCandidates(target: string[], name?: string | null, dob?: string | null) {
   const trimmedName = name?.trim() ?? '';
@@ -23,13 +28,19 @@ function pushLegacyCandidates(target: string[], name?: string | null, dob?: stri
   }
 }
 
-/** legacy_uuid, 로그인 id, 프로필 이름+생일, 기기에 저장된 이름+생일 순. */
+/**
+ * 저장된 Firestore id, 서버가 알려 준 id, legacy_uuid, 로그인 id,
+ * 프로필 이름+생일, 기기에 저장된 이름+생일 순.
+ */
 export function memberIdCandidates(
   userId: string,
   profile: ProfileLookup,
   hint?: MemberIdentityHint,
+  serverFbUid?: string | null,
 ): string[] {
   const candidates: string[] = [];
+  if (hint?.fbUid) candidates.push(hint.fbUid);
+  if (serverFbUid) candidates.push(serverFbUid);
   if (profile.status === 'found' && profile.legacyUuid) candidates.push(profile.legacyUuid);
   if (userId) candidates.push(userId);
   if (profile.status === 'found') pushLegacyCandidates(candidates, profile.name, profile.dob);
@@ -55,6 +66,7 @@ export async function resolveMemberId(input: {
   hint?: MemberIdentityHint;
   lookupProfile: () => Promise<ProfileLookup>;
   refreshSession?: () => Promise<void>;
+  lookupServerMemberId?: () => Promise<string | null>;
   findDoc: (id: string) => Promise<{ id: string; missing: boolean }>;
 }): Promise<{ id: string | null; profile: ProfileLookup }> {
   let profile = await input.lookupProfile();
@@ -67,7 +79,16 @@ export async function resolveMemberId(input: {
     profile = await input.lookupProfile();
   }
 
-  for (const candidate of memberIdCandidates(input.userId, profile, input.hint)) {
+  let serverFbUid: string | null = null;
+  if (profile.status === 'unknown' && input.lookupServerMemberId) {
+    try {
+      serverFbUid = await input.lookupServerMemberId();
+    } catch {
+      serverFbUid = null;
+    }
+  }
+
+  for (const candidate of memberIdCandidates(input.userId, profile, input.hint, serverFbUid)) {
     const found = await input.findDoc(candidate);
     if (!found.missing && found.id) return { id: found.id, profile };
   }

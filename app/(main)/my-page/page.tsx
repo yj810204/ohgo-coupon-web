@@ -96,9 +96,21 @@ export default function MyPage() {
       if (profile) {
         setAvatarUrl(profile.profileImageUrl ?? null);
       }
-      const balance = await getUserPointBalance(user.uuid);
-      setGamePoints(balance.gamePoints);
-      setCommunityPoints(balance.communityPoints);
+      let balance: Awaited<ReturnType<typeof getUserPointBalance>> | null = null;
+      try {
+        balance = await getUserPointBalance(user.uuid);
+      } catch (error) {
+        console.error(error);
+        try {
+          balance = await getUserPointBalance(user.uuid);
+        } catch (retryError) {
+          console.error(retryError);
+        }
+      }
+      if (balance) {
+        setGamePoints(balance.gamePoints);
+        setCommunityPoints(balance.communityPoints);
+      }
       const resSettings = await getReservationSettings();
       setReservationEnabled(resSettings.enabled);
     } catch (err) { console.error(err); }

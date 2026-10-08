@@ -1,4 +1,5 @@
-import { getUser } from '@/lib/storage';
+import { getUser, saveUser } from '@/lib/storage';
+import { storedUserFromProfile } from '@/lib/stored-user';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { withTimeoutFallback } from '@/lib/with-timeout';
 import {
@@ -98,6 +99,7 @@ async function resolveAppUserUncached(): Promise<AppUser | null> {
     null,
   );
   if (!profile) return localToAppUser(localUser);
+  await saveUser(storedUserFromProfile(profile, localUser));
   return profileToAppUser(profile);
 }
 

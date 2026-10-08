@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useState, Fragment } from 'react';
+import { useEffect, useCallback, useRef, useState, Fragment } from 'react';
 import { getUser } from '@/lib/storage';
 import { resolveAppUser, peekAppUser } from '@/lib/auth-session';
 import { isDevAuthBypass } from '@/lib/dev-auth';
@@ -49,11 +49,14 @@ import EmptyState from '@/components/EmptyState';
 import { OHGO_CARD, OHGO_LIST_DIVIDER, OhgoPageLoading } from '@/lib/page-styles';
 import type { PublicHomeFeed } from '@/lib/public-feed-types';
 import { peekCache, subscribeCache } from '@/lib/query-cache';
+import { TimeoutError } from '@/lib/with-timeout';
 import {
+  applyStampCacheEvent,
   applyStampCouponLoad,
-  countsFromCacheValue,
   couponCountCacheKey,
+  shouldRetryStampLoad,
   stampListCacheKey,
+  stampLoadFailed,
   type StampCouponCounts,
 } from '@/lib/stamp-count-state';
 
@@ -73,6 +76,7 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
   } | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [stampCounts, setStampCounts] = useState<StampCouponCounts>({ stamps: null, coupons: null });
+  const stampLoad = useRef({ attempts: 0, failed: false });
   const [photos, setPhotos] = useState<CommunityPhoto[]>(initialFeed?.photos ?? []);
   const [faqPosts, setFaqPosts] = useState<CommunityPhoto[]>(initialFeed?.faq ?? []);
   const [qnaPosts, setQnaPosts] = useState<CommunityPhoto[]>(initialFeed?.qna ?? []);
@@ -156,12 +160,22 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
           : Promise.resolve([]),
       ]);
 
-    setStampCounts((prev) =>
-      applyStampCouponLoad(prev, {
-        stamps: stamps as PromiseSettledResult<string[]>,
-        coupons: coupons as PromiseSettledResult<number>,
-      }),
-    );
+    const stampResult = {
+      stamps: stamps as PromiseSettledResult<string[]>,
+      coupons: coupons as PromiseSettledResult<number>,
+    };
+    setStampCounts((prev) => applyStampCouponLoad(prev, stampResult));
+    const failed = stampLoadFailed(stampResult);
+    stampLoad.current.failed = failed;
+    if (!failed) stampLoad.current.attempts = 0;
+    else if (shouldRetryStampLoad(stampLoad.current)) {
+      stampLoad.current.attempts += 1;
+      window.setTimeout(() => {
+        void loadRemoteData(uuid).catch(() => {
+          setStampCounts((prev) => ({ stamps: prev.stamps ?? 0, coupons: prev.coupons ?? 0 }));
+        });
+      }, 1200);
+    }
     setPhotos(settledValue(photoList, []));
     setFaqPosts(settledValue(faqList, []));
     setQnaPosts(settledValue(qnaList, []));
@@ -193,7 +207,9 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
           isAdmin: cached.isAdmin,
         });
         setLoading(false);
-        void loadRemoteData(cached.uuid, settings.homeSections, settings.homeSectionOrder);
+        void loadRemoteData(cached.uuid, settings.homeSections, settings.homeSectionOrder).catch(() => {
+          setStampCounts((prev) => ({ stamps: prev.stamps ?? 0, coupons: prev.coupons ?? 0 }));
+        });
       } else {
         setLoading(true);
       }
@@ -215,7 +231,9 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
       setLoading(false);
 
       if (!cached?.uuid || cached.uuid !== appUser.uuid) {
-        void loadRemoteData(appUser.uuid, settings.homeSections, settings.homeSectionOrder);
+        void loadRemoteData(appUser.uuid, settings.homeSections, settings.homeSectionOrder).catch(() => {
+          setStampCounts((prev) => ({ stamps: prev.stamps ?? 0, coupons: prev.coupons ?? 0 }));
+        });
       }
     } catch (error) {
       console.error('handleRefresh error:', error);
@@ -230,10 +248,16 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
   useEffect(() => {
     const uuid = user?.uuid;
     if (!uuid) return;
-    const applyCached = (key: string, value: unknown) => {
-      const next = countsFromCacheValue(uuid, key, value);
-      if (!next) return;
-      setStampCounts((prev) => ({ ...prev, ...next }));
+    const applyCached = (key: string, value: unknown, error?: unknown) => {
+      if (error && !(error instanceof TimeoutError)) stampLoad.current.failed = true;
+      setStampCounts((prev) => {
+        const next = applyStampCacheEvent(uuid, prev, key, value, error);
+        if (!error && next.stamps != null && next.coupons != null) {
+          stampLoad.current.failed = false;
+          stampLoad.current.attempts = 0;
+        }
+        return next;
+      });
     };
     const unsubscribe = subscribeCache(applyCached);
     const cachedList = peekCache<string[]>(stampListCacheKey(uuid));
@@ -242,6 +266,21 @@ export default function MainPage({ initialFeed = null }: { initialFeed?: PublicH
     if (typeof cachedCoupons === 'number') applyCached(couponCountCacheKey(uuid), cachedCoupons);
     return unsubscribe;
   }, [user?.uuid]);
+
+  useEffect(() => {
+    const uuid = user?.uuid;
+    if (!uuid) return;
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!shouldRetryStampLoad(stampLoad.current)) return;
+      stampLoad.current.attempts += 1;
+      void loadRemoteData(uuid).catch(() => {
+        setStampCounts((prev) => ({ stamps: prev.stamps ?? 0, coupons: prev.coupons ?? 0 }));
+      });
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [user?.uuid, loadRemoteData]);
 
   const onPullRefresh = useCallback(async () => {
     const localUser = await getUser();

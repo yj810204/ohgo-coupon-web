@@ -37,7 +37,11 @@ export function splitPointBalance(totalPoint: number, communityPoint: number): F
 
 async function readAndMaybeMigrate(sessionUserId: string): Promise<FirebasePointBalance> {
   const fbUserId = await resolveFirestoreUserId(sessionUserId);
-  if (!fbUserId) return { gamePoints: 0, communityPoints: 0, total: 0 };
+  if (!fbUserId) {
+    const error = new Error('회원 정보를 확인하지 못했습니다.');
+    error.name = 'MemberUnresolved';
+    throw error;
+  }
 
   const userRef = doc(getFirebaseDb(), 'users', fbUserId);
   const snap = await getDocFromServer(userRef);
