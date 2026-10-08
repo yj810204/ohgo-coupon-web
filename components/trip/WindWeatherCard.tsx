@@ -8,20 +8,15 @@ import {
   type WindWeatherPayload,
 } from '@/lib/open-meteo-wind';
 import { OHGO_CARD, OHGO_FONT } from '@/lib/page-styles';
+import { useHolidays } from '@/hooks/useHolidays';
 import DayAxisScroller from '@/components/trip/DayAxisScroller';
+import HolidayDateLine from '@/components/trip/HolidayDateLine';
 
 const FONT = OHGO_FONT;
-const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+const DATE_PLAIN = '#9A9FA5';
 const WIND_SLOTS = [6, 9, 12, 15, 18] as const;
 
 type WeatherKind = 'clear' | 'partly' | 'cloud' | 'fog' | 'rain' | 'snow' | 'storm' | 'none';
-
-function formatDateLine(date: string): string {
-  const month = Number(date.slice(5, 7));
-  const day = Number(date.slice(8, 10));
-  const weekday = DAY_LABELS[new Date(`${date}T12:00:00`).getDay()];
-  return `${month}월 ${day}일 (${weekday})`;
-}
 
 function weatherKind(text: string): WeatherKind {
   if (!text) return 'none';
@@ -303,6 +298,9 @@ function CardShell({
 }
 
 function CardHeader({ date }: { date: string }) {
+  const holidayYear = Number(date.slice(0, 4));
+  const holidays = useHolidays(Number.isInteger(holidayYear) ? [holidayYear] : []);
+  const holidayName = holidays[date];
   return (
     <div className="d-flex align-items-center gap-2">
       <div className="d-flex align-items-center gap-2 min-w-0">
@@ -344,9 +342,14 @@ function CardHeader({ date }: { date: string }) {
         </div>
         <div className="min-w-0">
           <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>바람</div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#9A9FA5', fontFamily: FONT, marginTop: 1 }}>
-            {formatDateLine(date)}
-          </div>
+          <HolidayDateLine
+            date={date}
+            holidayName={holidayName}
+            fontSize={12}
+            plainColor={DATE_PLAIN}
+            fontFamily={FONT}
+            marginTop={1}
+          />
         </div>
       </div>
     </div>

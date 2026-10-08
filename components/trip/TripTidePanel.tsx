@@ -13,10 +13,15 @@ import { interpolateTideCurve, kstDateTimeMs, slackWindows } from '@/lib/tide-fo
 import { estimateDayTideFlow, tideFlowFeel } from '@/lib/tide-fish-recommend';
 import { getSiteSettings } from '@/utils/site-settings-service';
 import { tripDateToStr } from '@/utils/trip-guide-service';
+import { HOLIDAY_RED } from '@/lib/kr-holidays';
+import { tideSectionTitleParts, type TideTitleParts } from '@/lib/holiday-date-label';
+import { useHolidays } from '@/hooks/useHolidays';
 import DayAxisScroller from '@/components/trip/DayAxisScroller';
+import HolidayDateLine from '@/components/trip/HolidayDateLine';
 import AppLink from '@/components/AppLink';
 
 const FONT = 'var(--font-ohgo), sans-serif';
+const DATE_PLAIN = '#9A9FA5';
 
 function SectionPictogram({ children }: { children: ReactNode }) {
   return (
@@ -37,7 +42,6 @@ function SectionPictogram({ children }: { children: ReactNode }) {
     </div>
   );
 }
-const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
 const CARD: React.CSSProperties = {
   backgroundColor: '#FFFFFF',
   borderRadius: 14,
@@ -69,19 +73,26 @@ type Props = {
   variant?: 'section' | 'embedded';
 };
 
-function formatTideTitle(date: string): string {
-  const today = tripDateToStr();
-  if (date === today) return '오늘의 물때';
-  const month = Number(date.slice(5, 7));
-  const day = Number(date.slice(8, 10));
-  return `${month}월 ${day}일 물때`;
-}
-
-function formatDateLine(date: string): string {
-  const month = Number(date.slice(5, 7));
-  const day = Number(date.slice(8, 10));
-  const weekday = DAY_LABELS[new Date(`${date}T12:00:00`).getDay()];
-  return `${month}월 ${day}일 (${weekday})`;
+function TideSectionTitle({ parts, fontSize }: { parts: TideTitleParts; fontSize: number }) {
+  return (
+    <span
+      style={{
+        minWidth: 0,
+        flex: '1 1 auto',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        fontSize,
+        fontWeight: 800,
+        color: '#1A1D1F',
+        fontFamily: FONT,
+      }}
+    >
+      <span style={{ color: parts.accentLead ? HOLIDAY_RED : '#1A1D1F' }}>{parts.lead}</span>
+      {parts.suffix ? ` ${parts.suffix}` : ''}
+      {parts.holiday ? <span style={{ color: HOLIDAY_RED }}>{` ${parts.holiday}`}</span> : null}
+    </span>
+  );
 }
 
 function TideFlowBar({ level }: { level: number }) {
@@ -401,6 +412,10 @@ export default function TripTidePanel({
   const [anchors, setAnchors] = useState<TideCurveAnchor[]>([]);
   const [stationLabel, setStationLabel] = useState(region.stationLabel);
   const [headerStats, setHeaderStats] = useState<TideHeaderStats | null>(null);
+  const holidayYear = Number(date.slice(0, 4));
+  const holidays = useHolidays(Number.isInteger(holidayYear) ? [holidayYear] : []);
+  const holidayName = holidays[date];
+  const titleParts = tideSectionTitleParts(date, tripDateToStr(), holidayName);
 
   useEffect(() => {
     if (tideRegionId) {
@@ -446,7 +461,6 @@ export default function TripTidePanel({
   if (!tideLabel && events.length === 0 && !headerStats) return null;
 
   const flowLevel = headerStats?.flowLevel ?? 0;
-  const title = formatTideTitle(date);
   const card = (
     <div style={variant === 'embedded' ? { ...CARD, boxShadow: 'none', border: '1px solid #EFEFEF' } : CARD}>
       <div
@@ -457,9 +471,14 @@ export default function TripTidePanel({
           <div style={{ fontSize: 12, fontWeight: 700, color: '#6F767E', fontFamily: FONT }}>
             {region.label}
           </div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#9A9FA5', fontFamily: FONT, marginTop: 2 }}>
-            {formatDateLine(date)}
-          </div>
+          <HolidayDateLine
+            date={date}
+            holidayName={holidayName}
+            fontSize={13}
+            plainColor={DATE_PLAIN}
+            fontFamily={FONT}
+            marginTop={2}
+          />
         </div>
         <div className="min-w-0" style={{ flex: '1 1 auto', textAlign: 'center', fontFamily: FONT }}>
           <div style={{ height: 15, fontSize: 11, fontWeight: 800, color: '#DC2626', lineHeight: '15px' }}>
@@ -541,7 +560,7 @@ export default function TripTidePanel({
   if (variant === 'embedded') {
     return (
       <div>
-        <div className="d-flex align-items-center gap-2" style={{ marginBottom: 8 }}>
+        <div className="d-flex align-items-center gap-2" style={{ marginBottom: 8, minWidth: 0 }}>
           <SectionPictogram>
             <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
               <path
@@ -565,7 +584,7 @@ export default function TripTidePanel({
               />
             </svg>
           </SectionPictogram>
-          <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>{title}</div>
+          <TideSectionTitle parts={titleParts} fontSize={15} />
         </div>
         {card}
       </div>
@@ -574,10 +593,8 @@ export default function TripTidePanel({
 
   return (
     <section style={{ marginBottom: 30 }}>
-      <div className="d-flex align-items-center justify-content-between" style={{ marginBottom: 8 }}>
-        <span style={{ fontSize: 17, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
-          {title}
-        </span>
+      <div className="d-flex align-items-center justify-content-between" style={{ marginBottom: 8, gap: 8 }}>
+        <TideSectionTitle parts={titleParts} fontSize={17} />
         {onViewAll || viewAllHref || showViewAll ? (
           viewAllHref ? (
             <AppLink
