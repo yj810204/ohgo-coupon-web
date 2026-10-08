@@ -1,6 +1,7 @@
 'use client';
 
-import { formatHolidayDateLine, holidayDateTextColor } from '@/lib/holiday-date-label';
+import { holidayDateParts, holidayDateTextColor } from '@/lib/holiday-date-label';
+import { HOLIDAY_RED } from '@/lib/kr-holidays';
 
 export default function HolidayDateLine({
   date,
@@ -18,23 +19,25 @@ export default function HolidayDateLine({
   marginTop?: number;
 }) {
   const official = holidayName?.trim() ?? '';
-  const label = formatHolidayDateLine(date, official);
+  const { dateLine, holidayLine } = holidayDateParts(date, official);
+  const lineStyle = {
+    fontWeight: 600,
+    fontFamily,
+    lineHeight: 1.3,
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  };
   return (
-    <div
-      title={official || undefined}
-      style={{
-        fontSize,
-        fontWeight: 600,
-        color: holidayDateTextColor(date, official, plainColor),
-        fontFamily,
-        marginTop,
-        lineHeight: 1.3,
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-      }}
-    >
-      {label}
+    <div title={official || undefined} style={{ marginTop, minWidth: 0 }}>
+      <div style={{ ...lineStyle, fontSize, color: holidayDateTextColor(date, official, plainColor) }}>
+        {dateLine}
+      </div>
+      {holidayLine ? (
+        <div style={{ ...lineStyle, fontSize: Math.max(11, fontSize - 1), color: HOLIDAY_RED, marginTop: 1 }}>
+          {holidayLine}
+        </div>
+      ) : null}
     </div>
   );
 }

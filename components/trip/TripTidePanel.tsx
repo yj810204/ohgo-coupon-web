@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
+import { IoChevronForwardOutline } from 'react-icons/io5';
 import {
   getTideLabel,
   getTideRegion,
@@ -14,7 +15,9 @@ import { getSiteSettings } from '@/utils/site-settings-service';
 import { useHolidays } from '@/hooks/useHolidays';
 import DayAxisScroller from '@/components/trip/DayAxisScroller';
 import HolidayDateLine from '@/components/trip/HolidayDateLine';
-import SectionHeader from '@/components/home/SectionHeader';
+import AppLink from '@/components/AppLink';
+
+const TIDE_SECTION_TITLE = '오늘의 물때';
 
 const FONT = 'var(--font-ohgo), sans-serif';
 const DATE_PLAIN = '#9A9FA5';
@@ -533,7 +536,7 @@ export default function TripTidePanel({
   if (variant === 'embedded') {
     return (
       <div>
-        <div className="d-flex align-items-center gap-2" style={{ marginBottom: 8, minWidth: 0 }}>
+        <div className="d-flex align-items-center gap-2" style={{ marginBottom: 8 }}>
           <SectionPictogram>
             <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
               <path
@@ -557,7 +560,7 @@ export default function TripTidePanel({
               />
             </svg>
           </SectionPictogram>
-          <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>물때</div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>{TIDE_SECTION_TITLE}</div>
         </div>
         {card}
       </div>
@@ -566,12 +569,45 @@ export default function TripTidePanel({
 
   return (
     <section style={{ marginBottom: 30 }}>
-      <SectionHeader
-        title="물때"
-        onViewAll={onViewAll}
-        viewAllHref={viewAllHref}
-        showViewAll={showViewAll}
-      />
+      <div className="d-flex align-items-center justify-content-between" style={{ marginBottom: 8 }}>
+        <span style={{ fontSize: 17, fontWeight: 800, color: '#1A1D1F', fontFamily: FONT }}>
+          {TIDE_SECTION_TITLE}
+        </span>
+        {onViewAll || viewAllHref || showViewAll ? (
+          viewAllHref ? (
+            <AppLink
+              href={viewAllHref}
+              className="btn p-0 d-flex align-items-center gap-1 flex-shrink-0"
+              style={{
+                border: 'none',
+                background: 'none',
+                color: '#1B6FF5',
+                fontSize: 13,
+                fontFamily: FONT,
+                fontWeight: 600,
+              }}
+            >
+              더보기 <IoChevronForwardOutline size={14} />
+            </AppLink>
+          ) : (
+            <button
+              type="button"
+              onClick={onViewAll}
+              className="btn p-0 d-flex align-items-center gap-1 flex-shrink-0"
+              style={{
+                border: 'none',
+                background: 'none',
+                color: '#1B6FF5',
+                fontSize: 13,
+                fontFamily: FONT,
+                fontWeight: 600,
+              }}
+            >
+              더보기 <IoChevronForwardOutline size={14} />
+            </button>
+          )
+        ) : null}
+      </div>
       {card}
     </section>
   );

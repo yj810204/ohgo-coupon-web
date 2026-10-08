@@ -17,11 +17,19 @@ export function formatWeekdayParen(date: string): string {
   return `(${DAY_LABELS[weekdayIndex(date)]})`;
 }
 
-/** "10월 9일 (금)" 또는 "10월 9일 (금) 한글날". 섹션 제목에는 넣지 않는다. */
-export function formatHolidayDateLine(date: string, holidayName?: string | null): string {
-  const base = `${formatMonthDay(date)} ${formatWeekdayParen(date)}`.trim();
-  const holiday = holidayShortLabel(holidayName);
-  return holiday ? `${base} ${holiday}` : base;
+export type HolidayDateParts = {
+  /** "10월 9일 (금)" */
+  dateLine: string;
+  /** "한글날". 공휴일이 아니면 빈 문자열 */
+  holidayLine: string;
+};
+
+/** 카드 안 날짜. 공휴일 이름은 다음 줄이다. */
+export function holidayDateParts(date: string, holidayName?: string | null): HolidayDateParts {
+  return {
+    dateLine: `${formatMonthDay(date)} ${formatWeekdayParen(date)}`.trim(),
+    holidayLine: holidayShortLabel(holidayName),
+  };
 }
 
 /**
