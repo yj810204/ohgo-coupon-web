@@ -2356,7 +2356,11 @@ html body .btn:not(.ohgo-modal__btn):not([class*="btn-outline-"]):not(.btn-prima
   box-sizing: content-box;
   width: 100%;
   height: 0;
+  /* 아이폰 그리드에서 aspect-ratio 가 원을 타원으로 늘리는 경우가 있어
+     너비 대비 padding 으로 칸을 정사각형으로 고정한다. */
   padding: 0 0 100%;
+  min-width: 0;
+  min-height: 0;
   border: 0;
   background: transparent;
   color: rgba(255, 255, 255, 0.75);
@@ -2371,6 +2375,12 @@ html body .btn:not(.ohgo-modal__btn):not([class*="btn-outline-"]):not(.btn-prima
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  /* 정사각형 계산은 칸의 padding 에 두고, 글자만 이 원의 작은 변에 맞춘다. */
+  container-type: size;
+  container-name: stamp-face;
   border: 2px dashed rgba(255, 255, 255, 0.55);
   border-radius: 50%;
 }
@@ -2398,7 +2408,8 @@ html body .btn:not(.ohgo-modal__btn):not([class*="btn-outline-"]):not(.btn-prima
 }
 
 .ohgo-stamp-board__half {
-  font-size: 16px;
+  font-size: 12px;
+  font-size: 32cqmin;
   font-weight: 800;
   letter-spacing: -0.04em;
   color: rgba(255, 255, 255, 0.45);
@@ -2418,7 +2429,8 @@ html body .btn:not(.ohgo-modal__btn):not([class*="btn-outline-"]):not(.btn-prima
 
 .ohgo-stamp-board__seal.is-mark {
   font-family: var(--font-ohgo);
-  font-size: 16px;
+  font-size: 11px;
+  font-size: 30cqmin;
   letter-spacing: -0.03em;
 }
 
@@ -2430,20 +2442,23 @@ html body .btn:not(.ohgo-modal__btn):not([class*="btn-outline-"]):not(.btn-prima
   box-sizing: border-box;
   width: 100%;
   height: 100%;
+  overflow: hidden;
   border: 2px solid currentColor;
   border-radius: 50%;
   font-family: 'Nanum Myeongjo', Batang, serif;
-  font-size: 12px;
+  font-size: 9px;
+  font-size: 24cqmin;
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1.05;
   white-space: nowrap;
   opacity: 0.9;
 }
 
 .ohgo-stamp-board__seal.is-two {
-  font-size: 13px;
-  letter-spacing: 0.04em;
-  text-indent: 0.04em;
+  font-size: 9px;
+  font-size: 26cqmin;
+  letter-spacing: 0.02em;
+  text-indent: 0.02em;
 }
 
 .ohgo-stamp-board__cell.is-on:nth-child(3n + 2) {
